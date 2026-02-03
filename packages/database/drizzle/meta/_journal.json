@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1770109175616,
+      "tag": "0000_pink_prima",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1770115275116,
+      "tag": "0001_conscious_shadowcat",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1770141600000,
+      "tag": "0002_update_accounts_for_better_auth",
+      "breakpoints": true
+    }
+  ]
+}

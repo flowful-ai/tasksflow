@@ -1,0 +1,36 @@
+{
+  "name": "flowtask",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A comprehensive task management platform with GitHub/Slack integrations and AI agent capabilities",
+  "author": "FlowTask Team",
+  "license": "MIT",
+  "engines": {
+    "bun": ">=1.1.0"
+  },
+  "packageManager": "bun@1.1.42",
+  "scripts": {
+    "dev": "turbo run dev --filter=@flowtask/api --filter=@flowtask/web",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "db:generate": "bun --filter @flowtask/database db:generate",
+    "db:migrate": "bun --filter @flowtask/database db:migrate",
+    "db:push": "bun --filter @flowtask/database db:push",
+    "db:studio": "bun --filter @flowtask/database db:studio",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\""
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.14",
+    "prettier": "^3.4.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}

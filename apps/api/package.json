@@ -1,0 +1,29 @@
+{
+  "name": "@flowtask/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --env-file=../../.env --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "start": "bun run dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@flowtask/auth": "workspace:*",
+    "@flowtask/database": "workspace:*",
+    "@flowtask/domain": "workspace:*",
+    "@flowtask/integrations": "workspace:*",
+    "@flowtask/shared": "workspace:*",
+    "@hono/zod-validator": "^0.4.2",
+    "drizzle-orm": "^0.38.2",
+    "hono": "^4.6.14",
+    "ioredis": "^5.4.2",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.14",
+    "typescript": "^5.7.2"
+  }
+}

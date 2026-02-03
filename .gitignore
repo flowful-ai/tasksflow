@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Bun
+.bun/
+
+# Build outputs
+dist/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+
+# OS files
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+.cache/
+
+# Docker volumes
+.docker/
+postgres-data/
+
+# Playwright/E2E testing
+playwright-report/
+test-results/
+
+# Unused package manager lockfiles
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
