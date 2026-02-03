@@ -5,6 +5,7 @@ import { Plus, MoreHorizontal } from 'lucide-react';
 import { api } from '../api/client';
 import { KanbanBoard } from '../components/kanban/KanbanBoard';
 import { TaskModal } from '../components/tasks/TaskModal';
+import { TaskDetailSheet } from '../components/tasks/TaskDetailSheet';
 
 export function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -102,15 +103,14 @@ export function ProjectPage() {
         />
       )}
 
-      {/* Task Detail Modal */}
+      {/* Task Detail Sheet */}
       {selectedTaskId && (
-        <TaskModal
+        <TaskDetailSheet
           taskId={selectedTaskId}
           projectId={projectId!}
-          states={taskStates as { id: string; name: string }[]}
+          states={taskStates as { id: string; name: string; color: string | null; category: string }[]}
           onClose={() => setSelectedTaskId(null)}
           onUpdated={() => {
-            setSelectedTaskId(null);
             refetchTasks();
           }}
         />
