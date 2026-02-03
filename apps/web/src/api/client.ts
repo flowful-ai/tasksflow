@@ -67,4 +67,78 @@ export const api = {
   delete: <T>(endpoint: string) => request<T>(endpoint, { method: 'DELETE' }),
 };
 
+// Workspace Agent types for API responses
+export interface WorkspaceAgent {
+  id: string;
+  workspaceId: string;
+  restrictedProjectIds: string[] | null;
+  name: string;
+  description: string | null;
+  tokenPrefix: string;
+  lastUsedAt: string | null;
+  permissions: string[];
+  tokensPerDay: number;
+  isActive: boolean;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+export interface WorkspaceAgentWithToken extends WorkspaceAgent {
+  token: string;
+}
+
+export interface CreateWorkspaceAgentInput {
+  name: string;
+  description?: string;
+  permissions: string[];
+  restrictedProjectIds?: string[];
+  tokensPerDay?: number;
+  expiresAt?: string;
+}
+
+export interface UpdateWorkspaceAgentInput {
+  name?: string;
+  description?: string | null;
+  permissions?: string[];
+  restrictedProjectIds?: string[] | null;
+  tokensPerDay?: number;
+  isActive?: boolean;
+  expiresAt?: string | null;
+}
+
+// Workspace Agent API methods
+export const workspaceAgentApi = {
+  list: (workspaceId: string) =>
+    api.get<{ success: boolean; data: { agents: WorkspaceAgent[]; total: number } }>(
+      `/api/workspaces/${workspaceId}/agents`
+    ),
+
+  create: (workspaceId: string, data: CreateWorkspaceAgentInput) =>
+    api.post<{ success: boolean; data: WorkspaceAgentWithToken; message: string }>(
+      `/api/workspaces/${workspaceId}/agents`,
+      data
+    ),
+
+  get: (workspaceId: string, agentId: string) =>
+    api.get<{ success: boolean; data: WorkspaceAgent }>(
+      `/api/workspaces/${workspaceId}/agents/${agentId}`
+    ),
+
+  update: (workspaceId: string, agentId: string, data: UpdateWorkspaceAgentInput) =>
+    api.patch<{ success: boolean; data: WorkspaceAgent }>(
+      `/api/workspaces/${workspaceId}/agents/${agentId}`,
+      data
+    ),
+
+  delete: (workspaceId: string, agentId: string) =>
+    api.delete<{ success: boolean; data: null }>(
+      `/api/workspaces/${workspaceId}/agents/${agentId}`
+    ),
+
+  regenerate: (workspaceId: string, agentId: string) =>
+    api.post<{ success: boolean; data: WorkspaceAgentWithToken; message: string }>(
+      `/api/workspaces/${workspaceId}/agents/${agentId}/regenerate`
+    ),
+};
+
 export { ApiError };

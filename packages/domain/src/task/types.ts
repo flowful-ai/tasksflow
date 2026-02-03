@@ -14,15 +14,15 @@ export interface TaskWithRelations extends Task {
 
 export interface TaskCreateInput extends CreateTask {
   projectId: string;
-  createdBy: string;
+  createdBy: string | null;
 }
 
 export interface TaskUpdateInput extends UpdateTask {
-  updatedBy: string;
+  updatedBy: string | null;
 }
 
 export interface TaskMoveInput extends MoveTask {
-  movedBy: string;
+  movedBy: string | null;
 }
 
 export interface TaskFilters {

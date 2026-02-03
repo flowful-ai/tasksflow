@@ -15,6 +15,8 @@ import { webhookRoutes } from './routes/webhooks.js';
 import { publicRoutes } from './routes/public.js';
 import { agentRoutes } from './routes/agents.js';
 import { mcpRoutes } from './routes/mcp.js';
+import { mcpSseRoutes } from './routes/mcp-sse.js';
+import { workspaceAgentRoutes } from './routes/workspace-agents.js';
 
 // Import WebSocket handler
 import { setupWebSocket } from './websocket/handler.js';
@@ -50,12 +52,16 @@ app.route('/api/public', publicRoutes);
 // Webhook routes (verified by signature)
 app.route('/api/webhooks', webhookRoutes);
 
+// MCP SSE routes (handles its own token authentication)
+app.route('/api/mcp', mcpSseRoutes);
+
 // Protected routes (require authentication)
 app.use('/api/*', authMiddleware);
 
 // API routes
 app.route('/api/workspaces', workspaceRoutes);
 app.route('/api/projects', projectRoutes);
+app.route('/api/workspaces', workspaceAgentRoutes); // Workspace agent routes nested under workspaces
 app.route('/api/tasks', taskRoutes);
 app.route('/api/tasks', commentRoutes); // Comment routes nested under tasks
 app.route('/api/smart-views', smartViewRoutes);

@@ -1,4 +1,4 @@
-import { eq, and, or, inArray, isNull, sql, desc, asc, like, lt, gt, SQL } from 'drizzle-orm';
+import { eq, and, or, inArray, isNull, sql, desc, asc, ilike, lt, gt, SQL } from 'drizzle-orm';
 import type { Database } from '@flowtask/database';
 import {
   tasks,
@@ -31,6 +31,26 @@ export class TaskService {
    */
   async create(input: TaskCreateInput): Promise<Result<TaskWithRelations, Error>> {
     try {
+      // Default to first backlog state if stateId not provided
+      let stateId = input.stateId;
+      if (!stateId) {
+        const [defaultState] = await this.db
+          .select({ id: taskStates.id })
+          .from(taskStates)
+          .where(
+            and(
+              eq(taskStates.projectId, input.projectId),
+              eq(taskStates.category, 'backlog')
+            )
+          )
+          .orderBy(asc(taskStates.position))
+          .limit(1);
+
+        if (defaultState) {
+          stateId = defaultState.id;
+        }
+      }
+
       // Get the next sequence number for the project
       const [maxSeq] = await this.db
         .select({ maxSeq: sql<number>`COALESCE(MAX(${tasks.sequenceNumber}), 0)` })
@@ -41,11 +61,11 @@ export class TaskService {
 
       // Get the last position in the target state (or globally if no state specified)
       let position: string;
-      if (input.stateId) {
+      if (stateId) {
         const [lastTask] = await this.db
           .select({ position: tasks.position })
           .from(tasks)
-          .where(and(eq(tasks.projectId, input.projectId), eq(tasks.stateId, input.stateId)))
+          .where(and(eq(tasks.projectId, input.projectId), eq(tasks.stateId, stateId)))
           .orderBy(desc(tasks.position))
           .limit(1);
         position = positionAfter(lastTask?.position);
@@ -58,7 +78,7 @@ export class TaskService {
         .insert(tasks)
         .values({
           projectId: input.projectId,
-          stateId: input.stateId || null,
+          stateId: stateId || null,
           sequenceNumber,
           title: input.title,
           description: input.description || null,
@@ -264,7 +284,7 @@ export class TaskService {
   /**
    * Soft delete a task.
    */
-  async delete(taskId: string, deletedBy: string): Promise<Result<void, Error>> {
+  async delete(taskId: string, deletedBy: string | null): Promise<Result<void, Error>> {
     try {
       await this.db
         .update(tasks)
@@ -286,7 +306,7 @@ export class TaskService {
   /**
    * Restore a soft-deleted task.
    */
-  async restore(taskId: string, restoredBy: string): Promise<Result<TaskWithRelations, Error>> {
+  async restore(taskId: string, restoredBy: string | null): Promise<Result<TaskWithRelations, Error>> {
     try {
       await this.db.update(tasks).set({ deletedAt: null }).where(eq(tasks.id, taskId));
 
@@ -354,7 +374,7 @@ export class TaskService {
 
       if (filters.search) {
         conditions.push(
-          or(like(tasks.title, `%${filters.search}%`), like(tasks.description, `%${filters.search}%`))!
+          or(ilike(tasks.title, `%${filters.search}%`), ilike(tasks.description, `%${filters.search}%`))!
         );
       }
 
@@ -449,7 +469,7 @@ export class TaskService {
   /**
    * Add an assignee to a task.
    */
-  async addAssignee(taskId: string, userId: string, assignedBy: string): Promise<Result<void, Error>> {
+  async addAssignee(taskId: string, userId: string, assignedBy: string | null): Promise<Result<void, Error>> {
     try {
       await this.db.insert(taskAssignees).values({ taskId, userId }).onConflictDoNothing();
 
@@ -469,7 +489,7 @@ export class TaskService {
   /**
    * Remove an assignee from a task.
    */
-  async removeAssignee(taskId: string, userId: string, removedBy: string): Promise<Result<void, Error>> {
+  async removeAssignee(taskId: string, userId: string, removedBy: string | null): Promise<Result<void, Error>> {
     try {
       await this.db
         .delete(taskAssignees)

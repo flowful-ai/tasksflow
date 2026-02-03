@@ -22,6 +22,13 @@
       "when": 1770141600000,
       "tag": "0002_update_accounts_for_better_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1770170400000,
+      "tag": "0003_workspace_agents",
+      "breakpoints": true
     }
   ]
 }

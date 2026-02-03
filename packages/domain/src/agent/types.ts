@@ -172,7 +172,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'summarize_project',
-    description: 'Get a summary of a project including task statistics',
+    description: 'Get a summary of a project including task statistics and available states (with IDs for use with move_task)',
     parameters: {
       type: 'object',
       properties: {
@@ -204,6 +204,15 @@ export const AGENT_TOOLS: ToolDefinition[] = [
         limit: { type: 'string', description: 'Maximum number of results (default 20)' },
       },
       required: ['query'],
+    },
+  },
+  {
+    name: 'list_projects',
+    description: 'List all projects accessible to this agent',
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: [],
     },
   },
 ];

@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Pencil, Check, Clock, User, Tag, Calendar } from 'lucide-react';
+import { X, Pencil, Check, Clock } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import { api } from '../../api/client';
 import clsx from 'clsx';
+import { AssigneePicker } from './AssigneePicker';
+import { LabelPicker } from './LabelPicker';
+import { DueDatePicker } from './DueDatePicker';
 
 interface TaskState {
   id: string;
@@ -37,6 +40,27 @@ interface TaskDetail {
   updatedAt: string | null;
 }
 
+interface ProjectDetail {
+  id: string;
+  workspaceId: string;
+  name: string;
+  labels: { id: string; name: string; color: string | null }[];
+}
+
+interface WorkspaceDetail {
+  id: string;
+  name: string;
+  members: {
+    userId: string;
+    role: string;
+    user: {
+      id: string;
+      name: string | null;
+      email: string;
+    };
+  }[];
+}
+
 export function TaskDetailSheet({
   taskId,
   projectId,
@@ -64,6 +88,28 @@ export function TaskDetailSheet({
     },
   });
 
+  // Fetch project details (includes labels and workspaceId)
+  const { data: projectDetail } = useQuery({
+    queryKey: ['project', projectId],
+    queryFn: async () => {
+      const response = await api.get<{ data: ProjectDetail }>(`/api/projects/${projectId}`);
+      return response.data;
+    },
+    enabled: !!projectId,
+  });
+
+  // Fetch workspace members
+  const { data: workspaceDetail } = useQuery({
+    queryKey: ['workspace', projectDetail?.workspaceId],
+    queryFn: async () => {
+      const response = await api.get<{ data: WorkspaceDetail }>(
+        `/api/workspaces/${projectDetail!.workspaceId}`
+      );
+      return response.data;
+    },
+    enabled: !!projectDetail?.workspaceId,
+  });
+
   // Initialize edit values when task loads
   useEffect(() => {
     if (task) {
@@ -88,8 +134,62 @@ export function TaskDetailSheet({
 
   // Update mutation
   const updateMutation = useMutation({
-    mutationFn: async (data: { title?: string; description?: string; stateId?: string; priority?: string }) => {
+    mutationFn: async (data: {
+      title?: string;
+      description?: string;
+      stateId?: string;
+      priority?: string;
+      dueDate?: string | null;
+    }) => {
       return api.patch(`/api/tasks/${taskId}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+      onUpdated?.();
+    },
+  });
+
+  // Add assignee mutation
+  const addAssigneeMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return api.post(`/api/tasks/${taskId}/assignees`, { userId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+      onUpdated?.();
+    },
+  });
+
+  // Remove assignee mutation
+  const removeAssigneeMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return api.delete(`/api/tasks/${taskId}/assignees/${userId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+      onUpdated?.();
+    },
+  });
+
+  // Add label mutation
+  const addLabelMutation = useMutation({
+    mutationFn: async (labelId: string) => {
+      return api.post(`/api/tasks/${taskId}/labels`, { labelId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+      onUpdated?.();
+    },
+  });
+
+  // Remove label mutation
+  const removeLabelMutation = useMutation({
+    mutationFn: async (labelId: string) => {
+      return api.delete(`/api/tasks/${taskId}/labels/${labelId}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['task', taskId] });
@@ -123,6 +223,10 @@ export function TaskDetailSheet({
     if (newPriority !== task?.priority) {
       await updateMutation.mutateAsync({ priority: newPriority || undefined });
     }
+  };
+
+  const handleDueDateChange = async (date: string | null) => {
+    await updateMutation.mutateAsync({ dueDate: date });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent, onSave: () => void, onCancel: () => void) => {
@@ -203,10 +307,12 @@ export function TaskDetailSheet({
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
                     onBlur={handleSaveTitle}
-                    onKeyDown={(e) => handleKeyDown(e, handleSaveTitle, () => {
-                      setEditTitle(task.title);
-                      setIsEditingTitle(false);
-                    })}
+                    onKeyDown={(e) =>
+                      handleKeyDown(e, handleSaveTitle, () => {
+                        setEditTitle(task.title);
+                        setIsEditingTitle(false);
+                      })
+                    }
                     className="flex-1 text-xl font-semibold text-gray-900 px-2 py-1 border border-primary-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     disabled={updateMutation.isPending}
                   />
@@ -334,19 +440,53 @@ export function TaskDetailSheet({
                   {task.description ? (
                     <ReactMarkdown
                       components={{
-                        h1: ({ children }) => <h1 className="text-xl font-semibold text-gray-900 mb-2">{children}</h1>,
-                        h2: ({ children }) => <h2 className="text-lg font-semibold text-gray-900 mb-2">{children}</h2>,
-                        h3: ({ children }) => <h3 className="text-base font-semibold text-gray-900 mb-1">{children}</h3>,
-                        p: ({ children }) => <p className="text-sm text-gray-600 mb-2 last:mb-0">{children}</p>,
-                        strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
+                        h1: ({ children }) => (
+                          <h1 className="text-xl font-semibold text-gray-900 mb-2">{children}</h1>
+                        ),
+                        h2: ({ children }) => (
+                          <h2 className="text-lg font-semibold text-gray-900 mb-2">{children}</h2>
+                        ),
+                        h3: ({ children }) => (
+                          <h3 className="text-base font-semibold text-gray-900 mb-1">{children}</h3>
+                        ),
+                        p: ({ children }) => (
+                          <p className="text-sm text-gray-600 mb-2 last:mb-0">{children}</p>
+                        ),
+                        strong: ({ children }) => (
+                          <strong className="font-semibold text-gray-900">{children}</strong>
+                        ),
                         em: ({ children }) => <em className="italic">{children}</em>,
-                        ul: ({ children }) => <ul className="list-disc list-inside text-sm text-gray-600 mb-2 space-y-1">{children}</ul>,
-                        ol: ({ children }) => <ol className="list-decimal list-inside text-sm text-gray-600 mb-2 space-y-1">{children}</ol>,
+                        ul: ({ children }) => (
+                          <ul className="list-disc list-inside text-sm text-gray-600 mb-2 space-y-1">
+                            {children}
+                          </ul>
+                        ),
+                        ol: ({ children }) => (
+                          <ol className="list-decimal list-inside text-sm text-gray-600 mb-2 space-y-1">
+                            {children}
+                          </ol>
+                        ),
                         li: ({ children }) => <li>{children}</li>,
-                        a: ({ href, children }) => <a href={href} className="text-primary-600 hover:underline">{children}</a>,
-                        code: ({ children }) => <code className="text-xs bg-gray-200 text-gray-800 px-1 py-0.5 rounded">{children}</code>,
-                        pre: ({ children }) => <pre className="bg-gray-800 text-gray-100 p-3 rounded-lg text-xs overflow-x-auto mb-2">{children}</pre>,
-                        blockquote: ({ children }) => <blockquote className="border-l-4 border-gray-300 pl-3 italic text-gray-500 text-sm mb-2">{children}</blockquote>,
+                        a: ({ href, children }) => (
+                          <a href={href} className="text-primary-600 hover:underline">
+                            {children}
+                          </a>
+                        ),
+                        code: ({ children }) => (
+                          <code className="text-xs bg-gray-200 text-gray-800 px-1 py-0.5 rounded">
+                            {children}
+                          </code>
+                        ),
+                        pre: ({ children }) => (
+                          <pre className="bg-gray-800 text-gray-100 p-3 rounded-lg text-xs overflow-x-auto mb-2">
+                            {children}
+                          </pre>
+                        ),
+                        blockquote: ({ children }) => (
+                          <blockquote className="border-l-4 border-gray-300 pl-3 italic text-gray-500 text-sm mb-2">
+                            {children}
+                          </blockquote>
+                        ),
                       }}
                     >
                       {task.description}
@@ -364,79 +504,29 @@ export function TaskDetailSheet({
             {/* Metadata */}
             <div className="space-y-4">
               {/* Assignees */}
-              <div>
-                <div className="flex items-center space-x-2 text-sm font-medium text-gray-500 mb-2">
-                  <User className="w-4 h-4" />
-                  <span>Assignees</span>
-                </div>
-                {task.assignees.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {task.assignees.map((assignee) => (
-                      <div
-                        key={assignee.id}
-                        className="flex items-center space-x-2 px-2.5 py-1.5 bg-gray-100 rounded-full"
-                      >
-                        <div className="w-5 h-5 rounded-full bg-primary-100 flex items-center justify-center">
-                          <span className="text-xs font-medium text-primary-600">
-                            {assignee.name?.[0] || assignee.email[0]?.toUpperCase()}
-                          </span>
-                        </div>
-                        <span className="text-sm text-gray-700">
-                          {assignee.name || assignee.email}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-400">No assignees</p>
-                )}
-              </div>
+              <AssigneePicker
+                currentAssignees={task.assignees}
+                workspaceMembers={workspaceDetail?.members || []}
+                onAdd={(userId) => addAssigneeMutation.mutate(userId)}
+                onRemove={(userId) => removeAssigneeMutation.mutate(userId)}
+                isLoading={addAssigneeMutation.isPending || removeAssigneeMutation.isPending}
+              />
 
               {/* Labels */}
-              <div>
-                <div className="flex items-center space-x-2 text-sm font-medium text-gray-500 mb-2">
-                  <Tag className="w-4 h-4" />
-                  <span>Labels</span>
-                </div>
-                {task.labels.length > 0 ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {task.labels.map((label) => (
-                      <span
-                        key={label.id}
-                        className="px-2.5 py-1 text-xs font-medium rounded-full"
-                        style={{
-                          backgroundColor: label.color ? `${label.color}20` : '#e5e7eb',
-                          color: label.color || '#374151',
-                        }}
-                      >
-                        {label.name}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-400">No labels</p>
-                )}
-              </div>
+              <LabelPicker
+                currentLabels={task.labels}
+                projectLabels={projectDetail?.labels || []}
+                onAdd={(labelId) => addLabelMutation.mutate(labelId)}
+                onRemove={(labelId) => removeLabelMutation.mutate(labelId)}
+                isLoading={addLabelMutation.isPending || removeLabelMutation.isPending}
+              />
 
               {/* Due Date */}
-              <div>
-                <div className="flex items-center space-x-2 text-sm font-medium text-gray-500 mb-2">
-                  <Calendar className="w-4 h-4" />
-                  <span>Due date</span>
-                </div>
-                {task.dueDate ? (
-                  <p className="text-sm text-gray-700">
-                    {new Date(task.dueDate).toLocaleDateString(undefined, {
-                      weekday: 'short',
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                    })}
-                  </p>
-                ) : (
-                  <p className="text-sm text-gray-400">No due date</p>
-                )}
-              </div>
+              <DueDatePicker
+                value={task.dueDate}
+                onChange={handleDueDateChange}
+                isLoading={updateMutation.isPending}
+              />
 
               {/* Created */}
               <div>

@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
-import { User, Building2, Link2, Key } from 'lucide-react';
+import { User, Building2, Link2, Key, Bot } from 'lucide-react';
 import clsx from 'clsx';
 import { useWorkspaceStore } from '../stores/workspace';
+import { AgentSettings } from '../components/settings/AgentSettings';
 
 function ProfileSettings() {
   return (
@@ -214,6 +215,7 @@ export function SettingsPage() {
     { name: 'Profile', href: '/settings', icon: User },
     { name: 'Workspace', href: '/settings/workspace', icon: Building2 },
     { name: 'Integrations', href: '/settings/integrations', icon: Link2 },
+    { name: 'Agents', href: '/settings/agents', icon: Bot },
     { name: 'API Keys', href: '/settings/api-keys', icon: Key },
   ];
 
@@ -252,6 +254,7 @@ export function SettingsPage() {
             <Route path="workspace" element={<WorkspaceSettings />} />
             <Route path="workspaces/new" element={<NewWorkspaceSettings />} />
             <Route path="integrations" element={<IntegrationSettings />} />
+            <Route path="agents" element={<AgentSettings />} />
             <Route path="api-keys" element={<ApiKeySettings />} />
           </Routes>
         </div>

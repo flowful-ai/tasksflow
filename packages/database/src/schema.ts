@@ -342,6 +342,52 @@ export const agents = pgTable(
   (table) => [index('agent_workspace_idx').on(table.workspaceId)]
 );
 
+// ============ WORKSPACE AGENTS (MCP API Tokens) ============
+
+export const workspaceAgents = pgTable(
+  'workspace_agents',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+
+    // Scope
+    workspaceId: uuid('workspace_id')
+      .references(() => workspaces.id, { onDelete: 'cascade' })
+      .notNull(),
+    restrictedProjectIds: jsonb('restricted_project_ids'), // null = all projects in workspace
+
+    // Identity
+    name: text('name').notNull(),
+    description: text('description'),
+
+    // Authentication
+    tokenHash: text('token_hash').notNull(), // bcrypt hash
+    tokenPrefix: text('token_prefix').notNull(), // 12 chars for lookup (after ft_v1_)
+    lastUsedAt: timestamp('last_used_at'),
+
+    // Permissions (array of allowed MCP tool names)
+    permissions: jsonb('permissions').notNull().default('[]'),
+
+    // Rate limiting (daily only - per-minute uses Redis)
+    tokensPerDay: integer('tokens_per_day').default(100000).notNull(),
+    currentDayTokens: integer('current_day_tokens').default(0).notNull(),
+    lastTokenReset: timestamp('last_token_reset').defaultNow(),
+
+    // Status
+    isActive: boolean('is_active').default(true).notNull(),
+    expiresAt: timestamp('expires_at'),
+
+    // Audit
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('workspace_agent_workspace_idx').on(table.workspaceId),
+    index('workspace_agent_prefix_idx').on(table.tokenPrefix),
+    index('workspace_agent_expires_idx').on(table.expiresAt),
+  ]
+);
+
 // User's OpenRouter API keys (encrypted)
 export const userApiKeys = pgTable(
   'user_api_keys',
@@ -477,3 +523,6 @@ export type NewVerificationToken = typeof verificationTokens.$inferInsert;
 
 export type Account = typeof accounts.$inferSelect;
 export type NewAccount = typeof accounts.$inferInsert;
+
+export type WorkspaceAgent = typeof workspaceAgents.$inferSelect;
+export type NewWorkspaceAgent = typeof workspaceAgents.$inferInsert;

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "flowtask": {
+      "type": "http",
+      "url": "http://localhost:3001/api/mcp/sse",
+      "headers": {
+        "Authorization": "Bearer ft_v1_gFs7IV7aaM3S60BEE9z26hkA8525Oke9g2tONv3SRV2N"
+      }
+    }
+  }
+}

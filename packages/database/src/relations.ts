@@ -5,6 +5,7 @@ import {
   workspaceMembers,
   projects,
   projectIntegrations,
+  workspaceAgents,
   taskStates,
   tasks,
   taskAssignees,
@@ -42,6 +43,7 @@ export const workspacesRelations = relations(workspaces, ({ many }) => ({
   projects: many(projects),
   smartViews: many(smartViews),
   agents: many(agents),
+  workspaceAgents: many(workspaceAgents),
 }));
 
 // Workspace member relations
@@ -70,6 +72,18 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   taskStates: many(taskStates),
   tasks: many(tasks),
   labels: many(labels),
+}));
+
+// Workspace agent relations
+export const workspaceAgentsRelations = relations(workspaceAgents, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [workspaceAgents.workspaceId],
+    references: [workspaces.id],
+  }),
+  createdBy: one(users, {
+    fields: [workspaceAgents.createdBy],
+    references: [users.id],
+  }),
 }));
 
 // Project integration relations

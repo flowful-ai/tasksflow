@@ -6,13 +6,13 @@ export interface CommentWithUser extends Comment {
 
 export interface CommentCreateInput {
   taskId: string;
-  userId: string;
+  userId: string | null;
   content: string;
 }
 
 export interface CommentUpdateInput {
   content: string;
-  updatedBy: string;
+  updatedBy: string | null;
 }
 
 export interface CommentListOptions {

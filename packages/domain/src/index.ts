@@ -22,3 +22,10 @@ export * from './agent/types.js';
 // Comment domain
 export * from './comment/service.js';
 export * from './comment/types.js';
+
+// Workspace Agent domain (MCP API tokens)
+export * from './workspace-agent/service.js';
+export * from './workspace-agent/types.js';
+
+// Rate Limit domain
+export * from './rate-limit/service.js';

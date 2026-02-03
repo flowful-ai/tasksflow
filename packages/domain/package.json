@@ -22,7 +22,8 @@
   "dependencies": {
     "@flowtask/database": "workspace:*",
     "@flowtask/shared": "workspace:*",
-    "drizzle-orm": "^0.38.2"
+    "drizzle-orm": "^0.38.2",
+    "ioredis": "^5.4.2"
   },
   "devDependencies": {
     "tsup": "^8.3.5",
