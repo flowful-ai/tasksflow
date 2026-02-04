@@ -9,6 +9,7 @@ import {
   labels,
   users,
   projects,
+  workspaceAgents,
 } from '@flowtask/database';
 import { generatePosition, positionAfter, positionBetween } from '@flowtask/shared';
 import type { Result } from '@flowtask/shared';
@@ -87,6 +88,7 @@ export class TaskService {
           dueDate: input.dueDate || null,
           startDate: input.startDate || null,
           createdBy: input.createdBy,
+          agentId: input.agentId || null,
         })
         .returning();
 
@@ -142,10 +144,15 @@ export class TaskService {
             identifier: projects.identifier,
             name: projects.name,
           },
+          agent: {
+            id: workspaceAgents.id,
+            name: workspaceAgents.name,
+          },
         })
         .from(tasks)
         .leftJoin(taskStates, eq(tasks.stateId, taskStates.id))
         .innerJoin(projects, eq(tasks.projectId, projects.id))
+        .leftJoin(workspaceAgents, eq(tasks.agentId, workspaceAgents.id))
         .where(eq(tasks.id, taskId));
 
       if (!task) {
@@ -172,6 +179,7 @@ export class TaskService {
         project: task.project,
         assignees: assigneeRows.map((r) => r.user),
         labels: labelRows.map((r) => r.label),
+        agent: task.agent?.id ? task.agent : null,
       });
     } catch (error) {
       return err(error instanceof Error ? error : new Error('Unknown error'));
@@ -327,7 +335,7 @@ export class TaskService {
    */
   async list(options: TaskListOptions = {}): Promise<Result<{ tasks: TaskWithRelations[]; total: number }, Error>> {
     try {
-      const { filters = {}, sortBy = 'position', sortOrder = 'asc', page = 1, limit = 50 } = options;
+      const { filters = {}, filterSql, requiredJoins = new Set(), sortBy = 'position', sortOrder = 'asc', page = 1, limit = 50 } = options;
 
       // Build where conditions
       const conditions: SQL[] = [];
@@ -378,15 +386,12 @@ export class TaskService {
         );
       }
 
+      // Add raw SQL filter from Smart View FilterEngine
+      if (filterSql) {
+        conditions.push(filterSql);
+      }
+
       const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-      // Get total count
-      const [countResult] = await this.db
-        .select({ count: sql<number>`COUNT(*)` })
-        .from(tasks)
-        .where(whereClause);
-
-      const total = countResult?.count ?? 0;
 
       // Build sort clause
       const sortColumn = {
@@ -400,9 +405,31 @@ export class TaskService {
 
       const orderFn = sortOrder === 'desc' ? desc : asc;
 
-      // Get tasks
-      const taskRows = await this.db
-        .select({
+      // Determine if we need additional joins for the count query
+      const needsAssigneeJoin = requiredJoins.has('task_assignees');
+      const needsLabelJoin = requiredJoins.has('task_labels');
+
+      // Get total count (with necessary joins for filter conditions)
+      let countQuery = this.db
+        .select({ count: sql<number>`COUNT(DISTINCT ${tasks.id})` })
+        .from(tasks)
+        .leftJoin(taskStates, eq(tasks.stateId, taskStates.id))
+        .$dynamic();
+
+      if (needsAssigneeJoin) {
+        countQuery = countQuery.leftJoin(taskAssignees, eq(tasks.id, taskAssignees.taskId));
+      }
+      if (needsLabelJoin) {
+        countQuery = countQuery.leftJoin(taskLabels, eq(tasks.id, taskLabels.taskId));
+      }
+
+      const [countResult] = await countQuery.where(whereClause);
+      const total = countResult?.count ?? 0;
+
+      // Build base query with conditional joins
+      // Use selectDistinct to avoid duplicates when joins produce multiple rows
+      let taskQuery = this.db
+        .selectDistinct({
           task: tasks,
           state: taskStates,
           project: {
@@ -410,10 +437,27 @@ export class TaskService {
             identifier: projects.identifier,
             name: projects.name,
           },
+          agent: {
+            id: workspaceAgents.id,
+            name: workspaceAgents.name,
+          },
         })
         .from(tasks)
         .leftJoin(taskStates, eq(tasks.stateId, taskStates.id))
         .innerJoin(projects, eq(tasks.projectId, projects.id))
+        .leftJoin(workspaceAgents, eq(tasks.agentId, workspaceAgents.id))
+        .$dynamic();
+
+      // Add conditional joins for filter conditions
+      if (needsAssigneeJoin) {
+        taskQuery = taskQuery.leftJoin(taskAssignees, eq(tasks.id, taskAssignees.taskId));
+      }
+      if (needsLabelJoin) {
+        taskQuery = taskQuery.leftJoin(taskLabels, eq(tasks.id, taskLabels.taskId));
+      }
+
+      // Get tasks
+      const taskRows = await taskQuery
         .where(whereClause)
         .orderBy(orderFn(sortColumn!))
         .limit(limit)
@@ -458,6 +502,7 @@ export class TaskService {
         project: row.project,
         assignees: assigneesMap.get(row.task.id) || [],
         labels: labelsMap.get(row.task.id) || [],
+        agent: row.agent?.id ? row.agent : null,
       }));
 
       return ok({ tasks: tasksWithRelations, total });

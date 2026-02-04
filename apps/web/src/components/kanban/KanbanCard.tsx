@@ -7,6 +7,10 @@ interface KanbanCardProps {
     id: string;
     title: string;
     priority: string | null;
+    agent?: {
+      id: string;
+      name: string;
+    } | null;
   };
   onClick: () => void;
   isDragging?: boolean;
@@ -48,6 +52,13 @@ export function KanbanCard({ task, onClick, isDragging }: KanbanCardProps) {
       )}
     >
       <p className="text-sm text-gray-900 font-medium line-clamp-2">{task.title}</p>
+      {task.agent && (
+        <div className="mt-1.5 flex items-center gap-1">
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
+            {task.agent.name}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

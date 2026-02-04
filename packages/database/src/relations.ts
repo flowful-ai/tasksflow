@@ -118,6 +118,10 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
     fields: [tasks.createdBy],
     references: [users.id],
   }),
+  agent: one(workspaceAgents, {
+    fields: [tasks.agentId],
+    references: [workspaceAgents.id],
+  }),
   assignees: many(taskAssignees),
   labels: many(taskLabels),
   comments: many(comments),
@@ -191,6 +195,10 @@ export const commentsRelations = relations(comments, ({ one }) => ({
   user: one(users, {
     fields: [comments.userId],
     references: [users.id],
+  }),
+  agent: one(workspaceAgents, {
+    fields: [comments.agentId],
+    references: [workspaceAgents.id],
   }),
 }));
 

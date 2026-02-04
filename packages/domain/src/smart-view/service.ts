@@ -180,7 +180,10 @@ export class SmartViewService {
         conditions.push(eq(smartViews.isPersonal, filters.isPersonal));
       }
 
-      // If filtering by user, include views they created or views shared with them
+      // If filtering by user, include:
+      // 1. Non-personal views (team views visible to all workspace members)
+      // 2. Personal views created by the user
+      // 3. Views explicitly shared with the user
       if (filters.userId && filters.includeShared) {
         const sharedViewIds = await this.db
           .select({ smartViewId: smartViewShares.smartViewId })
@@ -189,13 +192,19 @@ export class SmartViewService {
 
         const sharedIds = sharedViewIds.map((r) => r.smartViewId);
 
+        const visibilityConditions = [
+          // Non-personal views are visible to everyone in the workspace
+          eq(smartViews.isPersonal, false),
+          // Personal views created by the user
+          and(eq(smartViews.isPersonal, true), eq(smartViews.createdBy, filters.userId)),
+        ];
+
+        // Views explicitly shared with the user
         if (sharedIds.length > 0) {
-          conditions.push(
-            or(eq(smartViews.createdBy, filters.userId), inArray(smartViews.id, sharedIds))!
-          );
-        } else {
-          conditions.push(eq(smartViews.createdBy, filters.userId));
+          visibilityConditions.push(inArray(smartViews.id, sharedIds));
         }
+
+        conditions.push(or(...visibilityConditions)!);
       }
 
       const whereClause = conditions.length > 0 ? and(...conditions) : undefined;

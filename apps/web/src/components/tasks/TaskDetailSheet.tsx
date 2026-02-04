@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Pencil, Check, Clock } from 'lucide-react';
+import { X, Pencil, Check, Clock, MessageSquare, Send } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import { api } from '../../api/client';
@@ -61,6 +61,25 @@ interface WorkspaceDetail {
   }[];
 }
 
+interface Comment {
+  id: string;
+  taskId: string;
+  userId: string | null;
+  agentId: string | null;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  user: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
+  agent: {
+    id: string;
+    name: string;
+  } | null;
+}
+
 export function TaskDetailSheet({
   taskId,
   projectId,
@@ -75,9 +94,11 @@ export function TaskDetailSheet({
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
+  const [newComment, setNewComment] = useState('');
 
   const titleInputRef = useRef<HTMLInputElement>(null);
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
+  const commentInputRef = useRef<HTMLTextAreaElement>(null);
 
   // Fetch task details
   const { data: task, isLoading } = useQuery({
@@ -110,6 +131,18 @@ export function TaskDetailSheet({
     enabled: !!projectDetail?.workspaceId,
   });
 
+  // Fetch comments for the task
+  const { data: comments = [], isLoading: isLoadingComments } = useQuery({
+    queryKey: ['comments', taskId],
+    queryFn: async () => {
+      const response = await api.get<{ success: boolean; data: Comment[] }>(
+        `/api/tasks/${taskId}/comments`
+      );
+      return response.data;
+    },
+    enabled: !!taskId,
+  });
+
   // Initialize edit values when task loads
   useEffect(() => {
     if (task) {
@@ -132,6 +165,14 @@ export function TaskDetailSheet({
     }
   }, [isEditingDescription]);
 
+  // Helper to invalidate all task-related queries including smart views
+  const invalidateTaskQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+    queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+    // Invalidate all smart view execute queries since task changes may affect filter results
+    queryClient.invalidateQueries({ queryKey: ['smart-view-execute'] });
+  };
+
   // Update mutation
   const updateMutation = useMutation({
     mutationFn: async (data: {
@@ -144,8 +185,7 @@ export function TaskDetailSheet({
       return api.patch(`/api/tasks/${taskId}`, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
-      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+      invalidateTaskQueries();
       onUpdated?.();
     },
   });
@@ -156,8 +196,7 @@ export function TaskDetailSheet({
       return api.post(`/api/tasks/${taskId}/assignees`, { userId });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
-      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+      invalidateTaskQueries();
       onUpdated?.();
     },
   });
@@ -168,8 +207,7 @@ export function TaskDetailSheet({
       return api.delete(`/api/tasks/${taskId}/assignees/${userId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
-      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+      invalidateTaskQueries();
       onUpdated?.();
     },
   });
@@ -180,8 +218,7 @@ export function TaskDetailSheet({
       return api.post(`/api/tasks/${taskId}/labels`, { labelId });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
-      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+      invalidateTaskQueries();
       onUpdated?.();
     },
   });
@@ -192,9 +229,19 @@ export function TaskDetailSheet({
       return api.delete(`/api/tasks/${taskId}/labels/${labelId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
-      queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+      invalidateTaskQueries();
       onUpdated?.();
+    },
+  });
+
+  // Create comment mutation
+  const createCommentMutation = useMutation({
+    mutationFn: async (content: string) => {
+      return api.post(`/api/tasks/${taskId}/comments`, { content });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['comments', taskId] });
+      setNewComment('');
     },
   });
 
@@ -227,6 +274,12 @@ export function TaskDetailSheet({
 
   const handleDueDateChange = async (date: string | null) => {
     await updateMutation.mutateAsync({ dueDate: date });
+  };
+
+  const handleSubmitComment = async () => {
+    if (newComment.trim()) {
+      await createCommentMutation.mutateAsync(newComment.trim());
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent, onSave: () => void, onCancel: () => void) => {
@@ -542,6 +595,129 @@ export function TaskDetailSheet({
                     day: 'numeric',
                   })}
                 </p>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <hr className="border-gray-200" />
+
+            {/* Comments */}
+            <div>
+              <div className="flex items-center space-x-2 text-sm font-medium text-gray-500 mb-4">
+                <MessageSquare className="w-4 h-4" />
+                <span>Comments</span>
+                {comments.length > 0 && (
+                  <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded-full">
+                    {comments.length}
+                  </span>
+                )}
+              </div>
+
+              {/* Comment input */}
+              <div className="mb-4">
+                <div className="flex space-x-2">
+                  <textarea
+                    ref={commentInputRef}
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                        e.preventDefault();
+                        handleSubmitComment();
+                      }
+                    }}
+                    placeholder="Add a comment..."
+                    rows={2}
+                    className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none"
+                    disabled={createCommentMutation.isPending}
+                  />
+                  <button
+                    onClick={handleSubmitComment}
+                    disabled={!newComment.trim() || createCommentMutation.isPending}
+                    className="self-end px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    title="Submit comment (Cmd+Enter)"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </div>
+                <p className="mt-1 text-xs text-gray-400">Press Cmd+Enter to submit</p>
+              </div>
+
+              {/* Comments list */}
+              <div className="space-y-4">
+                {isLoadingComments ? (
+                  <div className="flex items-center justify-center py-4">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600" />
+                  </div>
+                ) : comments.length === 0 ? (
+                  <p className="text-sm text-gray-400 italic">No comments yet</p>
+                ) : (
+                  comments.map((comment) => (
+                    <div key={comment.id} className="bg-gray-50 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-gray-700">
+                            {comment.agent?.name || comment.user?.name || comment.user?.email || 'Unknown user'}
+                          </span>
+                          {comment.agent && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
+                              Agent
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs text-gray-400">
+                          {new Date(comment.createdAt).toLocaleDateString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </div>
+                      <div className="prose prose-sm max-w-none">
+                        <ReactMarkdown
+                          components={{
+                            p: ({ children }) => (
+                              <p className="text-sm text-gray-600 mb-1 last:mb-0">{children}</p>
+                            ),
+                            strong: ({ children }) => (
+                              <strong className="font-semibold text-gray-700">{children}</strong>
+                            ),
+                            em: ({ children }) => <em className="italic">{children}</em>,
+                            ul: ({ children }) => (
+                              <ul className="list-disc list-inside text-sm text-gray-600 mb-1 space-y-0.5">
+                                {children}
+                              </ul>
+                            ),
+                            ol: ({ children }) => (
+                              <ol className="list-decimal list-inside text-sm text-gray-600 mb-1 space-y-0.5">
+                                {children}
+                              </ol>
+                            ),
+                            li: ({ children }) => <li>{children}</li>,
+                            a: ({ href, children }) => (
+                              <a
+                                href={href}
+                                className="text-primary-600 hover:underline"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                {children}
+                              </a>
+                            ),
+                            code: ({ children }) => (
+                              <code className="text-xs bg-gray-200 text-gray-800 px-1 py-0.5 rounded">
+                                {children}
+                              </code>
+                            ),
+                          }}
+                        >
+                          {comment.content}
+                        </ReactMarkdown>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>

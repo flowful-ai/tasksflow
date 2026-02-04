@@ -1,9 +1,9 @@
 import { eq, and, isNull, desc, sql } from 'drizzle-orm';
 import type { Database } from '@flowtask/database';
-import { comments, users, taskEvents } from '@flowtask/database';
+import { comments, users, taskEvents, workspaceAgents } from '@flowtask/database';
 import type { Result } from '@flowtask/shared';
 import { ok, err } from '@flowtask/shared';
-import type { CommentWithUser, CommentCreateInput, CommentUpdateInput, CommentListOptions } from './types.js';
+import type { CommentWithUser, CommentCreateInput, CommentUpdateInput, CommentListOptions, CommentAgent } from './types.js';
 
 export class CommentService {
   constructor(private db: Database) {}
@@ -18,6 +18,7 @@ export class CommentService {
         .values({
           taskId: input.taskId,
           userId: input.userId,
+          agentId: input.agentId || null,
           content: input.content,
         })
         .returning();
@@ -41,7 +42,7 @@ export class CommentService {
   }
 
   /**
-   * Get a comment by ID with user info.
+   * Get a comment by ID with user and agent info.
    */
   async getById(commentId: string): Promise<Result<CommentWithUser, Error>> {
     try {
@@ -49,9 +50,14 @@ export class CommentService {
         .select({
           comment: comments,
           user: users,
+          agent: {
+            id: workspaceAgents.id,
+            name: workspaceAgents.name,
+          },
         })
         .from(comments)
         .leftJoin(users, eq(comments.userId, users.id))
+        .leftJoin(workspaceAgents, eq(comments.agentId, workspaceAgents.id))
         .where(eq(comments.id, commentId));
 
       if (!result) {
@@ -61,6 +67,7 @@ export class CommentService {
       return ok({
         ...result.comment,
         user: result.user,
+        agent: result.agent?.id ? result.agent : null,
       });
     } catch (error) {
       return err(error instanceof Error ? error : new Error('Unknown error'));
@@ -155,14 +162,19 @@ export class CommentService {
 
       const total = countResult?.count ?? 0;
 
-      // Get comments with users
+      // Get comments with users and agents
       const results = await this.db
         .select({
           comment: comments,
           user: users,
+          agent: {
+            id: workspaceAgents.id,
+            name: workspaceAgents.name,
+          },
         })
         .from(comments)
         .leftJoin(users, eq(comments.userId, users.id))
+        .leftJoin(workspaceAgents, eq(comments.agentId, workspaceAgents.id))
         .where(whereClause)
         .orderBy(desc(comments.createdAt))
         .limit(limit)
@@ -171,6 +183,7 @@ export class CommentService {
       const commentsWithUsers: CommentWithUser[] = results.map((r) => ({
         ...r.comment,
         user: r.user,
+        agent: r.agent?.id ? r.agent : null,
       }));
 
       return ok({ comments: commentsWithUsers, total });

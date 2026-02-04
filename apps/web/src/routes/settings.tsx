@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
-import { User, Building2, Link2, Key, Bot } from 'lucide-react';
+import { User, Building2, Link2, Key, Bot, Eye } from 'lucide-react';
 import clsx from 'clsx';
 import { useWorkspaceStore } from '../stores/workspace';
 import { AgentSettings } from '../components/settings/AgentSettings';
+import { SmartViewForm } from '../components/smart-views/SmartViewForm';
 
 function ProfileSettings() {
   return (
@@ -98,6 +99,32 @@ function ApiKeySettings() {
         </div>
         <button className="btn btn-primary">Save API Key</button>
       </div>
+    </div>
+  );
+}
+
+function ViewsSettings() {
+  const navigate = useNavigate();
+
+  return (
+    <div className="card p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Views</h2>
+          <p className="text-sm text-gray-600 mt-1">
+            Manage your saved filtered views.
+          </p>
+        </div>
+        <button
+          onClick={() => navigate('/settings/views/new')}
+          className="btn btn-primary"
+        >
+          New View
+        </button>
+      </div>
+      <p className="text-gray-600">
+        Go to the <Link to="/views" className="text-primary-600 hover:underline">Views page</Link> to see all your views, or create a new one above.
+      </p>
     </div>
   );
 }
@@ -214,6 +241,7 @@ export function SettingsPage() {
   const navigation = [
     { name: 'Profile', href: '/settings', icon: User },
     { name: 'Workspace', href: '/settings/workspace', icon: Building2 },
+    { name: 'Views', href: '/settings/views', icon: Eye },
     { name: 'Integrations', href: '/settings/integrations', icon: Link2 },
     { name: 'Agents', href: '/settings/agents', icon: Bot },
     { name: 'API Keys', href: '/settings/api-keys', icon: Key },
@@ -253,6 +281,9 @@ export function SettingsPage() {
             <Route index element={<ProfileSettings />} />
             <Route path="workspace" element={<WorkspaceSettings />} />
             <Route path="workspaces/new" element={<NewWorkspaceSettings />} />
+            <Route path="views" element={<ViewsSettings />} />
+            <Route path="views/new" element={<SmartViewForm />} />
+            <Route path="views/:viewId/edit" element={<SmartViewForm />} />
             <Route path="integrations" element={<IntegrationSettings />} />
             <Route path="agents" element={<AgentSettings />} />
             <Route path="api-keys" element={<ApiKeySettings />} />

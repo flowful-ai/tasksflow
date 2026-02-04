@@ -116,14 +116,8 @@ export const PAGINATION = {
   maxLimit: 100,
 } as const;
 
-// WebSocket events
-export const WS_EVENTS = {
-  // Client -> Server
-  SUBSCRIBE: 'subscribe',
-  UNSUBSCRIBE: 'unsubscribe',
-  PING: 'ping',
-
-  // Server -> Client
+// Real-time events (SSE)
+export const REALTIME_EVENTS = {
   TASK_CREATED: 'task:created',
   TASK_UPDATED: 'task:updated',
   TASK_DELETED: 'task:deleted',
@@ -134,5 +128,14 @@ export const WS_EVENTS = {
   PROJECT_UPDATED: 'project:updated',
   MEMBER_JOINED: 'member:joined',
   MEMBER_LEFT: 'member:left',
+} as const;
+
+// Backwards compatibility alias (deprecated)
+export const WS_EVENTS = {
+  ...REALTIME_EVENTS,
+  // Legacy client->server events (no longer used with SSE)
+  SUBSCRIBE: 'subscribe',
+  UNSUBSCRIBE: 'unsubscribe',
+  PING: 'ping',
   PONG: 'pong',
 } as const;

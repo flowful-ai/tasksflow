@@ -1,5 +1,11 @@
+import type { SQL } from 'drizzle-orm';
 import type { Task, TaskState, User, Label } from '@flowtask/database';
 import type { CreateTask, UpdateTask, MoveTask, TaskPriority } from '@flowtask/shared';
+
+export interface TaskAgent {
+  id: string;
+  name: string;
+}
 
 export interface TaskWithRelations extends Task {
   state: TaskState | null;
@@ -10,11 +16,13 @@ export interface TaskWithRelations extends Task {
     identifier: string;
     name: string;
   };
+  agent: TaskAgent | null;
 }
 
 export interface TaskCreateInput extends CreateTask {
   projectId: string;
   createdBy: string | null;
+  agentId?: string | null;
 }
 
 export interface TaskUpdateInput extends UpdateTask {
@@ -45,6 +53,10 @@ export interface TaskFilters {
 
 export interface TaskListOptions {
   filters?: TaskFilters;
+  /** Raw SQL filter clause from FilterEngine (for Smart Views) */
+  filterSql?: SQL | null;
+  /** Tables that need to be joined for the filterSql to work */
+  requiredJoins?: Set<'task_states' | 'task_assignees' | 'task_labels'>;
   sortBy?: 'position' | 'created_at' | 'updated_at' | 'due_date' | 'priority' | 'sequence_number';
   sortOrder?: 'asc' | 'desc';
   page?: number;

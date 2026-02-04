@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth';
 import { useWorkspaceStore } from '../../stores/workspace';
+import { useRealtimeEvents } from '../../hooks/useRealtimeEvents';
 import clsx from 'clsx';
 
 interface LayoutProps {
@@ -22,9 +23,24 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const { user, logout } = useAuthStore();
-  const { currentWorkspace, workspaces, projects, setCurrentWorkspace } = useWorkspaceStore();
+  const { currentWorkspace, workspaces, projects, setCurrentWorkspace, fetchWorkspaces, fetchProjects } = useWorkspaceStore();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
+
+  // Connect to real-time SSE stream for live updates
+  useRealtimeEvents();
+
+  // Fetch workspaces on mount (ensures sidebar is populated on any page)
+  useEffect(() => {
+    fetchWorkspaces();
+  }, [fetchWorkspaces]);
+
+  // Fetch projects when workspace changes
+  useEffect(() => {
+    if (currentWorkspace) {
+      fetchProjects(currentWorkspace.id);
+    }
+  }, [currentWorkspace, fetchProjects]);
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },

@@ -33,7 +33,9 @@ const AVAILABLE_PERMISSIONS = [
   { id: 'assign_task', label: 'Assign tasks', description: 'Assign users to tasks' },
   { id: 'add_comment', label: 'Add comments', description: 'Comment on tasks' },
   { id: 'summarize_project', label: 'Summarize project', description: 'Get project summaries' },
+  { id: 'create_smart_view', label: 'Create smart views', description: 'Create smart views with filters' },
   { id: 'search_tasks', label: 'Search tasks', description: 'Full-text task search' },
+  { id: 'list_projects', label: 'List projects', description: 'List all projects accessible to this agent' },
 ] as const;
 
 function formatRelativeTime(dateStr: string | null): string {

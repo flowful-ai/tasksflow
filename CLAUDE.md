@@ -258,6 +258,14 @@ class TaskService {
 1. Add field mapping in `packages/domain/src/smart-view/filter-engine.ts`
 2. Update filter UI in `apps/web/src/components/smart-views/`
 
+### Adding a New MCP Tool
+
+1. Add tool name to `AgentToolSchema` enum in `packages/shared/src/types/agent.ts`
+2. Add tool definition to `AGENT_TOOLS` array in `packages/domain/src/agent/types.ts`
+3. Implement tool handler in `apps/api/src/routes/mcp-sse.ts` (switch case in `executeMcpTool`)
+4. Implement tool handler in `apps/api/src/routes/mcp.ts` (for REST API compatibility)
+5. **Add permission to frontend UI** in `apps/web/src/components/settings/AgentSettings.tsx` (`AVAILABLE_PERMISSIONS` array)
+
 ## Testing
 
 ```bash

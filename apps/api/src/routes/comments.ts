@@ -5,7 +5,7 @@ import { CommentService, TaskService, ProjectService, WorkspaceService } from '@
 import { getCurrentUser } from '@flowtask/auth';
 import { CreateCommentSchema, UpdateCommentSchema } from '@flowtask/shared';
 import { hasPermission } from '@flowtask/auth';
-import { publishEvent } from '../websocket/handler.js';
+import { publishEvent } from '../sse/manager.js';
 
 const comments = new Hono();
 const db = getDatabase();

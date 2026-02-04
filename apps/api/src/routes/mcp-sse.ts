@@ -4,11 +4,12 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { Redis } from 'ioredis';
 import { getDatabase } from '@flowtask/database';
-import { TaskService, ProjectService, CommentService, WorkspaceAgentService } from '@flowtask/domain';
+import { TaskService, ProjectService, CommentService, WorkspaceAgentService, SmartViewService } from '@flowtask/domain';
 import { AGENT_TOOLS } from '@flowtask/domain';
 import { extractBearerToken, isFlowTaskToken, isValidTokenFormat } from '@flowtask/auth';
 import type { TokenAuthContext } from '@flowtask/auth';
 import type { ApiTokenPermission } from '@flowtask/shared';
+import { publishEvent } from '../sse/manager.js';
 
 /**
  * MCP SSE transport endpoints for native MCP protocol support.
@@ -26,6 +27,7 @@ const taskService = new TaskService(db);
 const projectService = new ProjectService(db);
 const commentService = new CommentService(db);
 const workspaceAgentService = new WorkspaceAgentService(db, redis);
+const smartViewService = new SmartViewService(db);
 
 // Store active transports by session ID
 const activeTransports = new Map<string, WebStandardStreamableHTTPServerTransport>();
@@ -85,10 +87,20 @@ async function executeMcpTool(
         priority: args.priority as 'urgent' | 'high' | 'medium' | 'low' | 'none' | undefined,
         stateId: args.stateId as string | undefined,
         createdBy: null,
+        agentId: tokenAuth.tokenId,
       });
 
       if (!createResult.ok) throw createResult.error;
       result = createResult.value;
+
+      // Publish SSE event for real-time UI updates
+      const projectInfo = await projectService.getById(projectId);
+      if (projectInfo.ok) {
+        publishEvent(projectInfo.value.workspaceId, 'task.created', {
+          task: createResult.value,
+          projectId,
+        });
+      }
       break;
     }
 
@@ -239,10 +251,21 @@ async function executeMcpTool(
         taskId,
         content,
         userId: null,
+        agentId: tokenAuth.tokenId,
       });
 
       if (!commentResult.ok) throw commentResult.error;
       result = commentResult.value;
+
+      // Publish SSE event for real-time UI updates
+      const projectInfo = await projectService.getById(taskResult.value.projectId);
+      if (projectInfo.ok) {
+        publishEvent(projectInfo.value.workspaceId, 'comment.created', {
+          comment: commentResult.value,
+          taskId,
+          projectId: taskResult.value.projectId,
+        });
+      }
       break;
     }
 
@@ -306,7 +329,32 @@ async function executeMcpTool(
     }
 
     case 'create_smart_view': {
-      throw new Error('API tokens cannot create smart views');
+      const name = args.name as string;
+      if (!name) {
+        throw new Error('name is required');
+      }
+
+      const filters = args.filters as string | undefined;
+      let parsedFilters;
+      if (filters) {
+        try {
+          parsedFilters = JSON.parse(filters);
+        } catch {
+          throw new Error('Invalid filters JSON');
+        }
+      }
+
+      const smartViewResult = await smartViewService.create({
+        workspaceId: tokenAuth.workspaceId,
+        createdBy: null, // Agent-created views have no user owner
+        name,
+        description: args.description as string | undefined,
+        filters: parsedFilters,
+      });
+
+      if (!smartViewResult.ok) throw smartViewResult.error;
+      result = smartViewResult.value;
+      break;
     }
 
     case 'search_tasks': {

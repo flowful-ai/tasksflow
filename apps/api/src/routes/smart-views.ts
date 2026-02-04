@@ -2,10 +2,10 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { getDatabase } from '@flowtask/database';
-import { SmartViewService, WorkspaceService, TaskService } from '@flowtask/domain';
+import { SmartViewService, WorkspaceService, TaskService, ProjectService } from '@flowtask/domain';
 import { FilterEngine } from '@flowtask/domain';
 import { getCurrentUser } from '@flowtask/auth';
-import { CreateSmartViewSchema, UpdateSmartViewSchema, CreatePublicShareSchema } from '@flowtask/shared';
+import { CreateSmartViewSchema, UpdateSmartViewSchema, CreatePublicShareSchema, type FilterGroup } from '@flowtask/shared';
 import { hasPermission } from '@flowtask/auth';
 
 const smartViews = new Hono();
@@ -13,6 +13,7 @@ const db = getDatabase();
 const smartViewService = new SmartViewService(db);
 const workspaceService = new WorkspaceService(db);
 const taskService = new TaskService(db);
+const projectService = new ProjectService(db);
 
 // Helper to check workspace access
 async function checkWorkspaceAccess(workspaceId: string, userId: string, permission: string) {
@@ -121,14 +122,33 @@ smartViews.get('/:viewId/execute', async (c) => {
 
   const view = viewResult.value;
 
-  // Create filter context with current user
+  // Create filter context with current user for template variable resolution
   const filterContext = FilterEngine.createContext(user.id);
 
-  // For now, just return tasks. In a full implementation,
-  // we would use FilterEngine to build SQL from the view's filters.
+  // Cast filters to proper type (database stores as jsonb)
+  const viewFilters = view.filters as FilterGroup | undefined;
+
+  // Build SQL from view's filters using FilterEngine
+  const filterSql = viewFilters?.conditions?.length
+    ? FilterEngine.buildWhereClause(viewFilters, filterContext)
+    : null;
+
+  const requiredJoins = viewFilters?.conditions?.length
+    ? FilterEngine.getRequiredJoins(viewFilters)
+    : new Set<'task_states' | 'task_assignees' | 'task_labels'>();
+
+  // Get workspace projects to scope the query
+  const projectsResult = await projectService.list({ filters: { workspaceId: view.workspaceId } });
+  const projectIds = projectsResult.ok ? projectsResult.value.map((p) => p.id) : [];
+
   const tasksResult = await taskService.list({
-    sortBy: view.sortBy as any,
-    sortOrder: view.sortOrder as any,
+    filters: {
+      projectIds,
+    },
+    filterSql,
+    requiredJoins,
+    sortBy: view.sortBy as 'position' | 'created_at' | 'updated_at' | 'due_date' | 'priority' | 'sequence_number',
+    sortOrder: view.sortOrder as 'asc' | 'desc',
     page: parseInt(c.req.query('page') || '1', 10),
     limit: parseInt(c.req.query('limit') || '50', 10),
   });

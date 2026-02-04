@@ -1,5 +1,6 @@
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { Pencil } from 'lucide-react';
 import { api } from '../api/client';
 
 interface SmartViewTask {
@@ -17,7 +18,7 @@ export function SmartViewPage() {
   const { viewId } = useParams<{ viewId: string }>();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['smart-view', viewId],
+    queryKey: ['smart-view-execute', viewId],
     queryFn: async () => {
       const response = await api.get<{ data: { view: SmartViewData; tasks: SmartViewTask[] } }>(
         `/api/smart-views/${viewId}/execute`
@@ -48,11 +49,20 @@ export function SmartViewPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">{view.name}</h1>
-        {view.description && (
-          <p className="text-gray-600 mt-1">{view.description}</p>
-        )}
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{view.name}</h1>
+          {view.description && (
+            <p className="text-gray-600 mt-1">{view.description}</p>
+          )}
+        </div>
+        <Link
+          to={`/settings/views/${viewId}/edit`}
+          className="btn btn-secondary inline-flex items-center"
+        >
+          <Pencil className="w-4 h-4 mr-2" />
+          Edit
+        </Link>
       </div>
 
       <div className="card p-6">

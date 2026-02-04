@@ -121,6 +121,7 @@ export const tasks = pgTable(
     dueDate: timestamp('due_date'),
     startDate: timestamp('start_date'),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    agentId: uuid('agent_id').references(() => workspaceAgents.id, { onDelete: 'set null' }), // Agent that created this task (if any)
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
     deletedAt: timestamp('deleted_at'), // Soft delete
@@ -228,6 +229,7 @@ export const comments = pgTable(
       .references(() => tasks.id, { onDelete: 'cascade' })
       .notNull(),
     userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    agentId: uuid('agent_id').references(() => workspaceAgents.id, { onDelete: 'set null' }), // Agent that created this comment (if any)
     content: text('content').notNull(), // Markdown
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),

@@ -101,6 +101,33 @@ projects.get('/:projectId', async (c) => {
   return c.json({ success: true, data: result.value });
 });
 
+// Get project permissions for current user
+projects.get('/:projectId/permissions', async (c) => {
+  const user = getCurrentUser(c);
+  const projectId = c.req.param('projectId');
+
+  const result = await projectService.getById(projectId);
+
+  if (!result.ok) {
+    return c.json({ success: false, error: { code: 'NOT_FOUND', message: result.error.message } }, 404);
+  }
+
+  const roleResult = await workspaceService.getMemberRole(result.value.workspaceId, user.id);
+  if (!roleResult.ok || !roleResult.value) {
+    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
+  }
+
+  const role = roleResult.value;
+  return c.json({
+    success: true,
+    data: {
+      role,
+      canEdit: hasPermission(role, 'project:update'),
+      canDelete: hasPermission(role, 'project:delete'),
+    },
+  });
+});
+
 // Update project
 projects.patch(
   '/:projectId',

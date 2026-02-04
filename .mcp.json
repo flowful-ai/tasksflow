@@ -4,7 +4,7 @@
       "type": "http",
       "url": "http://localhost:3001/api/mcp/sse",
       "headers": {
-        "Authorization": "Bearer ft_v1_gFs7IV7aaM3S60BEE9z26hkA8525Oke9g2tONv3SRV2N"
+        "Authorization": "Bearer ft_v1_BH4h8O0Y3mJNa5KPfNqxrh-fuc8SdD9JpFoC064XkUNO"
       }
     }
   }

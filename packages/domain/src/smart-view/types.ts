@@ -18,7 +18,7 @@ export interface SmartViewWithRelations extends SmartView {
 
 export interface SmartViewCreateInput extends CreateSmartView {
   workspaceId: string;
-  createdBy: string;
+  createdBy: string | null;
 }
 
 export interface SmartViewUpdateInput extends UpdateSmartView {

@@ -17,9 +17,10 @@ import { agentRoutes } from './routes/agents.js';
 import { mcpRoutes } from './routes/mcp.js';
 import { mcpSseRoutes } from './routes/mcp-sse.js';
 import { workspaceAgentRoutes } from './routes/workspace-agents.js';
+import { eventRoutes } from './routes/events.js';
 
-// Import WebSocket handler
-import { setupWebSocket } from './websocket/handler.js';
+// Import SSE manager
+import { initSSE } from './sse/manager.js';
 
 const app = new Hono();
 
@@ -54,6 +55,9 @@ app.route('/api/webhooks', webhookRoutes);
 
 // MCP SSE routes (handles its own token authentication)
 app.route('/api/mcp', mcpSseRoutes);
+
+// SSE event routes (handles its own authentication for streaming)
+app.route('/api/events', eventRoutes);
 
 // Protected routes (require authentication)
 app.use('/api/*', authMiddleware);
@@ -107,9 +111,8 @@ const server = Bun.serve({
 
 console.log(`🚀 FlowTask API running at http://localhost:${server.port}`);
 
-// Setup WebSocket on separate port for Bun
-const wsPort = parseInt(process.env.WS_PORT || '3002', 10);
-setupWebSocket(wsPort);
+// Initialize SSE manager (same port as API)
+initSSE();
 
 export default app;
 export { app };

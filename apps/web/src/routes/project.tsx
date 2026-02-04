@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, MoreHorizontal } from 'lucide-react';
 import { api } from '../api/client';
 import { KanbanBoard } from '../components/kanban/KanbanBoard';
@@ -11,6 +11,7 @@ export function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   const { data: project, isLoading: projectLoading } = useQuery({
     queryKey: ['project', projectId],
@@ -86,6 +87,8 @@ export function ProjectPage() {
           onTaskMove={async (taskId, stateId, position) => {
             await api.post(`/api/tasks/${taskId}/move`, { stateId, position });
             refetchTasks();
+            // Invalidate smart view queries since task state changes may affect filter results
+            queryClient.invalidateQueries({ queryKey: ['smart-view-execute'] });
           }}
         />
       </div>

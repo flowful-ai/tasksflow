@@ -9,6 +9,7 @@ import { NewProjectPage } from './routes/new-project';
 import { ProjectsPage } from './routes/projects';
 import { TaskPage } from './routes/task';
 import { SmartViewPage } from './routes/smart-view';
+import { ViewsPage } from './routes/views';
 import { SettingsPage } from './routes/settings';
 import { PublicSharePage } from './routes/share';
 
@@ -53,6 +54,7 @@ export default function App() {
                 <Route path="/projects/new" element={<NewProjectPage />} />
                 <Route path="/project/:projectId" element={<ProjectPage />} />
                 <Route path="/task/:taskId" element={<TaskPage />} />
+                <Route path="/views" element={<ViewsPage />} />
                 <Route path="/view/:viewId" element={<SmartViewPage />} />
                 <Route path="/settings/*" element={<SettingsPage />} />
               </Routes>

@@ -5,29 +5,15 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1770109175616,
-      "tag": "0000_pink_prima",
+      "when": 1770158911193,
+      "tag": "0000_calm_joshua_kane",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
-      "when": 1770115275116,
-      "tag": "0001_conscious_shadowcat",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1770141600000,
-      "tag": "0002_update_accounts_for_better_auth",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1770170400000,
-      "tag": "0003_workspace_agents",
+      "when": 1770199540245,
+      "tag": "0001_wise_the_phantom",
       "breakpoints": true
     }
   ]

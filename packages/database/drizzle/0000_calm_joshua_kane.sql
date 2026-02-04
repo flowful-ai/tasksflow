@@ -1,13 +1,15 @@
 CREATE TABLE "accounts" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" uuid NOT NULL,
+	"account_id" text NOT NULL,
 	"provider_id" text NOT NULL,
-	"provider_account_id" text NOT NULL,
 	"access_token" text,
 	"refresh_token" text,
+	"id_token" text,
 	"access_token_expires_at" timestamp,
 	"refresh_token_expires_at" timestamp,
 	"scope" text,
+	"password" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
@@ -199,6 +201,7 @@ CREATE TABLE "user_api_keys" (
 CREATE TABLE "users" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"email" text NOT NULL,
+	"email_verified" boolean DEFAULT false NOT NULL,
 	"name" text,
 	"avatar_url" text,
 	"created_at" timestamp DEFAULT now() NOT NULL,
@@ -213,6 +216,26 @@ CREATE TABLE "verification_tokens" (
 	"expires_at" timestamp NOT NULL,
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	CONSTRAINT "verification_tokens_token_unique" UNIQUE("token")
+);
+--> statement-breakpoint
+CREATE TABLE "workspace_agents" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"workspace_id" uuid NOT NULL,
+	"restricted_project_ids" jsonb,
+	"name" text NOT NULL,
+	"description" text,
+	"token_hash" text NOT NULL,
+	"token_prefix" text NOT NULL,
+	"last_used_at" timestamp,
+	"permissions" jsonb DEFAULT '[]' NOT NULL,
+	"tokens_per_day" integer DEFAULT 100000 NOT NULL,
+	"current_day_tokens" integer DEFAULT 0 NOT NULL,
+	"last_token_reset" timestamp DEFAULT now(),
+	"is_active" boolean DEFAULT true NOT NULL,
+	"expires_at" timestamp,
+	"created_by" uuid,
+	"created_at" timestamp DEFAULT now() NOT NULL,
+	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "workspace_members" (
@@ -260,9 +283,11 @@ ALTER TABLE "tasks" ADD CONSTRAINT "tasks_project_id_projects_id_fk" FOREIGN KEY
 ALTER TABLE "tasks" ADD CONSTRAINT "tasks_state_id_task_states_id_fk" FOREIGN KEY ("state_id") REFERENCES "public"."task_states"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "tasks" ADD CONSTRAINT "tasks_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "user_api_keys" ADD CONSTRAINT "user_api_keys_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workspace_agents" ADD CONSTRAINT "workspace_agents_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "workspace_agents" ADD CONSTRAINT "workspace_agents_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workspace_members" ADD CONSTRAINT "workspace_members_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workspace_members" ADD CONSTRAINT "workspace_members_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE UNIQUE INDEX "unique_provider_account" ON "accounts" USING btree ("provider_id","provider_account_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "unique_provider_account" ON "accounts" USING btree ("provider_id","account_id");--> statement-breakpoint
 CREATE INDEX "account_user_idx" ON "accounts" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "agent_workspace_idx" ON "agents" USING btree ("workspace_id");--> statement-breakpoint
 CREATE INDEX "comment_task_idx" ON "comments" USING btree ("task_id");--> statement-breakpoint
@@ -287,4 +312,7 @@ CREATE INDEX "task_assignee_idx" ON "tasks" USING btree ("created_by");--> state
 CREATE UNIQUE INDEX "unique_task_sequence" ON "tasks" USING btree ("project_id","sequence_number");--> statement-breakpoint
 CREATE UNIQUE INDEX "unique_user_api_key" ON "user_api_keys" USING btree ("user_id","provider");--> statement-breakpoint
 CREATE UNIQUE INDEX "unique_verification_token" ON "verification_tokens" USING btree ("identifier","token");--> statement-breakpoint
+CREATE INDEX "workspace_agent_workspace_idx" ON "workspace_agents" USING btree ("workspace_id");--> statement-breakpoint
+CREATE INDEX "workspace_agent_prefix_idx" ON "workspace_agents" USING btree ("token_prefix");--> statement-breakpoint
+CREATE INDEX "workspace_agent_expires_idx" ON "workspace_agents" USING btree ("expires_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "unique_workspace_member" ON "workspace_members" USING btree ("workspace_id","user_id");

@@ -3,11 +3,12 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { Redis } from 'ioredis';
 import { getDatabase } from '@flowtask/database';
-import { TaskService, ProjectService, AgentService, CommentService, WorkspaceAgentService } from '@flowtask/domain';
+import { TaskService, ProjectService, AgentService, CommentService, WorkspaceAgentService, SmartViewService } from '@flowtask/domain';
 import { getCurrentUser, getOptionalUser, extractBearerToken, isFlowTaskToken, isValidTokenFormat } from '@flowtask/auth';
 import type { TokenAuthContext } from '@flowtask/auth';
 import { AGENT_TOOLS } from '@flowtask/domain';
 import type { ApiTokenPermission } from '@flowtask/shared';
+import { publishEvent } from '../sse/manager.js';
 
 /**
  * MCP (Model Context Protocol) endpoints for AI agent tool execution.
@@ -26,6 +27,7 @@ const projectService = new ProjectService(db);
 const agentService = new AgentService(db);
 const commentService = new CommentService(db);
 const workspaceAgentService = new WorkspaceAgentService(db, redis);
+const smartViewService = new SmartViewService(db);
 
 /**
  * Dual auth middleware - accepts either session auth OR API token auth.
@@ -172,10 +174,20 @@ mcp.post(
             priority: args.priority as 'urgent' | 'high' | 'medium' | 'low' | 'none' | undefined,
             stateId: args.stateId as string | undefined,
             createdBy: user?.id || null,
+            agentId: tokenAuth?.tokenId || null,
           });
 
           if (!createResult.ok) throw createResult.error;
           result = createResult.value;
+
+          // Publish SSE event for real-time UI updates
+          const projectInfo = await projectService.getById(projectId);
+          if (projectInfo.ok) {
+            publishEvent(projectInfo.value.workspaceId, 'task.created', {
+              task: createResult.value,
+              projectId,
+            });
+          }
           break;
         }
 
@@ -355,10 +367,12 @@ mcp.post(
           }
 
           // For token auth, verify task's project is accessible
+          let taskProjectId: string | undefined;
           if (tokenAuth) {
             const taskResult = await taskService.getById(taskId);
             if (!taskResult.ok) throw taskResult.error;
-            const canAccess = await canTokenAccessProject(tokenAuth, taskResult.value.projectId);
+            taskProjectId = taskResult.value.projectId;
+            const canAccess = await canTokenAccessProject(tokenAuth, taskProjectId);
             if (!canAccess) {
               return c.json({
                 success: false,
@@ -371,10 +385,23 @@ mcp.post(
             taskId,
             content,
             userId: user?.id || null,
+            agentId: tokenAuth?.tokenId || null,
           });
 
           if (!commentResult.ok) throw commentResult.error;
           result = commentResult.value;
+
+          // Publish SSE event for real-time UI updates
+          if (taskProjectId) {
+            const projectInfo = await projectService.getById(taskProjectId);
+            if (projectInfo.ok) {
+              publishEvent(projectInfo.value.workspaceId, 'comment.created', {
+                comment: commentResult.value,
+                taskId,
+                projectId: taskProjectId,
+              });
+            }
+          }
           break;
         }
 
@@ -445,17 +472,50 @@ mcp.post(
         }
 
         case 'create_smart_view': {
-          // Smart views are workspace-level, not project-level
-          // For token auth, this should be restricted
-          if (tokenAuth) {
-            return c.json({
-              success: false,
-              error: { code: 'FORBIDDEN', message: 'API tokens cannot create smart views' },
-            }, 403);
+          const name = args.name as string;
+          if (!name) {
+            throw new Error('name is required');
           }
 
-          // TODO: Implement smart view creation via MCP
-          result = { message: 'Smart view creation not yet implemented' };
+          const filters = args.filters as string | undefined;
+          let parsedFilters;
+          if (filters) {
+            try {
+              parsedFilters = JSON.parse(filters);
+            } catch {
+              throw new Error('Invalid filters JSON');
+            }
+          }
+
+          // Determine workspace and creator based on auth type
+          let workspaceId: string;
+          let createdBy: string | null;
+
+          if (tokenAuth) {
+            workspaceId = tokenAuth.workspaceId;
+            createdBy = null; // Agent-created views have no user owner
+          } else if (user) {
+            // For session auth, we need a workspaceId from args
+            const argWorkspaceId = args.workspaceId as string | undefined;
+            if (!argWorkspaceId) {
+              throw new Error('workspaceId is required for session auth');
+            }
+            workspaceId = argWorkspaceId;
+            createdBy = user.id;
+          } else {
+            throw new Error('Authentication required');
+          }
+
+          const smartViewResult = await smartViewService.create({
+            workspaceId,
+            createdBy,
+            name,
+            description: args.description as string | undefined,
+            filters: parsedFilters,
+          });
+
+          if (!smartViewResult.ok) throw smartViewResult.error;
+          result = smartViewResult.value;
           break;
         }
 

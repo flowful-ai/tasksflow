@@ -6,7 +6,7 @@ import { TaskService, ProjectService, WorkspaceService } from '@flowtask/domain'
 import { getCurrentUser } from '@flowtask/auth';
 import { CreateTaskSchema, UpdateTaskSchema, MoveTaskSchema, CreateCommentSchema } from '@flowtask/shared';
 import { hasPermission } from '@flowtask/auth';
-import { publishEvent } from '../websocket/handler.js';
+import { publishEvent } from '../sse/manager.js';
 
 const tasks = new Hono();
 const db = getDatabase();

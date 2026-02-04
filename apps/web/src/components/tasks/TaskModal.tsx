@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
 
 interface TaskModalProps {
@@ -21,6 +21,7 @@ export function TaskModal({
   onUpdated,
 }: TaskModalProps) {
   const isEditing = !!taskId;
+  const queryClient = useQueryClient();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -66,6 +67,8 @@ export function TaskModal({
       });
     },
     onSuccess: () => {
+      // Invalidate smart view queries since new tasks may match filter criteria
+      queryClient.invalidateQueries({ queryKey: ['smart-view-execute'] });
       onCreated?.();
     },
   });
@@ -81,6 +84,8 @@ export function TaskModal({
       });
     },
     onSuccess: () => {
+      // Invalidate smart view queries since task changes may affect filter results
+      queryClient.invalidateQueries({ queryKey: ['smart-view-execute'] });
       onUpdated?.();
     },
   });
