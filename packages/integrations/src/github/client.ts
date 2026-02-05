@@ -267,6 +267,32 @@ export async function createGitHubClient(config: GitHubConfig): Promise<GitHubCl
 }
 
 /**
+ * Decode a private key that may be base64-encoded.
+ * Supports both raw PEM format and base64-encoded keys.
+ * Base64 encoding is useful for deployments where .env parsers
+ * don't handle multi-line values well (e.g., Dokploy).
+ */
+function decodePrivateKey(key: string): string {
+  // If it starts with '-----BEGIN', it's already in PEM format
+  if (key.startsWith('-----BEGIN')) {
+    return key;
+  }
+
+  // Try to decode as base64
+  try {
+    const decoded = Buffer.from(key, 'base64').toString('utf-8');
+    if (decoded.startsWith('-----BEGIN')) {
+      return decoded;
+    }
+  } catch {
+    // Not valid base64, return as-is
+  }
+
+  // Return as-is if neither format matches
+  return key;
+}
+
+/**
  * Create a GitHub client with installation authentication.
  * This is used for GitHub App installations.
  */
@@ -275,12 +301,15 @@ export async function createGitHubClientForInstallation(
   config: Omit<GitHubConfig, 'installationId'>
 ): Promise<GitHubClient> {
   const appId = process.env.GITHUB_APP_ID;
-  const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
+  const privateKeyRaw = process.env.GITHUB_APP_PRIVATE_KEY;
 
-  if (!appId || !privateKey) {
+  if (!appId || !privateKeyRaw) {
     console.error('[GitHub Client] Missing GitHub App credentials. Set GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY environment variables.');
     throw new Error('GitHub App credentials not configured. Set GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY env vars.');
   }
+
+  // Decode the private key (supports both raw PEM and base64-encoded)
+  const privateKey = decodePrivateKey(privateKeyRaw);
 
   // Use GitHub App installation authentication
   const octokit = new Octokit({
