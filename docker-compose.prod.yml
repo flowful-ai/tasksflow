@@ -33,7 +33,7 @@ services:
       - flowtask-network
 
   # API Server
-  api:
+  tasksflow-api:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -67,7 +67,7 @@ services:
         condition: service_healthy
     networks:
       - flowtask-network
-  web:
+  tasksflow-web:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
@@ -80,7 +80,7 @@ services:
     expose:
       - "3000"
     depends_on:
-      - api
+      - tasksflow-api
     networks:
       - flowtask-network
 
