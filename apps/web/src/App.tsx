@@ -14,6 +14,7 @@ import { SettingsPage } from './routes/settings';
 import { PublicSharePage } from './routes/share';
 import { ProjectSettingsPage } from './routes/project-settings';
 import { GitHubCallbackPage } from './routes/github-callback';
+import { InvitePage } from './routes/invite';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore();
@@ -42,6 +43,9 @@ export default function App() {
 
       {/* Public share route */}
       <Route path="/share/:token" element={<PublicSharePage />} />
+
+      {/* Invitation page - shows invite details and allows accepting */}
+      <Route path="/invite/:token" element={<InvitePage />} />
 
       {/* GitHub callback - outside protected routes to avoid auth interference */}
       <Route path="/github/callback" element={<GitHubCallbackPage />} />

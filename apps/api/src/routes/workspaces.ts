@@ -141,6 +141,26 @@ workspaces.delete('/:workspaceId', async (c) => {
 
 // Member management
 
+// List members
+workspaces.get('/:workspaceId/members', async (c) => {
+  const user = getCurrentUser(c);
+  const workspaceId = c.req.param('workspaceId');
+
+  // Check membership
+  const isMember = await workspaceService.isMember(workspaceId, user.id);
+  if (!isMember) {
+    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not a workspace member' } }, 403);
+  }
+
+  const result = await workspaceService.getById(workspaceId);
+
+  if (!result.ok) {
+    return c.json({ success: false, error: { code: 'NOT_FOUND', message: result.error.message } }, 404);
+  }
+
+  return c.json({ success: true, data: result.value.members });
+});
+
 // Add member
 workspaces.post(
   '/:workspaceId/members',

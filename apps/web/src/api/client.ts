@@ -143,6 +143,114 @@ export const workspaceAgentApi = {
 
 export { ApiError };
 
+// Workspace member types
+export interface WorkspaceMember {
+  id: string;
+  workspaceId: string;
+  userId: string;
+  role: 'owner' | 'admin' | 'member';
+  createdAt: string;
+  user: {
+    id: string;
+    email: string;
+    name: string | null;
+    avatarUrl: string | null;
+  };
+}
+
+// Workspace invitation types
+export interface WorkspaceInvitation {
+  id: string;
+  workspaceId: string;
+  email: string | null; // null for generic invite links
+  role: 'admin' | 'member';
+  token: string;
+  status: 'pending' | 'accepted' | 'revoked' | 'exhausted';
+  maxUses: number | null; // null = unlimited
+  usesCount: number;
+  expiresAt: string;
+  acceptedAt: string | null;
+  createdAt: string;
+  inviteUrl: string;
+  isGeneric: boolean;
+  inviter: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
+  workspaceName: string;
+}
+
+export interface PublicInvitation {
+  id: string;
+  workspaceName: string;
+  email: string | null; // null for generic invite links
+  role: 'admin' | 'member';
+  isGeneric: boolean;
+  maxUses: number | null;
+  usesCount: number;
+  expiresAt: string;
+  invitedBy: {
+    name: string | null;
+    email: string;
+  } | null;
+}
+
+export interface CreateInvitationInput {
+  email?: string | null;
+  role: 'admin' | 'member';
+  maxUses?: number | null;
+}
+
+// Workspace member API methods
+export const memberApi = {
+  list: (workspaceId: string) =>
+    api.get<{ success: boolean; data: WorkspaceMember[] }>(
+      `/api/workspaces/${workspaceId}/members`
+    ),
+
+  updateRole: (workspaceId: string, memberId: string, role: 'admin' | 'member') =>
+    api.patch<{ success: boolean; data: WorkspaceMember }>(
+      `/api/workspaces/${workspaceId}/members/${memberId}`,
+      { role }
+    ),
+
+  remove: (workspaceId: string, memberId: string) =>
+    api.delete<{ success: boolean; data: null }>(
+      `/api/workspaces/${workspaceId}/members/${memberId}`
+    ),
+};
+
+// Invitation API methods
+export const invitationApi = {
+  list: (workspaceId: string, status?: 'pending' | 'accepted' | 'revoked') => {
+    const params = status ? `?status=${status}` : '';
+    return api.get<{ success: boolean; data: WorkspaceInvitation[] }>(
+      `/api/workspaces/${workspaceId}/invitations${params}`
+    );
+  },
+
+  create: (workspaceId: string, data: CreateInvitationInput) =>
+    api.post<{ success: boolean; data: WorkspaceInvitation }>(
+      `/api/workspaces/${workspaceId}/invitations`,
+      data
+    ),
+
+  revoke: (workspaceId: string, invitationId: string) =>
+    api.delete<{ success: boolean; data: null }>(
+      `/api/workspaces/${workspaceId}/invitations/${invitationId}`
+    ),
+
+  // Public endpoints (no auth required for get)
+  getByToken: (token: string) =>
+    api.get<{ success: boolean; data: PublicInvitation }>(`/api/invitations/${token}`),
+
+  accept: (token: string) =>
+    api.post<{ success: boolean; data: { workspaceId: string; workspaceName: string } }>(
+      `/api/invitations/${token}/accept`
+    ),
+};
+
 // GitHub Integration types
 export interface GitHubRepository {
   id: number;

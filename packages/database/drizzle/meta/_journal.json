@@ -22,6 +22,20 @@
       "when": 1770217600371,
       "tag": "0002_gorgeous_tiger_shark",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1770303354070,
+      "tag": "0003_petite_silhouette",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1770400000000,
+      "tag": "0004_generic_invitations",
+      "breakpoints": true
     }
   ]
 }

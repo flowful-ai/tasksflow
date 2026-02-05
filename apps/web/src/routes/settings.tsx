@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
-import { User, Building2, Link2, Key, Bot, Eye } from 'lucide-react';
+import { User, Building2, Link2, Key, Bot, Eye, Users } from 'lucide-react';
 import clsx from 'clsx';
 import { useWorkspaceStore } from '../stores/workspace';
 import { AgentSettings } from '../components/settings/AgentSettings';
 import { SmartViewForm } from '../components/smart-views/SmartViewForm';
+import { MemberSettings } from '../components/settings/MemberSettings';
 import { authApi, type LinkedAccount } from '../api/auth';
 
 function ProfileSettings() {
@@ -356,6 +357,7 @@ export function SettingsPage() {
   const navigation = [
     { name: 'Profile', href: '/settings', icon: User },
     { name: 'Workspace', href: '/settings/workspace', icon: Building2 },
+    { name: 'Members', href: '/settings/members', icon: Users },
     { name: 'Views', href: '/settings/views', icon: Eye },
     { name: 'Integrations', href: '/settings/integrations', icon: Link2 },
     { name: 'Agents', href: '/settings/agents', icon: Bot },
@@ -396,6 +398,7 @@ export function SettingsPage() {
             <Route index element={<ProfileSettings />} />
             <Route path="workspace" element={<WorkspaceSettings />} />
             <Route path="workspaces/new" element={<NewWorkspaceSettings />} />
+            <Route path="members" element={<MemberSettings />} />
             <Route path="views" element={<ViewsSettings />} />
             <Route path="views/new" element={<SmartViewForm />} />
             <Route path="views/:viewId/edit" element={<SmartViewForm />} />

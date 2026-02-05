@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User } from '@flowtask/shared';
 import { api, ApiError } from '../api/client';
+import { useWorkspaceStore } from './workspace';
 
 // Map Better Auth error codes to user-friendly messages
 const AUTH_ERROR_MESSAGES: Record<string, string> = {
@@ -109,6 +110,8 @@ export const useAuthStore = create<AuthState>()(
         try {
           await api.post('/api/auth/sign-out');
         } finally {
+          // Clear workspace data to prevent leaking to other users
+          useWorkspaceStore.getState().reset();
           set({
             user: null,
             isAuthenticated: false,

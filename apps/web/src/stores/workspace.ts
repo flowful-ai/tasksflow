@@ -18,6 +18,7 @@ interface WorkspaceState {
   setCurrentProject: (project: Project | null) => void;
   createWorkspace: (name: string, slug: string) => Promise<Workspace>;
   createProject: (name: string, identifier: string) => Promise<Project>;
+  reset: () => void;
 }
 
 export const useWorkspaceStore = create<WorkspaceState>()(
@@ -106,6 +107,17 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           currentProject: project,
         }));
         return project;
+      },
+
+      reset: () => {
+        set({
+          workspaces: [],
+          currentWorkspace: null,
+          projects: [],
+          currentProject: null,
+          isLoading: false,
+          error: null,
+        });
       },
     }),
     {

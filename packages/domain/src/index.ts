@@ -29,3 +29,7 @@ export * from './workspace-agent/types.js';
 
 // Rate Limit domain
 export * from './rate-limit/service.js';
+
+// Invitation domain
+export * from './invitation/service.js';
+export * from './invitation/types.js';

@@ -19,6 +19,7 @@ import { mcpSseRoutes } from './routes/mcp-sse.js';
 import { workspaceAgentRoutes } from './routes/workspace-agents.js';
 import { eventRoutes } from './routes/events.js';
 import { githubRoutes, githubPublicRoutes } from './routes/github.js';
+import { invitationRoutes, publicInvitationRoutes, acceptInvitationRoutes } from './routes/invitations.js';
 
 // Import SSE manager
 import { initSSE } from './sse/manager.js';
@@ -79,6 +80,9 @@ app.route('/api/webhooks', webhookRoutes);
 // GitHub public routes (callback handler, no auth required)
 app.route('/api/github', githubPublicRoutes);
 
+// Public invitation routes (get invitation by token, no auth required)
+app.route('/api', publicInvitationRoutes);
+
 // MCP SSE routes (handles its own token authentication)
 app.route('/api/mcp', mcpSseRoutes);
 
@@ -92,6 +96,8 @@ app.use('/api/*', authMiddleware);
 app.route('/api/workspaces', workspaceRoutes);
 app.route('/api/projects', projectRoutes);
 app.route('/api/workspaces', workspaceAgentRoutes); // Workspace agent routes nested under workspaces
+app.route('/api', invitationRoutes); // Invitation routes under /api/workspaces/:workspaceId/invitations
+app.route('/api', acceptInvitationRoutes); // Accept invitation route (requires auth)
 app.route('/api/tasks', taskRoutes);
 app.route('/api/tasks', commentRoutes); // Comment routes nested under tasks
 app.route('/api/smart-views', smartViewRoutes);

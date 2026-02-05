@@ -3,6 +3,7 @@ import {
   users,
   workspaces,
   workspaceMembers,
+  workspaceInvitations,
   projects,
   projectIntegrations,
   workspaceAgents,
@@ -35,11 +36,13 @@ export const usersRelations = relations(users, ({ many }) => ({
   accounts: many(accounts),
   smartViews: many(smartViews),
   smartViewShares: many(smartViewShares),
+  invitationsSent: many(workspaceInvitations),
 }));
 
 // Workspace relations
 export const workspacesRelations = relations(workspaces, ({ many }) => ({
   members: many(workspaceMembers),
+  invitations: many(workspaceInvitations),
   projects: many(projects),
   smartViews: many(smartViews),
   agents: many(agents),
@@ -54,6 +57,18 @@ export const workspaceMembersRelations = relations(workspaceMembers, ({ one }) =
   }),
   user: one(users, {
     fields: [workspaceMembers.userId],
+    references: [users.id],
+  }),
+}));
+
+// Workspace invitation relations
+export const workspaceInvitationsRelations = relations(workspaceInvitations, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [workspaceInvitations.workspaceId],
+    references: [workspaces.id],
+  }),
+  invitedBy: one(users, {
+    fields: [workspaceInvitations.invitedBy],
     references: [users.id],
   }),
 }));

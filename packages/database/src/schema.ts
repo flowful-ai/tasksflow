@@ -45,6 +45,30 @@ export const workspaceMembers = pgTable(
   (table) => [uniqueIndex('unique_workspace_member').on(table.workspaceId, table.userId)]
 );
 
+export const workspaceInvitations = pgTable(
+  'workspace_invitations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .references(() => workspaces.id, { onDelete: 'cascade' })
+      .notNull(),
+    email: text('email'), // nullable for generic invite links
+    role: text('role').notNull().default('member'), // 'admin', 'member'
+    token: uuid('token').notNull().defaultRandom().unique(),
+    invitedBy: uuid('invited_by').references(() => users.id, { onDelete: 'set null' }),
+    status: text('status').notNull().default('pending'), // 'pending', 'accepted', 'revoked', 'exhausted'
+    maxUses: integer('max_uses'), // null = unlimited uses
+    usesCount: integer('uses_count').default(0).notNull(), // track usage for multi-use links
+    expiresAt: timestamp('expires_at').notNull(),
+    acceptedAt: timestamp('accepted_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('invitation_workspace_idx').on(table.workspaceId),
+    index('invitation_token_idx').on(table.token),
+  ]
+);
+
 export const projects = pgTable(
   'projects',
   {
@@ -472,6 +496,9 @@ export type NewWorkspace = typeof workspaces.$inferInsert;
 
 export type WorkspaceMember = typeof workspaceMembers.$inferSelect;
 export type NewWorkspaceMember = typeof workspaceMembers.$inferInsert;
+
+export type WorkspaceInvitation = typeof workspaceInvitations.$inferSelect;
+export type NewWorkspaceInvitation = typeof workspaceInvitations.$inferInsert;
 
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
