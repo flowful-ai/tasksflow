@@ -35,30 +35,29 @@ FROM oven/bun:1.2-slim AS runner
 
 WORKDIR /app
 
-# Copy built artifacts
+# Copy root files and all workspace package.json for lockfile consistency
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/bun.lock* ./
 
+# Copy ALL workspace package.json files (required for lockfile consistency)
 COPY --from=builder /app/packages/shared/package.json ./packages/shared/
-COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
-
 COPY --from=builder /app/packages/database/package.json ./packages/database/
-COPY --from=builder /app/packages/database/dist ./packages/database/dist
-
 COPY --from=builder /app/packages/auth/package.json ./packages/auth/
-COPY --from=builder /app/packages/auth/dist ./packages/auth/dist
-
 COPY --from=builder /app/packages/domain/package.json ./packages/domain/
-COPY --from=builder /app/packages/domain/dist ./packages/domain/dist
-
 COPY --from=builder /app/packages/integrations/package.json ./packages/integrations/
-COPY --from=builder /app/packages/integrations/dist ./packages/integrations/dist
-
 COPY --from=builder /app/apps/api/package.json ./apps/api/
+COPY --from=builder /app/apps/web/package.json ./apps/web/
+
+# Copy built dist folders
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
+COPY --from=builder /app/packages/database/dist ./packages/database/dist
+COPY --from=builder /app/packages/auth/dist ./packages/auth/dist
+COPY --from=builder /app/packages/domain/dist ./packages/domain/dist
+COPY --from=builder /app/packages/integrations/dist ./packages/integrations/dist
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 
 # Install production dependencies only
-RUN bun install --production
+RUN bun install --production --frozen-lockfile
 
 # Set environment
 ENV NODE_ENV=production
