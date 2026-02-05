@@ -4,7 +4,7 @@ FROM oven/bun:1.2 AS builder
 WORKDIR /app
 
 # Copy root package files
-COPY package.json bun.lock* ./
+COPY package.json bun.lock* tsconfig.json ./
 
 # Copy all workspace package.json files to maintain lockfile consistency
 COPY packages/shared/package.json ./packages/shared/
