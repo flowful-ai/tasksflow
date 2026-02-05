@@ -32,6 +32,7 @@ interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  hasCheckedAuth: boolean;
   error: string | null;
 
   // Actions
@@ -48,6 +49,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isAuthenticated: false,
       isLoading: false,
+      hasCheckedAuth: false,
       error: null,
 
       login: async (email: string, password: string) => {
@@ -144,6 +146,8 @@ export const useAuthStore = create<AuthState>()(
             });
           }
           // On network errors, keep existing state
+        } finally {
+          set({ hasCheckedAuth: true });
         }
       },
 
