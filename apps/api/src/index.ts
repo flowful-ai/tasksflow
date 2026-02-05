@@ -137,15 +137,17 @@ app.notFound((c) => {
 
 // Start server with Bun
 const port = parseInt(process.env.API_PORT || '3001', 10);
+const hostname = process.env.API_HOST || '0.0.0.0';
 
 const server = Bun.serve({
+  hostname,
   port,
   fetch: app.fetch,
   // Increase idle timeout for SSE connections (default is 10s which kills long-lived streams)
   idleTimeout: 255, // Maximum allowed value in Bun (in seconds)
 });
 
-console.log(`🚀 FlowTask API running at http://localhost:${server.port}`);
+console.log(`🚀 FlowTask API running at http://${hostname}:${server.port}`);
 
 // Initialize SSE manager (same port as API)
 initSSE();
