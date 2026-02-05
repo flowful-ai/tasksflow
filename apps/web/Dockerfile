@@ -3,13 +3,24 @@ FROM oven/bun:1.2 AS builder
 
 WORKDIR /app
 
-# Copy workspace files
+# Copy root package files
 COPY package.json bun.lock* ./
-COPY packages/shared ./packages/shared
-COPY apps/web ./apps/web
+
+# Copy all workspace package.json files to maintain lockfile consistency
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/database/package.json ./packages/database/
+COPY packages/auth/package.json ./packages/auth/
+COPY packages/domain/package.json ./packages/domain/
+COPY packages/integrations/package.json ./packages/integrations/
+COPY apps/web/package.json ./apps/web/
+COPY apps/api/package.json ./apps/api/
 
 # Install dependencies
 RUN bun install --frozen-lockfile
+
+# Copy source code for packages we need
+COPY packages/shared ./packages/shared
+COPY apps/web ./apps/web
 
 # Build arguments for Vite env vars (must be set at build time)
 ARG VITE_API_URL
