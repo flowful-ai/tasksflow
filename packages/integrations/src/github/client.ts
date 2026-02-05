@@ -1,4 +1,5 @@
 import { Octokit } from '@octokit/rest';
+import { createAppAuth } from '@octokit/auth-app';
 import type { GitHubConfig } from '../types.js';
 
 /**
@@ -129,6 +130,120 @@ export class GitHubClient {
   getOctokit(): Octokit {
     return this.octokit;
   }
+
+  // ============ Write Methods (for two-way sync) ============
+
+  /**
+   * Update an issue's title, body, and/or state.
+   */
+  async updateIssue(issueNumber: number, updates: {
+    title?: string;
+    body?: string;
+    state?: 'open' | 'closed';
+  }) {
+    const { data } = await this.octokit.issues.update({
+      owner: this.config.owner,
+      repo: this.config.repo,
+      issue_number: issueNumber,
+      ...updates,
+    });
+    return data;
+  }
+
+  /**
+   * Set labels on an issue, replacing existing labels.
+   */
+  async setIssueLabels(issueNumber: number, labels: string[]) {
+    const { data } = await this.octokit.issues.setLabels({
+      owner: this.config.owner,
+      repo: this.config.repo,
+      issue_number: issueNumber,
+      labels,
+    });
+    return data;
+  }
+
+  /**
+   * Add labels to an issue without removing existing ones.
+   */
+  async addIssueLabels(issueNumber: number, labels: string[]) {
+    const { data } = await this.octokit.issues.addLabels({
+      owner: this.config.owner,
+      repo: this.config.repo,
+      issue_number: issueNumber,
+      labels,
+    });
+    return data;
+  }
+
+  /**
+   * Remove a label from an issue.
+   */
+  async removeIssueLabel(issueNumber: number, label: string) {
+    const { data } = await this.octokit.issues.removeLabel({
+      owner: this.config.owner,
+      repo: this.config.repo,
+      issue_number: issueNumber,
+      name: label,
+    });
+    return data;
+  }
+
+  /**
+   * Set assignees on an issue, replacing existing assignees.
+   */
+  async setIssueAssignees(issueNumber: number, assignees: string[]) {
+    const { data } = await this.octokit.issues.update({
+      owner: this.config.owner,
+      repo: this.config.repo,
+      issue_number: issueNumber,
+      assignees,
+    });
+    return data;
+  }
+
+  /**
+   * Add assignees to an issue.
+   */
+  async addIssueAssignees(issueNumber: number, assignees: string[]) {
+    const { data } = await this.octokit.issues.addAssignees({
+      owner: this.config.owner,
+      repo: this.config.repo,
+      issue_number: issueNumber,
+      assignees,
+    });
+    return data;
+  }
+
+  /**
+   * Remove assignees from an issue.
+   */
+  async removeIssueAssignees(issueNumber: number, assignees: string[]) {
+    const { data } = await this.octokit.issues.removeAssignees({
+      owner: this.config.owner,
+      repo: this.config.repo,
+      issue_number: issueNumber,
+      assignees,
+    });
+    return data;
+  }
+
+  /**
+   * Create a new issue.
+   */
+  async createIssue(options: {
+    title: string;
+    body?: string;
+    labels?: string[];
+    assignees?: string[];
+  }) {
+    const { data } = await this.octokit.issues.create({
+      owner: this.config.owner,
+      repo: this.config.repo,
+      ...options,
+    });
+    return data;
+  }
 }
 
 /**
@@ -158,26 +273,21 @@ export async function createGitHubClientForInstallation(
   installationId: number,
   config: Omit<GitHubConfig, 'installationId'>
 ): Promise<GitHubClient> {
-  // In production, this would use GitHub App installation authentication
-  // using the app's private key to generate an installation access token
-
   const appId = process.env.GITHUB_APP_ID;
   const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
 
   if (!appId || !privateKey) {
-    throw new Error('GitHub App credentials not configured');
+    throw new Error('GitHub App credentials not configured. Set GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY env vars.');
   }
 
-  // For now, fall back to token auth
-  // In production: use createAppAuth from @octokit/auth-app
-  const token = process.env.GITHUB_TOKEN || process.env.GITHUB_ACCESS_TOKEN;
-
-  if (!token) {
-    throw new Error('GitHub token not configured');
-  }
-
+  // Use GitHub App installation authentication
   const octokit = new Octokit({
-    auth: token,
+    authStrategy: createAppAuth,
+    auth: {
+      appId: parseInt(appId, 10),
+      privateKey,
+      installationId,
+    },
   });
 
   return new GitHubClient(octokit, { ...config, installationId });

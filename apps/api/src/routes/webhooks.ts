@@ -1,9 +1,12 @@
 import { Hono } from 'hono';
-import { getDatabase, projectIntegrations, projects } from '@flowtask/database';
+import { getDatabase, projectIntegrations, projects, externalLinks } from '@flowtask/database';
 import { eq, and } from 'drizzle-orm';
 import { GitHubProvider, GitHubSyncService, SlackProvider } from '@flowtask/integrations';
 import { TaskService } from '@flowtask/domain';
 import crypto from 'crypto';
+
+// How recently a sync must have occurred to be considered "from us" (5 seconds)
+const SYNC_LOOP_THRESHOLD_MS = 5000;
 
 const webhooks = new Hono();
 const db = getDatabase();
@@ -97,6 +100,30 @@ webhooks.post('/github', async (c) => {
 
     if (result.action === 'ignore') {
       return c.json({ status: 'ignored' });
+    }
+
+    // Check for sync loop: if we recently synced this issue from FlowTask, skip
+    if (result.externalLink && (result.action === 'update_task' || result.action === 'create_task')) {
+      const [existingLink] = await db
+        .select({ lastSyncedAt: externalLinks.lastSyncedAt })
+        .from(externalLinks)
+        .where(
+          and(
+            eq(externalLinks.integrationId, matchingIntegration.integration.id),
+            eq(externalLinks.externalType, 'github_issue'),
+            eq(externalLinks.externalId, result.externalLink.id)
+          )
+        );
+
+      if (existingLink?.lastSyncedAt) {
+        const timeSinceSync = Date.now() - new Date(existingLink.lastSyncedAt).getTime();
+        if (timeSinceSync < SYNC_LOOP_THRESHOLD_MS) {
+          return c.json({
+            status: 'ignored',
+            reason: 'Recent sync detected, skipping to prevent loop'
+          });
+        }
+      }
     }
 
     // Process based on action

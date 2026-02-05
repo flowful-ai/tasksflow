@@ -142,3 +142,85 @@ export const workspaceAgentApi = {
 };
 
 export { ApiError };
+
+// GitHub Integration types
+export interface GitHubRepository {
+  id: number;
+  owner: string;
+  name: string;
+  fullName: string;
+  htmlUrl: string;
+}
+
+export interface LinkedRepository {
+  owner: string;
+  repo: string;
+  linkedAt: string;
+  lastSyncAt: string | null;
+  syncStatus: 'idle' | 'syncing' | 'synced' | 'error';
+  syncError: string | null;
+}
+
+export interface GitHubIntegration {
+  id: string | null;
+  installationId: number | null;
+  repositories: LinkedRepository[];
+  isEnabled: boolean;
+}
+
+export interface LinkRepositoryInput {
+  installationId: number;
+  owner: string;
+  repo: string;
+}
+
+// GitHub Integration API methods
+export const githubApi = {
+  // Get the GitHub integration status for a project
+  getIntegration: async (projectId: string): Promise<GitHubIntegration> => {
+    const response = await api.get<{ success: boolean; data: GitHubIntegration }>(
+      `/api/projects/${projectId}/github`
+    );
+    return response.data;
+  },
+
+  // List repositories from a GitHub App installation
+  listInstallationRepos: async (installationId: number): Promise<GitHubRepository[]> => {
+    const response = await api.get<{ success: boolean; data: { repositories: GitHubRepository[] } }>(
+      `/api/github/installations/${installationId}/repos`
+    );
+    return response.data.repositories;
+  },
+
+  // Link a repository to a project
+  linkRepository: async (projectId: string, input: LinkRepositoryInput) => {
+    return api.post<{ success: boolean; data: GitHubIntegration }>(
+      `/api/projects/${projectId}/github/link`,
+      input
+    );
+  },
+
+  // Unlink a repository from a project
+  unlinkRepository: async (projectId: string, owner: string, repo: string) => {
+    return api.delete<{ success: boolean }>(
+      `/api/projects/${projectId}/github/link?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`
+    );
+  },
+
+  // Trigger a sync for a linked repository
+  triggerSync: async (projectId: string, owner: string, repo: string) => {
+    return api.post<{ success: boolean; data: { created: number; updated: number; errors: string[] } }>(
+      `/api/projects/${projectId}/github/sync`,
+      { owner, repo }
+    );
+  },
+
+  // Save installation ID after GitHub App installation
+  saveInstallation: async (projectId: string, installationId: number): Promise<GitHubIntegration> => {
+    const response = await api.post<{ success: boolean; data: GitHubIntegration }>(
+      `/api/projects/${projectId}/github/install`,
+      { installationId }
+    );
+    return response.data;
+  },
+};

@@ -39,9 +39,22 @@ export function createAuth(options?: { baseURL?: string }) {
         enabled: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
       },
     },
+    account: {
+      accountLinking: {
+        enabled: true,
+        trustedProviders: ['github', 'google'],
+        allowDifferentEmails: true,
+        updateUserInfoOnLink: true,
+      },
+    },
     session: {
       expiresIn: 60 * 60 * 24 * 7, // 7 days
       updateAge: 60 * 60 * 24, // 1 day
+    },
+    verification: {
+      fields: {
+        value: 'token',
+      },
     },
     user: {
       fields: {

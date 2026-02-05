@@ -7,12 +7,34 @@ import { getCurrentUser } from '@flowtask/auth';
 import { CreateTaskSchema, UpdateTaskSchema, MoveTaskSchema, CreateCommentSchema } from '@flowtask/shared';
 import { hasPermission } from '@flowtask/auth';
 import { publishEvent } from '../sse/manager.js';
+import { GitHubReverseSyncService } from '@flowtask/integrations';
 
 const tasks = new Hono();
 const db = getDatabase();
 const taskService = new TaskService(db);
 const projectService = new ProjectService(db);
 const workspaceService = new WorkspaceService(db);
+const githubReverseSync = new GitHubReverseSyncService(db);
+
+// Helper to trigger GitHub reverse sync (async, non-blocking)
+function triggerGitHubSync(
+  taskId: string,
+  changes: {
+    title?: string;
+    description?: string;
+    stateId?: string | null;
+    priority?: string | null;
+    labelIds?: string[];
+  },
+  skipGitHubSync?: boolean
+) {
+  if (skipGitHubSync) return;
+
+  // Run in background, don't await
+  githubReverseSync.syncTaskToGitHub(taskId, changes, { skipIfRecentSync: true }).catch((error: unknown) => {
+    console.error('GitHub reverse sync error:', error);
+  });
+}
 
 // Helper to check task access via project -> workspace
 async function checkTaskAccess(projectId: string, userId: string, permission: string) {
@@ -159,6 +181,14 @@ tasks.patch(
     // Publish WebSocket event
     publishEvent(project!.workspaceId, 'task:updated', result.value);
 
+    // Trigger GitHub reverse sync
+    triggerGitHubSync(taskId, {
+      title: data.title,
+      description: data.description,
+      stateId: data.stateId,
+      priority: data.priority,
+    });
+
     return c.json({ success: true, data: result.value });
   }
 );
@@ -194,6 +224,11 @@ tasks.post(
 
     // Publish WebSocket event
     publishEvent(project!.workspaceId, 'task:moved', result.value);
+
+    // Trigger GitHub reverse sync for state change
+    triggerGitHubSync(taskId, {
+      stateId: data.stateId,
+    });
 
     return c.json({ success: true, data: result.value });
   }

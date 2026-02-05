@@ -18,6 +18,7 @@ import { mcpRoutes } from './routes/mcp.js';
 import { mcpSseRoutes } from './routes/mcp-sse.js';
 import { workspaceAgentRoutes } from './routes/workspace-agents.js';
 import { eventRoutes } from './routes/events.js';
+import { githubRoutes, githubPublicRoutes } from './routes/github.js';
 
 // Import SSE manager
 import { initSSE } from './sse/manager.js';
@@ -44,6 +45,28 @@ app.get('/health', (c) => {
   return c.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Root-level GitHub App installation callback handler
+// GitHub redirects here when "OAuth during installation" is enabled
+// We detect installation_id and forward to the proper handler
+app.get('/', (c) => {
+  const installationId = c.req.query('installation_id');
+  const setupAction = c.req.query('setup_action');
+
+  if (installationId && setupAction) {
+    // This is a GitHub App installation callback, forward to our handler
+    const url = new URL(c.req.url);
+    const redirectUrl = `/api/github/callback${url.search}`;
+    return c.redirect(redirectUrl);
+  }
+
+  // Not a GitHub callback, return API info
+  return c.json({
+    name: 'FlowTask API',
+    status: 'ok',
+    docs: '/health'
+  });
+});
+
 // Auth routes (public, handled by Better Auth)
 app.route('/api/auth', authRoutes);
 
@@ -52,6 +75,9 @@ app.route('/api/public', publicRoutes);
 
 // Webhook routes (verified by signature)
 app.route('/api/webhooks', webhookRoutes);
+
+// GitHub public routes (callback handler, no auth required)
+app.route('/api/github', githubPublicRoutes);
 
 // MCP SSE routes (handles its own token authentication)
 app.route('/api/mcp', mcpSseRoutes);
@@ -71,6 +97,8 @@ app.route('/api/tasks', commentRoutes); // Comment routes nested under tasks
 app.route('/api/smart-views', smartViewRoutes);
 app.route('/api/agents', agentRoutes);
 app.route('/api/mcp', mcpRoutes);
+app.route('/api/github', githubRoutes);
+app.route('/api/projects', githubRoutes); // GitHub routes nested under projects
 
 // Error handler
 app.onError((err, c) => {
@@ -107,6 +135,8 @@ const port = parseInt(process.env.API_PORT || '3001', 10);
 const server = Bun.serve({
   port,
   fetch: app.fetch,
+  // Increase idle timeout for SSE connections (default is 10s which kills long-lived streams)
+  idleTimeout: 255, // Maximum allowed value in Bun (in seconds)
 });
 
 console.log(`🚀 FlowTask API running at http://localhost:${server.port}`);

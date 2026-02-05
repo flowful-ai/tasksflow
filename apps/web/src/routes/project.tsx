@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, MoreHorizontal } from 'lucide-react';
 import { api } from '../api/client';
@@ -11,6 +11,8 @@ export function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
   const { data: project, isLoading: projectLoading } = useQuery({
@@ -30,6 +32,19 @@ export function ProjectPage() {
     },
     enabled: !!projectId,
   });
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    }
+
+    if (isMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isMenuOpen]);
 
   if (projectLoading || tasksLoading) {
     return (
@@ -72,9 +87,25 @@ export function ProjectPage() {
             <Plus className="w-4 h-4 mr-2" />
             Add Task
           </button>
-          <button className="btn btn-ghost p-2">
-            <MoreHorizontal className="w-5 h-5" />
-          </button>
+          <div ref={menuRef} className="relative">
+            <button
+              className="btn btn-ghost p-2"
+              onClick={() => setIsMenuOpen((prev) => !prev)}
+            >
+              <MoreHorizontal className="w-5 h-5" />
+            </button>
+            {isMenuOpen && (
+              <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+                <Link
+                  to={`/project/${projectId}/settings`}
+                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Project Settings
+                </Link>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

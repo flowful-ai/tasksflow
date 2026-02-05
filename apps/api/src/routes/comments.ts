@@ -6,6 +6,7 @@ import { getCurrentUser } from '@flowtask/auth';
 import { CreateCommentSchema, UpdateCommentSchema } from '@flowtask/shared';
 import { hasPermission } from '@flowtask/auth';
 import { publishEvent } from '../sse/manager.js';
+import { GitHubReverseSyncService } from '@flowtask/integrations';
 
 const comments = new Hono();
 const db = getDatabase();
@@ -13,6 +14,7 @@ const commentService = new CommentService(db);
 const taskService = new TaskService(db);
 const projectService = new ProjectService(db);
 const workspaceService = new WorkspaceService(db);
+const githubReverseSync = new GitHubReverseSyncService(db);
 
 // Helper to check task access via project -> workspace
 async function checkTaskAccess(taskId: string, userId: string, permission: string) {
@@ -103,6 +105,15 @@ comments.post(
         comment: result.value,
       });
     }
+
+    // Trigger GitHub comment sync (async, non-blocking)
+    githubReverseSync.syncCommentToGitHub(taskId, {
+      content: data.content,
+      authorId: user.id,
+      authorName: user.name || undefined,
+    }).catch((error: unknown) => {
+      console.error('GitHub comment sync error:', error);
+    });
 
     return c.json({ success: true, data: result.value }, 201);
   }

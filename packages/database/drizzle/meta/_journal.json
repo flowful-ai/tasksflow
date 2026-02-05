@@ -15,6 +15,13 @@
       "when": 1770199540245,
       "tag": "0001_wise_the_phantom",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1770217600371,
+      "tag": "0002_gorgeous_tiger_shark",
+      "breakpoints": true
     }
   ]
 }

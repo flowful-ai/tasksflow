@@ -12,6 +12,8 @@ import { SmartViewPage } from './routes/smart-view';
 import { ViewsPage } from './routes/views';
 import { SettingsPage } from './routes/settings';
 import { PublicSharePage } from './routes/share';
+import { ProjectSettingsPage } from './routes/project-settings';
+import { GitHubCallbackPage } from './routes/github-callback';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore();
@@ -41,6 +43,9 @@ export default function App() {
       {/* Public share route */}
       <Route path="/share/:token" element={<PublicSharePage />} />
 
+      {/* GitHub callback - outside protected routes to avoid auth interference */}
+      <Route path="/github/callback" element={<GitHubCallbackPage />} />
+
       {/* Protected routes */}
       <Route
         path="/*"
@@ -53,6 +58,7 @@ export default function App() {
                 <Route path="/projects" element={<ProjectsPage />} />
                 <Route path="/projects/new" element={<NewProjectPage />} />
                 <Route path="/project/:projectId" element={<ProjectPage />} />
+                <Route path="/project/:projectId/settings" element={<ProjectSettingsPage />} />
                 <Route path="/task/:taskId" element={<TaskPage />} />
                 <Route path="/views" element={<ViewsPage />} />
                 <Route path="/view/:viewId" element={<SmartViewPage />} />

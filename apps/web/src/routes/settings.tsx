@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { User, Building2, Link2, Key, Bot, Eye } from 'lucide-react';
 import clsx from 'clsx';
 import { useWorkspaceStore } from '../stores/workspace';
 import { AgentSettings } from '../components/settings/AgentSettings';
 import { SmartViewForm } from '../components/smart-views/SmartViewForm';
+import { authApi, type LinkedAccount } from '../api/auth';
 
 function ProfileSettings() {
   return (
@@ -25,12 +26,100 @@ function WorkspaceSettings() {
 }
 
 function IntegrationSettings() {
+  const [accounts, setAccounts] = useState<LinkedAccount[] | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isMutating, setIsMutating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const githubEnabled = Boolean(import.meta.env.VITE_GITHUB_CLIENT_ID);
+
+  const githubAccount = useMemo(
+    () => accounts?.find((account) => account.providerId === 'github'),
+    [accounts]
+  );
+
+  const loadAccounts = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await authApi.listAccounts();
+      setAccounts(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load integrations');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAccounts();
+  }, []);
+
+  const handleConnectGithub = async () => {
+    console.log('[handleConnectGithub] Called, githubEnabled:', githubEnabled);
+    if (!githubEnabled) {
+      setError('GitHub integration is not configured.');
+      return;
+    }
+
+    setIsMutating(true);
+    setError(null);
+
+    try {
+      const callbackURL = `${window.location.origin}/settings/integrations`;
+      console.log('[handleConnectGithub] Calling linkSocial with callbackURL:', callbackURL);
+      const response = await authApi.linkSocial({
+        provider: 'github',
+        callbackURL,
+        scopes: ['repo', 'read:user', 'user:email'],
+      });
+
+      console.log('[handleConnectGithub] Response:', response);
+      if (response.redirect && response.url) {
+        console.log('[handleConnectGithub] Redirecting to:', response.url);
+        window.location.href = response.url;
+        return;
+      }
+
+      await loadAccounts();
+    } catch (err) {
+      console.error('[handleConnectGithub] Error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to connect GitHub');
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
+  const handleDisconnectGithub = async () => {
+    if (!githubAccount) return;
+
+    setIsMutating(true);
+    setError(null);
+
+    try {
+      await authApi.unlinkAccount({
+        providerId: 'github',
+        accountId: githubAccount.accountId,
+      });
+      await loadAccounts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to disconnect GitHub');
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
   return (
     <div className="card p-6">
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Integrations</h2>
       <p className="text-gray-600">
         Connect FlowTask with GitHub, Slack, and other tools.
       </p>
+
+      {error && (
+        <div className="mt-4 p-3 text-sm text-red-600 bg-red-50 rounded-lg">
+          {error}
+        </div>
+      )}
 
       <div className="mt-6 space-y-4">
         <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
@@ -43,9 +132,35 @@ function IntegrationSettings() {
             <div>
               <h3 className="font-medium text-gray-900">GitHub</h3>
               <p className="text-sm text-gray-500">Sync issues and pull requests</p>
+              {isLoading ? (
+                <p className="text-xs text-gray-400 mt-1">Checking connection…</p>
+              ) : githubAccount ? (
+                <p className="text-xs text-green-600 mt-1">Connected</p>
+              ) : githubEnabled ? (
+                <p className="text-xs text-gray-400 mt-1">Not connected</p>
+              ) : (
+                <p className="text-xs text-amber-600 mt-1">Not configured</p>
+              )}
             </div>
           </div>
-          <button className="btn btn-secondary">Connect</button>
+          {githubAccount ? (
+            <button
+              className="btn btn-secondary"
+              onClick={handleDisconnectGithub}
+              disabled={isMutating}
+            >
+              {isMutating ? 'Disconnecting...' : 'Disconnect'}
+            </button>
+          ) : (
+            <button
+              className="btn btn-secondary"
+              onClick={handleConnectGithub}
+              disabled={isMutating || !githubEnabled}
+              title={!githubEnabled ? 'GitHub OAuth not configured' : undefined}
+            >
+              {isMutating ? 'Connecting...' : 'Connect'}
+            </button>
+          )}
         </div>
 
         <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">

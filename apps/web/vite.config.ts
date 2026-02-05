@@ -5,6 +5,8 @@ import path from 'path';
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // Load env files from monorepo root
+  envDir: path.resolve(__dirname, '../..'),
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -17,6 +19,8 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:3001',
         changeOrigin: true,
+        timeout: 0,
+        proxyTimeout: 0,
       },
       '/ws': {
         target: 'ws://localhost:3001',

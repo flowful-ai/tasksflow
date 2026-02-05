@@ -8,8 +8,8 @@ const events = new Hono();
 const db = getDatabase();
 const workspaceService = new WorkspaceService(db);
 
-// Heartbeat interval in milliseconds (30 seconds)
-const HEARTBEAT_INTERVAL = 30000;
+// Heartbeat interval in milliseconds (10 seconds)
+const HEARTBEAT_INTERVAL = 10000;
 
 /**
  * SSE stream endpoint for real-time updates.
@@ -36,6 +36,9 @@ events.get('/stream', authMiddleware, async (c) => {
   }
 
   // Create SSE stream
+  // Use closure variable to store cleanup function - cancel() receives `reason`, not controller
+  let cleanup: (() => void) | undefined;
+
   const stream = new ReadableStream({
     start(controller) {
       // Add client to workspace
@@ -43,7 +46,7 @@ events.get('/stream', authMiddleware, async (c) => {
 
       // Send initial connection message
       const encoder = new TextEncoder();
-      const connectMessage = `event: connected\ndata: ${JSON.stringify({ workspaceId, timestamp: new Date().toISOString() })}\n\n`;
+      const connectMessage = `retry: 5000\nevent: connected\ndata: ${JSON.stringify({ workspaceId, timestamp: new Date().toISOString() })}\n\n`;
       controller.enqueue(encoder.encode(connectMessage));
 
       // Set up heartbeat to keep connection alive
@@ -57,18 +60,16 @@ events.get('/stream', authMiddleware, async (c) => {
         }
       }, HEARTBEAT_INTERVAL);
 
-      // Store cleanup function
-      (controller as unknown as { _cleanup?: () => void })._cleanup = () => {
+      // Store cleanup function in closure (accessible from cancel)
+      cleanup = () => {
         clearInterval(heartbeatId);
         removeClient(workspaceId, controller);
       };
     },
-    cancel(controller) {
+    cancel() {
       // Clean up when client disconnects
-      const cleanup = (controller as unknown as { _cleanup?: () => void })._cleanup;
-      if (cleanup) {
-        cleanup();
-      }
+      // Note: cancel() receives an optional `reason` parameter, NOT the controller
+      cleanup?.();
     },
   });
 

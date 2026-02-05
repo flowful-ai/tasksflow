@@ -433,6 +433,7 @@ export const verificationTokens = pgTable(
     token: text('token').notNull().unique(),
     expiresAt: timestamp('expires_at').notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
   (table) => [uniqueIndex('unique_verification_token').on(table.identifier, table.token)]
 );

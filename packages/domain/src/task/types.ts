@@ -27,10 +27,14 @@ export interface TaskCreateInput extends CreateTask {
 
 export interface TaskUpdateInput extends UpdateTask {
   updatedBy: string | null;
+  /** Skip reverse sync to GitHub (used when update comes from GitHub webhook) */
+  skipGitHubSync?: boolean;
 }
 
 export interface TaskMoveInput extends MoveTask {
   movedBy: string | null;
+  /** Skip reverse sync to GitHub (used when update comes from GitHub webhook) */
+  skipGitHubSync?: boolean;
 }
 
 export interface TaskFilters {
