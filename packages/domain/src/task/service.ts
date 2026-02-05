@@ -10,6 +10,7 @@ import {
   users,
   projects,
   workspaceAgents,
+  externalLinks,
 } from '@flowtask/database';
 import { generatePosition, positionAfter, positionBetween } from '@flowtask/shared';
 import type { Result } from '@flowtask/shared';
@@ -173,6 +174,12 @@ export class TaskService {
         .innerJoin(labels, eq(taskLabels.labelId, labels.id))
         .where(eq(taskLabels.taskId, taskId));
 
+      // Get external links (GitHub issues/PRs)
+      const externalLinkRows = await this.db
+        .select()
+        .from(externalLinks)
+        .where(eq(externalLinks.taskId, taskId));
+
       return ok({
         ...task.task,
         state: task.state,
@@ -180,6 +187,12 @@ export class TaskService {
         assignees: assigneeRows.map((r) => r.user),
         labels: labelRows.map((r) => r.label),
         agent: task.agent?.id ? task.agent : null,
+        externalLinks: externalLinkRows.map((r) => ({
+          id: r.id,
+          externalType: r.externalType as 'github_issue' | 'github_pr',
+          externalId: r.externalId,
+          externalUrl: r.externalUrl,
+        })),
       });
     } catch (error) {
       return err(error instanceof Error ? error : new Error('Unknown error'));
@@ -463,11 +476,12 @@ export class TaskService {
         .limit(limit)
         .offset((page - 1) * limit);
 
-      // Get all assignees and labels for the tasks
+      // Get all assignees, labels, and external links for the tasks
       const taskIds = taskRows.map((r) => r.task.id);
 
       let assigneesMap = new Map<string, typeof users.$inferSelect[]>();
       let labelsMap = new Map<string, typeof labels.$inferSelect[]>();
+      let externalLinksMap = new Map<string, { id: string; externalType: 'github_issue' | 'github_pr'; externalId: string; externalUrl: string }[]>();
 
       if (taskIds.length > 0) {
         const assigneeRows = await this.db
@@ -493,6 +507,22 @@ export class TaskService {
           existing.push(row.label);
           labelsMap.set(row.taskId, existing);
         }
+
+        const externalLinkRows = await this.db
+          .select()
+          .from(externalLinks)
+          .where(inArray(externalLinks.taskId, taskIds));
+
+        for (const row of externalLinkRows) {
+          const existing = externalLinksMap.get(row.taskId) || [];
+          existing.push({
+            id: row.id,
+            externalType: row.externalType as 'github_issue' | 'github_pr',
+            externalId: row.externalId,
+            externalUrl: row.externalUrl,
+          });
+          externalLinksMap.set(row.taskId, existing);
+        }
       }
 
       // Build result
@@ -503,6 +533,7 @@ export class TaskService {
         assignees: assigneesMap.get(row.task.id) || [],
         labels: labelsMap.get(row.task.id) || [],
         agent: row.agent?.id ? row.agent : null,
+        externalLinks: externalLinksMap.get(row.task.id) || [],
       }));
 
       return ok({ tasks: tasksWithRelations, total });

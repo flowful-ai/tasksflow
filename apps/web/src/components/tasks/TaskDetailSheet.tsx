@@ -7,6 +7,7 @@ import clsx from 'clsx';
 import { AssigneePicker } from './AssigneePicker';
 import { LabelPicker } from './LabelPicker';
 import { DueDatePicker } from './DueDatePicker';
+import { GitHubLinkSection } from './GitHubLinkSection';
 
 interface TaskState {
   id: string;
@@ -33,6 +34,12 @@ interface TaskDetail {
   project: { id: string; identifier: string; name: string };
   assignees: { id: string; name: string | null; email: string }[];
   labels: { id: string; name: string; color: string | null }[];
+  externalLinks: {
+    id: string;
+    externalType: 'github_issue' | 'github_pr';
+    externalId: string;
+    externalUrl: string;
+  }[];
   sequenceNumber: number;
   dueDate: string | null;
   startDate: string | null;
@@ -579,6 +586,14 @@ export function TaskDetailSheet({
                 value={task.dueDate}
                 onChange={handleDueDateChange}
                 isLoading={updateMutation.isPending}
+              />
+
+              {/* GitHub Links */}
+              <GitHubLinkSection
+                taskId={taskId}
+                projectId={projectId}
+                externalLinks={task.externalLinks || []}
+                onUpdated={() => queryClient.invalidateQueries({ queryKey: ['task', taskId] })}
               />
 
               {/* Created */}

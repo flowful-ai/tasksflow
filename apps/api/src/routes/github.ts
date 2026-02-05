@@ -412,12 +412,14 @@ github.post('/:projectId/github/sync', async (c) => {
 
   // Perform sync
   try {
+    console.log(`[GitHub Sync] Starting sync for ${owner}/${repo} (project: ${projectId})`);
     const syncService = new GitHubSyncService(db, taskService);
     const result = await syncService.initialSync(integration.id, projectId, {
       installationId: config.installationId,
       owner,
       repo,
     });
+    console.log(`[GitHub Sync] Completed for ${owner}/${repo}: ${result.created} created, ${result.updated} updated, ${result.errors.length} errors`);
 
     // Update status based on result
     const finalRepos = config.repositories?.map((r) =>
@@ -447,6 +449,8 @@ github.post('/:projectId/github/sync', async (c) => {
       data: result,
     });
   } catch (error) {
+    console.error(`[GitHub Sync] Failed for ${owner}/${repo}:`, error);
+
     // Update status to error
     const errorRepos = config.repositories?.map((r) =>
       r.owner === owner && r.repo === repo

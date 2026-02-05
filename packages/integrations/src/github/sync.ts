@@ -2,7 +2,7 @@ import type { Database } from '@flowtask/database';
 import { projectIntegrations, externalLinks, tasks } from '@flowtask/database';
 import { eq, and } from 'drizzle-orm';
 import type { GitHubConfig } from '../types.js';
-import { createGitHubClient, type GitHubClient } from './client.js';
+import { createGitHubClientForInstallation, type GitHubClient } from './client.js';
 import { GitHubWebhookHandler } from './webhook.js';
 import { TaskService } from '@flowtask/domain';
 import { positionAfter } from '@flowtask/shared';
@@ -28,15 +28,19 @@ export class GitHubSyncService {
     errors: string[];
   }> {
     const result = { created: 0, updated: 0, errors: [] as string[] };
+    const repoName = `${config.owner}/${config.repo}`;
+
+    console.log(`[GitHub Sync] initialSync started for ${repoName} (integration: ${integrationId})`);
 
     try {
       // Update sync status
       await this.updateSyncStatus(integrationId, 'syncing');
 
-      const client = await createGitHubClient(config);
+      const client = await createGitHubClientForInstallation(config.installationId, config);
 
       // Fetch all open issues
       const issues = await client.listIssues({ state: 'open', per_page: 100 });
+      console.log(`[GitHub Sync] Fetched ${issues.length} open issues from ${repoName}`);
 
       for (const issue of issues) {
         try {
@@ -58,7 +62,7 @@ export class GitHubSyncService {
               title: issue.title,
               description: issue.body || undefined,
               priority: this.webhookHandler.mapLabelsToPriority(issue.labels as { name: string }[]),
-              updatedBy: 'system',
+              updatedBy: null,
             });
 
             if (updateResult.ok) {
@@ -75,7 +79,7 @@ export class GitHubSyncService {
               title: taskData.title,
               description: taskData.description || undefined,
               priority: taskData.priority || undefined,
-              createdBy: 'system',
+              createdBy: null,
             });
 
             if (createResult.ok) {
@@ -95,15 +99,21 @@ export class GitHubSyncService {
             }
           }
         } catch (error) {
-          result.errors.push(`Error processing issue #${issue.number}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          const errorMsg = `Error processing issue #${issue.number}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+          console.error(`[GitHub Sync] ${errorMsg}`);
+          result.errors.push(errorMsg);
         }
       }
 
       // Update sync status
       await this.updateSyncStatus(integrationId, 'synced');
+      console.log(`[GitHub Sync] Completed for ${repoName}: ${result.created} created, ${result.updated} updated, ${result.errors.length} errors`);
     } catch (error) {
+      const errorMsg = `Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      console.error(`[GitHub Sync] ${errorMsg}`, error);
       await this.updateSyncStatus(integrationId, 'error', error instanceof Error ? error.message : 'Unknown error');
-      result.errors.push(`Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Re-throw critical errors (credentials missing, API failures) so the caller can handle them
+      throw error;
     }
 
     return result;
@@ -118,7 +128,7 @@ export class GitHubSyncService {
     config: GitHubConfig,
     issueNumber: number
   ): Promise<{ taskId: string; action: 'created' | 'updated' | 'linked' }> {
-    const client = await createGitHubClient(config);
+    const client = await createGitHubClientForInstallation(config.installationId, config);
     const issue = await client.getIssue(issueNumber);
 
     // Check if we already have this issue linked
@@ -140,7 +150,7 @@ export class GitHubSyncService {
         title: taskData.title,
         description: taskData.description || undefined,
         priority: taskData.priority || undefined,
-        updatedBy: 'system',
+        updatedBy: null,
       });
 
       // Update last synced timestamp
@@ -159,7 +169,7 @@ export class GitHubSyncService {
       title: taskData.title,
       description: taskData.description || undefined,
       priority: taskData.priority || undefined,
-      createdBy: 'system',
+      createdBy: null,
     });
 
     if (!createResult.ok) {

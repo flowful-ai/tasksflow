@@ -7,6 +7,13 @@ export interface TaskAgent {
   name: string;
 }
 
+export interface TaskExternalLink {
+  id: string;
+  externalType: 'github_issue' | 'github_pr';
+  externalId: string;
+  externalUrl: string;
+}
+
 export interface TaskWithRelations extends Task {
   state: TaskState | null;
   assignees: User[];
@@ -17,6 +24,7 @@ export interface TaskWithRelations extends Task {
     name: string;
   };
   agent: TaskAgent | null;
+  externalLinks: TaskExternalLink[];
 }
 
 export interface TaskCreateInput extends CreateTask {

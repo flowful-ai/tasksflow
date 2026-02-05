@@ -255,6 +255,7 @@ export async function createGitHubClient(config: GitHubConfig): Promise<GitHubCl
   const token = process.env.GITHUB_TOKEN || process.env.GITHUB_ACCESS_TOKEN;
 
   if (!token) {
+    console.error('[GitHub Client] Missing GitHub token. Set GITHUB_TOKEN or GITHUB_ACCESS_TOKEN environment variable.');
     throw new Error('GitHub token not configured');
   }
 
@@ -277,6 +278,7 @@ export async function createGitHubClientForInstallation(
   const privateKey = process.env.GITHUB_APP_PRIVATE_KEY;
 
   if (!appId || !privateKey) {
+    console.error('[GitHub Client] Missing GitHub App credentials. Set GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY environment variables.');
     throw new Error('GitHub App credentials not configured. Set GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY env vars.');
   }
 

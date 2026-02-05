@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '../../api/client';
+import { api, githubApi } from '../../api/client';
 
 interface TaskModalProps {
   taskId?: string;
@@ -27,6 +27,8 @@ export function TaskModal({
   const [description, setDescription] = useState('');
   const [stateId, setStateId] = useState('');
   const [priority, setPriority] = useState('');
+  const [createOnGitHub, setCreateOnGitHub] = useState(false);
+  const [selectedRepo, setSelectedRepo] = useState<{ owner: string; repo: string } | null>(null);
 
   // Fetch task if editing
   const { data: task } = useQuery({
@@ -55,6 +57,16 @@ export function TaskModal({
     }
   }, [isEditing, states, stateId]);
 
+  // Fetch GitHub integration for this project (only when creating new tasks)
+  const { data: githubIntegration } = useQuery({
+    queryKey: ['github-integration', projectId],
+    queryFn: () => githubApi.getIntegration(projectId),
+    enabled: !isEditing,
+  });
+
+  const linkedRepos = githubIntegration?.repositories || [];
+  const hasGitHub = linkedRepos.length > 0;
+
   // Create mutation
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -64,6 +76,8 @@ export function TaskModal({
         description: description || undefined,
         stateId: stateId || undefined,
         priority: priority || undefined,
+        createOnGitHub: createOnGitHub && selectedRepo ? true : undefined,
+        githubRepo: createOnGitHub && selectedRepo ? selectedRepo : undefined,
       });
     },
     onSuccess: () => {
@@ -186,6 +200,53 @@ export function TaskModal({
               </select>
             </div>
           </div>
+
+          {/* GitHub Integration - only show for new tasks when repos are linked */}
+          {!isEditing && hasGitHub && (
+            <div className="pt-2 space-y-2 border-t border-gray-100">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="createOnGitHub"
+                  checked={createOnGitHub}
+                  onChange={(e) => {
+                    setCreateOnGitHub(e.target.checked);
+                    if (e.target.checked && linkedRepos.length === 1) {
+                      setSelectedRepo({
+                        owner: linkedRepos[0]!.owner,
+                        repo: linkedRepos[0]!.repo,
+                      });
+                    }
+                    if (!e.target.checked) {
+                      setSelectedRepo(null);
+                    }
+                  }}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor="createOnGitHub" className="text-sm text-gray-700">
+                  Also create GitHub issue
+                </label>
+              </div>
+
+              {createOnGitHub && linkedRepos.length > 1 && (
+                <select
+                  value={selectedRepo ? `${selectedRepo.owner}/${selectedRepo.repo}` : ''}
+                  onChange={(e) => {
+                    const [owner, repo] = e.target.value.split('/');
+                    setSelectedRepo(owner && repo ? { owner, repo } : null);
+                  }}
+                  className="input"
+                >
+                  <option value="">Select repository</option>
+                  {linkedRepos.map((r) => (
+                    <option key={`${r.owner}/${r.repo}`} value={`${r.owner}/${r.repo}`}>
+                      {r.owner}/{r.repo}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex justify-end space-x-3 pt-4">

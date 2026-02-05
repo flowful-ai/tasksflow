@@ -31,6 +31,12 @@ export const CreateTaskSchema = z.object({
   startDate: z.coerce.date().optional(),
   assigneeIds: z.array(z.string().uuid()).optional(),
   labelIds: z.array(z.string().uuid()).optional(),
+  // GitHub integration: optionally create a linked GitHub issue
+  createOnGitHub: z.boolean().optional(),
+  githubRepo: z.object({
+    owner: z.string(),
+    repo: z.string(),
+  }).optional(),
 });
 
 export type CreateTask = z.infer<typeof CreateTaskSchema>;

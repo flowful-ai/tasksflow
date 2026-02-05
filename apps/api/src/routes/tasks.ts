@@ -1,13 +1,14 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { getDatabase } from '@flowtask/database';
+import { getDatabase, projectIntegrations, externalLinks } from '@flowtask/database';
 import { TaskService, ProjectService, WorkspaceService } from '@flowtask/domain';
 import { getCurrentUser } from '@flowtask/auth';
 import { CreateTaskSchema, UpdateTaskSchema, MoveTaskSchema, CreateCommentSchema } from '@flowtask/shared';
 import { hasPermission } from '@flowtask/auth';
 import { publishEvent } from '../sse/manager.js';
-import { GitHubReverseSyncService } from '@flowtask/integrations';
+import { GitHubReverseSyncService, createGitHubClientForInstallation } from '@flowtask/integrations';
+import { and, eq } from 'drizzle-orm';
 
 const tasks = new Hono();
 const db = getDatabase();
@@ -98,6 +99,19 @@ tasks.get('/', async (c) => {
   });
 });
 
+// GitHub integration config type
+interface GitHubIntegrationConfig {
+  installationId?: number;
+  repositories?: Array<{
+    owner: string;
+    repo: string;
+    linkedAt: string;
+    lastSyncAt: string | null;
+    syncStatus: 'idle' | 'syncing' | 'synced' | 'error';
+    syncError: string | null;
+  }>;
+}
+
 // Create task
 tasks.post(
   '/',
@@ -126,7 +140,60 @@ tasks.post(
     // Publish WebSocket event
     publishEvent(project!.workspaceId, 'task:created', result.value);
 
-    return c.json({ success: true, data: result.value }, 201);
+    // Optionally create GitHub issue (non-blocking)
+    let githubResult: { url: string; number: number } | null = null;
+    if (data.createOnGitHub && data.githubRepo) {
+      try {
+        // 1. Get GitHub integration for project
+        const [integration] = await db
+          .select()
+          .from(projectIntegrations)
+          .where(and(
+            eq(projectIntegrations.projectId, data.projectId),
+            eq(projectIntegrations.integrationType, 'github'),
+            eq(projectIntegrations.isEnabled, true)
+          ));
+
+        if (integration) {
+          const config = integration.config as GitHubIntegrationConfig;
+
+          if (config.installationId) {
+            // 2. Create GitHub client
+            const client = await createGitHubClientForInstallation(
+              config.installationId,
+              { owner: data.githubRepo.owner, repo: data.githubRepo.repo }
+            );
+
+            // 3. Create issue
+            const issue = await client.createIssue({
+              title: data.title,
+              body: data.description || '',
+            });
+
+            // 4. Create external link
+            await db.insert(externalLinks).values({
+              integrationId: integration.id,
+              taskId: result.value.id,
+              externalType: 'github_issue',
+              externalId: issue.number.toString(),
+              externalUrl: issue.html_url,
+              lastSyncedAt: new Date(),
+            });
+
+            githubResult = { url: issue.html_url, number: issue.number };
+          }
+        }
+      } catch (error) {
+        console.error('Failed to create GitHub issue:', error);
+        // Don't fail the request - task was created successfully
+      }
+    }
+
+    return c.json({
+      success: true,
+      data: result.value,
+      github: githubResult,
+    }, 201);
   }
 );
 
@@ -451,6 +518,108 @@ tasks.post(
     );
 
     return c.json({ success: true, data: { position } });
+  }
+);
+
+// === GitHub Issue Creation ===
+
+// Create GitHub issue from existing task
+tasks.post(
+  '/:taskId/github-issue',
+  zValidator(
+    'json',
+    z.object({
+      owner: z.string(),
+      repo: z.string(),
+    })
+  ),
+  async (c) => {
+    const user = getCurrentUser(c);
+    const taskId = c.req.param('taskId');
+    const { owner, repo } = c.req.valid('json');
+
+    // 1. Get task and verify access
+    const taskResult = await taskService.getById(taskId);
+    if (!taskResult.ok) {
+      return c.json({ success: false, error: { code: 'NOT_FOUND', message: taskResult.error.message } }, 404);
+    }
+
+    const { allowed, project } = await checkTaskAccess(taskResult.value.projectId, user.id, 'task:update');
+    if (!allowed) {
+      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
+    }
+
+    // 2. Get GitHub integration
+    const [integration] = await db
+      .select()
+      .from(projectIntegrations)
+      .where(
+        and(
+          eq(projectIntegrations.projectId, taskResult.value.projectId),
+          eq(projectIntegrations.integrationType, 'github'),
+          eq(projectIntegrations.isEnabled, true)
+        )
+      );
+
+    if (!integration) {
+      return c.json({ success: false, error: { code: 'NO_INTEGRATION', message: 'GitHub not configured for this project' } }, 400);
+    }
+
+    const config = integration.config as GitHubIntegrationConfig;
+    if (!config.installationId) {
+      return c.json({ success: false, error: { code: 'NO_INSTALLATION', message: 'GitHub App not installed' } }, 400);
+    }
+
+    // 3. Check task doesn't already have a linked issue
+    const [existingLink] = await db
+      .select()
+      .from(externalLinks)
+      .where(
+        and(
+          eq(externalLinks.taskId, taskId),
+          eq(externalLinks.externalType, 'github_issue')
+        )
+      );
+
+    if (existingLink) {
+      return c.json({ success: false, error: { code: 'ALREADY_LINKED', message: 'Task already has a linked GitHub issue' } }, 400);
+    }
+
+    // 4. Create GitHub issue
+    try {
+      const client = await createGitHubClientForInstallation(config.installationId, { owner, repo });
+      const issue = await client.createIssue({
+        title: taskResult.value.title,
+        body: taskResult.value.description || '',
+      });
+
+      // 5. Create external link
+      await db.insert(externalLinks).values({
+        integrationId: integration.id,
+        taskId,
+        externalType: 'github_issue',
+        externalId: issue.number.toString(),
+        externalUrl: issue.html_url,
+        lastSyncedAt: new Date(),
+      });
+
+      // 6. Publish WebSocket event with updated task
+      const updatedTask = await taskService.getById(taskId);
+      if (updatedTask.ok) {
+        publishEvent(project!.workspaceId, 'task:updated', updatedTask.value);
+      }
+
+      return c.json({
+        success: true,
+        data: { url: issue.html_url, number: issue.number },
+      }, 201);
+    } catch (error) {
+      console.error('Failed to create GitHub issue:', error);
+      return c.json({
+        success: false,
+        error: { code: 'GITHUB_ERROR', message: error instanceof Error ? error.message : 'Failed to create GitHub issue' },
+      }, 500);
+    }
   }
 );
 

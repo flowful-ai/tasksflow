@@ -103,13 +103,16 @@ export function GitHubSettings({ projectId, onUpdated }: GitHubSettingsProps) {
   // Trigger sync mutation
   const syncMutation = useMutation({
     mutationFn: async (repo: LinkedRepository) => {
+      console.log(`[GitHub Sync] Triggering sync for ${repo.owner}/${repo.repo}`);
       return githubApi.triggerSync(projectId, repo.owner, repo.repo);
     },
-    onSuccess: () => {
+    onSuccess: (data, repo) => {
+      console.log(`[GitHub Sync] Sync completed for ${repo.owner}/${repo.repo}`, data);
       setError(null);
       refetchIntegration();
     },
-    onError: (err: Error) => {
+    onError: (err: Error, repo) => {
+      console.error(`[GitHub Sync] Sync failed for ${repo.owner}/${repo.repo}:`, err);
       setError(err.message);
     },
   });
@@ -334,11 +337,11 @@ export function GitHubSettings({ projectId, onUpdated }: GitHubSettingsProps) {
               >
                 <div className="flex items-center gap-3">
                   <GithubIcon className="w-5 h-5 text-gray-600" />
-                  <div>
-                    <a
-                      href={`https://github.com/${repo.owner}/${repo.repo}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <div>
+                      <a
+                        href={`https://github.com/${repo.owner}/${repo.repo}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
                       className="font-medium text-gray-900 hover:text-primary-600 flex items-center gap-1"
                     >
                       {repo.owner}/{repo.repo}
@@ -369,6 +372,11 @@ export function GitHubSettings({ projectId, onUpdated }: GitHubSettingsProps) {
                         </span>
                       )}
                     </div>
+                    {repo.syncStatus === 'error' && (
+                      <div className="mt-1 text-xs text-red-600">
+                        {repo.syncError || 'Sync failed with an unknown error.'}
+                      </div>
+                    )}
                   </div>
                 </div>
 
