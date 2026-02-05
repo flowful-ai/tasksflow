@@ -61,10 +61,27 @@ services:
       - "3001"
       - "3002"
     depends_on:
+      tasksflow-migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - flowtask-network
+  # Database migrations (run once at deploy)
+  tasksflow-migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: builder
+    command: bun --cwd packages/database db:migrate
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-flowtask}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-flowtask}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
     networks:
       - flowtask-network
   tasksflow-web:
