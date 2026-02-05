@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Pencil, Check, Clock, MessageSquare, Send } from 'lucide-react';
+import { X, Pencil, Check, Clock, MessageSquare, Send, Maximize2, Minimize2 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import { api } from '../../api/client';
@@ -22,15 +22,18 @@ interface TaskDetailSheetProps {
   states: TaskState[];
   onClose: () => void;
   onUpdated?: () => void;
+  readOnly?: boolean;
+  /** Pre-loaded task data (for public share pages that already have the task) */
+  initialTask?: TaskDetail;
 }
 
-interface TaskDetail {
+export interface TaskDetail {
   id: string;
   title: string;
   description: string | null;
   priority: string | null;
   stateId: string | null;
-  state: { id: string; name: string; color: string | null; category: string } | null;
+  state: { id: string; name: string; color: string | null; category?: string } | null;
   project: { id: string; identifier: string; name: string };
   assignees: { id: string; name: string | null; email: string }[];
   labels: { id: string; name: string; color: string | null }[];
@@ -93,10 +96,13 @@ export function TaskDetailSheet({
   states,
   onClose,
   onUpdated,
+  readOnly = false,
+  initialTask,
 }: TaskDetailSheetProps) {
   const queryClient = useQueryClient();
 
   // Edit states
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [editTitle, setEditTitle] = useState('');
@@ -107,26 +113,30 @@ export function TaskDetailSheet({
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Fetch task details
-  const { data: task, isLoading } = useQuery({
+  // Fetch task details (skip if initialTask is provided or in readOnly mode)
+  const { data: fetchedTask, isLoading } = useQuery({
     queryKey: ['task', taskId],
     queryFn: async () => {
       const response = await api.get<{ data: TaskDetail }>(`/api/tasks/${taskId}`);
       return response.data;
     },
+    enabled: !initialTask && !readOnly,
   });
 
-  // Fetch project details (includes labels and workspaceId)
+  // Use initialTask if provided, otherwise use fetched data
+  const task = initialTask || fetchedTask;
+
+  // Fetch project details (includes labels and workspaceId) - skip in readOnly mode
   const { data: projectDetail } = useQuery({
     queryKey: ['project', projectId],
     queryFn: async () => {
       const response = await api.get<{ data: ProjectDetail }>(`/api/projects/${projectId}`);
       return response.data;
     },
-    enabled: !!projectId,
+    enabled: !!projectId && !readOnly,
   });
 
-  // Fetch workspace members
+  // Fetch workspace members - skip in readOnly mode
   const { data: workspaceDetail } = useQuery({
     queryKey: ['workspace', projectDetail?.workspaceId],
     queryFn: async () => {
@@ -135,10 +145,10 @@ export function TaskDetailSheet({
       );
       return response.data;
     },
-    enabled: !!projectDetail?.workspaceId,
+    enabled: !!projectDetail?.workspaceId && !readOnly,
   });
 
-  // Fetch comments for the task
+  // Fetch comments for the task - skip in readOnly mode
   const { data: comments = [], isLoading: isLoadingComments } = useQuery({
     queryKey: ['comments', taskId],
     queryFn: async () => {
@@ -147,7 +157,7 @@ export function TaskDetailSheet({
       );
       return response.data;
     },
-    enabled: !!taskId,
+    enabled: !!taskId && !readOnly,
   });
 
   // Initialize edit values when task loads
@@ -338,7 +348,10 @@ export function TaskDetailSheet({
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
 
       {/* Sheet */}
-      <div className="relative z-10 ml-auto w-full max-w-xl bg-white shadow-xl flex flex-col animate-slide-in-right">
+      <div className={clsx(
+        "relative z-10 ml-auto bg-white shadow-xl flex flex-col animate-slide-in-right",
+        isFullscreen ? "w-full" : "w-full max-w-xl"
+      )}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <div className="flex items-center space-x-2 text-sm text-gray-500">
@@ -346,12 +359,21 @@ export function TaskDetailSheet({
               {task.project.identifier}-{task.sequenceNumber}
             </span>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center space-x-1">
+            <button
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
+              title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+            >
+              {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -359,7 +381,7 @@ export function TaskDetailSheet({
           <div className="p-6 space-y-6">
             {/* Title */}
             <div className="group">
-              {isEditingTitle ? (
+              {isEditingTitle && !readOnly ? (
                 <div className="flex items-center space-x-2">
                   <input
                     ref={titleInputRef}
@@ -387,13 +409,15 @@ export function TaskDetailSheet({
               ) : (
                 <div className="flex items-start space-x-2">
                   <h1 className="flex-1 text-xl font-semibold text-gray-900">{task.title}</h1>
-                  <button
-                    onClick={() => setIsEditingTitle(true)}
-                    className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Edit title"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </button>
+                  {!readOnly && (
+                    <button
+                      onClick={() => setIsEditingTitle(true)}
+                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Edit title"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -403,42 +427,65 @@ export function TaskDetailSheet({
               {/* Status */}
               <div>
                 <label className="block text-sm font-medium text-gray-500 mb-1.5">Status</label>
-                <select
-                  value={task.stateId || ''}
-                  onChange={(e) => handleStatusChange(e.target.value)}
-                  disabled={updateMutation.isPending}
-                  className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors disabled:opacity-50"
-                  style={{
-                    borderLeftColor: task.state?.color || undefined,
-                    borderLeftWidth: task.state?.color ? '4px' : undefined,
-                  }}
-                >
-                  {states.map((state) => (
-                    <option key={state.id} value={state.id}>
-                      {state.name}
-                    </option>
-                  ))}
-                </select>
+                {readOnly ? (
+                  <div
+                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg"
+                    style={{
+                      borderLeftColor: task.state?.color || undefined,
+                      borderLeftWidth: task.state?.color ? '4px' : undefined,
+                    }}
+                  >
+                    {task.state?.name || 'No status'}
+                  </div>
+                ) : (
+                  <select
+                    value={task.stateId || ''}
+                    onChange={(e) => handleStatusChange(e.target.value)}
+                    disabled={updateMutation.isPending}
+                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors disabled:opacity-50"
+                    style={{
+                      borderLeftColor: task.state?.color || undefined,
+                      borderLeftWidth: task.state?.color ? '4px' : undefined,
+                    }}
+                  >
+                    {states.map((state) => (
+                      <option key={state.id} value={state.id}>
+                        {state.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               {/* Priority */}
               <div>
                 <label className="block text-sm font-medium text-gray-500 mb-1.5">Priority</label>
-                <select
-                  value={task.priority || ''}
-                  onChange={(e) => handlePriorityChange(e.target.value)}
-                  disabled={updateMutation.isPending}
-                  className={clsx(
-                    'w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors disabled:opacity-50',
-                    task.priority && 'font-medium'
-                  )}
-                >
-                  {priorityOptions.map((option) => (
-                    <option key={option.value} value={option.value} className={option.className}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                {readOnly ? (
+                  <div
+                    className={clsx(
+                      'w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg',
+                      task.priority && 'font-medium'
+                    )}
+                  >
+                    {priorityOptions.find((o) => o.value === (task.priority || ''))?.label || 'No priority'}
+                  </div>
+                ) : (
+                  <select
+                    value={task.priority || ''}
+                    onChange={(e) => handlePriorityChange(e.target.value)}
+                    disabled={updateMutation.isPending}
+                    className={clsx(
+                      'w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors disabled:opacity-50',
+                      task.priority && 'font-medium'
+                    )}
+                  >
+                    {priorityOptions.map((option) => (
+                      <option key={option.value} value={option.value} className={option.className}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
             </div>
 
@@ -446,7 +493,7 @@ export function TaskDetailSheet({
             <div className="group">
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-sm font-medium text-gray-500">Description</label>
-                {!isEditingDescription && (
+                {!isEditingDescription && !readOnly && (
                   <button
                     onClick={() => setIsEditingDescription(true)}
                     className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -456,7 +503,7 @@ export function TaskDetailSheet({
                   </button>
                 )}
               </div>
-              {isEditingDescription ? (
+              {isEditingDescription && !readOnly ? (
                 <div className="space-y-2">
                   <textarea
                     ref={descriptionInputRef}
@@ -494,8 +541,11 @@ export function TaskDetailSheet({
                 </div>
               ) : (
                 <div
-                  onClick={() => setIsEditingDescription(true)}
-                  className="min-h-[60px] px-3 py-2 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors"
+                  onClick={readOnly ? undefined : () => setIsEditingDescription(true)}
+                  className={clsx(
+                    "min-h-[60px] px-3 py-2 bg-gray-50 rounded-lg transition-colors",
+                    !readOnly && "cursor-pointer hover:bg-gray-100"
+                  )}
                 >
                   {task.description ? (
                     <ReactMarkdown
@@ -552,7 +602,9 @@ export function TaskDetailSheet({
                       {task.description}
                     </ReactMarkdown>
                   ) : (
-                    <span className="text-sm text-gray-400 italic">Click to add a description...</span>
+                    <span className="text-sm text-gray-400 italic">
+                      {readOnly ? 'No description' : 'Click to add a description...'}
+                    </span>
                   )}
                 </div>
               )}
@@ -564,37 +616,115 @@ export function TaskDetailSheet({
             {/* Metadata */}
             <div className="space-y-4">
               {/* Assignees */}
-              <AssigneePicker
-                currentAssignees={task.assignees}
-                workspaceMembers={workspaceDetail?.members || []}
-                onAdd={(userId) => addAssigneeMutation.mutate(userId)}
-                onRemove={(userId) => removeAssigneeMutation.mutate(userId)}
-                isLoading={addAssigneeMutation.isPending || removeAssigneeMutation.isPending}
-              />
+              {readOnly ? (
+                <div>
+                  <div className="flex items-center space-x-2 text-sm font-medium text-gray-500 mb-2">
+                    <span className="w-4 h-4 flex items-center justify-center">👤</span>
+                    <span>Assignees</span>
+                  </div>
+                  {task.assignees.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {task.assignees.map((assignee) => (
+                        <div
+                          key={assignee.id}
+                          className="flex items-center space-x-2 px-2.5 py-1.5 bg-gray-100 rounded-full"
+                        >
+                          <div className="w-5 h-5 rounded-full bg-primary-100 flex items-center justify-center">
+                            <span className="text-xs font-medium text-primary-600">
+                              {(assignee.name || assignee.email).charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <span className="text-sm text-gray-700">{assignee.name || assignee.email}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">No assignees</p>
+                  )}
+                </div>
+              ) : (
+                <AssigneePicker
+                  currentAssignees={task.assignees}
+                  workspaceMembers={workspaceDetail?.members || []}
+                  onAdd={(userId) => addAssigneeMutation.mutate(userId)}
+                  onRemove={(userId) => removeAssigneeMutation.mutate(userId)}
+                  isLoading={addAssigneeMutation.isPending || removeAssigneeMutation.isPending}
+                />
+              )}
 
               {/* Labels */}
-              <LabelPicker
-                currentLabels={task.labels}
-                projectLabels={projectDetail?.labels || []}
-                onAdd={(labelId) => addLabelMutation.mutate(labelId)}
-                onRemove={(labelId) => removeLabelMutation.mutate(labelId)}
-                isLoading={addLabelMutation.isPending || removeLabelMutation.isPending}
-              />
+              {readOnly ? (
+                <div>
+                  <div className="flex items-center space-x-2 text-sm font-medium text-gray-500 mb-2">
+                    <span className="w-4 h-4 flex items-center justify-center">🏷️</span>
+                    <span>Labels</span>
+                  </div>
+                  {task.labels.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {task.labels.map((label) => (
+                        <span
+                          key={label.id}
+                          className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full"
+                          style={{
+                            backgroundColor: label.color ? `${label.color}20` : '#e5e7eb',
+                            color: label.color || '#374151',
+                          }}
+                        >
+                          {label.name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">No labels</p>
+                  )}
+                </div>
+              ) : (
+                <LabelPicker
+                  currentLabels={task.labels}
+                  projectLabels={projectDetail?.labels || []}
+                  onAdd={(labelId) => addLabelMutation.mutate(labelId)}
+                  onRemove={(labelId) => removeLabelMutation.mutate(labelId)}
+                  isLoading={addLabelMutation.isPending || removeLabelMutation.isPending}
+                />
+              )}
 
               {/* Due Date */}
-              <DueDatePicker
-                value={task.dueDate}
-                onChange={handleDueDateChange}
-                isLoading={updateMutation.isPending}
-              />
+              {readOnly ? (
+                <div>
+                  <div className="flex items-center space-x-2 text-sm font-medium text-gray-500 mb-2">
+                    <span className="w-4 h-4 flex items-center justify-center">📅</span>
+                    <span>Due date</span>
+                  </div>
+                  {task.dueDate ? (
+                    <p className="text-sm text-gray-700">
+                      {new Date(task.dueDate).toLocaleDateString(undefined, {
+                        weekday: 'short',
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">No due date</p>
+                  )}
+                </div>
+              ) : (
+                <DueDatePicker
+                  value={task.dueDate}
+                  onChange={handleDueDateChange}
+                  isLoading={updateMutation.isPending}
+                />
+              )}
 
-              {/* GitHub Links */}
-              <GitHubLinkSection
-                taskId={taskId}
-                projectId={projectId}
-                externalLinks={task.externalLinks || []}
-                onUpdated={() => queryClient.invalidateQueries({ queryKey: ['task', taskId] })}
-              />
+              {/* GitHub Links - only show in edit mode */}
+              {!readOnly && (
+                <GitHubLinkSection
+                  taskId={taskId}
+                  projectId={projectId}
+                  externalLinks={task.externalLinks || []}
+                  onUpdated={() => queryClient.invalidateQueries({ queryKey: ['task', taskId] })}
+                />
+              )}
 
               {/* Created */}
               <div>
@@ -613,50 +743,52 @@ export function TaskDetailSheet({
               </div>
             </div>
 
-            {/* Divider */}
-            <hr className="border-gray-200" />
+            {/* Divider - hide comments section in read-only mode */}
+            {!readOnly && (
+              <>
+                <hr className="border-gray-200" />
 
-            {/* Comments */}
-            <div>
-              <div className="flex items-center space-x-2 text-sm font-medium text-gray-500 mb-4">
-                <MessageSquare className="w-4 h-4" />
-                <span>Comments</span>
-                {comments.length > 0 && (
-                  <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded-full">
-                    {comments.length}
-                  </span>
-                )}
-              </div>
+                {/* Comments */}
+                <div>
+                  <div className="flex items-center space-x-2 text-sm font-medium text-gray-500 mb-4">
+                    <MessageSquare className="w-4 h-4" />
+                    <span>Comments</span>
+                    {comments.length > 0 && (
+                      <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded-full">
+                        {comments.length}
+                      </span>
+                    )}
+                  </div>
 
-              {/* Comment input */}
-              <div className="mb-4">
-                <div className="flex space-x-2">
-                  <textarea
-                    ref={commentInputRef}
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                        e.preventDefault();
-                        handleSubmitComment();
-                      }
-                    }}
-                    placeholder="Add a comment..."
-                    rows={2}
-                    className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none"
-                    disabled={createCommentMutation.isPending}
-                  />
-                  <button
-                    onClick={handleSubmitComment}
-                    disabled={!newComment.trim() || createCommentMutation.isPending}
-                    className="self-end px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    title="Submit comment (Cmd+Enter)"
-                  >
-                    <Send className="w-4 h-4" />
-                  </button>
-                </div>
-                <p className="mt-1 text-xs text-gray-400">Press Cmd+Enter to submit</p>
-              </div>
+                  {/* Comment input */}
+                  <div className="mb-4">
+                    <div className="flex space-x-2">
+                      <textarea
+                        ref={commentInputRef}
+                        value={newComment}
+                        onChange={(e) => setNewComment(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                            e.preventDefault();
+                            handleSubmitComment();
+                          }
+                        }}
+                        placeholder="Add a comment..."
+                        rows={2}
+                        className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none"
+                        disabled={createCommentMutation.isPending}
+                      />
+                      <button
+                        onClick={handleSubmitComment}
+                        disabled={!newComment.trim() || createCommentMutation.isPending}
+                        className="self-end px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        title="Submit comment (Cmd+Enter)"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-400">Press Cmd+Enter to submit</p>
+                  </div>
 
               {/* Comments list */}
               <div className="space-y-4">
@@ -735,6 +867,8 @@ export function TaskDetailSheet({
                 )}
               </div>
             </div>
+              </>
+            )}
           </div>
         </div>
       </div>

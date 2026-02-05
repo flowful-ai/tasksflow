@@ -1,22 +1,26 @@
 # Build stage
-FROM node:20-alpine AS builder
+FROM oven/bun:1.1 AS builder
 
 WORKDIR /app
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
-
 # Copy workspace files
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml* ./
+COPY package.json bun.lock* ./
 COPY packages/shared ./packages/shared
 COPY apps/web ./apps/web
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile
+RUN bun install --frozen-lockfile
+
+# Build arguments for Vite env vars (must be set at build time)
+ARG VITE_API_URL
+ARG VITE_WS_URL
+
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_WS_URL=$VITE_WS_URL
 
 # Build packages
-RUN pnpm --filter @flowtask/shared build
-RUN pnpm --filter @flowtask/web build
+RUN cd packages/shared && bun run build
+RUN cd apps/web && bun run build
 
 # Production stage
 FROM nginx:alpine AS runner

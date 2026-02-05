@@ -3,28 +3,74 @@ import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Lock } from 'lucide-react';
 import { api, ApiError } from '../api/client';
+import { TaskDisplayContainer, type DisplayType } from '../components/task-display/TaskDisplayContainer';
+import type { GroupBy } from '../components/task-display/grouping';
+import type { TaskCardTask } from '../components/task-display/TaskCard';
+import { TaskDetailSheet } from '../components/tasks/TaskDetailSheet';
+
+interface PublicTaskState {
+  id: string;
+  name: string;
+  color: string | null;
+  category?: string;
+}
 
 interface PublicTask {
   id: string;
   title: string;
-  priority?: string;
+  priority: string | null;
+  dueDate: string | null;
+  sequenceNumber: number;
+  state: PublicTaskState | null;
+  assignees: {
+    id: string;
+    name: string | null;
+    email: string;
+  }[];
+  labels: {
+    id: string;
+    name: string;
+    color: string | null;
+  }[];
+  project: {
+    id: string;
+    identifier: string;
+    name: string;
+  };
+  description: string | null;
+  stateId: string | null;
+  externalLinks?: {
+    id: string;
+    externalType: 'github_issue' | 'github_pr';
+    externalId: string;
+    externalUrl: string;
+  }[];
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+interface PublicView {
+  name: string;
+  displayType: DisplayType;
+  groupBy?: GroupBy;
+}
+
+interface PublicShareData {
+  requiresPassword?: boolean;
+  view?: PublicView;
+  tasks?: PublicTask[];
 }
 
 export function PublicSharePage() {
   const { token } = useParams<{ token: string }>();
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [selectedTask, setSelectedTask] = useState<PublicTask | null>(null);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['public-share', token],
     queryFn: async () => {
-      const response = await api.get<{
-        data: {
-          requiresPassword?: boolean;
-          view?: { name: string; displayType: string };
-          tasks?: PublicTask[];
-        };
-      }>(`/api/public/share/${token}`);
+      const response = await api.get<{ data: PublicShareData }>(`/api/public/share/${token}`);
       return response.data;
     },
     enabled: !!token,
@@ -36,13 +82,7 @@ export function PublicSharePage() {
     setPasswordError('');
 
     try {
-      await api.post<{
-        data: {
-          view: { name: string; displayType: string };
-          tasks: PublicTask[];
-        };
-      }>(`/api/public/share/${token}/verify`, { password });
-
+      await api.post<{ data: PublicShareData }>(`/api/public/share/${token}/verify`, { password });
       // Update the query data
       refetch();
     } catch (err) {
@@ -51,6 +91,13 @@ export function PublicSharePage() {
       } else {
         setPasswordError('Invalid password');
       }
+    }
+  };
+
+  const handleTaskClick = (taskId: string) => {
+    const task = data?.tasks?.find((t) => t.id === taskId);
+    if (task) {
+      setSelectedTask(task);
     }
   };
 
@@ -120,6 +167,21 @@ export function PublicSharePage() {
   // Show the shared view
   const view = data.view;
   const tasks = data.tasks || [];
+  const displayType = view?.displayType || 'list';
+  const groupBy = view?.groupBy || 'state';
+
+  // Transform tasks to TaskCardTask format
+  const taskCards: TaskCardTask[] = tasks.map((task) => ({
+    id: task.id,
+    title: task.title,
+    priority: task.priority,
+    dueDate: task.dueDate,
+    state: task.state,
+    assignees: task.assignees,
+    labels: task.labels,
+    project: task.project,
+    sequenceNumber: task.sequenceNumber,
+  }));
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -146,26 +208,20 @@ export function PublicSharePage() {
           </p>
         </div>
 
-        <div className="card">
-          {tasks.length === 0 ? (
+        <div className="card p-4">
+          {taskCards.length === 0 ? (
             <div className="p-12 text-center">
               <p className="text-gray-500">No tasks to display</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-200">
-              {tasks.map((task: { id: string; title: string; priority?: string }) => (
-                <div key={task.id} className="p-4 hover:bg-gray-50">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-gray-900">{task.title}</span>
-                    {task.priority && (
-                      <span className={`badge badge-${task.priority}`}>
-                        {task.priority}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <TaskDisplayContainer
+              tasks={taskCards}
+              displayType={displayType}
+              groupBy={groupBy}
+              onTaskClick={handleTaskClick}
+              showProject={true}
+              allowDragDrop={false}
+            />
           )}
         </div>
       </main>
@@ -176,6 +232,34 @@ export function PublicSharePage() {
           Shared via FlowTask
         </div>
       </footer>
+
+      {/* Task Detail Sheet */}
+      {selectedTask && (
+        <TaskDetailSheet
+          taskId={selectedTask.id}
+          projectId={selectedTask.project.id}
+          states={[]}
+          onClose={() => setSelectedTask(null)}
+          readOnly={true}
+          initialTask={{
+            id: selectedTask.id,
+            title: selectedTask.title,
+            description: selectedTask.description,
+            priority: selectedTask.priority,
+            stateId: selectedTask.stateId,
+            state: selectedTask.state,
+            project: selectedTask.project,
+            assignees: selectedTask.assignees,
+            labels: selectedTask.labels,
+            externalLinks: selectedTask.externalLinks || [],
+            sequenceNumber: selectedTask.sequenceNumber,
+            dueDate: selectedTask.dueDate,
+            startDate: null,
+            createdAt: selectedTask.createdAt,
+            updatedAt: selectedTask.updatedAt,
+          }}
+        />
+      )}
     </div>
   );
 }

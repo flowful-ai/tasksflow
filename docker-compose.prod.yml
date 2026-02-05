@@ -1,10 +1,7 @@
-version: "3.8"
-
 services:
   # PostgreSQL Database
   postgres:
     image: postgres:16-alpine
-    container_name: flowtask-postgres
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-flowtask}
@@ -23,7 +20,6 @@ services:
   # Redis Cache & Pub/Sub
   redis:
     image: redis:7-alpine
-    container_name: flowtask-redis
     restart: always
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
     volumes:
@@ -41,16 +37,15 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-    container_name: flowtask-api
     restart: always
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-flowtask}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-flowtask}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
-      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3001}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-https://flowtask.example.com}
       API_PORT: 3001
-      WEB_URL: ${WEB_URL:-http://localhost:3000}
+      WEB_URL: ${WEB_URL:-https://flowtask.example.com}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
       GITHUB_APP_ID: ${GITHUB_APP_ID:-}
@@ -60,9 +55,10 @@ services:
       SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET:-}
       SLACK_APP_TOKEN: ${SLACK_APP_TOKEN:-}
       WS_PORT: 3002
-    ports:
-      - "3001:3001"
-      - "3002:3002"
+    # No external ports - accessed via nginx proxy
+    expose:
+      - "3001"
+      - "3002"
     depends_on:
       postgres:
         condition: service_healthy
@@ -71,16 +67,15 @@ services:
     networks:
       - flowtask-network
 
-  # Web Frontend
+  # Web Frontend (serves static files + proxies API/WS)
   web:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
-    container_name: flowtask-web
+      args:
+        VITE_API_URL: ${VITE_API_URL:-}
+        VITE_WS_URL: ${VITE_WS_URL:-}
     restart: always
-    environment:
-      NODE_ENV: production
-      VITE_API_URL: ${API_URL:-http://localhost:3001}
     ports:
       - "3000:3000"
     depends_on:

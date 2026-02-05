@@ -1,24 +1,64 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, MoreHorizontal } from 'lucide-react';
+import { Plus, MoreHorizontal, LayoutGrid, List } from 'lucide-react';
+import clsx from 'clsx';
 import { api } from '../api/client';
-import { KanbanBoard } from '../components/kanban/KanbanBoard';
+import { TaskDisplayContainer, type DisplayType, type TaskCardTask } from '../components/task-display';
 import { TaskModal } from '../components/tasks/TaskModal';
 import { TaskDetailSheet } from '../components/tasks/TaskDetailSheet';
+
+// Task interface matching what the API returns
+interface ProjectTask {
+  id: string;
+  title: string;
+  priority: string | null;
+  position: string;
+  dueDate: string | null;
+  sequenceNumber: number;
+  stateId: string | null;
+  state: {
+    id: string;
+    name: string;
+    color: string | null;
+    category: string;
+  } | null;
+  assignees: {
+    id: string;
+    name: string | null;
+    email: string;
+  }[];
+  labels: {
+    id: string;
+    name: string;
+    color: string | null;
+  }[];
+  agent: {
+    id: string;
+    name: string;
+  } | null;
+}
+
+interface Project {
+  id: string;
+  name: string;
+  identifier: string;
+  taskStates: { id: string; name: string; color: string | null; category: string }[];
+}
 
 export function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [displayType, setDisplayType] = useState<DisplayType>('kanban');
   const menuRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
   const { data: project, isLoading: projectLoading } = useQuery({
     queryKey: ['project', projectId],
     queryFn: async () => {
-      const response = await api.get<{ data: unknown }>(`/api/projects/${projectId}`);
+      const response = await api.get<{ data: Project }>(`/api/projects/${projectId}`);
       return response.data;
     },
     enabled: !!projectId,
@@ -27,11 +67,28 @@ export function ProjectPage() {
   const { data: tasksData, isLoading: tasksLoading, refetch: refetchTasks } = useQuery({
     queryKey: ['tasks', projectId],
     queryFn: async () => {
-      const response = await api.get<{ data: unknown[] }>(`/api/tasks?projectId=${projectId}`);
+      const response = await api.get<{ data: ProjectTask[] }>(`/api/tasks?projectId=${projectId}`);
       return response.data;
     },
     enabled: !!projectId,
   });
+
+  // Transform tasks to TaskCardTask format for the display container
+  const formattedTasks: TaskCardTask[] = useMemo(() => {
+    if (!tasksData || !project) return [];
+    return tasksData.map((task) => ({
+      id: task.id,
+      title: task.title,
+      priority: task.priority,
+      dueDate: task.dueDate,
+      state: task.state,
+      assignees: task.assignees || [],
+      labels: task.labels || [],
+      project: { id: projectId!, identifier: project.identifier, name: project.name },
+      agent: task.agent,
+      sequenceNumber: task.sequenceNumber,
+    }));
+  }, [tasksData, projectId, project]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -62,8 +119,14 @@ export function ProjectPage() {
     );
   }
 
-  const tasks = tasksData || [];
-  const taskStates = (project as { taskStates?: unknown[] }).taskStates || [];
+  const taskStates = project.taskStates || [];
+
+  const handleTaskMove = async (taskId: string, stateId: string, position: string) => {
+    await api.post(`/api/tasks/${taskId}/move`, { stateId, position });
+    refetchTasks();
+    // Invalidate smart view queries since task state changes may affect filter results
+    queryClient.invalidateQueries({ queryKey: ['smart-view-execute'] });
+  };
 
   return (
     <div className="h-full flex flex-col">
@@ -72,14 +135,37 @@ export function ProjectPage() {
         <div>
           <div className="flex items-center space-x-2">
             <span className="text-sm font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-              {(project as { identifier: string }).identifier}
+              {project.identifier}
             </span>
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mt-1">
-            {(project as { name: string }).name}
+            {project.name}
           </h1>
         </div>
         <div className="flex items-center space-x-2">
+          {/* Display mode toggle */}
+          <div className="flex items-center border border-gray-200 rounded-lg p-0.5">
+            <button
+              onClick={() => setDisplayType('kanban')}
+              className={clsx(
+                'p-1.5 rounded',
+                displayType === 'kanban' ? 'bg-gray-100' : 'hover:bg-gray-50'
+              )}
+              title="Kanban view"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setDisplayType('list')}
+              className={clsx(
+                'p-1.5 rounded',
+                displayType === 'list' ? 'bg-gray-100' : 'hover:bg-gray-50'
+              )}
+              title="List view"
+            >
+              <List className="w-4 h-4" />
+            </button>
+          </div>
           <button
             onClick={() => setIsCreateModalOpen(true)}
             className="btn btn-primary"
@@ -109,18 +195,17 @@ export function ProjectPage() {
         </div>
       </div>
 
-      {/* Kanban Board */}
-      <div className="flex-1 overflow-hidden">
-        <KanbanBoard
-          states={taskStates as { id: string; name: string; category: string; color: string | null }[]}
-          tasks={tasks as { id: string; stateId: string | null; title: string; priority: string | null; position: string }[]}
+      {/* Task display */}
+      <div className="flex-1 min-h-0">
+        <TaskDisplayContainer
+          tasks={formattedTasks}
+          displayType={displayType}
+          groupBy="state"
           onTaskClick={(taskId) => setSelectedTaskId(taskId)}
-          onTaskMove={async (taskId, stateId, position) => {
-            await api.post(`/api/tasks/${taskId}/move`, { stateId, position });
-            refetchTasks();
-            // Invalidate smart view queries since task state changes may affect filter results
-            queryClient.invalidateQueries({ queryKey: ['smart-view-execute'] });
-          }}
+          onTaskMove={handleTaskMove}
+          showProject={false}
+          allowDragDrop={displayType === 'kanban'}
+          availableStates={taskStates}
         />
       </div>
 
@@ -128,7 +213,7 @@ export function ProjectPage() {
       {isCreateModalOpen && (
         <TaskModal
           projectId={projectId!}
-          states={taskStates as { id: string; name: string }[]}
+          states={taskStates}
           onClose={() => setIsCreateModalOpen(false)}
           onCreated={() => {
             setIsCreateModalOpen(false);
@@ -142,7 +227,7 @@ export function ProjectPage() {
         <TaskDetailSheet
           taskId={selectedTaskId}
           projectId={projectId!}
-          states={taskStates as { id: string; name: string; color: string | null; category: string }[]}
+          states={taskStates}
           onClose={() => setSelectedTaskId(null)}
           onUpdated={() => {
             refetchTasks();

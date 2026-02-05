@@ -1,0 +1,101 @@
+import type { TaskCardTask } from './TaskCard';
+import type { GroupBy, AvailableState } from './grouping';
+import { TaskListView } from './TaskListView';
+import { GroupedKanbanBoard } from './GroupedKanbanBoard';
+
+export type DisplayType = 'kanban' | 'list' | 'table' | 'calendar';
+
+interface TaskDisplayContainerProps {
+  tasks: TaskCardTask[];
+  displayType: DisplayType;
+  groupBy: GroupBy;
+  onTaskClick: (taskId: string) => void;
+  onTaskMove?: (taskId: string, groupId: string, position: string) => Promise<void>;
+  showProject?: boolean;
+  allowDragDrop?: boolean;
+  availableStates?: AvailableState[];
+}
+
+export function TaskDisplayContainer({
+  tasks,
+  displayType,
+  groupBy,
+  onTaskClick,
+  onTaskMove,
+  showProject = true,
+  allowDragDrop = false,
+  availableStates,
+}: TaskDisplayContainerProps) {
+  switch (displayType) {
+    case 'kanban':
+      return (
+        <GroupedKanbanBoard
+          tasks={tasks}
+          groupBy={groupBy}
+          onTaskClick={onTaskClick}
+          onTaskMove={onTaskMove}
+          showProject={showProject}
+          allowDragDrop={allowDragDrop}
+          availableStates={availableStates}
+        />
+      );
+
+    case 'list':
+      return (
+        <TaskListView
+          tasks={tasks}
+          groupBy={groupBy}
+          onTaskClick={onTaskClick}
+          showProject={showProject}
+          availableStates={availableStates}
+        />
+      );
+
+    case 'table':
+      // Future: implement table view
+      return (
+        <div className="text-center py-12 text-gray-500">
+          <p>Table view coming soon</p>
+          <p className="text-sm mt-2">Showing list view instead</p>
+          <div className="mt-6">
+            <TaskListView
+              tasks={tasks}
+              groupBy={groupBy}
+              onTaskClick={onTaskClick}
+              showProject={showProject}
+              availableStates={availableStates}
+            />
+          </div>
+        </div>
+      );
+
+    case 'calendar':
+      // Future: implement calendar view
+      return (
+        <div className="text-center py-12 text-gray-500">
+          <p>Calendar view coming soon</p>
+          <p className="text-sm mt-2">Showing list view instead</p>
+          <div className="mt-6">
+            <TaskListView
+              tasks={tasks}
+              groupBy={groupBy}
+              onTaskClick={onTaskClick}
+              showProject={showProject}
+              availableStates={availableStates}
+            />
+          </div>
+        </div>
+      );
+
+    default:
+      return (
+        <TaskListView
+          tasks={tasks}
+          groupBy={groupBy}
+          onTaskClick={onTaskClick}
+          showProject={showProject}
+          availableStates={availableStates}
+        />
+      );
+  }
+}
