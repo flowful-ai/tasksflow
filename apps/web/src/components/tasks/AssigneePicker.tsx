@@ -20,6 +20,7 @@ interface WorkspaceMember {
 interface AssigneePickerProps {
   currentAssignees: Assignee[];
   workspaceMembers: WorkspaceMember[];
+  currentUserId?: string;
   onAdd: (userId: string) => void;
   onRemove: (userId: string) => void;
   isLoading?: boolean;
@@ -28,6 +29,7 @@ interface AssigneePickerProps {
 export function AssigneePicker({
   currentAssignees,
   workspaceMembers,
+  currentUserId,
   onAdd,
   onRemove,
   isLoading,
@@ -60,6 +62,7 @@ export function AssigneePicker({
   }, [isOpen]);
 
   const assigneeIds = new Set(currentAssignees.map((a) => a.id));
+  const isCurrentUserAssigned = currentUserId ? assigneeIds.has(currentUserId) : false;
 
   const filteredMembers = workspaceMembers.filter((member) => {
     const name = member.user.name?.toLowerCase() || '';
@@ -81,6 +84,15 @@ export function AssigneePicker({
   const handleRemove = (e: React.MouseEvent, userId: string) => {
     e.stopPropagation();
     onRemove(userId);
+  };
+
+  const handleAssignToMe = () => {
+    if (!currentUserId || isCurrentUserAssigned) {
+      return;
+    }
+    onAdd(currentUserId);
+    setIsOpen(false);
+    setSearch('');
   };
 
   const getInitial = (name: string | null, email: string) => {
@@ -122,19 +134,36 @@ export function AssigneePicker({
       )}
 
       {/* Add button / dropdown trigger */}
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        disabled={isLoading}
-        className={clsx(
-          'flex items-center space-x-1.5 px-3 py-1.5 text-sm rounded-lg border border-dashed transition-colors',
-          'border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-600',
-          isLoading && 'opacity-50 cursor-not-allowed'
+      <div className="flex items-center gap-2">
+        {currentUserId && (
+          <button
+            type="button"
+            onClick={handleAssignToMe}
+            disabled={isLoading || isCurrentUserAssigned}
+            className={clsx(
+              'flex items-center space-x-1.5 px-3 py-1.5 text-sm rounded-lg border transition-colors',
+              'border-primary-200 text-primary-700 hover:border-primary-300 hover:text-primary-800 hover:bg-primary-50',
+              (isLoading || isCurrentUserAssigned) && 'opacity-50 cursor-not-allowed'
+            )}
+          >
+            <Check className="w-3.5 h-3.5" />
+            <span>Assign to me</span>
+          </button>
         )}
-      >
-        <Plus className="w-3.5 h-3.5" />
-        <span>Add assignee</span>
-      </button>
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          disabled={isLoading}
+          className={clsx(
+            'flex items-center space-x-1.5 px-3 py-1.5 text-sm rounded-lg border border-dashed transition-colors',
+            'border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-600',
+            isLoading && 'opacity-50 cursor-not-allowed'
+          )}
+        >
+          <Plus className="w-3.5 h-3.5" />
+          <span>Add assignee</span>
+        </button>
+      </div>
 
       {/* Dropdown */}
       {isOpen && (

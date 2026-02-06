@@ -8,6 +8,7 @@ import { AssigneePicker } from './AssigneePicker';
 import { LabelPicker } from './LabelPicker';
 import { DueDatePicker } from './DueDatePicker';
 import { GitHubLinkSection } from './GitHubLinkSection';
+import { useAuthStore } from '../../stores/auth';
 
 interface TaskState {
   id: string;
@@ -100,6 +101,7 @@ export function TaskDetailSheet({
   initialTask,
 }: TaskDetailSheetProps) {
   const queryClient = useQueryClient();
+  const currentUserId = useAuthStore((state) => state.user?.id);
 
   // Edit states
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -646,6 +648,7 @@ export function TaskDetailSheet({
                 <AssigneePicker
                   currentAssignees={task.assignees}
                   workspaceMembers={workspaceDetail?.members || []}
+                  currentUserId={currentUserId}
                   onAdd={(userId) => addAssigneeMutation.mutate(userId)}
                   onRemove={(userId) => removeAssigneeMutation.mutate(userId)}
                   isLoading={addAssigneeMutation.isPending || removeAssigneeMutation.isPending}
