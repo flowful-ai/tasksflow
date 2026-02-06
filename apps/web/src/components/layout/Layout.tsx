@@ -172,11 +172,15 @@ export function Layout({ children }: LayoutProps) {
         <div className="p-3 border-t border-gray-200">
           <div className="flex items-center justify-between px-3 py-2">
             <div className="flex items-center min-w-0">
-              <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">
-                <span className="text-sm font-medium text-primary-600">
-                  {user?.name?.[0] || user?.email?.[0]?.toUpperCase() || '?'}
-                </span>
-              </div>
+              {user?.avatarUrl ? (
+                <img src={user.avatarUrl} alt={user.name || user.email} className="w-8 h-8 rounded-full object-cover" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center">
+                  <span className="text-sm font-medium text-primary-600">
+                    {user?.name?.[0] || user?.email?.[0]?.toUpperCase() || '?'}
+                  </span>
+                </div>
+              )}
               <div className="ml-3 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">
                   {user?.name || user?.email}

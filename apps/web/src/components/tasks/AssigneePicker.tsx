@@ -6,6 +6,7 @@ interface Assignee {
   id: string;
   name: string | null;
   email: string;
+  avatarUrl?: string | null;
 }
 
 interface WorkspaceMember {
@@ -14,6 +15,7 @@ interface WorkspaceMember {
     id: string;
     name: string | null;
     email: string;
+    avatarUrl?: string | null;
   };
 }
 
@@ -200,11 +202,15 @@ export function AssigneePicker({
                       isAssigned && 'bg-primary-50'
                     )}
                   >
-                    <div className="w-7 h-7 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-medium text-primary-600">
-                        {getInitial(member.user.name, member.user.email)}
-                      </span>
-                    </div>
+                    {member.user.avatarUrl ? (
+                      <img src={member.user.avatarUrl} alt={member.user.name || member.user.email} className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
+                        <span className="text-sm font-medium text-primary-600">
+                          {getInitial(member.user.name, member.user.email)}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">
                         {member.user.name || member.user.email}

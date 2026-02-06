@@ -18,6 +18,7 @@ interface TaskCardTask {
     id: string;
     name: string | null;
     email: string;
+    avatarUrl?: string | null;
   }[];
   labels: {
     id: string;
@@ -156,15 +157,25 @@ export function TaskCard({
         {/* Assignees */}
         {task.assignees.length > 0 && (
           <div className="ml-auto flex items-center -space-x-1">
-            {task.assignees.slice(0, 3).map((assignee) => (
-              <div
-                key={assignee.id}
-                title={assignee.name || assignee.email}
-                className="w-5 h-5 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-[10px] font-medium border border-white"
-              >
-                {(assignee.name || assignee.email).charAt(0).toUpperCase()}
-              </div>
-            ))}
+            {task.assignees.slice(0, 3).map((assignee) =>
+              assignee.avatarUrl ? (
+                <img
+                  key={assignee.id}
+                  src={assignee.avatarUrl}
+                  alt={assignee.name || assignee.email}
+                  title={assignee.name || assignee.email}
+                  className="w-5 h-5 rounded-full object-cover border border-white"
+                />
+              ) : (
+                <div
+                  key={assignee.id}
+                  title={assignee.name || assignee.email}
+                  className="w-5 h-5 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-[10px] font-medium border border-white"
+                >
+                  {(assignee.name || assignee.email).charAt(0).toUpperCase()}
+                </div>
+              )
+            )}
             {task.assignees.length > 3 && (
               <div className="w-5 h-5 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center text-[10px] font-medium border border-white">
                 +{task.assignees.length - 3}
