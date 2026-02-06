@@ -274,6 +274,13 @@ export interface GitHubIntegration {
   installationId: number | null;
   repositories: LinkedRepository[];
   isEnabled: boolean;
+  canLinkRepos: boolean;
+}
+
+export interface UserInstallation {
+  installationId: number;
+  accountLogin: string | null;
+  accountType: string | null;
 }
 
 export interface LinkRepositoryInput {
@@ -284,6 +291,14 @@ export interface LinkRepositoryInput {
 
 // GitHub Integration API methods
 export const githubApi = {
+  // Get the current user's GitHub App installations
+  getMyInstallations: async (): Promise<UserInstallation[]> => {
+    const response = await api.get<{ success: boolean; data: { installations: UserInstallation[] } }>(
+      '/api/github/my-installations'
+    );
+    return response.data.installations;
+  },
+
   // Get the GitHub integration status for a project
   getIntegration: async (projectId: string): Promise<GitHubIntegration> => {
     const response = await api.get<{ success: boolean; data: GitHubIntegration }>(

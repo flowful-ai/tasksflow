@@ -78,20 +78,42 @@ webhooks.post('/github', async (c) => {
       )
     );
 
-  // Filter to find matching integration
-  const matchingIntegration = integrations.find((i) => {
-    const config = i.integration.config as { owner: string; repo: string };
-    return config.owner === owner && config.repo === repo;
-  });
+  // Filter to find matching integration by checking repositories array
+  let matchingIntegration: (typeof integrations)[number] | undefined;
+  let matchedInstallationId: number | undefined;
 
-  if (!matchingIntegration) {
+  for (const i of integrations) {
+    const config = i.integration.config as {
+      installationId?: number;
+      repositories?: Array<{ owner: string; repo: string; installationId?: number }>;
+      owner?: string;
+      repo?: string;
+    };
+
+    // Check per-repo entries first (new model)
+    const matchedRepo = config.repositories?.find((r) => r.owner === owner && r.repo === repo);
+    if (matchedRepo) {
+      matchingIntegration = i;
+      matchedInstallationId = matchedRepo.installationId ?? config.installationId;
+      break;
+    }
+
+    // Legacy: top-level owner/repo
+    if (config.owner === owner && config.repo === repo) {
+      matchingIntegration = i;
+      matchedInstallationId = config.installationId;
+      break;
+    }
+  }
+
+  if (!matchingIntegration || !matchedInstallationId) {
     return c.json({ status: 'ignored', reason: 'No matching integration found' });
   }
 
-  const config = matchingIntegration.integration.config as {
-    owner: string;
-    repo: string;
-    installationId: number;
+  const config = {
+    owner,
+    repo,
+    installationId: matchedInstallationId,
   };
 
   // Handle the webhook

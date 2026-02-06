@@ -430,6 +430,26 @@ export const userApiKeys = pgTable(
   (table) => [uniqueIndex('unique_user_api_key').on(table.userId, table.provider)]
 );
 
+// ============ GITHUB INSTALLATIONS (User-level) ============
+
+export const githubInstallations = pgTable(
+  'github_installations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    installationId: integer('installation_id').notNull(),
+    accountLogin: text('account_login'), // GitHub account/org name for display
+    accountType: text('account_type'), // 'User' or 'Organization'
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('unique_user_installation').on(table.userId, table.installationId),
+    index('github_installation_user_idx').on(table.userId),
+  ]
+);
+
 // ============ SESSIONS (for Better Auth) ============
 
 export const sessions = pgTable(
@@ -556,3 +576,6 @@ export type NewAccount = typeof accounts.$inferInsert;
 
 export type WorkspaceAgent = typeof workspaceAgents.$inferSelect;
 export type NewWorkspaceAgent = typeof workspaceAgents.$inferInsert;
+
+export type GitHubInstallation = typeof githubInstallations.$inferSelect;
+export type NewGitHubInstallation = typeof githubInstallations.$inferInsert;

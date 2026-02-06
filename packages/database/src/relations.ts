@@ -22,6 +22,7 @@ import {
   userApiKeys,
   sessions,
   accounts,
+  githubInstallations,
 } from './schema.js';
 
 // User relations
@@ -34,6 +35,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   apiKeys: many(userApiKeys),
   sessions: many(sessions),
   accounts: many(accounts),
+  githubInstallations: many(githubInstallations),
   smartViews: many(smartViews),
   smartViewShares: many(smartViewShares),
   invitationsSent: many(workspaceInvitations),
@@ -287,6 +289,14 @@ export const sessionsRelations = relations(sessions, ({ one }) => ({
 export const accountsRelations = relations(accounts, ({ one }) => ({
   user: one(users, {
     fields: [accounts.userId],
+    references: [users.id],
+  }),
+}));
+
+// GitHub installation relations
+export const githubInstallationsRelations = relations(githubInstallations, ({ one }) => ({
+  user: one(users, {
+    fields: [githubInstallations.userId],
     references: [users.id],
   }),
 }));

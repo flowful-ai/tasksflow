@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { getDatabase, projectIntegrations, projects, workspaceMembers } from '@flowtask/database';
+import { getDatabase, projectIntegrations, projects, workspaceMembers, githubInstallations } from '@flowtask/database';
 import { eq, and } from 'drizzle-orm';
 import { getCurrentUser } from '@flowtask/auth';
 import { GitHubSyncService, createGitHubClientForInstallation } from '@flowtask/integrations';
@@ -13,6 +13,7 @@ const taskService = new TaskService(db);
 interface LinkedRepository {
   owner: string;
   repo: string;
+  installationId: number;
   linkedAt: string;
   lastSyncAt: string | null;
   syncStatus: 'idle' | 'syncing' | 'synced' | 'error';
@@ -20,7 +21,7 @@ interface LinkedRepository {
 }
 
 interface GitHubIntegrationConfig {
-  installationId?: number;
+  installationId?: number; // Legacy top-level, kept for backward compat
   repositories?: LinkedRepository[];
 }
 
@@ -83,6 +84,27 @@ github.get('/installations/:installationId/repos', async (c) => {
   }
 });
 
+// Get the current user's GitHub App installations
+github.get('/my-installations', async (c) => {
+  const user = getCurrentUser(c);
+
+  const installations = await db
+    .select()
+    .from(githubInstallations)
+    .where(eq(githubInstallations.userId, user.id));
+
+  return c.json({
+    success: true,
+    data: {
+      installations: installations.map((i) => ({
+        installationId: i.installationId,
+        accountLogin: i.accountLogin,
+        accountType: i.accountType,
+      })),
+    },
+  });
+});
+
 // Get GitHub integration for a project
 github.get('/:projectId/github', async (c) => {
   const user = getCurrentUser(c);
@@ -105,6 +127,14 @@ github.get('/:projectId/github', async (c) => {
       )
     );
 
+  // Check if current user has any GitHub installations (can link repos)
+  const [userInstallation] = await db
+    .select({ id: githubInstallations.id })
+    .from(githubInstallations)
+    .where(eq(githubInstallations.userId, user.id))
+    .limit(1);
+  const canLinkRepos = !!userInstallation;
+
   if (!integration) {
     return c.json({
       success: true,
@@ -113,19 +143,25 @@ github.get('/:projectId/github', async (c) => {
         installationId: null,
         repositories: [],
         isEnabled: false,
+        canLinkRepos,
       },
     });
   }
 
   const config = integration.config as GitHubIntegrationConfig;
+  const repos = config.repositories || [];
+
+  // Backward compat: return installationId from first repo or legacy top-level
+  const installationId = repos[0]?.installationId ?? config.installationId ?? null;
 
   return c.json({
     success: true,
     data: {
       id: integration.id,
-      installationId: config.installationId || null,
-      repositories: config.repositories || [],
+      installationId,
+      repositories: repos,
       isEnabled: integration.isEnabled,
+      canLinkRepos,
     },
   });
 });
@@ -148,7 +184,34 @@ github.post('/:projectId/github/install', async (c) => {
     return c.json({ success: false, error: 'Missing installationId' }, 400);
   }
 
-  // Check if integration exists
+  // Upsert into github_installations (user-level)
+  let accountLogin: string | null = null;
+  let accountType: string | null = null;
+  try {
+    const client = await createGitHubClientForInstallation(installationId, { owner: '', repo: '' });
+    const octokit = client.getOctokit();
+    const { data: installation } = await octokit.apps.getInstallation({ installation_id: installationId });
+    const account = installation.account as { login?: string; type?: string } | null;
+    accountLogin = account?.login ?? null;
+    accountType = account?.type ?? null;
+  } catch {
+    // Non-critical: we can still save without account info
+  }
+
+  await db
+    .insert(githubInstallations)
+    .values({
+      userId: user.id,
+      installationId,
+      accountLogin,
+      accountType,
+    })
+    .onConflictDoUpdate({
+      target: [githubInstallations.userId, githubInstallations.installationId],
+      set: { accountLogin, accountType },
+    });
+
+  // Also ensure project_integrations row exists (without top-level installationId)
   const [existingIntegration] = await db
     .select()
     .from(projectIntegrations)
@@ -160,35 +223,25 @@ github.post('/:projectId/github/install', async (c) => {
     );
 
   if (existingIntegration) {
-    // Update existing integration with new installationId
     const config = existingIntegration.config as GitHubIntegrationConfig;
-    await db
-      .update(projectIntegrations)
-      .set({
-        config: { ...config, installationId },
-        isEnabled: true,
-        updatedAt: new Date(),
-      })
-      .where(eq(projectIntegrations.id, existingIntegration.id));
-
     return c.json({
       success: true,
       data: {
         id: existingIntegration.id,
         installationId,
         repositories: config.repositories || [],
-        isEnabled: true,
+        isEnabled: existingIntegration.isEnabled,
       },
     });
   }
 
-  // Create new integration with just the installationId
+  // Create new integration (no top-level installationId)
   const [newIntegration] = await db
     .insert(projectIntegrations)
     .values({
       projectId,
       integrationType: 'github',
-      config: { installationId, repositories: [] },
+      config: { repositories: [] },
       isEnabled: true,
     })
     .returning();
@@ -226,6 +279,21 @@ github.post('/:projectId/github/link', async (c) => {
     return c.json({ success: false, error: 'Missing required fields' }, 400);
   }
 
+  // Verify the current user owns this installation
+  const [userInstallation] = await db
+    .select()
+    .from(githubInstallations)
+    .where(
+      and(
+        eq(githubInstallations.userId, user.id),
+        eq(githubInstallations.installationId, installationId)
+      )
+    );
+
+  if (!userInstallation) {
+    return c.json({ success: false, error: 'You do not own this GitHub installation' }, 403);
+  }
+
   // Check if integration exists
   const [existingIntegration] = await db
     .select()
@@ -240,6 +308,7 @@ github.post('/:projectId/github/link', async (c) => {
   const newRepo: LinkedRepository = {
     owner,
     repo,
+    installationId,
     linkedAt: new Date().toISOString(),
     lastSyncAt: null,
     syncStatus: 'idle',
@@ -262,7 +331,7 @@ github.post('/:projectId/github/link', async (c) => {
     await db
       .update(projectIntegrations)
       .set({
-        config: { installationId, repositories },
+        config: { repositories },
         updatedAt: new Date(),
       })
       .where(eq(projectIntegrations.id, existingIntegration.id));
@@ -284,7 +353,7 @@ github.post('/:projectId/github/link', async (c) => {
     .values({
       projectId,
       integrationType: 'github',
-      config: { installationId, repositories: [newRepo] },
+      config: { repositories: [newRepo] },
       isEnabled: true,
     })
     .returning();
@@ -387,13 +456,15 @@ github.post('/:projectId/github/sync', async (c) => {
 
   const config = integration.config as GitHubIntegrationConfig;
 
-  if (!config.installationId) {
-    return c.json({ success: false, error: 'GitHub App not installed' }, 400);
-  }
-
   const linkedRepo = config.repositories?.find((r) => r.owner === owner && r.repo === repo);
   if (!linkedRepo) {
     return c.json({ success: false, error: 'Repository not linked' }, 404);
+  }
+
+  // Get installationId from the repo entry (or fall back to legacy top-level)
+  const repoInstallationId = linkedRepo.installationId ?? config.installationId;
+  if (!repoInstallationId) {
+    return c.json({ success: false, error: 'GitHub App not installed' }, 400);
   }
 
   // Update status to syncing
@@ -415,7 +486,7 @@ github.post('/:projectId/github/sync', async (c) => {
     console.log(`[GitHub Sync] Starting sync for ${owner}/${repo} (project: ${projectId})`);
     const syncService = new GitHubSyncService(db, taskService);
     const result = await syncService.initialSync(integration.id, projectId, {
-      installationId: config.installationId,
+      installationId: repoInstallationId,
       owner,
       repo,
     });

@@ -25,11 +25,18 @@ export function GitHubSettings({ projectId, onUpdated }: GitHubSettingsProps) {
   const [selectedInstallationId, setSelectedInstallationId] = useState<number | null>(null);
   const [unlinkTarget, setUnlinkTarget] = useState<LinkedRepository | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [repoFilter, setRepoFilter] = useState('');
 
   // Fetch current GitHub integration status
   const { data: integration, isLoading: integrationLoading, refetch: refetchIntegration } = useQuery({
     queryKey: ['github-integration', projectId],
     queryFn: () => githubApi.getIntegration(projectId),
+  });
+
+  // Fetch user's GitHub installations (to know if they can link repos)
+  const { data: userInstallations } = useQuery({
+    queryKey: ['github-user-installations'],
+    queryFn: () => githubApi.getMyInstallations(),
   });
 
   // Check URL for installation callback and save installation ID
@@ -62,6 +69,12 @@ export function GitHubSettings({ projectId, onUpdated }: GitHubSettingsProps) {
     queryKey: ['github-repos', selectedInstallationId],
     queryFn: () => githubApi.listInstallationRepos(selectedInstallationId!),
     enabled: !!selectedInstallationId && showRepoSelector,
+  });
+
+  const normalizedRepoFilter = repoFilter.trim().toLowerCase();
+  const filteredRepos = availableRepos?.filter((repo) => {
+    if (!normalizedRepoFilter) return true;
+    return repo.fullName.toLowerCase().includes(normalizedRepoFilter);
   });
 
   // Link repository mutation
@@ -200,8 +213,8 @@ export function GitHubSettings({ projectId, onUpdated }: GitHubSettingsProps) {
                   Create GitHub App →
                 </a>
               </div>
-            ) : integration?.installationId ? (
-              // App is installed but no repos linked yet - show Link Repository button
+            ) : userInstallations && userInstallations.length > 0 ? (
+              // User has GitHub installations - show Link Repository
               <div className="text-center py-8">
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <CheckCircle2 className="w-8 h-8 text-green-600" />
@@ -210,19 +223,52 @@ export function GitHubSettings({ projectId, onUpdated }: GitHubSettingsProps) {
                 <p className="text-sm text-gray-500 mb-4">
                   Link a repository to start syncing issues.
                 </p>
-                <button
-                  onClick={() => {
-                    setSelectedInstallationId(integration.installationId!);
-                    setShowRepoSelector(true);
-                  }}
-                  className="btn btn-primary inline-flex items-center"
-                >
-                  <Link2 className="w-4 h-4 mr-2" />
-                  Link Repository
-                </button>
+                {userInstallations.length === 1 ? (
+                  <button
+                    onClick={() => {
+                      setSelectedInstallationId(userInstallations[0].installationId);
+                      setShowRepoSelector(true);
+                    }}
+                    className="btn btn-primary inline-flex items-center"
+                  >
+                    <Link2 className="w-4 h-4 mr-2" />
+                    Link Repository
+                    {userInstallations[0].accountLogin && (
+                      <span className="ml-1 text-primary-200">({userInstallations[0].accountLogin})</span>
+                    )}
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-gray-500 mb-2">Choose an installation:</p>
+                    {userInstallations.map((inst) => (
+                      <button
+                        key={inst.installationId}
+                        onClick={() => {
+                          setSelectedInstallationId(inst.installationId);
+                          setShowRepoSelector(true);
+                        }}
+                        className="btn btn-primary inline-flex items-center mr-2"
+                      >
+                        <Link2 className="w-4 h-4 mr-2" />
+                        {inst.accountLogin || `Installation #${inst.installationId}`}
+                        {inst.accountType && (
+                          <span className="ml-1 text-xs text-primary-200">({inst.accountType})</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-4">
+                  <button
+                    onClick={handleInstallGitHubApp}
+                    className="text-sm text-gray-500 hover:text-gray-700 underline"
+                  >
+                    Install on a different account/org
+                  </button>
+                </div>
               </div>
             ) : (
-              // App not installed yet - show Install button
+              // No installations at all - show Install button
               <div className="text-center py-8">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Link2 className="w-8 h-8 text-gray-400" />
@@ -275,8 +321,21 @@ export function GitHubSettings({ projectId, onUpdated }: GitHubSettingsProps) {
               </button>
             </div>
           ) : (
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {availableRepos?.map((repo) => {
+            <div className="space-y-3">
+              <input
+                type="text"
+                value={repoFilter}
+                onChange={(event) => setRepoFilter(event.target.value)}
+                placeholder="Filter repositories..."
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              />
+              {filteredRepos && filteredRepos.length === 0 ? (
+                <div className="text-center py-6 text-sm text-gray-500">
+                  No repositories match "{repoFilter.trim()}".
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {filteredRepos?.map((repo) => {
                 const isAlreadyLinked = integration?.repositories?.some(
                   (r) => r.owner === repo.owner && r.repo === repo.name
                 );
@@ -304,7 +363,9 @@ export function GitHubSettings({ projectId, onUpdated }: GitHubSettingsProps) {
                     )}
                   </button>
                 );
-              })}
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -315,17 +376,40 @@ export function GitHubSettings({ projectId, onUpdated }: GitHubSettingsProps) {
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-gray-900">Linked Repositories</h3>
-            {isGitHubAppConfigured && integration?.installationId && (
-              <button
-                onClick={() => {
-                  setSelectedInstallationId(integration.installationId!);
-                  setShowRepoSelector(true);
-                }}
-                className="text-sm text-primary-600 hover:underline flex items-center gap-1"
-              >
-                <Link2 className="w-3 h-3" />
-                Add Repository
-              </button>
+            {isGitHubAppConfigured && userInstallations && userInstallations.length > 0 && (
+              userInstallations.length === 1 ? (
+                <button
+                  onClick={() => {
+                    setSelectedInstallationId(userInstallations[0].installationId);
+                    setShowRepoSelector(true);
+                  }}
+                  className="text-sm text-primary-600 hover:underline flex items-center gap-1"
+                >
+                  <Link2 className="w-3 h-3" />
+                  Add Repository
+                </button>
+              ) : (
+                <div className="relative group">
+                  <button className="text-sm text-primary-600 hover:underline flex items-center gap-1">
+                    <Link2 className="w-3 h-3" />
+                    Add Repository
+                  </button>
+                  <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-1 hidden group-hover:block z-10">
+                    {userInstallations.map((inst) => (
+                      <button
+                        key={inst.installationId}
+                        onClick={() => {
+                          setSelectedInstallationId(inst.installationId);
+                          setShowRepoSelector(true);
+                        }}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 whitespace-nowrap"
+                      >
+                        {inst.accountLogin || `Installation #${inst.installationId}`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )
             )}
           </div>
 
