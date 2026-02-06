@@ -136,7 +136,7 @@ export function FilterBuilder({ value, onChange, workspaceId }: FilterBuilderPro
   };
 
   return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
+    <div className="border border-gray-200 rounded-lg">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
         <div className="flex items-center gap-2 text-sm text-gray-600">
