@@ -41,7 +41,7 @@ export function GitHubLinkSection({ taskId, projectId, externalLinks, onUpdated 
 
   const githubIssues = externalLinks.filter((l) => l.externalType === 'github_issue');
   const githubPRs = externalLinks.filter((l) => l.externalType === 'github_pr');
-  const hasIntegration = integration?.installationId && integration.repositories.length > 0;
+  const hasIntegration = (integration?.repositories?.length || 0) > 0;
   const hasLinkedIssue = githubIssues.length > 0;
 
   // Don't render if no integration and no links

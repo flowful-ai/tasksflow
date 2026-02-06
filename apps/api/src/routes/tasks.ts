@@ -105,11 +105,23 @@ interface GitHubIntegrationConfig {
   repositories?: Array<{
     owner: string;
     repo: string;
+    installationId?: number;
     linkedAt: string;
     lastSyncAt: string | null;
     syncStatus: 'idle' | 'syncing' | 'synced' | 'error';
     syncError: string | null;
   }>;
+}
+
+function getInstallationIdForRepo(
+  config: GitHubIntegrationConfig,
+  owner: string,
+  repo: string
+): number | null {
+  const repoEntry = config.repositories?.find(
+    (r) => r.owner === owner && r.repo === repo
+  );
+  return repoEntry?.installationId ?? config.installationId ?? null;
 }
 
 // Create task
@@ -157,10 +169,16 @@ tasks.post(
         if (integration) {
           const config = integration.config as GitHubIntegrationConfig;
 
-          if (config.installationId) {
+          const installationId = getInstallationIdForRepo(
+            config,
+            data.githubRepo.owner,
+            data.githubRepo.repo
+          );
+
+          if (installationId) {
             // 2. Create GitHub client
             const client = await createGitHubClientForInstallation(
-              config.installationId,
+              installationId,
               { owner: data.githubRepo.owner, repo: data.githubRepo.repo }
             );
 
@@ -566,7 +584,8 @@ tasks.post(
     }
 
     const config = integration.config as GitHubIntegrationConfig;
-    if (!config.installationId) {
+    const installationId = getInstallationIdForRepo(config, owner, repo);
+    if (!installationId) {
       return c.json({ success: false, error: { code: 'NO_INSTALLATION', message: 'GitHub App not installed' } }, 400);
     }
 
@@ -587,7 +606,7 @@ tasks.post(
 
     // 4. Create GitHub issue
     try {
-      const client = await createGitHubClientForInstallation(config.installationId, { owner, repo });
+      const client = await createGitHubClientForInstallation(installationId, { owner, repo });
       const issue = await client.createIssue({
         title: taskResult.value.title,
         body: taskResult.value.description || '',
