@@ -124,7 +124,9 @@ export function DashboardPage() {
                   </div>
                 </div>
                 <div className="flex items-center mt-4 text-sm text-gray-500">
-                  <span>0 tasks</span>
+                  <span>
+                    {project.taskCount ?? 0} {project.taskCount === 1 ? 'task' : 'tasks'}
+                  </span>
                 </div>
               </Link>
             ))}

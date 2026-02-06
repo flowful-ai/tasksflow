@@ -3,11 +3,13 @@ import { persist } from 'zustand/middleware';
 import type { Workspace, Project } from '@flowtask/shared';
 import { api } from '../api/client';
 
+type ProjectWithTaskCount = Project & { taskCount?: number };
+
 interface WorkspaceState {
   workspaces: Workspace[];
   currentWorkspace: Workspace | null;
-  projects: Project[];
-  currentProject: Project | null;
+  projects: ProjectWithTaskCount[];
+  currentProject: ProjectWithTaskCount | null;
   isLoading: boolean;
   error: string | null;
 
@@ -15,9 +17,9 @@ interface WorkspaceState {
   fetchWorkspaces: () => Promise<void>;
   setCurrentWorkspace: (workspace: Workspace | null) => void;
   fetchProjects: (workspaceId: string) => Promise<void>;
-  setCurrentProject: (project: Project | null) => void;
+  setCurrentProject: (project: ProjectWithTaskCount | null) => void;
   createWorkspace: (name: string, slug: string) => Promise<Workspace>;
-  createProject: (name: string, identifier: string) => Promise<Project>;
+  createProject: (name: string, identifier: string) => Promise<ProjectWithTaskCount>;
   reset: () => void;
 }
 
@@ -63,7 +65,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       fetchProjects: async (workspaceId) => {
         set({ isLoading: true, error: null });
         try {
-          const response = await api.get<{ data?: Project[] }>(`/api/projects?workspaceId=${workspaceId}`);
+          const response = await api.get<{ data?: ProjectWithTaskCount[] }>(
+            `/api/projects?workspaceId=${workspaceId}`
+          );
           set({
             projects: response.data || [],
             isLoading: false,
@@ -96,7 +100,7 @@ export const useWorkspaceStore = create<WorkspaceState>()(
           throw new Error('No workspace selected');
         }
 
-        const response = await api.post<{ data: Project }>('/api/projects', {
+        const response = await api.post<{ data: ProjectWithTaskCount }>('/api/projects', {
           workspaceId: currentWorkspace.id,
           name,
           identifier,
