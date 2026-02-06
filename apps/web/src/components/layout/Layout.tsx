@@ -160,8 +160,7 @@ export function Layout({ children }: LayoutProps) {
                       : 'text-gray-700 hover:bg-gray-100'
                   )}
                 >
-                  <span className="w-6 text-xs font-medium text-gray-500">{project.identifier}</span>
-                  <span className="ml-2 truncate">{project.name}</span>
+                  <span className="truncate">{project.name}</span>
                 </Link>
               ))}
             </div>
