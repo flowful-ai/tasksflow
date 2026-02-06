@@ -8,6 +8,7 @@ interface GitHubIntegrationConfig {
   repositories?: Array<{
     owner: string;
     repo: string;
+    installationId?: number;
   }>;
 }
 
@@ -60,10 +61,6 @@ export class GitHubReverseSyncService {
     const { link, integration } = linkResult;
     const config = integration.config as GitHubIntegrationConfig;
 
-    if (!config.installationId) {
-      return { synced: false, reason: 'GitHub App not installed' };
-    }
-
     // 2. Check for recent sync to prevent loops (optional)
     if (options?.skipIfRecentSync && link.lastSyncedAt) {
       const timeSinceSync = Date.now() - new Date(link.lastSyncedAt).getTime();
@@ -78,8 +75,13 @@ export class GitHubReverseSyncService {
       return { synced: false, reason: 'Could not determine repository from link' };
     }
 
+    const installationId = this.getInstallationIdForRepo(config, repoInfo.owner, repoInfo.repo);
+    if (!installationId) {
+      return { synced: false, reason: 'GitHub App not installed' };
+    }
+
     // 4. Create GitHub client
-    const client = await createGitHubClientForInstallation(config.installationId, {
+    const client = await createGitHubClientForInstallation(installationId, {
       owner: repoInfo.owner,
       repo: repoInfo.repo,
     });
@@ -157,11 +159,18 @@ export class GitHubReverseSyncService {
     const { link, integration } = linkResult;
     const config = integration.config as GitHubIntegrationConfig;
 
-    if (!config.installationId) {
+    // 2. Get repo info from link
+    const repoInfo = this.extractRepoFromLinkUrl(link);
+    if (!repoInfo) {
+      return { synced: false, reason: 'Could not determine repository from link' };
+    }
+
+    const installationId = this.getInstallationIdForRepo(config, repoInfo.owner, repoInfo.repo);
+    if (!installationId) {
       return { synced: false, reason: 'GitHub App not installed' };
     }
 
-    // 2. Get author name if not provided
+    // 3. Get author name if not provided
     let authorName = comment.authorName;
     if (!authorName && comment.authorId) {
       const [user] = await this.db
@@ -171,14 +180,8 @@ export class GitHubReverseSyncService {
       authorName = user?.name || 'Unknown User';
     }
 
-    // 3. Get repo info from link
-    const repoInfo = this.extractRepoFromLinkUrl(link);
-    if (!repoInfo) {
-      return { synced: false, reason: 'Could not determine repository from link' };
-    }
-
     // 4. Create GitHub client
-    const client = await createGitHubClientForInstallation(config.installationId, {
+    const client = await createGitHubClientForInstallation(installationId, {
       owner: repoInfo.owner,
       repo: repoInfo.repo,
     });
@@ -217,7 +220,13 @@ export class GitHubReverseSyncService {
     const { link, integration } = linkResult;
     const config = integration.config as GitHubIntegrationConfig;
 
-    if (!config.installationId) {
+    const repoInfo = this.extractRepoFromLinkUrl(link);
+    if (!repoInfo) {
+      return { synced: false, reason: 'Could not determine repository from link' };
+    }
+
+    const installationId = this.getInstallationIdForRepo(config, repoInfo.owner, repoInfo.repo);
+    if (!installationId) {
       return { synced: false, reason: 'GitHub App not installed' };
     }
 
@@ -283,6 +292,21 @@ export class GitHubReverseSyncService {
       },
       integration: result.integration,
     };
+  }
+
+  /**
+   * Resolve the installation ID for a specific repo.
+   * Checks per-repo installationId first, falls back to top-level legacy field.
+   */
+  private getInstallationIdForRepo(
+    config: GitHubIntegrationConfig,
+    owner: string,
+    repo: string
+  ): number | null {
+    const repoEntry = config.repositories?.find(
+      (r) => r.owner === owner && r.repo === repo
+    );
+    return repoEntry?.installationId ?? config.installationId ?? null;
   }
 
   /**
