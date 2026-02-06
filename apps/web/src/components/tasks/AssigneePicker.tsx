@@ -116,11 +116,15 @@ export function AssigneePicker({
               key={assignee.id}
               className="flex items-center space-x-2 px-2.5 py-1.5 bg-gray-100 rounded-full group"
             >
-              <div className="w-5 h-5 rounded-full bg-primary-100 flex items-center justify-center">
-                <span className="text-xs font-medium text-primary-600">
-                  {getInitial(assignee.name, assignee.email)}
-                </span>
-              </div>
+              {assignee.avatarUrl ? (
+                <img src={assignee.avatarUrl} alt={assignee.name || assignee.email} className="w-5 h-5 rounded-full object-cover" />
+              ) : (
+                <div className="w-5 h-5 rounded-full bg-primary-100 flex items-center justify-center">
+                  <span className="text-xs font-medium text-primary-600">
+                    {getInitial(assignee.name, assignee.email)}
+                  </span>
+                </div>
+              )}
               <span className="text-sm text-gray-700">{assignee.name || assignee.email}</span>
               <button
                 type="button"
