@@ -30,6 +30,11 @@ interface StateCategory {
   label: string;
 }
 
+interface Project {
+  id: string;
+  name: string;
+}
+
 interface FilterValueInputProps {
   fieldType: FilterFieldType;
   operator: FilterOperator;
@@ -38,6 +43,7 @@ interface FilterValueInputProps {
   workspaceMembers: WorkspaceMember[];
   labels: Label[];
   stateCategories: StateCategory[];
+  projects: Project[];
 }
 
 export function FilterValueInput({
@@ -48,6 +54,7 @@ export function FilterValueInput({
   workspaceMembers,
   labels,
   stateCategories,
+  projects,
 }: FilterValueInputProps) {
   const isMultiple = operatorSupportsMultiple(operator);
 
@@ -116,6 +123,25 @@ export function FilterValueInput({
       ) : (
         <LabelSelect labels={labels} value={value as string} onChange={onChange} />
       );
+
+    case 'project': {
+      const projectOptions = projects.map((p) => ({ value: p.id, label: p.name }));
+      return isMultiple ? (
+        <MultiSelect
+          options={projectOptions}
+          value={(value as string[]) || []}
+          onChange={onChange}
+          placeholder="Select projects..."
+        />
+      ) : (
+        <SingleSelect
+          options={projectOptions}
+          value={value as string}
+          onChange={onChange}
+          placeholder="Select project..."
+        />
+      );
+    }
 
     default:
       return <TextInput value={value as string} onChange={onChange} />;

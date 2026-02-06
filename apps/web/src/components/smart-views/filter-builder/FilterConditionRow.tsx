@@ -30,6 +30,11 @@ interface StateCategory {
   label: string;
 }
 
+interface Project {
+  id: string;
+  name: string;
+}
+
 interface FilterConditionRowProps {
   condition: FilterCondition;
   onChange: (condition: FilterCondition) => void;
@@ -37,6 +42,7 @@ interface FilterConditionRowProps {
   workspaceMembers: WorkspaceMember[];
   labels: Label[];
   stateCategories: StateCategory[];
+  projects: Project[];
 }
 
 export function FilterConditionRow({
@@ -46,6 +52,7 @@ export function FilterConditionRow({
   workspaceMembers,
   labels,
   stateCategories,
+  projects,
 }: FilterConditionRowProps) {
   const fieldDef = FILTER_FIELDS[condition.field];
   const fieldType = fieldDef?.type || 'text';
@@ -137,6 +144,7 @@ export function FilterConditionRow({
             workspaceMembers={workspaceMembers}
             labels={labels}
             stateCategories={stateCategories}
+            projects={projects}
           />
         </div>
       )}

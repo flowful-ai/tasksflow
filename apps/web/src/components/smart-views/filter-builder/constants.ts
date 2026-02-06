@@ -7,7 +7,8 @@ export type FilterFieldType =
   | 'date'
   | 'user'
   | 'label'
-  | 'number';
+  | 'number'
+  | 'project';
 
 export interface FilterFieldDefinition {
   label: string;
@@ -35,6 +36,7 @@ export const FILTER_FIELDS: Record<string, FilterFieldDefinition> = {
   created_by: { label: 'Created By', type: 'user', category: 'People' },
 
   // Organization
+  project_id: { label: 'Project', type: 'project', category: 'Organization' },
   label_id: { label: 'Label', type: 'label', category: 'Organization' },
 };
 
@@ -46,6 +48,7 @@ export const OPERATORS_BY_TYPE: Record<FilterFieldType, FilterOperator[]> = {
   user: ['eq', 'neq', 'in', 'nin', 'is_null', 'is_not_null'],
   label: ['eq', 'in', 'nin', 'is_null', 'is_not_null'],
   number: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte'],
+  project: ['eq', 'neq', 'in', 'nin', 'is_null', 'is_not_null'],
 };
 
 export const OPERATOR_LABELS: Record<FilterOperator, string> = {

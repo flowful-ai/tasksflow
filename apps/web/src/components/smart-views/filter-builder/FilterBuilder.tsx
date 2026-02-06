@@ -23,6 +23,7 @@ interface WorkspaceDetail {
 // Extended project type that includes relations (the API actually returns this)
 interface ProjectWithRelations {
   id: string;
+  name: string;
   taskStates?: { id: string; name: string; category: string; color: string | null }[];
   labels?: { id: string; name: string; color: string | null }[];
 }
@@ -57,11 +58,13 @@ export function FilterBuilder({ value, onChange, workspaceId }: FilterBuilderPro
   });
 
   // Aggregate labels and state categories from all projects
-  const { labels, stateCategories } = useMemo(() => {
+  const { labels, stateCategories, projects } = useMemo(() => {
     const labelsMap = new Map<string, { id: string; name: string; color: string | null }>();
     const categoriesSet = new Set<string>();
+    const projects: { id: string; name: string }[] = [];
 
     for (const project of projectsData || []) {
+      projects.push({ id: project.id, name: project.name });
       // Aggregate labels
       for (const label of project.labels || []) {
         labelsMap.set(label.id, label);
@@ -84,6 +87,7 @@ export function FilterBuilder({ value, onChange, workspaceId }: FilterBuilderPro
     return {
       labels: Array.from(labelsMap.values()),
       stateCategories,
+      projects,
     };
   }, [projectsData]);
 
@@ -180,6 +184,7 @@ export function FilterBuilder({ value, onChange, workspaceId }: FilterBuilderPro
                 workspaceMembers={workspaceMembers}
                 labels={labels}
                 stateCategories={stateCategories}
+                projects={projects}
               />
             ))}
 
