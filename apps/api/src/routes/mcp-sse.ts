@@ -468,7 +468,7 @@ function createMcpServer(tokenAuth: TokenAuthContext): Server {
         content: [
           {
             type: 'text' as const,
-            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            text: process.env.NODE_ENV === 'production' ? 'Error: Tool execution failed' : `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
           },
         ],
         isError: true,

@@ -1,4 +1,8 @@
 import { eq, and, or, gt, gte, lt, lte, inArray, notInArray, like, isNull, isNotNull, SQL, sql } from 'drizzle-orm';
+
+function escapeLike(value: string): string {
+  return value.replace(/[%_\\]/g, '\\$&');
+}
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { tasks, taskStates, taskAssignees, taskLabels } from '@flowtask/database';
 import type { FilterGroup, FilterCondition, FilterOperator } from '@flowtask/shared';
@@ -148,13 +152,13 @@ function buildCondition(condition: FilterCondition, ctx: FilterContext): SQL | n
       if (!Array.isArray(value) || value.length === 0) return null;
       return notInArray(column, value as string[]);
     case 'contains':
-      return like(column, `%${value}%`);
+      return like(column, `%${escapeLike(String(value))}%`);
     case 'not_contains':
-      return sql`${column} NOT LIKE ${`%${value}%`}`;
+      return sql`${column} NOT LIKE ${`%${escapeLike(String(value))}%`}`;
     case 'starts_with':
-      return like(column, `${value}%`);
+      return like(column, `${escapeLike(String(value))}%`);
     case 'ends_with':
-      return like(column, `%${value}`);
+      return like(column, `%${escapeLike(String(value))}`);
     case 'is_null':
       return isNull(column);
     case 'is_not_null':

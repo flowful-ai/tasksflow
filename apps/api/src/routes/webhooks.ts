@@ -219,6 +219,12 @@ webhooks.post('/slack', async (c) => {
     return c.json({ error: 'Missing required headers' }, 400);
   }
 
+  // Reject requests older than 5 minutes to prevent replay attacks
+  const requestAge = Math.abs(Math.floor(Date.now() / 1000) - parseInt(timestamp, 10));
+  if (requestAge > 300) {
+    return c.json({ error: 'Request too old' }, 401);
+  }
+
   // Get raw body for signature verification
   const body = await c.req.text();
 

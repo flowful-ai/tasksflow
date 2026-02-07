@@ -1,4 +1,8 @@
 import { eq, and, or, inArray, isNull, sql, desc, asc, ilike, lt, gt, SQL } from 'drizzle-orm';
+
+function escapeLike(value: string): string {
+  return value.replace(/[%_\\]/g, '\\$&');
+}
 import type { Database } from '@flowtask/database';
 import {
   tasks,
@@ -395,7 +399,7 @@ export class TaskService {
 
       if (filters.search) {
         conditions.push(
-          or(ilike(tasks.title, `%${filters.search}%`), ilike(tasks.description, `%${filters.search}%`))!
+          or(ilike(tasks.title, `%${escapeLike(filters.search)}%`), ilike(tasks.description, `%${escapeLike(filters.search)}%`))!
         );
       }
 

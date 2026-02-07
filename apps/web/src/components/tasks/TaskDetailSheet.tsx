@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { X, Pencil, Check, Clock, MessageSquare, Send, Maximize2, Minimize2 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
+import rehypeSanitize from 'rehype-sanitize';
 import { api } from '../../api/client';
 import clsx from 'clsx';
 import { AssigneePicker } from './AssigneePicker';
@@ -551,6 +552,7 @@ export function TaskDetailSheet({
                 >
                   {task.description ? (
                     <ReactMarkdown
+                      rehypePlugins={[rehypeSanitize]}
                       components={{
                         h1: ({ children }) => (
                           <h1 className="text-xl font-semibold text-gray-900 mb-2">{children}</h1>
@@ -830,6 +832,7 @@ export function TaskDetailSheet({
                       </div>
                       <div className="prose prose-sm max-w-none">
                         <ReactMarkdown
+                          rehypePlugins={[rehypeSanitize]}
                           components={{
                             p: ({ children }) => (
                               <p className="text-sm text-gray-600 mb-1 last:mb-0">{children}</p>

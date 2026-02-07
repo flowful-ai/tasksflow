@@ -1,4 +1,8 @@
 import { eq, and, sql, desc, asc, like, inArray, SQL } from 'drizzle-orm';
+
+function escapeLike(value: string): string {
+  return value.replace(/[%_\\]/g, '\\$&');
+}
 import type { Database } from '@flowtask/database';
 import { workspaces, workspaceMembers, users, projects } from '@flowtask/database';
 import type { Result, WorkspaceRole } from '@flowtask/shared';
@@ -186,7 +190,7 @@ export class WorkspaceService {
       }
 
       if (filters.search) {
-        conditions.push(like(workspaces.name, `%${filters.search}%`));
+        conditions.push(like(workspaces.name, `%${escapeLike(filters.search)}%`));
       }
 
       const whereClause = conditions.length > 0 ? and(...conditions) : undefined;

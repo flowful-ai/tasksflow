@@ -605,7 +605,7 @@ mcp.post(
         success: false,
         error: {
           code: 'EXECUTION_FAILED',
-          message: error instanceof Error ? error.message : 'Unknown error',
+          message: process.env.NODE_ENV === 'production' ? 'Tool execution failed' : (error instanceof Error ? error.message : 'Unknown error'),
         },
       }, 400);
     }
