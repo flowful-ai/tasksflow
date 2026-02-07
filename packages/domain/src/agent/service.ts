@@ -12,12 +12,17 @@ import type {
 } from './types.js';
 import { AGENT_TOOLS } from './types.js';
 
-// Simple encryption for API keys (in production, use a proper encryption library)
-const ENCRYPTION_KEY = process.env.API_KEY_ENCRYPTION_KEY || 'default-dev-key-32-chars-here!!';
+function getEncryptionKey(): string {
+  const key = process.env.API_KEY_ENCRYPTION_KEY;
+  if (!key) {
+    throw new Error('API_KEY_ENCRYPTION_KEY environment variable is required');
+  }
+  return key;
+}
 
 async function encryptApiKey(apiKey: string): Promise<string> {
   const encoder = new TextEncoder();
-  const keyData = encoder.encode(ENCRYPTION_KEY.slice(0, 32).padEnd(32, '0'));
+  const keyData = encoder.encode(getEncryptionKey().slice(0, 32).padEnd(32, '0'));
   const iv = crypto.getRandomValues(new Uint8Array(12));
 
   const key = await crypto.subtle.importKey('raw', keyData, { name: 'AES-GCM' }, false, ['encrypt']);
@@ -38,7 +43,7 @@ async function encryptApiKey(apiKey: string): Promise<string> {
 
 async function decryptApiKey(encryptedKey: string): Promise<string> {
   const encoder = new TextEncoder();
-  const keyData = encoder.encode(ENCRYPTION_KEY.slice(0, 32).padEnd(32, '0'));
+  const keyData = encoder.encode(getEncryptionKey().slice(0, 32).padEnd(32, '0'));
 
   const combined = new Uint8Array(
     atob(encryptedKey)

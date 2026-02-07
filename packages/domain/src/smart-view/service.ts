@@ -13,19 +13,12 @@ import type {
 } from './types.js';
 import { FilterEngine } from './filter-engine.js';
 
-// Simple password hashing (in production, use bcrypt or argon2)
 async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hash = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(hash))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
+  return Bun.password.hash(password, { algorithm: 'bcrypt', cost: 12 });
 }
 
 async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  const computed = await hashPassword(password);
-  return computed === hash;
+  return Bun.password.verify(password, hash);
 }
 
 export class SmartViewService {

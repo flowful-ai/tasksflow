@@ -49,7 +49,11 @@ webhooks.post('/github', async (c) => {
 
   // Verify signature
   const secret = process.env.GITHUB_WEBHOOK_SECRET;
-  if (secret && !verifyGitHubSignature(body, signature, secret)) {
+  if (!secret) {
+    console.error('GITHUB_WEBHOOK_SECRET is not configured — rejecting webhook');
+    return c.json({ error: 'Webhook verification not configured' }, 500);
+  }
+  if (!verifyGitHubSignature(body, signature, secret)) {
     return c.json({ error: 'Invalid signature' }, 401);
   }
 
@@ -220,7 +224,11 @@ webhooks.post('/slack', async (c) => {
 
   // Verify signature
   const secret = process.env.SLACK_SIGNING_SECRET;
-  if (secret && !verifySlackSignature(body, timestamp, signature, secret)) {
+  if (!secret) {
+    console.error('SLACK_SIGNING_SECRET is not configured — rejecting webhook');
+    return c.json({ error: 'Webhook verification not configured' }, 500);
+  }
+  if (!verifySlackSignature(body, timestamp, signature, secret)) {
     return c.json({ error: 'Invalid signature' }, 401);
   }
 
