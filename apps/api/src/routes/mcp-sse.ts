@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { Redis } from 'ioredis';
@@ -426,8 +426,8 @@ async function executeMcpTool(
 /**
  * Create an MCP server instance with tools registered based on token permissions.
  */
-function createMcpServer(tokenAuth: TokenAuthContext): Server {
-  const server = new Server(
+function createMcpServer(tokenAuth: TokenAuthContext): McpServer {
+  const mcpServer = new McpServer(
     {
       name: 'flowtask',
       version: '1.0.0',
@@ -446,7 +446,7 @@ function createMcpServer(tokenAuth: TokenAuthContext): Server {
   );
 
   // Register tools/list handler
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
+  mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => {
     return {
       tools: allowedTools.map((tool) => ({
         name: tool.name,
@@ -457,7 +457,7 @@ function createMcpServer(tokenAuth: TokenAuthContext): Server {
   });
 
   // Register tools/call handler
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args = {} } = request.params;
 
     try {
@@ -476,7 +476,7 @@ function createMcpServer(tokenAuth: TokenAuthContext): Server {
     }
   });
 
-  return server;
+  return mcpServer;
 }
 
 /**
