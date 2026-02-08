@@ -20,6 +20,7 @@ export class CommentService {
           userId: input.userId,
           agentId: input.agentId || null,
           content: input.content,
+          externalCommentId: input.externalCommentId || null,
         })
         .returning();
 
@@ -203,6 +204,79 @@ export class CommentService {
         .where(and(eq(comments.taskId, taskId), isNull(comments.deletedAt)));
 
       return ok(result?.count ?? 0);
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error('Unknown error'));
+    }
+  }
+
+  /**
+   * Find a comment by its external ID (e.g., GitHub comment ID).
+   */
+  async findByExternalId(externalCommentId: string): Promise<Result<CommentWithUser | null, Error>> {
+    try {
+      const [result] = await this.db
+        .select({
+          comment: comments,
+          user: users,
+          agent: {
+            id: workspaceAgents.id,
+            name: workspaceAgents.name,
+          },
+        })
+        .from(comments)
+        .leftJoin(users, eq(comments.userId, users.id))
+        .leftJoin(workspaceAgents, eq(comments.agentId, workspaceAgents.id))
+        .where(eq(comments.externalCommentId, externalCommentId));
+
+      if (!result) {
+        return ok(null);
+      }
+
+      return ok({
+        ...result.comment,
+        user: result.user,
+        agent: result.agent?.id ? result.agent : null,
+      });
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error('Unknown error'));
+    }
+  }
+
+  /**
+   * Update a comment by its external ID (bypasses author check for synced comments).
+   */
+  async updateExternal(externalCommentId: string, content: string): Promise<Result<CommentWithUser | null, Error>> {
+    try {
+      const [updated] = await this.db
+        .update(comments)
+        .set({
+          content,
+          updatedAt: new Date(),
+        })
+        .where(eq(comments.externalCommentId, externalCommentId))
+        .returning();
+
+      if (!updated) {
+        return ok(null);
+      }
+
+      return this.getById(updated.id);
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error('Unknown error'));
+    }
+  }
+
+  /**
+   * Soft-delete a comment by its external ID (bypasses author check for synced comments).
+   */
+  async deleteExternal(externalCommentId: string): Promise<Result<void, Error>> {
+    try {
+      await this.db
+        .update(comments)
+        .set({ deletedAt: new Date() })
+        .where(eq(comments.externalCommentId, externalCommentId));
+
+      return ok(undefined);
     } catch (error) {
       return err(error instanceof Error ? error : new Error('Unknown error'));
     }

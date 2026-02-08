@@ -3,6 +3,7 @@ import type {
   WebhookResult,
   GitHubIssueWebhookPayload,
   GitHubPRWebhookPayload,
+  GitHubIssueCommentWebhookPayload,
 } from '../types.js';
 import type { TaskPriority } from '@flowtask/shared';
 
@@ -50,6 +51,44 @@ export class GitHubWebhookHandler {
             url: issue.html_url,
           },
         };
+
+      default:
+        return { action: 'ignore' };
+    }
+  }
+
+  /**
+   * Handle GitHub issue comment events.
+   */
+  async handleIssueCommentEvent(
+    payload: GitHubIssueCommentWebhookPayload,
+    config: GitHubConfig
+  ): Promise<WebhookResult> {
+    const { action, comment, issue, repository, sender } = payload;
+
+    // Verify this is for the configured repository
+    if (repository.owner.login !== config.owner || repository.name !== config.repo) {
+      return { action: 'ignore' };
+    }
+
+    const commentData = {
+      externalCommentId: comment.id.toString(),
+      body: comment.body,
+      authorLogin: sender.login,
+      authorId: sender.id,
+      url: comment.html_url,
+      issueNumber: issue.number,
+    };
+
+    switch (action) {
+      case 'created':
+        return { action: 'sync_comment', commentData };
+
+      case 'edited':
+        return { action: 'update_comment', commentData };
+
+      case 'deleted':
+        return { action: 'delete_comment', commentData };
 
       default:
         return { action: 'ignore' };

@@ -1,4 +1,4 @@
-import type { IntegrationProvider, GitHubConfig, WebhookResult, GitHubIssueWebhookPayload, GitHubPRWebhookPayload } from '../types.js';
+import type { IntegrationProvider, GitHubConfig, WebhookResult, GitHubIssueWebhookPayload, GitHubPRWebhookPayload, GitHubIssueCommentWebhookPayload } from '../types.js';
 import type { TaskEvent } from '@flowtask/shared';
 import { GitHubWebhookHandler } from './webhook.js';
 
@@ -37,6 +37,11 @@ export class GitHubProvider implements IntegrationProvider<GitHubConfig> {
    */
   async handleWebhook(payload: unknown, config: GitHubConfig): Promise<WebhookResult> {
     // Determine event type from payload structure
+    // Check issue_comment first since it also has 'issue' field
+    if (this.isIssueCommentPayload(payload)) {
+      return this.webhookHandler.handleIssueCommentEvent(payload, config);
+    }
+
     if (this.isIssuePayload(payload)) {
       return this.webhookHandler.handleIssueEvent(payload, config);
     }
@@ -80,6 +85,17 @@ export class GitHubProvider implements IntegrationProvider<GitHubConfig> {
       typeof payload === 'object' &&
       'pull_request' in payload &&
       'action' in payload
+    );
+  }
+
+  private isIssueCommentPayload(payload: unknown): payload is GitHubIssueCommentWebhookPayload {
+    return (
+      payload !== null &&
+      typeof payload === 'object' &&
+      'comment' in payload &&
+      'issue' in payload &&
+      'action' in payload &&
+      !('pull_request' in payload)
     );
   }
 }

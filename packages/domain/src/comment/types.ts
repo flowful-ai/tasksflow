@@ -15,6 +15,7 @@ export interface CommentCreateInput {
   userId: string | null;
   agentId?: string | null;
   content: string;
+  externalCommentId?: string | null;
 }
 
 export interface CommentUpdateInput {

@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
-import { getDatabase, projectIntegrations, projects, externalLinks } from '@flowtask/database';
+import { getDatabase, projectIntegrations, projects, externalLinks, accounts, workspaceMembers } from '@flowtask/database';
 import { eq, and } from 'drizzle-orm';
 import { GitHubProvider, GitHubSyncService, SlackProvider } from '@flowtask/integrations';
-import { TaskService } from '@flowtask/domain';
+import { TaskService, CommentService } from '@flowtask/domain';
 import crypto from 'crypto';
 
 // How recently a sync must have occurred to be considered "from us" (5 seconds)
@@ -11,6 +11,7 @@ const SYNC_LOOP_THRESHOLD_MS = 5000;
 const webhooks = new Hono();
 const db = getDatabase();
 const taskService = new TaskService(db);
+const commentService = new CommentService(db);
 const githubProvider = new GitHubProvider();
 const slackProvider = new SlackProvider();
 
@@ -201,6 +202,118 @@ webhooks.post('/github', async (c) => {
         action: 'linked',
         taskId: result.taskId,
       });
+    }
+
+    // Handle comment sync actions
+    if (result.commentData) {
+      const { externalCommentId, body, authorLogin, authorId, issueNumber } = result.commentData;
+
+      // Find the linked task via externalLinks table
+      const [linkedTask] = await db
+        .select({ taskId: externalLinks.taskId })
+        .from(externalLinks)
+        .where(
+          and(
+            eq(externalLinks.integrationId, matchingIntegration.integration.id),
+            eq(externalLinks.externalType, 'github_issue'),
+            eq(externalLinks.externalId, issueNumber.toString())
+          )
+        );
+
+      if (!linkedTask) {
+        return c.json({
+          status: 'ignored',
+          reason: 'Comment on unlinked issue'
+        });
+      }
+
+      if (result.action === 'sync_comment') {
+        // Try to match GitHub author to workspace member
+        // The accounts table stores GitHub accountId (numeric as string) where providerId = 'github'
+        const [matchedAccount] = await db
+          .select({ userId: accounts.userId })
+          .from(accounts)
+          .innerJoin(
+            workspaceMembers,
+            eq(accounts.userId, workspaceMembers.userId)
+          )
+          .where(
+            and(
+              eq(accounts.providerId, 'github'),
+              eq(accounts.accountId, authorId.toString()),
+              eq(workspaceMembers.workspaceId, matchingIntegration.project.workspaceId)
+            )
+          );
+
+        let content = body;
+        let userId: string | null = null;
+
+        if (matchedAccount) {
+          // Matched user in workspace - use their ID
+          userId = matchedAccount.userId;
+        } else {
+          // No matched user - add attribution
+          content = `**@${authorLogin}** commented on GitHub:\n\n${body}`;
+        }
+
+        const createResult = await commentService.create({
+          taskId: linkedTask.taskId,
+          userId,
+          content,
+          externalCommentId,
+        });
+
+        if (!createResult.ok) {
+          console.error('Failed to create synced comment:', createResult.error);
+          return c.json({ error: 'Failed to sync comment' }, 500);
+        }
+
+        return c.json({
+          status: 'processed',
+          action: 'comment_synced',
+          commentId: createResult.value.id,
+          taskId: linkedTask.taskId,
+        });
+      }
+
+      if (result.action === 'update_comment') {
+        const updateResult = await commentService.updateExternal(externalCommentId, body);
+
+        if (!updateResult.ok) {
+          console.error('Failed to update synced comment:', updateResult.error);
+          return c.json({ error: 'Failed to update comment' }, 500);
+        }
+
+        // Check if comment existed
+        if (!updateResult.value) {
+          return c.json({
+            status: 'ignored',
+            reason: 'Comment not found for update'
+          });
+        }
+
+        return c.json({
+          status: 'processed',
+          action: 'comment_updated',
+          commentId: updateResult.value.id,
+          taskId: linkedTask.taskId,
+        });
+      }
+
+      if (result.action === 'delete_comment') {
+        const deleteResult = await commentService.deleteExternal(externalCommentId);
+
+        if (!deleteResult.ok) {
+          console.error('Failed to delete synced comment:', deleteResult.error);
+          return c.json({ error: 'Failed to delete comment' }, 500);
+        }
+
+        return c.json({
+          status: 'processed',
+          action: 'comment_deleted',
+          taskId: linkedTask.taskId,
+        });
+      }
     }
 
     return c.json({ status: 'ignored' });

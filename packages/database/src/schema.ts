@@ -255,6 +255,7 @@ export const comments = pgTable(
     userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
     agentId: uuid('agent_id').references(() => workspaceAgents.id, { onDelete: 'set null' }), // Agent that created this comment (if any)
     content: text('content').notNull(), // Markdown
+    externalCommentId: text('external_comment_id'), // GitHub comment ID for synced comments
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
     deletedAt: timestamp('deleted_at'), // Soft delete

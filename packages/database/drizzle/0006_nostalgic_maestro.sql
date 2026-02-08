@@ -1,0 +1,1 @@
+ALTER TABLE "comments" ADD COLUMN "external_comment_id" text;

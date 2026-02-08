@@ -24,12 +24,20 @@ export type IntegrationConfig = {
  * Result of processing a webhook.
  */
 export interface WebhookResult {
-  action: 'create_task' | 'update_task' | 'link_task' | 'ignore';
+  action: 'create_task' | 'update_task' | 'link_task' | 'sync_comment' | 'update_comment' | 'delete_comment' | 'ignore';
   taskId?: string;
   externalLink?: {
     type: 'github_issue' | 'github_pr' | 'slack_message';
     id: string;
     url: string;
+  };
+  commentData?: {
+    externalCommentId: string;
+    body: string;
+    authorLogin: string;
+    authorId: number;
+    url: string;
+    issueNumber: number;
   };
 }
 
@@ -109,6 +117,30 @@ export interface GitHubPRWebhookPayload {
     user: { login: string; id: number };
     created_at: string;
     updated_at: string;
+  };
+  repository: {
+    id: number;
+    name: string;
+    full_name: string;
+    owner: { login: string };
+  };
+  sender: { login: string; id: number };
+  installation?: { id: number };
+}
+
+export interface GitHubIssueCommentWebhookPayload {
+  action: 'created' | 'edited' | 'deleted';
+  comment: {
+    id: number;
+    body: string;
+    html_url: string;
+    user: { login: string; id: number };
+    created_at: string;
+    updated_at: string;
+  };
+  issue: {
+    number: number;
+    html_url: string;
   };
   repository: {
     id: number;
