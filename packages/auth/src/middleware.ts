@@ -61,10 +61,31 @@ export async function authMiddleware(ctx: Context, next: Next) {
  * Returns 401 if no valid session is found.
  */
 export async function requireAuth(ctx: Context, next: Next) {
-  await authMiddleware(ctx, next);
+  const auth = getAuth();
 
-  const auth = ctx.get('auth') as AuthContext;
-  if (!auth.user || !auth.session) {
+  try {
+    const session = await auth.api.getSession({
+      headers: ctx.req.raw.headers,
+    });
+
+    if (session?.user && session?.session) {
+      ctx.set('auth', {
+        user: {
+          id: session.user.id,
+          email: session.user.email,
+          name: session.user.name || null,
+          avatarUrl: (session.user as Record<string, unknown>).avatarUrl as string | null,
+        },
+        session: {
+          id: session.session.id,
+          userId: session.session.userId,
+          expiresAt: session.session.expiresAt,
+        },
+      } satisfies AuthContext);
+    } else {
+      return ctx.json({ error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, 401);
+    }
+  } catch {
     return ctx.json({ error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, 401);
   }
 
