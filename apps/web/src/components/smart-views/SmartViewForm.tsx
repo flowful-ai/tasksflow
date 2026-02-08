@@ -15,8 +15,16 @@ const DISPLAY_TYPE_OPTIONS: { value: DisplayType; label: string; icon: React.Rea
   { value: 'calendar', label: 'Calendar', icon: <Calendar className="w-4 h-4" /> },
 ];
 
-const GROUP_BY_OPTIONS: { value: GroupBy | 'none'; label: string }[] = [
-  { value: 'none', label: 'No grouping' },
+const GROUP_BY_OPTIONS: { value: GroupBy; label: string }[] = [
+  { value: 'state', label: 'State' },
+  { value: 'assignee', label: 'Assignee' },
+  { value: 'project', label: 'Project' },
+  { value: 'priority', label: 'Priority' },
+  { value: 'label', label: 'Label' },
+];
+
+const SECONDARY_GROUP_BY_OPTIONS: { value: GroupBy | 'none'; label: string }[] = [
+  { value: 'none', label: 'No secondary grouping' },
   { value: 'state', label: 'State' },
   { value: 'assignee', label: 'Assignee' },
   { value: 'project', label: 'Project' },
@@ -44,7 +52,8 @@ interface SmartViewFormData {
   description: string;
   filters: FilterGroup;
   displayType: DisplayType;
-  groupBy: GroupBy | null;
+  groupBy: GroupBy;
+  secondaryGroupBy: GroupBy | null;
   sortBy: SortBy;
   sortOrder: SortOrder;
   isPersonal: boolean;
@@ -63,7 +72,8 @@ export function SmartViewForm() {
     description: '',
     filters: { operator: 'AND', conditions: [] },
     displayType: 'kanban',
-    groupBy: null,
+    groupBy: 'state',
+    secondaryGroupBy: null,
     sortBy: 'position',
     sortOrder: 'asc',
     isPersonal: false,
@@ -88,7 +98,8 @@ export function SmartViewForm() {
         description: existingView.description || '',
         filters: existingView.filters || { operator: 'AND', conditions: [] },
         displayType: existingView.displayType,
-        groupBy: existingView.groupBy,
+        groupBy: existingView.groupBy || 'state',
+        secondaryGroupBy: existingView.secondaryGroupBy || null,
         sortBy: existingView.sortBy,
         sortOrder: existingView.sortOrder,
         isPersonal: existingView.isPersonal,
@@ -102,7 +113,8 @@ export function SmartViewForm() {
       const response = await api.post<{ data: SmartView }>('/api/smart-views', {
         ...data,
         workspaceId: currentWorkspace!.id,
-        groupBy: data.groupBy === 'none' ? null : data.groupBy,
+        groupBy: data.groupBy,
+        secondaryGroupBy: data.secondaryGroupBy === 'none' ? null : data.secondaryGroupBy,
       });
       return response.data;
     },
@@ -120,7 +132,8 @@ export function SmartViewForm() {
     mutationFn: async (data: SmartViewFormData) => {
       const response = await api.patch<{ data: SmartView }>(`/api/smart-views/${viewId}`, {
         ...data,
-        groupBy: data.groupBy === 'none' ? null : data.groupBy,
+        groupBy: data.groupBy,
+        secondaryGroupBy: data.secondaryGroupBy === 'none' ? null : data.secondaryGroupBy,
       });
       return response.data;
     },
@@ -284,14 +297,44 @@ export function SmartViewForm() {
               Group By
             </label>
             <select
-              value={formData?.groupBy ?? 'none'}
-              onChange={(e) =>
-                handleChange('groupBy', e.target.value === 'none' ? null : (e.target.value as GroupBy))
-              }
+              value={formData?.groupBy ?? 'state'}
+              onChange={(e) => {
+                const value = e.target.value as GroupBy;
+                setFormData((prev) => ({
+                  ...prev,
+                  groupBy: value,
+                  secondaryGroupBy: prev.secondaryGroupBy === value ? null : prev.secondaryGroupBy,
+                }));
+              }}
               className="input"
             >
               {GROUP_BY_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Secondary Group By */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Secondary Group By
+            </label>
+            <select
+              value={formData?.secondaryGroupBy ?? 'none'}
+              onChange={(e) => {
+                const value = e.target.value === 'none' ? null : (e.target.value as GroupBy);
+                handleChange('secondaryGroupBy', value === formData.groupBy ? null : value);
+              }}
+              className="input"
+            >
+              {SECONDARY_GROUP_BY_OPTIONS.map((option) => (
+                <option
+                  key={option.value}
+                  value={option.value}
+                  disabled={option.value !== 'none' && option.value === formData.groupBy}
+                >
                   {option.label}
                 </option>
               ))}

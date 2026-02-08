@@ -292,7 +292,8 @@ export const smartViews = pgTable(
 
     // Display configuration
     displayType: text('display_type').default('kanban').notNull(), // 'kanban', 'list', 'table', 'calendar'
-    groupBy: text('group_by'), // 'state', 'assignee', 'project', 'priority'
+    groupBy: text('group_by').default('state').notNull(), // 'state', 'assignee', 'project', 'priority'
+    secondaryGroupBy: text('secondary_group_by'), // optional secondary grouping
     sortBy: text('sort_by').default('position').notNull(),
     sortOrder: text('sort_order').default('asc').notNull(),
     visibleFields: jsonb('visible_fields'), // ['title', 'assignee', 'due_date', ...]

@@ -17,11 +17,12 @@ import {
 } from '@dnd-kit/sortable';
 import { TaskCard, type TaskCardTask } from './TaskCard';
 import { GroupedKanbanColumn } from './GroupedKanbanColumn';
-import { groupTasks, type GroupBy, type AvailableState } from './grouping';
+import { groupTasks, taskMatchesGroup, type GroupBy, type AvailableState, type TaskGroup } from './grouping';
 
 interface GroupedKanbanBoardProps {
   tasks: TaskCardTask[];
   groupBy: GroupBy;
+  secondaryGroupBy?: GroupBy;
   onTaskClick: (taskId: string) => void;
   onTaskMove?: (taskId: string, groupId: string, position: string) => Promise<void>;
   showProject?: boolean;
@@ -33,6 +34,7 @@ interface GroupedKanbanBoardProps {
 export function GroupedKanbanBoard({
   tasks,
   groupBy,
+  secondaryGroupBy,
   onTaskClick,
   onTaskMove,
   showProject = true,
@@ -41,6 +43,7 @@ export function GroupedKanbanBoard({
   mergeStatesByCategory,
 }: GroupedKanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
+  const dragEnabled = allowDragDrop && !secondaryGroupBy;
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -54,18 +57,22 @@ export function GroupedKanbanBoard({
   );
 
   const groups = groupTasks(tasks, groupBy, availableStates, mergeStatesByCategory);
+  const rowGroups = secondaryGroupBy
+    ? groupTasks(tasks, secondaryGroupBy, undefined, mergeStatesByCategory)
+    : null;
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) : null;
 
   // Determine which task fields to show based on groupBy
-  const showState = groupBy !== 'state';
+  const showState = groupBy !== 'state' && secondaryGroupBy !== 'state';
+  const effectiveShowProject = showProject && groupBy !== 'project' && secondaryGroupBy !== 'project';
 
   const handleDragStart = (event: DragStartEvent) => {
-    if (!allowDragDrop) return;
+    if (!dragEnabled) return;
     setActiveId(event.active.id as string);
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
-    if (!allowDragDrop || !onTaskMove) {
+    if (!dragEnabled || !onTaskMove) {
       setActiveId(null);
       return;
     }
@@ -117,6 +124,22 @@ export function GroupedKanbanBoard({
     );
   }
 
+  const buildRowColumns = (rowTasks: TaskCardTask[]): TaskGroup[] => {
+    const rowGroups = groupTasks(rowTasks, groupBy, availableStates, mergeStatesByCategory);
+    return groups.map((column) => {
+      const match = rowGroups.find((g) => g.id === column.id);
+      return (
+        match ?? {
+          id: column.id,
+          name: column.name,
+          color: column.color,
+          category: column.category,
+          tasks: [],
+        }
+      );
+    });
+  };
+
   return (
     <DndContext
       sensors={sensors}
@@ -124,40 +147,92 @@ export function GroupedKanbanBoard({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex h-full gap-4 overflow-x-auto pb-4">
-        {groups.map((group) => (
-          <SortableContext
-            key={group.id}
-            items={group.tasks.map((t) => t.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            <GroupedKanbanColumn
-              id={group.id}
-              name={group.name}
-              color={group.color}
-              taskCount={group.tasks.length}
+      {rowGroups ? (
+        <div className="flex h-full flex-col gap-4 overflow-x-auto pb-4">
+          {rowGroups.map((rowGroup) => {
+            const rowTasks = tasks.filter((task) =>
+              taskMatchesGroup(task, secondaryGroupBy!, rowGroup.id, mergeStatesByCategory)
+            );
+            const rowColumns = buildRowColumns(rowTasks);
+            return (
+              <div key={rowGroup.id} className="flex gap-4">
+                <div className="flex-shrink-0 w-48">
+                  <div className="flex items-center gap-2 px-2 py-1.5">
+                    {rowGroup.color && (
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: rowGroup.color }}
+                      />
+                    )}
+                    <span className="font-medium text-gray-900">{rowGroup.name}</span>
+                    <span className="text-sm text-gray-500">({rowGroup.tasks.length})</span>
+                  </div>
+                </div>
+                {rowColumns.map((group) => (
+                  <SortableContext
+                    key={`${rowGroup.id}-${group.id}`}
+                    items={group.tasks.map((t) => t.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <GroupedKanbanColumn
+                      id={group.id}
+                      name={group.name}
+                      color={group.color}
+                      taskCount={group.tasks.length}
+                    >
+                      {group.tasks.map((task) => (
+                        <TaskCard
+                          key={task.id}
+                          task={task}
+                          onClick={() => onTaskClick(task.id)}
+                          showProject={effectiveShowProject}
+                          showState={showState}
+                          draggable={dragEnabled}
+                        />
+                      ))}
+                    </GroupedKanbanColumn>
+                  </SortableContext>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="flex h-full gap-4 overflow-x-auto pb-4">
+          {groups.map((group) => (
+            <SortableContext
+              key={group.id}
+              items={group.tasks.map((t) => t.id)}
+              strategy={verticalListSortingStrategy}
             >
-              {group.tasks.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  onClick={() => onTaskClick(task.id)}
-                  showProject={showProject}
-                  showState={showState}
-                  draggable={allowDragDrop}
-                />
-              ))}
-            </GroupedKanbanColumn>
-          </SortableContext>
-        ))}
-      </div>
+              <GroupedKanbanColumn
+                id={group.id}
+                name={group.name}
+                color={group.color}
+                taskCount={group.tasks.length}
+              >
+                {group.tasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    onClick={() => onTaskClick(task.id)}
+                    showProject={effectiveShowProject}
+                    showState={showState}
+                    draggable={dragEnabled}
+                  />
+                ))}
+              </GroupedKanbanColumn>
+            </SortableContext>
+          ))}
+        </div>
+      )}
 
       <DragOverlay>
         {activeTask ? (
           <TaskCard
             task={activeTask}
             onClick={() => {}}
-            showProject={showProject}
+            showProject={effectiveShowProject}
             showState={showState}
             isDragging
             draggable={false}

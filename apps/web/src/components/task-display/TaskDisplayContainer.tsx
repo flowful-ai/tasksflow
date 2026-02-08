@@ -9,6 +9,7 @@ interface TaskDisplayContainerProps {
   tasks: TaskCardTask[];
   displayType: DisplayType;
   groupBy: GroupBy;
+  secondaryGroupBy?: GroupBy | null;
   onTaskClick: (taskId: string) => void;
   onTaskMove?: (taskId: string, groupId: string, position: string) => Promise<void>;
   showProject?: boolean;
@@ -21,6 +22,7 @@ export function TaskDisplayContainer({
   tasks,
   displayType,
   groupBy,
+  secondaryGroupBy,
   onTaskClick,
   onTaskMove,
   showProject = true,
@@ -34,6 +36,7 @@ export function TaskDisplayContainer({
         <GroupedKanbanBoard
           tasks={tasks}
           groupBy={groupBy}
+          secondaryGroupBy={secondaryGroupBy ?? undefined}
           onTaskClick={onTaskClick}
           onTaskMove={onTaskMove}
           showProject={showProject}
@@ -48,6 +51,7 @@ export function TaskDisplayContainer({
         <TaskListView
           tasks={tasks}
           groupBy={groupBy}
+          secondaryGroupBy={secondaryGroupBy ?? undefined}
           onTaskClick={onTaskClick}
           showProject={showProject}
           availableStates={availableStates}
@@ -65,6 +69,7 @@ export function TaskDisplayContainer({
             <TaskListView
               tasks={tasks}
               groupBy={groupBy}
+              secondaryGroupBy={secondaryGroupBy ?? undefined}
               onTaskClick={onTaskClick}
               showProject={showProject}
               availableStates={availableStates}
@@ -84,6 +89,7 @@ export function TaskDisplayContainer({
             <TaskListView
               tasks={tasks}
               groupBy={groupBy}
+              secondaryGroupBy={secondaryGroupBy ?? undefined}
               onTaskClick={onTaskClick}
               showProject={showProject}
               availableStates={availableStates}
@@ -98,6 +104,7 @@ export function TaskDisplayContainer({
         <TaskListView
           tasks={tasks}
           groupBy={groupBy}
+          secondaryGroupBy={secondaryGroupBy ?? undefined}
           onTaskClick={onTaskClick}
           showProject={showProject}
           availableStates={availableStates}

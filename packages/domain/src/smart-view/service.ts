@@ -37,6 +37,12 @@ export class SmartViewService {
         }
       }
 
+      const normalizedGroupBy = input.groupBy && input.groupBy !== 'none' ? input.groupBy : 'state';
+      const normalizedSecondaryGroupByRaw =
+        input.secondaryGroupBy && input.secondaryGroupBy !== 'none' ? input.secondaryGroupBy : null;
+      const normalizedSecondaryGroupBy =
+        normalizedSecondaryGroupByRaw === normalizedGroupBy ? null : normalizedSecondaryGroupByRaw;
+
       const [view] = await this.db
         .insert(smartViews)
         .values({
@@ -47,7 +53,8 @@ export class SmartViewService {
           icon: input.icon || null,
           filters: input.filters || { operator: 'AND', conditions: [] },
           displayType: input.displayType || 'kanban',
-          groupBy: input.groupBy || null,
+          groupBy: normalizedGroupBy,
+          secondaryGroupBy: normalizedSecondaryGroupBy,
           sortBy: input.sortBy || 'position',
           sortOrder: input.sortOrder || 'asc',
           visibleFields: input.visibleFields || null,
@@ -117,7 +124,21 @@ export class SmartViewService {
       if (input.icon !== undefined) updateData.icon = input.icon;
       if (input.filters !== undefined) updateData.filters = input.filters;
       if (input.displayType !== undefined) updateData.displayType = input.displayType;
-      if (input.groupBy !== undefined) updateData.groupBy = input.groupBy;
+      if (input.groupBy !== undefined) {
+        const normalizedGroupBy =
+          input.groupBy === 'none' || input.groupBy === null ? 'state' : input.groupBy;
+        updateData.groupBy = normalizedGroupBy;
+
+        if (input.secondaryGroupBy !== undefined) {
+          const normalizedSecondary =
+            input.secondaryGroupBy === 'none' ? null : input.secondaryGroupBy;
+          updateData.secondaryGroupBy =
+            normalizedSecondary === normalizedGroupBy ? null : normalizedSecondary;
+        }
+      } else if (input.secondaryGroupBy !== undefined) {
+        updateData.secondaryGroupBy =
+          input.secondaryGroupBy === 'none' ? null : input.secondaryGroupBy;
+      }
       if (input.sortBy !== undefined) updateData.sortBy = input.sortBy;
       if (input.sortOrder !== undefined) updateData.sortOrder = input.sortOrder;
       if (input.visibleFields !== undefined) updateData.visibleFields = input.visibleFields;

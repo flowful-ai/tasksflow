@@ -65,7 +65,8 @@ interface SmartViewData {
   name: string;
   description: string | null;
   displayType: DisplayType;
-  groupBy: GroupBy | null;
+  groupBy: GroupBy;
+  secondaryGroupBy?: GroupBy | null;
   sortBy: string;
   sortOrder: 'asc' | 'desc';
   visibleFields: string[] | null;
@@ -213,7 +214,8 @@ export function SmartViewPage() {
 
   const view = data.view;
   const displayType = view.displayType || 'list';
-  const groupBy = view.groupBy || 'none';
+  const groupBy = view.groupBy || 'state';
+  const secondaryGroupBy = view.secondaryGroupBy || undefined;
   const DisplayIcon = displayTypeIcons[displayType] || List;
 
   return (
@@ -265,6 +267,7 @@ export function SmartViewPage() {
           tasks={tasks}
           displayType={displayType}
           groupBy={groupBy}
+          secondaryGroupBy={secondaryGroupBy}
           onTaskClick={handleTaskClick}
           showProject={true}
           allowDragDrop={false}

@@ -53,6 +53,7 @@ interface PublicView {
   name: string;
   displayType: DisplayType;
   groupBy?: GroupBy;
+  secondaryGroupBy?: GroupBy | null;
 }
 
 interface PublicShareData {
@@ -169,6 +170,7 @@ export function PublicSharePage() {
   const tasks = data.tasks || [];
   const displayType = view?.displayType || 'list';
   const groupBy = view?.groupBy || 'state';
+  const secondaryGroupBy = view?.secondaryGroupBy || undefined;
 
   // Transform tasks to TaskCardTask format
   const taskCards: TaskCardTask[] = tasks.map((task) => ({
@@ -218,6 +220,7 @@ export function PublicSharePage() {
               tasks={taskCards}
               displayType={displayType}
               groupBy={groupBy}
+              secondaryGroupBy={secondaryGroupBy}
               onTaskClick={handleTaskClick}
               showProject={true}
               allowDragDrop={false}

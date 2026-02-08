@@ -177,6 +177,15 @@ function getGroupInfo(
   }
 }
 
+export function taskMatchesGroup(
+  task: TaskCardTask,
+  groupBy: GroupBy,
+  groupId: string,
+  mergeStatesByCategory?: boolean
+): boolean {
+  return getGroupInfo(task, groupBy, mergeStatesByCategory).some((group) => group.id === groupId);
+}
+
 /**
  * Sorts groups based on the groupBy type
  */
