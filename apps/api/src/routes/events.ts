@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { getDatabase } from '@flowtask/database';
 import { WorkspaceService } from '@flowtask/domain';
-import { getCurrentUser, authMiddleware } from '@flowtask/auth';
+import { getCurrentUser, requireAuth } from '@flowtask/auth';
 import { addClient, removeClient } from '../sse/manager.js';
 
 const events = new Hono();
@@ -15,7 +15,7 @@ const HEARTBEAT_INTERVAL = 10000;
  * SSE stream endpoint for real-time updates.
  * Clients connect to this endpoint with a workspaceId query parameter.
  */
-events.get('/stream', authMiddleware, async (c) => {
+events.get('/stream', requireAuth, async (c) => {
   const user = getCurrentUser(c);
   const workspaceId = c.req.query('workspaceId');
 
