@@ -14,6 +14,7 @@ interface TaskDisplayContainerProps {
   showProject?: boolean;
   allowDragDrop?: boolean;
   availableStates?: AvailableState[];
+  mergeStatesByCategory?: boolean;
 }
 
 export function TaskDisplayContainer({
@@ -25,6 +26,7 @@ export function TaskDisplayContainer({
   showProject = true,
   allowDragDrop = false,
   availableStates,
+  mergeStatesByCategory,
 }: TaskDisplayContainerProps) {
   switch (displayType) {
     case 'kanban':
@@ -37,6 +39,7 @@ export function TaskDisplayContainer({
           showProject={showProject}
           allowDragDrop={allowDragDrop}
           availableStates={availableStates}
+          mergeStatesByCategory={mergeStatesByCategory}
         />
       );
 
@@ -48,6 +51,7 @@ export function TaskDisplayContainer({
           onTaskClick={onTaskClick}
           showProject={showProject}
           availableStates={availableStates}
+          mergeStatesByCategory={mergeStatesByCategory}
         />
       );
 
@@ -64,6 +68,7 @@ export function TaskDisplayContainer({
               onTaskClick={onTaskClick}
               showProject={showProject}
               availableStates={availableStates}
+              mergeStatesByCategory={mergeStatesByCategory}
             />
           </div>
         </div>
@@ -82,6 +87,7 @@ export function TaskDisplayContainer({
               onTaskClick={onTaskClick}
               showProject={showProject}
               availableStates={availableStates}
+              mergeStatesByCategory={mergeStatesByCategory}
             />
           </div>
         </div>
@@ -95,6 +101,7 @@ export function TaskDisplayContainer({
           onTaskClick={onTaskClick}
           showProject={showProject}
           availableStates={availableStates}
+          mergeStatesByCategory={mergeStatesByCategory}
         />
       );
   }

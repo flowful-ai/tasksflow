@@ -27,6 +27,7 @@ interface GroupedKanbanBoardProps {
   showProject?: boolean;
   allowDragDrop?: boolean;
   availableStates?: AvailableState[];
+  mergeStatesByCategory?: boolean;
 }
 
 export function GroupedKanbanBoard({
@@ -37,6 +38,7 @@ export function GroupedKanbanBoard({
   showProject = true,
   allowDragDrop = false,
   availableStates,
+  mergeStatesByCategory,
 }: GroupedKanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -51,7 +53,7 @@ export function GroupedKanbanBoard({
     })
   );
 
-  const groups = groupTasks(tasks, groupBy, availableStates);
+  const groups = groupTasks(tasks, groupBy, availableStates, mergeStatesByCategory);
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) : null;
 
   // Determine which task fields to show based on groupBy

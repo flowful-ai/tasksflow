@@ -26,10 +26,20 @@ const priorityOrder: Record<string, number> = {
 
 const stateCategoryOrder: Record<string, number> = {
   backlog: 0,
-  unstarted: 1,
-  started: 2,
-  completed: 3,
-  canceled: 4,
+  in_progress: 1,
+  done: 2,
+};
+
+const categoryLabels: Record<string, string> = {
+  backlog: 'Backlog',
+  in_progress: 'In Progress',
+  done: 'Done',
+};
+
+const categoryColors: Record<string, string> = {
+  backlog: '#6b7280',
+  in_progress: '#3b82f6',
+  done: '#22c55e',
 };
 
 const priorityLabels: Record<string, string> = {
@@ -51,11 +61,13 @@ const priorityColors: Record<string, string> = {
 /**
  * Groups tasks by the specified field
  * @param availableStates - When groupBy is 'state', ensures all states appear even if empty
+ * @param mergeStatesByCategory - When true, merge states by their category (backlog, in_progress, done)
  */
 export function groupTasks(
   tasks: TaskCardTask[],
   groupBy: GroupBy,
-  availableStates?: AvailableState[]
+  availableStates?: AvailableState[],
+  mergeStatesByCategory?: boolean
 ): TaskGroup[] {
   if (groupBy === 'none') {
     return [
@@ -83,7 +95,7 @@ export function groupTasks(
   }
 
   for (const task of tasks) {
-    const groupInfos = getGroupInfo(task, groupBy);
+    const groupInfos = getGroupInfo(task, groupBy, mergeStatesByCategory);
 
     for (const { id, name, color, category } of groupInfos) {
       if (!groupMap.has(id)) {
@@ -104,12 +116,23 @@ export function groupTasks(
  */
 function getGroupInfo(
   task: TaskCardTask,
-  groupBy: GroupBy
+  groupBy: GroupBy,
+  mergeStatesByCategory?: boolean
 ): { id: string; name: string; color: string | null; category?: string }[] {
   switch (groupBy) {
     case 'state':
       if (!task.state) {
         return [{ id: 'no-state', name: 'No Status', color: '#6b7280', category: undefined }];
+      }
+      // When merging by category, use category as the group ID
+      if (mergeStatesByCategory) {
+        const category = task.state.category || 'backlog';
+        return [{
+          id: category,
+          name: categoryLabels[category] || category,
+          color: categoryColors[category] || '#6b7280',
+          category,
+        }];
       }
       return [{
         id: task.state.id,

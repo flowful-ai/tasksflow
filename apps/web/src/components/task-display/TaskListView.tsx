@@ -9,6 +9,7 @@ interface TaskListViewProps {
   onTaskClick: (taskId: string) => void;
   showProject?: boolean;
   availableStates?: AvailableState[];
+  mergeStatesByCategory?: boolean;
 }
 
 export function TaskListView({
@@ -17,8 +18,9 @@ export function TaskListView({
   onTaskClick,
   showProject = true,
   availableStates,
+  mergeStatesByCategory,
 }: TaskListViewProps) {
-  const groups = groupTasks(tasks, groupBy, availableStates);
+  const groups = groupTasks(tasks, groupBy, availableStates, mergeStatesByCategory);
 
   if (groupBy === 'none') {
     // Simple flat list without grouping

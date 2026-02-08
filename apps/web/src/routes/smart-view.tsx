@@ -268,6 +268,7 @@ export function SmartViewPage() {
           onTaskClick={handleTaskClick}
           showProject={true}
           allowDragDrop={false}
+          mergeStatesByCategory={true}
         />
       </div>
 
