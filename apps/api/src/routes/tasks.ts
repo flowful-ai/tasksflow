@@ -335,6 +335,9 @@ tasks.delete('/:taskId', async (c) => {
     return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
   }
 
+  // Close linked GitHub issue before deleting (fire-and-forget)
+  await githubReverseSync.closeGitHubIssue(taskId).catch(() => {});
+
   const result = await taskService.delete(taskId, user.id);
 
   if (!result.ok) {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Pencil, Check, Clock, MessageSquare, Send, Maximize2, Minimize2 } from 'lucide-react';
+import { X, Pencil, Check, Clock, MessageSquare, Send, Maximize2, Minimize2, Trash2, AlertTriangle } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
@@ -111,6 +111,7 @@ export function TaskDetailSheet({
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [newComment, setNewComment] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const titleInputRef = useRef<HTMLInputElement>(null);
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
@@ -265,6 +266,23 @@ export function TaskDetailSheet({
     },
   });
 
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      return api.delete(`/api/tasks/${taskId}`);
+    },
+    onSuccess: () => {
+      invalidateTaskQueries();
+      onUpdated?.();
+      onClose();
+    },
+  });
+
+  // Check if current user can delete (owner or admin role)
+  const currentMember = workspaceDetail?.members.find((m) => m.userId === currentUserId);
+  const canDelete = !readOnly && (currentMember?.role === 'owner' || currentMember?.role === 'admin');
+  const hasGitHubLinks = (task?.externalLinks || []).some((l) => l.externalType === 'github_issue');
+
   const handleSaveTitle = async () => {
     if (editTitle.trim() && editTitle !== task?.title) {
       await updateMutation.mutateAsync({ title: editTitle.trim() });
@@ -370,6 +388,15 @@ export function TaskDetailSheet({
             >
               {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
             </button>
+            {canDelete && (
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="p-1.5 rounded-lg hover:bg-red-50 text-gray-500 hover:text-red-600 transition-colors"
+                title="Delete task"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            )}
             <button
               onClick={onClose}
               className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
@@ -882,6 +909,46 @@ export function TaskDetailSheet({
           </div>
         </div>
       </div>
+
+      {/* Delete confirmation dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowDeleteConfirm(false)} />
+          <div className="relative z-10 bg-white rounded-xl shadow-2xl max-w-sm w-full mx-4 p-6">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Delete task</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-2">
+              Are you sure you want to delete this task? This action cannot be undone.
+            </p>
+            {hasGitHubLinks && (
+              <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-4">
+                The linked GitHub issue will also be closed.
+              </p>
+            )}
+            {!hasGitHubLinks && <div className="mb-4" />}
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                disabled={deleteMutation.isPending}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteMutation.mutate()}
+                disabled={deleteMutation.isPending}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+              >
+                {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

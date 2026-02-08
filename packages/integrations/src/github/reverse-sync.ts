@@ -237,6 +237,47 @@ export class GitHubReverseSyncService {
   }
 
   /**
+   * Close the linked GitHub issue when a task is deleted.
+   */
+  async closeGitHubIssue(taskId: string): Promise<{ synced: boolean; reason?: string }> {
+    const linkResult = await this.findGitHubLink(taskId);
+    if (!linkResult) {
+      return { synced: false, reason: 'No GitHub link found for task' };
+    }
+
+    const { link, integration } = linkResult;
+    const config = integration.config as GitHubIntegrationConfig;
+
+    const repoInfo = this.extractRepoFromLinkUrl(link);
+    if (!repoInfo) {
+      return { synced: false, reason: 'Could not determine repository from link' };
+    }
+
+    const installationId = this.getInstallationIdForRepo(config, repoInfo.owner, repoInfo.repo);
+    if (!installationId) {
+      return { synced: false, reason: 'GitHub App not installed' };
+    }
+
+    const client = await createGitHubClientForInstallation(installationId, {
+      owner: repoInfo.owner,
+      repo: repoInfo.repo,
+    });
+
+    const issueNumber = parseInt(link.externalId, 10);
+
+    try {
+      await client.updateIssue(issueNumber, { state: 'closed' });
+      return { synced: true };
+    } catch (error) {
+      console.error('Error closing GitHub issue:', error);
+      return {
+        synced: false,
+        reason: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  /**
    * Check if a task update came from GitHub (to prevent sync loops).
    */
   async isRecentGitHubSync(taskId: string, thresholdMs = 5000): Promise<boolean> {
