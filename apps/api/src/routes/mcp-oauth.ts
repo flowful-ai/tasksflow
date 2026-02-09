@@ -194,6 +194,13 @@ mcpOAuth.get('/.well-known/oauth-authorization-server', (c) => {
   return c.json(oauthService.getAuthorizationServerMetadata(baseUrl));
 });
 
+// Compatibility endpoint for clients that derive OIDC discovery from the token URL.
+// Example probe: /api/mcp/oauth/token/.well-known/openid-configuration
+mcpOAuth.get('/oauth/token/.well-known/openid-configuration', (c) => {
+  const baseUrl = getBaseUrl(c.req.url, c.req.raw.headers);
+  return c.json(oauthService.getAuthorizationServerMetadata(baseUrl));
+});
+
 mcpOAuth.post('/oauth/register', async (c) => {
   try {
     const payload = await c.req.json();
