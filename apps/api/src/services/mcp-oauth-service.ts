@@ -135,6 +135,10 @@ export function isAuthorizingRole(role: string | null): boolean {
   return Boolean(role && ALLOWED_ADMIN_ROLES.has(role));
 }
 
+export function getAllMcpToolNames(): string[] {
+  return [...agentTools];
+}
+
 export interface McpOAuthClientRegistrationInput {
   client_name: string;
   redirect_uris: string[];
@@ -307,10 +311,6 @@ export class McpOAuthService {
       throw new OAuthError('invalid_request', 'redirect_uri is required');
     }
 
-    if (!params.scope) {
-      throw new OAuthError('invalid_scope', 'scope is required');
-    }
-
     if (!params.codeChallenge) {
       throw new OAuthError('invalid_request', 'code_challenge is required');
     }
@@ -319,10 +319,28 @@ export class McpOAuthService {
       throw new OAuthError('invalid_request', 'Only code_challenge_method=S256 is supported');
     }
 
-    const parsedScope = validateRequestedMcpScopes(params.scope);
+    const scopeString = (params.scope || '').trim();
+    const scopes = scopeString ? normalizeScopeString(scopeString).split(' ').filter(Boolean) : [];
+    const workspaceScopes = scopes.filter((scope) => scope.startsWith(WORKSPACE_SCOPE_PREFIX));
+
+    if (workspaceScopes.length > 1) {
+      throw new OAuthError('invalid_scope', 'Only one workspace scope may be requested');
+    }
+
+    const toolScopes = parseToolScopes(scopes);
+    const toolValidation = validateToolScopes(scopes);
+    if (!toolValidation.ok) {
+      throw new OAuthError('invalid_scope', `Unknown tool scopes: ${toolValidation.invalidTools.join(', ')}`);
+    }
+
+    const requestedWorkspaceId = workspaceScopes.length === 1
+      ? workspaceScopes[0]?.slice(WORKSPACE_SCOPE_PREFIX.length) || null
+      : null;
+
     return {
-      scopes: parsedScope.scopes,
-      workspaceId: parsedScope.workspaceId,
+      scopes,
+      requestedWorkspaceId,
+      requestedToolScopes: toolScopes,
     };
   }
 

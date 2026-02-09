@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { McpOAuthService, McpScope, OAuthError, encodeQuery, normalizeScopes } from '../services/mcp-oauth-service.js';
+import { McpOAuthService, McpScope, OAuthError, encodeQuery, getAllMcpToolNames, normalizeScopes } from '../services/mcp-oauth-service.js';
 import { getAuth } from '@flowtask/auth';
 
 const mcpOAuth = new Hono();
@@ -89,17 +89,24 @@ function buildConsentHtml(input: {
   codeChallenge: string;
   codeChallengeMethod: string;
   requestedScopes: string[];
-  requestedWorkspaceScope: string;
   requestedToolScopes: string[];
   userEmail: string;
-  workspaceName: string;
-  workspaceRole: string;
+  workspaces: Array<{ id: string; name: string; role: string }>;
+  selectedWorkspaceId: string;
+  workspaceLocked: boolean;
 }) {
   const hiddenScope = escapeHtml(input.requestedScopes.join(' '));
   const toolOptions = input.requestedToolScopes
     .map((scope) => {
       const toolName = scope.slice(McpScope.toolPrefix.length);
       return `<label style=\"display:flex;gap:8px;align-items:center;margin:6px 0;\"><input type=\"checkbox\" name=\"approved_tools\" value=\"${escapeHtml(toolName)}\" checked /> <code>${escapeHtml(toolName)}</code></label>`;
+    })
+    .join('');
+  const selectedWorkspace = input.workspaces.find((workspace) => workspace.id === input.selectedWorkspaceId);
+  const workspaceOptions = input.workspaces
+    .map((workspace) => {
+      const selected = workspace.id === input.selectedWorkspaceId ? ' selected' : '';
+      return `<option value=\"${escapeHtml(workspace.id)}\"${selected}>${escapeHtml(workspace.name)} (${escapeHtml(workspace.role)})</option>`;
     })
     .join('');
 
@@ -129,10 +136,18 @@ function buildConsentHtml(input: {
 
       <div class=\"panel\">
         <div><strong>Signed in as:</strong> ${escapeHtml(input.userEmail)}</div>
-        <div><strong>Workspace:</strong> ${escapeHtml(input.workspaceName)} (${escapeHtml(input.workspaceRole)})</div>
+        ${input.workspaceLocked
+          ? `<div><strong>Workspace:</strong> ${escapeHtml(selectedWorkspace?.name || 'Unknown')} (${escapeHtml(selectedWorkspace?.role || '')})</div>`
+          : '<div><strong>Workspace:</strong> Select below</div>'}
       </div>
 
       <form method=\"post\" action=\"/api/mcp/oauth/authorize\">
+        <h3>Workspace</h3>
+        ${input.workspaceLocked
+          ? `<input type=\"hidden\" name=\"workspace_id\" value=\"${escapeHtml(input.selectedWorkspaceId)}\" />
+             <div style=\"margin:6px 0 12px 0;\">${escapeHtml(selectedWorkspace?.name || '')} (${escapeHtml(selectedWorkspace?.role || '')})</div>`
+          : `<select name=\"workspace_id\" style=\"width:100%;padding:8px;border-radius:8px;border:1px solid #cbd5e1;margin:6px 0 12px 0;\">${workspaceOptions}</select>`}
+
         <h3>Requested tool permissions</h3>
         <label class=\"inline\"><input id=\"approve-all\" type=\"checkbox\" checked /> Select all requested tools</label>
         <div id=\"tool-list\">${toolOptions}</div>
@@ -142,7 +157,6 @@ function buildConsentHtml(input: {
         <input type=\"hidden\" name=\"redirect_uri\" value=\"${escapeHtml(input.redirectUri)}\" />
         <input type=\"hidden\" name=\"state\" value=\"${escapeHtml(input.state || '')}\" />
         <input type=\"hidden\" name=\"scope\" value=\"${hiddenScope}\" />
-        <input type=\"hidden\" name=\"workspace_scope\" value=\"${escapeHtml(input.requestedWorkspaceScope)}\" />
         <input type=\"hidden\" name=\"code_challenge\" value=\"${escapeHtml(input.codeChallenge)}\" />
         <input type=\"hidden\" name=\"code_challenge_method\" value=\"${escapeHtml(input.codeChallengeMethod)}\" />
 
@@ -221,18 +235,22 @@ mcpOAuth.get('/oauth/authorize', async (c) => {
       return c.redirect(loginUrl, 302);
     }
 
-    const role = await oauthService.getUserWorkspaceRole(parsed.workspaceId, user.id);
-    oauthService.ensureAdminRole(role);
-
     const workspaces = await oauthService.listAuthorizableWorkspaces(user.id);
-    const selectedWorkspace = workspaces.find((workspace) => workspace.id === parsed.workspaceId);
-
-    if (!selectedWorkspace) {
-      throw new OAuthError('access_denied', 'No authorizable workspace found for requested scope', 403);
+    if (workspaces.length === 0) {
+      throw new OAuthError('access_denied', 'No admin/owner workspace available for authorization', 403);
     }
 
-    const requestedWorkspaceScope = parsed.scopes.find((item) => item.startsWith(McpScope.workspacePrefix));
-    const requestedToolScopes = parsed.scopes.filter((item) => item.startsWith(McpScope.toolPrefix));
+    const selectedWorkspace = parsed.requestedWorkspaceId
+      ? workspaces.find((workspace) => workspace.id === parsed.requestedWorkspaceId)
+      : workspaces[0];
+    if (!selectedWorkspace) {
+      throw new OAuthError('access_denied', 'Requested workspace is not available for authorization', 403);
+    }
+    const role = await oauthService.getUserWorkspaceRole(selectedWorkspace.id, user.id);
+    oauthService.ensureAdminRole(role);
+
+    const requestedToolScopes = (parsed.requestedToolScopes.length > 0 ? parsed.requestedToolScopes : getAllMcpToolNames())
+      .map((tool) => `${McpScope.toolPrefix}${tool}`);
 
     return c.html(
       buildConsentHtml({
@@ -244,11 +262,11 @@ mcpOAuth.get('/oauth/authorize', async (c) => {
         codeChallenge: codeChallenge!,
         codeChallengeMethod: codeChallengeMethod!,
         requestedScopes: parsed.scopes,
-        requestedWorkspaceScope: requestedWorkspaceScope!,
         requestedToolScopes,
         userEmail: user.email,
-        workspaceName: selectedWorkspace.name,
-        workspaceRole: selectedWorkspace.role,
+        workspaces,
+        selectedWorkspaceId: selectedWorkspace.id,
+        workspaceLocked: Boolean(parsed.requestedWorkspaceId),
       })
     );
   } catch (error) {
@@ -284,6 +302,7 @@ mcpOAuth.post('/oauth/authorize', async (c) => {
   const codeChallenge = readBodyValue(body, 'code_challenge') || undefined;
   const codeChallengeMethod = readBodyValue(body, 'code_challenge_method') || undefined;
   const decision = readBodyValue(body, 'decision') || undefined;
+  const workspaceIdFromBody = readBodyValue(body, 'workspace_id') || undefined;
 
   if (!redirectUri) {
     return c.json({ error: 'invalid_request', error_description: 'redirect_uri is required' }, 400);
@@ -317,13 +336,18 @@ mcpOAuth.post('/oauth/authorize', async (c) => {
       throw new OAuthError('access_denied', 'Authentication required', 401);
     }
 
-    const requestedWorkspaceScope = parsed.scopes.find((item) => item.startsWith(McpScope.workspacePrefix));
-    if (!requestedWorkspaceScope) {
-      throw new OAuthError('invalid_scope', 'Missing workspace scope');
+    const workspaceId = parsed.requestedWorkspaceId || workspaceIdFromBody;
+    if (!workspaceId) {
+      throw new OAuthError('invalid_request', 'workspace_id is required');
+    }
+
+    if (parsed.requestedWorkspaceId && workspaceIdFromBody && parsed.requestedWorkspaceId !== workspaceIdFromBody) {
+      throw new OAuthError('invalid_request', 'workspace_id does not match requested workspace scope');
     }
 
     const approvedTools = readBodyArray(body, 'approved_tools');
-    const requestedToolScopes = parsed.scopes.filter((item) => item.startsWith(McpScope.toolPrefix));
+    const requestedToolScopes = (parsed.requestedToolScopes.length > 0 ? parsed.requestedToolScopes : getAllMcpToolNames())
+      .map((tool) => `${McpScope.toolPrefix}${tool}`);
     const approvedToolScopes = normalizeScopes(
       approvedTools
         .map((tool) => `${McpScope.toolPrefix}${tool}`)
@@ -334,9 +358,9 @@ mcpOAuth.post('/oauth/authorize', async (c) => {
       throw new OAuthError('access_denied', 'At least one tool permission must be approved');
     }
 
-    const workspaceId = requestedWorkspaceScope.slice(McpScope.workspacePrefix.length);
     const role = await oauthService.getUserWorkspaceRole(workspaceId, user.id);
     oauthService.ensureAdminRole(role);
+    const requestedWorkspaceScope = `${McpScope.workspacePrefix}${workspaceId}`;
 
     const approvedScopes = [requestedWorkspaceScope, ...approvedToolScopes];
 
