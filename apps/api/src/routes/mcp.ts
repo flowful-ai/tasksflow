@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
+import { BulkCreateTasksInputSchema } from '@flowtask/shared';
 import { getDatabase } from '@flowtask/database';
 import { TaskService, ProjectService, CommentService, SmartViewService, WorkspaceService } from '@flowtask/domain';
 import { extractBearerToken } from '@flowtask/auth';
@@ -156,6 +157,69 @@ mcp.post(
               projectId,
             });
           }
+          break;
+        }
+
+        case 'bulk_create_tasks': {
+          const parsed = BulkCreateTasksInputSchema.parse(args);
+          const { projectId, tasks } = parsed;
+
+          const canAccess = await canTokenAccessProject(oauthAuth, projectId);
+          if (!canAccess) {
+            return c.json({
+              success: false,
+              error: { code: 'FORBIDDEN', message: 'OAuth token cannot access this project' },
+            }, 403);
+          }
+
+          const projectInfo = await projectService.getById(projectId);
+          const results: Array<{ index: number; ok: boolean; task?: unknown; error?: string }> = [];
+          let created = 0;
+
+          for (const [index, taskInput] of tasks.entries()) {
+            const createResult = await taskService.create({
+              projectId,
+              title: taskInput.title,
+              description: taskInput.description,
+              priority: taskInput.priority,
+              stateId: taskInput.stateId,
+              createdBy: oauthAuth.userId,
+              agentId: null,
+            });
+
+            if (!createResult.ok) {
+              results.push({
+                index,
+                ok: false,
+                error: createResult.error.message,
+              });
+              continue;
+            }
+
+            created += 1;
+            results.push({
+              index,
+              ok: true,
+              task: createResult.value,
+            });
+
+            if (projectInfo.ok) {
+              publishEvent(projectInfo.value.workspaceId, 'task.created', {
+                task: createResult.value,
+                projectId,
+              });
+            }
+          }
+
+          result = {
+            projectId,
+            summary: {
+              requested: tasks.length,
+              created,
+              failed: tasks.length - created,
+            },
+            results,
+          };
           break;
         }
 

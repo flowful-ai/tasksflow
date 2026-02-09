@@ -44,17 +44,22 @@ export interface AgentRunResult {
   response: string;
 }
 
+interface ToolParameterSchema {
+  type: 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array' | 'null';
+  description?: string;
+  enum?: string[];
+  properties?: Record<string, ToolParameterSchema>;
+  required?: string[];
+  items?: ToolParameterSchema;
+}
+
 // Tool definitions for MCP
 export interface ToolDefinition {
   name: AgentTool;
   description: string;
   parameters: {
     type: 'object';
-    properties: Record<string, {
-      type: string;
-      description: string;
-      enum?: string[];
-    }>;
+    properties: Record<string, ToolParameterSchema>;
     required: string[];
   };
   annotations?: {
@@ -84,6 +89,40 @@ export const AGENT_TOOLS: ToolDefinition[] = [
         stateId: { type: 'string', description: 'Optional state ID to place the task in' },
       },
       required: ['projectId', 'title'],
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
+  },
+  {
+    name: 'bulk_create_tasks',
+    description: 'Create multiple tasks in a project in a single request',
+    parameters: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'string', description: 'The ID of the project where tasks will be created' },
+        tasks: {
+          type: 'array',
+          description: 'List of tasks to create',
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string', description: 'The title of the task' },
+              description: { type: 'string', description: 'Optional description in markdown' },
+              priority: {
+                type: 'string',
+                description: 'Task priority',
+                enum: ['urgent', 'high', 'medium', 'low', 'none'],
+              },
+              stateId: { type: 'string', description: 'Optional state ID to place the task in' },
+            },
+            required: ['title'],
+          },
+        },
+      },
+      required: ['projectId', 'tasks'],
     },
     annotations: {
       readOnlyHint: false,

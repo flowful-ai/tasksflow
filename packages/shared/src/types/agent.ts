@@ -17,6 +17,7 @@ export type AIModel = z.infer<typeof AIModelSchema>;
 // Agent tools
 export const AgentToolSchema = z.enum([
   'create_task',
+  'bulk_create_tasks',
   'update_task',
   'delete_task',
   'query_tasks',

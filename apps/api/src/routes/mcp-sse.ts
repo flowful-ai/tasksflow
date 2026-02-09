@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { BulkCreateTasksInputSchema } from '@flowtask/shared';
 import { getDatabase } from '@flowtask/database';
 import { TaskService, ProjectService, CommentService, SmartViewService, WorkspaceService } from '@flowtask/domain';
 import { AGENT_TOOLS } from '@flowtask/domain';
@@ -132,6 +133,66 @@ async function executeMcpTool(
           projectId,
         });
       }
+      break;
+    }
+
+    case 'bulk_create_tasks': {
+      const parsed = BulkCreateTasksInputSchema.parse(args);
+      const { projectId, tasks } = parsed;
+
+      const canAccess = await canTokenAccessProject(tokenAuth, projectId);
+      if (!canAccess) {
+        throw new Error('Agent cannot access this project');
+      }
+
+      const projectInfo = await projectService.getById(projectId);
+      const results: Array<{ index: number; ok: boolean; task?: unknown; error?: string }> = [];
+      let created = 0;
+
+      for (const [index, taskInput] of tasks.entries()) {
+        const createResult = await taskService.create({
+          projectId,
+          title: taskInput.title,
+          description: taskInput.description,
+          priority: taskInput.priority,
+          stateId: taskInput.stateId,
+          createdBy: tokenAuth.userId,
+          agentId: null,
+        });
+
+        if (!createResult.ok) {
+          results.push({
+            index,
+            ok: false,
+            error: createResult.error.message,
+          });
+          continue;
+        }
+
+        created += 1;
+        results.push({
+          index,
+          ok: true,
+          task: createResult.value,
+        });
+
+        if (projectInfo.ok) {
+          publishEvent(projectInfo.value.workspaceId, 'task.created', {
+            task: createResult.value,
+            projectId,
+          });
+        }
+      }
+
+      result = {
+        projectId,
+        summary: {
+          requested: tasks.length,
+          created,
+          failed: tasks.length - created,
+        },
+        results,
+      };
       break;
     }
 

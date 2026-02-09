@@ -7,6 +7,7 @@ import { mcpConnectionApi, type McpOAuthConnection } from '../../api/client';
 
 const AVAILABLE_PERMISSIONS = [
   { id: 'create_task', label: 'Create tasks' },
+  { id: 'bulk_create_tasks', label: 'Bulk create tasks' },
   { id: 'update_task', label: 'Update tasks' },
   { id: 'delete_task', label: 'Delete tasks' },
   { id: 'query_tasks', label: 'Query tasks' },

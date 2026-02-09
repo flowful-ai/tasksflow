@@ -41,6 +41,22 @@ export const CreateTaskSchema = z.object({
 
 export type CreateTask = z.infer<typeof CreateTaskSchema>;
 
+export const BulkCreateTaskItemSchema = z.object({
+  title: z.string().min(1).max(500),
+  description: z.string().optional(),
+  priority: TaskPrioritySchema.optional(),
+  stateId: z.string().uuid().optional(),
+});
+
+export type BulkCreateTaskItem = z.infer<typeof BulkCreateTaskItemSchema>;
+
+export const BulkCreateTasksInputSchema = z.object({
+  projectId: z.string().uuid(),
+  tasks: z.array(BulkCreateTaskItemSchema).min(1).max(50),
+});
+
+export type BulkCreateTasksInput = z.infer<typeof BulkCreateTasksInputSchema>;
+
 export const UpdateTaskSchema = z.object({
   title: z.string().min(1).max(500).optional(),
   description: z.string().optional(),
