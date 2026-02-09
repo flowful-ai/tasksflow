@@ -333,8 +333,14 @@ export class McpOAuthService {
       throw new OAuthError('invalid_scope', `Unknown tool scopes: ${toolValidation.invalidTools.join(', ')}`);
     }
 
-    const requestedWorkspaceId = workspaceScopes.length === 1
+    const requestedWorkspaceIdRaw = workspaceScopes.length === 1
       ? workspaceScopes[0]?.slice(WORKSPACE_SCOPE_PREFIX.length) || null
+      : null;
+
+    // Some MCP clients (including ChatGPT) send template placeholder scopes like "{workspaceId}".
+    // Treat those as "workspace to be selected at consent time" instead of a literal workspace id.
+    const requestedWorkspaceId = requestedWorkspaceIdRaw && !/^\{.+\}$/.test(requestedWorkspaceIdRaw)
+      ? requestedWorkspaceIdRaw
       : null;
 
     return {
