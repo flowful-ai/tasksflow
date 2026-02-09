@@ -28,6 +28,9 @@ const AUTH_CODE_TTL_SECONDS = 5 * 60;
 const TOOL_SCOPE_PREFIX = 'mcp:tool:';
 const WORKSPACE_SCOPE_PREFIX = 'mcp:workspace:';
 const ALLOWED_ADMIN_ROLES = new Set(['owner', 'admin']);
+const IMPLIED_TOOL_PERMISSIONS: Record<string, string[]> = {
+  create_task: ['bulk_create_tasks'],
+};
 
 const agentTools = AgentToolSchema.options;
 
@@ -81,6 +84,19 @@ function parseToolScopes(scopes: string[]): string[] {
   return scopes
     .filter((scope) => scope.startsWith(TOOL_SCOPE_PREFIX))
     .map((scope) => scope.slice(TOOL_SCOPE_PREFIX.length));
+}
+
+function expandToolPermissions(toolScopes: string[]): string[] {
+  const expanded = new Set(toolScopes);
+
+  for (const scope of toolScopes) {
+    const impliedScopes = IMPLIED_TOOL_PERMISSIONS[scope] || [];
+    for (const impliedScope of impliedScopes) {
+      expanded.add(impliedScope);
+    }
+  }
+
+  return Array.from(expanded);
 }
 
 export function validateToolScopePresence(
@@ -1002,7 +1018,7 @@ export class McpOAuthService {
       throw new OAuthError('invalid_token', 'Token includes unsupported tool scopes', 401);
     }
 
-    const toolPermissions = parseToolScopes(scopes);
+    const toolPermissions = expandToolPermissions(parseToolScopes(scopes));
 
     return {
       accessTokenId: row.accessTokenId,
