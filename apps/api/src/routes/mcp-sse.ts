@@ -7,7 +7,7 @@ import { TaskService, ProjectService, CommentService, SmartViewService, Workspac
 import { AGENT_TOOLS } from '@flowtask/domain';
 import { extractBearerToken } from '@flowtask/auth';
 import { publishEvent } from '../sse/manager.js';
-import { McpOAuthService, type OAuthMcpAuthContext } from '../services/mcp-oauth-service.js';
+import { McpOAuthService, OAuthError, type OAuthMcpAuthContext } from '../services/mcp-oauth-service.js';
 
 /**
  * MCP SSE transport endpoints for native MCP protocol support.
@@ -39,6 +39,18 @@ function getBaseUrl(requestUrl: string, headers: Headers): string {
 function setOAuthChallenge(c: any): void {
   const baseUrl = getBaseUrl(c.req.url, c.req.raw.headers);
   c.header('WWW-Authenticate', oauthService.buildWwwAuthenticateHeader(baseUrl));
+}
+
+function sessionNotFoundResponse(c: any): Response {
+  return c.json(
+    {
+      error: 'Not Found',
+      code: 'SESSION_NOT_FOUND',
+      message: 'Session not found',
+      hint: 'Re-initialize MCP session and retry.',
+    },
+    404
+  );
 }
 
 async function hasAdminWorkspaceRole(tokenAuth: OAuthMcpAuthContext): Promise<boolean> {
@@ -485,7 +497,10 @@ function createMcpServer(tokenAuth: OAuthMcpAuthContext): McpServer {
 /**
  * Verify OAuth access token and return auth context.
  */
-async function verifyToken(authHeader: string | undefined): Promise<OAuthMcpAuthContext | null> {
+async function verifyToken(
+  authHeader: string | undefined,
+  logContext: { route: string; hasSessionHeader: boolean }
+): Promise<OAuthMcpAuthContext | null> {
   const token = extractBearerToken(authHeader);
   if (!token) {
     return null;
@@ -495,10 +510,23 @@ async function verifyToken(authHeader: string | undefined): Promise<OAuthMcpAuth
     const tokenAuth = await oauthService.authenticateAccessToken(token);
     const roleOk = await hasAdminWorkspaceRole(tokenAuth);
     if (!roleOk) {
+      console.warn('MCP auth failed: non-admin workspace role', logContext);
       return null;
     }
     return tokenAuth;
-  } catch {
+  } catch (error) {
+    if (error instanceof OAuthError) {
+      console.warn('MCP auth failed', {
+        ...logContext,
+        oauthError: error.oauthError,
+        statusCode: error.statusCode,
+      });
+    } else {
+      console.warn('MCP auth failed', {
+        ...logContext,
+        oauthError: 'unknown_error',
+      });
+    }
     return null;
   }
 }
@@ -510,18 +538,23 @@ async function verifyToken(authHeader: string | undefined): Promise<OAuthMcpAuth
 mcpSse.all('/sse', async (c) => {
   // Verify authentication
   const authHeader = c.req.header('Authorization');
-  const tokenAuth = await verifyToken(authHeader);
+  const sessionId = c.req.header('Mcp-Session-Id');
+  const tokenAuth = await verifyToken(authHeader, {
+    route: '/api/mcp/sse',
+    hasSessionHeader: Boolean(sessionId),
+  });
 
   if (!tokenAuth) {
     setOAuthChallenge(c);
     return c.json({ error: 'Unauthorized', message: 'Valid OAuth access token required' }, 401);
   }
 
-  // Get or create session ID from header
-  const sessionId = c.req.header('Mcp-Session-Id');
-
   // Check if we have an existing transport for this session
   let transport = sessionId ? activeTransports.get(sessionId) : undefined;
+  if (sessionId && !transport) {
+    console.warn('MCP session not found', { route: '/api/mcp/sse', sessionId });
+    return sessionNotFoundResponse(c);
+  }
 
   if (!transport) {
     // Create a new transport for this session
@@ -554,7 +587,10 @@ mcpSse.all('/sse', async (c) => {
 mcpSse.get('/sse/stream', async (c) => {
   // Verify authentication
   const authHeader = c.req.header('Authorization');
-  const tokenAuth = await verifyToken(authHeader);
+  const tokenAuth = await verifyToken(authHeader, {
+    route: '/api/mcp/sse/stream',
+    hasSessionHeader: Boolean(c.req.header('Mcp-Session-Id')),
+  });
 
   if (!tokenAuth) {
     setOAuthChallenge(c);
@@ -585,15 +621,17 @@ mcpSse.get('/sse/stream', async (c) => {
 mcpSse.post('/sse/message', async (c) => {
   // Verify authentication
   const authHeader = c.req.header('Authorization');
-  const tokenAuth = await verifyToken(authHeader);
+  const sessionId = c.req.header('Mcp-Session-Id');
+  const tokenAuth = await verifyToken(authHeader, {
+    route: '/api/mcp/sse/message',
+    hasSessionHeader: Boolean(sessionId),
+  });
 
   if (!tokenAuth) {
     setOAuthChallenge(c);
     return c.json({ error: 'Unauthorized', message: 'Valid OAuth access token required' }, 401);
   }
 
-  // Get session ID from header
-  const sessionId = c.req.header('Mcp-Session-Id');
   if (!sessionId) {
     return c.json(
       { error: 'Bad Request', message: 'Mcp-Session-Id header required' },
@@ -604,10 +642,8 @@ mcpSse.post('/sse/message', async (c) => {
   // Get the transport for this session
   const transport = activeTransports.get(sessionId);
   if (!transport) {
-    return c.json(
-      { error: 'Not Found', message: 'Session not found' },
-      404
-    );
+    console.warn('MCP session not found', { route: '/api/mcp/sse/message', sessionId });
+    return sessionNotFoundResponse(c);
   }
 
   // Handle the POST request

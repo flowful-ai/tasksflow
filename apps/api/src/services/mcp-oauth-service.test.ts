@@ -3,6 +3,7 @@ import {
   OAuthError,
   buildS256CodeChallenge,
   isAuthorizingRole,
+  validateToolScopePresence,
   validateRequestedMcpScopes,
 } from './mcp-oauth-service.js';
 
@@ -43,5 +44,20 @@ describe('authorization role gate', () => {
   it('denies member and missing roles', () => {
     expect(isAuthorizingRole('member')).toBe(false);
     expect(isAuthorizingRole(null)).toBe(false);
+  });
+});
+
+describe('tool scope presence invariant', () => {
+  it('accepts scopes when at least one tool scope exists', () => {
+    const toolScopes = validateToolScopePresence([
+      'mcp:workspace:workspace-1',
+      'mcp:tool:create_task',
+    ]);
+
+    expect(toolScopes).toEqual(['create_task']);
+  });
+
+  it('rejects scopes with no tool scope', () => {
+    expect(() => validateToolScopePresence(['mcp:workspace:workspace-1'])).toThrow(OAuthError);
   });
 });

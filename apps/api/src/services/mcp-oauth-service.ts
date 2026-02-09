@@ -83,6 +83,18 @@ function parseToolScopes(scopes: string[]): string[] {
     .map((scope) => scope.slice(TOOL_SCOPE_PREFIX.length));
 }
 
+export function validateToolScopePresence(
+  scopes: string[],
+  oauthError: 'invalid_scope' | 'invalid_token' = 'invalid_scope'
+): string[] {
+  const toolScopes = parseToolScopes(scopes);
+  if (toolScopes.length === 0) {
+    const statusCode = oauthError === 'invalid_token' ? 401 : 400;
+    throw new OAuthError(oauthError, 'At least one tool scope is required', statusCode);
+  }
+  return toolScopes;
+}
+
 function validateToolScopes(scopes: string[]): { ok: boolean; invalidTools: string[] } {
   const toolScopes = parseToolScopes(scopes);
   const invalidTools = toolScopes.filter((tool) => !agentTools.includes(tool as (typeof agentTools)[number]));
@@ -109,10 +121,7 @@ export function validateRequestedMcpScopes(scope: string): { scopes: string[]; w
     throw new OAuthError('invalid_scope', 'Exactly one workspace scope is required');
   }
 
-  const toolScopes = parseToolScopes(scopes);
-  if (toolScopes.length === 0) {
-    throw new OAuthError('invalid_scope', 'At least one tool scope is required');
-  }
+  const toolScopes = validateToolScopePresence(scopes, 'invalid_scope');
 
   const validation = validateToolScopes(scopes);
   if (!validation.ok) {
@@ -807,6 +816,8 @@ export class McpOAuthService {
         throw new OAuthError('invalid_scope', 'Exactly one workspace scope is required');
       }
 
+      validateToolScopePresence(nextScopes, 'invalid_scope');
+
       const toolValidation = validateToolScopes(nextScopes);
       if (!toolValidation.ok) {
         throw new OAuthError('invalid_scope', `Unknown tool scopes: ${toolValidation.invalidTools.join(', ')}`);
@@ -983,6 +994,8 @@ export class McpOAuthService {
     if (!workspaceId || workspaceId !== row.workspaceId) {
       throw new OAuthError('invalid_token', 'Token workspace scope does not match token binding', 401);
     }
+
+    validateToolScopePresence(scopes, 'invalid_token');
 
     const toolValidation = validateToolScopes(scopes);
     if (!toolValidation.ok) {
