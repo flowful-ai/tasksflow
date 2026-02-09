@@ -445,11 +445,15 @@ FlowTask uses Bun as its primary runtime for several reasons:
 FlowTask MCP now uses OAuth 2.1 (Authorization Code + PKCE) with dynamic client registration.
 
 1. Add the MCP server in ChatGPT or Claude using `https://your-domain.com/api/mcp/sse`.
+   - Transport mode: Streamable HTTP, stateless, `POST` requests.
+   - `GET`/`DELETE` on `/api/mcp/sse` are not supported.
+   - Legacy split SSE endpoints (`/api/mcp/sse/stream`, `/api/mcp/sse/message`) are deprecated/disabled.
 2. The client discovers OAuth metadata from:
    - `https://your-domain.com/.well-known/oauth-protected-resource/api/mcp/sse`
    - `https://your-domain.com/api/mcp/.well-known/oauth-authorization-server`
 3. Sign in and approve consent for one workspace scope (`mcp:workspace:<workspaceId>`) plus tool scopes (`mcp:tool:create_task`, `mcp:tool:add_comment`, etc.).
 4. Only workspace `owner` and `admin` roles can approve MCP OAuth access.
+5. MCP tools are discovered via `tools/list` (not via `list_resources`).
 
 ---
 

@@ -24,9 +24,6 @@ const smartViewService = new SmartViewService(db);
 const workspaceService = new WorkspaceService(db);
 const oauthService = new McpOAuthService();
 
-// Store active transports by session ID
-const activeTransports = new Map<string, WebStandardStreamableHTTPServerTransport>();
-
 function getBaseUrl(requestUrl: string, headers: Headers): string {
   const url = new URL(requestUrl);
   const forwardedProto = headers.get('x-forwarded-proto');
@@ -41,15 +38,27 @@ function setOAuthChallenge(c: any): void {
   c.header('WWW-Authenticate', oauthService.buildWwwAuthenticateHeader(baseUrl));
 }
 
-function sessionNotFoundResponse(c: any): Response {
+function methodNotAllowedResponse(c: any): Response {
+  c.header('Allow', 'POST');
   return c.json(
     {
-      error: 'Not Found',
-      code: 'SESSION_NOT_FOUND',
-      message: 'Session not found',
-      hint: 'Re-initialize MCP session and retry.',
+      error: 'Method Not Allowed',
+      code: 'MCP_METHOD_NOT_ALLOWED',
+      message: 'Only POST is supported for /api/mcp/sse in stateless mode',
     },
-    404
+    405
+  );
+}
+
+function legacySseDeprecatedResponse(c: any): Response {
+  return c.json(
+    {
+      error: 'Gone',
+      code: 'MCP_LEGACY_SSE_DEPRECATED',
+      message: 'Legacy SSE endpoints are deprecated and disabled.',
+      hint: 'Use POST /api/mcp/sse (Streamable HTTP).',
+    },
+    410
   );
 }
 
@@ -538,10 +547,9 @@ async function verifyToken(
 mcpSse.all('/sse', async (c) => {
   // Verify authentication
   const authHeader = c.req.header('Authorization');
-  const sessionId = c.req.header('Mcp-Session-Id');
   const tokenAuth = await verifyToken(authHeader, {
     route: '/api/mcp/sse',
-    hasSessionHeader: Boolean(sessionId),
+    hasSessionHeader: Boolean(c.req.header('Mcp-Session-Id')),
   });
 
   if (!tokenAuth) {
@@ -549,31 +557,18 @@ mcpSse.all('/sse', async (c) => {
     return c.json({ error: 'Unauthorized', message: 'Valid OAuth access token required' }, 401);
   }
 
-  // Check if we have an existing transport for this session
-  let transport = sessionId ? activeTransports.get(sessionId) : undefined;
-  if (sessionId && !transport) {
-    console.warn('MCP session not found', { route: '/api/mcp/sse', sessionId });
-    return sessionNotFoundResponse(c);
+  if (c.req.method !== 'POST') {
+    return methodNotAllowedResponse(c);
   }
 
-  if (!transport) {
-    // Create a new transport for this session
-    transport = new WebStandardStreamableHTTPServerTransport({
-      sessionIdGenerator: () => crypto.randomUUID(),
-      onsessioninitialized: (newSessionId) => {
-        activeTransports.set(newSessionId, transport!);
-        console.log(`MCP session initialized: ${newSessionId}`);
-      },
-      onsessionclosed: (closedSessionId) => {
-        activeTransports.delete(closedSessionId);
-        console.log(`MCP session closed: ${closedSessionId}`);
-      },
-    });
+  // Stateless transport: no server-side session map, one transport per request.
+  const transport = new WebStandardStreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,
+  });
 
-    // Create and connect an MCP server to this transport
-    const server = createMcpServer(tokenAuth);
-    await server.connect(transport);
-  }
+  // Create and connect an MCP server to this request transport
+  const server = createMcpServer(tokenAuth);
+  await server.connect(transport);
 
   // Handle the request using the transport
   return transport.handleRequest(c.req.raw);
@@ -585,69 +580,11 @@ mcpSse.all('/sse', async (c) => {
  * POST /sse/message - JSON-RPC messages from client-to-server
  */
 mcpSse.get('/sse/stream', async (c) => {
-  // Verify authentication
-  const authHeader = c.req.header('Authorization');
-  const tokenAuth = await verifyToken(authHeader, {
-    route: '/api/mcp/sse/stream',
-    hasSessionHeader: Boolean(c.req.header('Mcp-Session-Id')),
-  });
-
-  if (!tokenAuth) {
-    setOAuthChallenge(c);
-    return c.json({ error: 'Unauthorized', message: 'Valid OAuth access token required' }, 401);
-  }
-
-  // Create a new transport for this session
-  const transport = new WebStandardStreamableHTTPServerTransport({
-    sessionIdGenerator: () => crypto.randomUUID(),
-    onsessioninitialized: (newSessionId) => {
-      activeTransports.set(newSessionId, transport);
-      console.log(`MCP SSE session initialized: ${newSessionId}`);
-    },
-    onsessionclosed: (closedSessionId) => {
-      activeTransports.delete(closedSessionId);
-      console.log(`MCP SSE session closed: ${closedSessionId}`);
-    },
-  });
-
-  // Create and connect an MCP server to this transport
-  const server = createMcpServer(tokenAuth);
-  await server.connect(transport);
-
-  // Handle the GET request (will return SSE stream)
-  return transport.handleRequest(c.req.raw);
+  return legacySseDeprecatedResponse(c);
 });
 
 mcpSse.post('/sse/message', async (c) => {
-  // Verify authentication
-  const authHeader = c.req.header('Authorization');
-  const sessionId = c.req.header('Mcp-Session-Id');
-  const tokenAuth = await verifyToken(authHeader, {
-    route: '/api/mcp/sse/message',
-    hasSessionHeader: Boolean(sessionId),
-  });
-
-  if (!tokenAuth) {
-    setOAuthChallenge(c);
-    return c.json({ error: 'Unauthorized', message: 'Valid OAuth access token required' }, 401);
-  }
-
-  if (!sessionId) {
-    return c.json(
-      { error: 'Bad Request', message: 'Mcp-Session-Id header required' },
-      400
-    );
-  }
-
-  // Get the transport for this session
-  const transport = activeTransports.get(sessionId);
-  if (!transport) {
-    console.warn('MCP session not found', { route: '/api/mcp/sse/message', sessionId });
-    return sessionNotFoundResponse(c);
-  }
-
-  // Handle the POST request
-  return transport.handleRequest(c.req.raw);
+  return legacySseDeprecatedResponse(c);
 });
 
 export { mcpSse as mcpSseRoutes };
