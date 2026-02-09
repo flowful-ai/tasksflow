@@ -2,14 +2,12 @@ import { Hono } from 'hono';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { Redis } from 'ioredis';
 import { getDatabase } from '@flowtask/database';
-import { TaskService, ProjectService, CommentService, WorkspaceAgentService, SmartViewService } from '@flowtask/domain';
+import { TaskService, ProjectService, CommentService, SmartViewService, WorkspaceService } from '@flowtask/domain';
 import { AGENT_TOOLS } from '@flowtask/domain';
-import { extractBearerToken, isFlowTaskToken, isValidTokenFormat } from '@flowtask/auth';
-import type { TokenAuthContext } from '@flowtask/auth';
-import type { ApiTokenPermission } from '@flowtask/shared';
+import { extractBearerToken } from '@flowtask/auth';
 import { publishEvent } from '../sse/manager.js';
+import { McpOAuthService, type OAuthMcpAuthContext } from '../services/mcp-oauth-service.js';
 
 /**
  * MCP SSE transport endpoints for native MCP protocol support.
@@ -19,23 +17,42 @@ import { publishEvent } from '../sse/manager.js';
 const mcpSse = new Hono();
 const db = getDatabase();
 
-// Initialize Redis for rate limiting
-const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-const redis = new Redis(redisUrl);
-
 const taskService = new TaskService(db);
 const projectService = new ProjectService(db);
 const commentService = new CommentService(db);
-const workspaceAgentService = new WorkspaceAgentService(db, redis);
 const smartViewService = new SmartViewService(db);
+const workspaceService = new WorkspaceService(db);
+const oauthService = new McpOAuthService();
 
 // Store active transports by session ID
 const activeTransports = new Map<string, WebStandardStreamableHTTPServerTransport>();
 
+function getBaseUrl(requestUrl: string, headers: Headers): string {
+  const url = new URL(requestUrl);
+  const forwardedProto = headers.get('x-forwarded-proto');
+  const forwardedHost = headers.get('x-forwarded-host');
+  const protocol = forwardedProto || url.protocol.replace(':', '');
+  const host = forwardedHost || url.host;
+  return `${protocol}://${host}`;
+}
+
+function setOAuthChallenge(c: any): void {
+  const baseUrl = getBaseUrl(c.req.url, c.req.raw.headers);
+  c.header('WWW-Authenticate', oauthService.buildWwwAuthenticateHeader(baseUrl));
+}
+
+async function hasAdminWorkspaceRole(tokenAuth: OAuthMcpAuthContext): Promise<boolean> {
+  const roleResult = await workspaceService.getMemberRole(tokenAuth.workspaceId, tokenAuth.userId);
+  if (!roleResult.ok || !roleResult.value) {
+    return false;
+  }
+  return roleResult.value === 'owner' || roleResult.value === 'admin';
+}
+
 /**
- * Helper to check if token auth can access a project.
+ * Helper to check if OAuth token can access a project.
  */
-async function canTokenAccessProject(tokenAuth: TokenAuthContext, projectId: string): Promise<boolean> {
+async function canTokenAccessProject(tokenAuth: OAuthMcpAuthContext, projectId: string): Promise<boolean> {
   const projectResult = await projectService.getById(projectId);
   if (!projectResult.ok) {
     return false;
@@ -45,11 +62,7 @@ async function canTokenAccessProject(tokenAuth: TokenAuthContext, projectId: str
     return false;
   }
 
-  if (!tokenAuth.restrictedProjectIds || tokenAuth.restrictedProjectIds.length === 0) {
-    return true;
-  }
-
-  return tokenAuth.restrictedProjectIds.includes(projectId);
+  return hasAdminWorkspaceRole(tokenAuth);
 }
 
 /**
@@ -59,12 +72,9 @@ async function canTokenAccessProject(tokenAuth: TokenAuthContext, projectId: str
 async function executeMcpTool(
   toolName: string,
   args: Record<string, unknown>,
-  tokenAuth: TokenAuthContext
+  tokenAuth: OAuthMcpAuthContext
 ): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
-  // Verify tool permission
-  if (!tokenAuth.permissions.includes(toolName as ApiTokenPermission)) {
-    throw new Error(`Token not authorized for tool: ${toolName}`);
-  }
+  oauthService.ensureToolAllowed(tokenAuth, toolName);
 
   let result: unknown;
 
@@ -86,8 +96,8 @@ async function executeMcpTool(
         description: args.description as string | undefined,
         priority: args.priority as 'urgent' | 'high' | 'medium' | 'low' | 'none' | undefined,
         stateId: args.stateId as string | undefined,
-        createdBy: null,
-        agentId: tokenAuth.tokenId,
+        createdBy: tokenAuth.userId,
+        agentId: null,
       });
 
       if (!createResult.ok) throw createResult.error;
@@ -122,7 +132,7 @@ async function executeMcpTool(
         description: args.description as string | undefined,
         priority: args.priority as 'urgent' | 'high' | 'medium' | 'low' | 'none' | undefined,
         stateId: args.stateId as string | undefined,
-        updatedBy: null,
+        updatedBy: tokenAuth.userId,
       });
 
       if (!updateResult.ok) throw updateResult.error;
@@ -250,8 +260,8 @@ async function executeMcpTool(
       const commentResult = await commentService.create({
         taskId,
         content,
-        userId: null,
-        agentId: tokenAuth.tokenId,
+        userId: tokenAuth.userId,
+        agentId: null,
       });
 
       if (!commentResult.ok) throw commentResult.error;
@@ -346,7 +356,7 @@ async function executeMcpTool(
 
       const smartViewResult = await smartViewService.create({
         workspaceId: tokenAuth.workspaceId,
-        createdBy: null, // Agent-created views have no user owner
+        createdBy: tokenAuth.userId,
         name,
         description: args.description as string | undefined,
         filters: parsedFilters,
@@ -385,18 +395,13 @@ async function executeMcpTool(
     }
 
     case 'list_projects': {
-      // List projects in the workspace (optionally filtered by restrictions)
+      // List projects in the workspace
       const projectsResult = await projectService.list({
         filters: { workspaceId: tokenAuth.workspaceId },
       });
       if (!projectsResult.ok) throw projectsResult.error;
 
-      let projectList = projectsResult.value;
-
-      // Filter by restricted project IDs if set
-      if (tokenAuth.restrictedProjectIds && tokenAuth.restrictedProjectIds.length > 0) {
-        projectList = projectList.filter((p) => tokenAuth.restrictedProjectIds!.includes(p.id));
-      }
+      const projectList = projectsResult.value;
 
       result = projectList.map((p) => ({
         id: p.id,
@@ -415,9 +420,6 @@ async function executeMcpTool(
       throw new Error(`Tool "${toolName}" not implemented`);
   }
 
-  // Record token usage
-  await workspaceAgentService.recordTokenUsage(tokenAuth.tokenId, 100);
-
   return {
     content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
   };
@@ -426,7 +428,7 @@ async function executeMcpTool(
 /**
  * Create an MCP server instance with tools registered based on token permissions.
  */
-function createMcpServer(tokenAuth: TokenAuthContext): McpServer {
+function createMcpServer(tokenAuth: OAuthMcpAuthContext): McpServer {
   const mcpServer = new McpServer(
     {
       name: 'flowtask',
@@ -442,7 +444,7 @@ function createMcpServer(tokenAuth: TokenAuthContext): McpServer {
 
   // Get tools that the token has permission for
   const allowedTools = AGENT_TOOLS.filter(
-    (tool) => tokenAuth.permissions.includes(tool.name as ApiTokenPermission)
+    (tool) => tokenAuth.toolPermissions.includes(tool.name)
   );
 
   // Register tools/list handler
@@ -480,32 +482,24 @@ function createMcpServer(tokenAuth: TokenAuthContext): McpServer {
 }
 
 /**
- * Verify token and return auth context.
+ * Verify OAuth access token and return auth context.
  */
-async function verifyToken(authHeader: string | undefined): Promise<TokenAuthContext | null> {
+async function verifyToken(authHeader: string | undefined): Promise<OAuthMcpAuthContext | null> {
   const token = extractBearerToken(authHeader);
-
-  if (!token || !isFlowTaskToken(token)) {
+  if (!token) {
     return null;
   }
 
-  if (!isValidTokenFormat(token)) {
+  try {
+    const tokenAuth = await oauthService.authenticateAccessToken(token);
+    const roleOk = await hasAdminWorkspaceRole(tokenAuth);
+    if (!roleOk) {
+      return null;
+    }
+    return tokenAuth;
+  } catch {
     return null;
   }
-
-  const verifyResult = await workspaceAgentService.verifyToken(token, { checkRateLimit: true });
-
-  if (!verifyResult.ok) {
-    return null;
-  }
-
-  return {
-    tokenId: verifyResult.value.id,
-    workspaceId: verifyResult.value.workspaceId,
-    restrictedProjectIds: verifyResult.value.restrictedProjectIds,
-    name: verifyResult.value.name,
-    permissions: verifyResult.value.permissions,
-  };
 }
 
 /**
@@ -518,10 +512,8 @@ mcpSse.all('/sse', async (c) => {
   const tokenAuth = await verifyToken(authHeader);
 
   if (!tokenAuth) {
-    return c.json(
-      { error: 'Unauthorized', message: 'Valid API token required' },
-      401
-    );
+    setOAuthChallenge(c);
+    return c.json({ error: 'Unauthorized', message: 'Valid OAuth access token required' }, 401);
   }
 
   // Get or create session ID from header
@@ -564,10 +556,8 @@ mcpSse.get('/sse/stream', async (c) => {
   const tokenAuth = await verifyToken(authHeader);
 
   if (!tokenAuth) {
-    return c.json(
-      { error: 'Unauthorized', message: 'Valid API token required' },
-      401
-    );
+    setOAuthChallenge(c);
+    return c.json({ error: 'Unauthorized', message: 'Valid OAuth access token required' }, 401);
   }
 
   // Create a new transport for this session
@@ -597,10 +587,8 @@ mcpSse.post('/sse/message', async (c) => {
   const tokenAuth = await verifyToken(authHeader);
 
   if (!tokenAuth) {
-    return c.json(
-      { error: 'Unauthorized', message: 'Valid API token required' },
-      401
-    );
+    setOAuthChallenge(c);
+    return c.json({ error: 'Unauthorized', message: 'Valid OAuth access token required' }, 401);
   }
 
   // Get session ID from header

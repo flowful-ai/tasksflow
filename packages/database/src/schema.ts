@@ -416,6 +416,134 @@ export const workspaceAgents = pgTable(
   ]
 );
 
+// ============ MCP OAUTH ============
+
+export const mcpOAuthClients = pgTable(
+  'mcp_oauth_clients',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    clientId: text('client_id').notNull().unique(),
+    clientName: text('client_name').notNull(),
+    redirectUris: jsonb('redirect_uris').notNull(),
+    grantTypes: jsonb('grant_types').notNull().default('["authorization_code","refresh_token"]'),
+    responseTypes: jsonb('response_types').notNull().default('["code"]'),
+    scope: text('scope'),
+    tokenEndpointAuthMethod: text('token_endpoint_auth_method').notNull().default('none'),
+    clientUri: text('client_uri'),
+    logoUri: text('logo_uri'),
+    tosUri: text('tos_uri'),
+    policyUri: text('policy_uri'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [index('mcp_oauth_client_id_idx').on(table.clientId)]
+);
+
+export const mcpOAuthConsents = pgTable(
+  'mcp_oauth_consents',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    workspaceId: uuid('workspace_id')
+      .references(() => workspaces.id, { onDelete: 'cascade' })
+      .notNull(),
+    clientId: uuid('client_id')
+      .references(() => mcpOAuthClients.id, { onDelete: 'cascade' })
+      .notNull(),
+    approvedScopes: jsonb('approved_scopes').notNull(),
+    grantedByRole: text('granted_by_role').notNull(),
+    revokedAt: timestamp('revoked_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex('unique_mcp_oauth_consent').on(table.userId, table.workspaceId, table.clientId)]
+);
+
+export const mcpOAuthAuthorizationCodes = pgTable(
+  'mcp_oauth_authorization_codes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    clientId: uuid('client_id')
+      .references(() => mcpOAuthClients.id, { onDelete: 'cascade' })
+      .notNull(),
+    userId: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    workspaceId: uuid('workspace_id')
+      .references(() => workspaces.id, { onDelete: 'cascade' })
+      .notNull(),
+    codeHash: text('code_hash').notNull().unique(),
+    redirectUri: text('redirect_uri').notNull(),
+    scope: text('scope').notNull(),
+    codeChallenge: text('code_challenge').notNull(),
+    codeChallengeMethod: text('code_challenge_method').notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+    usedAt: timestamp('used_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('mcp_oauth_auth_code_client_idx').on(table.clientId),
+    index('mcp_oauth_auth_code_user_idx').on(table.userId),
+    index('mcp_oauth_auth_code_expires_idx').on(table.expiresAt),
+  ]
+);
+
+export const mcpOAuthAccessTokens = pgTable(
+  'mcp_oauth_access_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    clientId: uuid('client_id')
+      .references(() => mcpOAuthClients.id, { onDelete: 'cascade' })
+      .notNull(),
+    userId: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    workspaceId: uuid('workspace_id')
+      .references(() => workspaces.id, { onDelete: 'cascade' })
+      .notNull(),
+    tokenHash: text('token_hash').notNull().unique(),
+    scope: text('scope').notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+    revokedAt: timestamp('revoked_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('mcp_oauth_access_token_client_idx').on(table.clientId),
+    index('mcp_oauth_access_token_user_idx').on(table.userId),
+    index('mcp_oauth_access_token_expires_idx').on(table.expiresAt),
+  ]
+);
+
+export const mcpOAuthRefreshTokens = pgTable(
+  'mcp_oauth_refresh_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    accessTokenId: uuid('access_token_id').references(() => mcpOAuthAccessTokens.id, { onDelete: 'set null' }),
+    clientId: uuid('client_id')
+      .references(() => mcpOAuthClients.id, { onDelete: 'cascade' })
+      .notNull(),
+    userId: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    workspaceId: uuid('workspace_id')
+      .references(() => workspaces.id, { onDelete: 'cascade' })
+      .notNull(),
+    tokenHash: text('token_hash').notNull().unique(),
+    scope: text('scope').notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+    revokedAt: timestamp('revoked_at'),
+    replacedByTokenId: uuid('replaced_by_token_id'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    index('mcp_oauth_refresh_token_client_idx').on(table.clientId),
+    index('mcp_oauth_refresh_token_user_idx').on(table.userId),
+    index('mcp_oauth_refresh_token_expires_idx').on(table.expiresAt),
+  ]
+);
+
 // User's OpenRouter API keys (encrypted)
 export const userApiKeys = pgTable(
   'user_api_keys',
@@ -578,6 +706,21 @@ export type NewAccount = typeof accounts.$inferInsert;
 
 export type WorkspaceAgent = typeof workspaceAgents.$inferSelect;
 export type NewWorkspaceAgent = typeof workspaceAgents.$inferInsert;
+
+export type McpOAuthClient = typeof mcpOAuthClients.$inferSelect;
+export type NewMcpOAuthClient = typeof mcpOAuthClients.$inferInsert;
+
+export type McpOAuthConsent = typeof mcpOAuthConsents.$inferSelect;
+export type NewMcpOAuthConsent = typeof mcpOAuthConsents.$inferInsert;
+
+export type McpOAuthAuthorizationCode = typeof mcpOAuthAuthorizationCodes.$inferSelect;
+export type NewMcpOAuthAuthorizationCode = typeof mcpOAuthAuthorizationCodes.$inferInsert;
+
+export type McpOAuthAccessToken = typeof mcpOAuthAccessTokens.$inferSelect;
+export type NewMcpOAuthAccessToken = typeof mcpOAuthAccessTokens.$inferInsert;
+
+export type McpOAuthRefreshToken = typeof mcpOAuthRefreshTokens.$inferSelect;
+export type NewMcpOAuthRefreshToken = typeof mcpOAuthRefreshTokens.$inferInsert;
 
 export type GitHubInstallation = typeof githubInstallations.$inferSelect;
 export type NewGitHubInstallation = typeof githubInstallations.$inferInsert;

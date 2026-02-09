@@ -266,6 +266,14 @@ class TaskService {
 4. Implement tool handler in `apps/api/src/routes/mcp.ts` (for REST API compatibility)
 5. **Add permission to frontend UI** in `apps/web/src/components/settings/AgentSettings.tsx` (`AVAILABLE_PERMISSIONS` array)
 
+### MCP OAuth Notes
+
+- MCP endpoints are OAuth-only (Authorization Code + PKCE + dynamic client registration).
+- OAuth metadata endpoints:
+  - `/.well-known/oauth-protected-resource/api/mcp/sse`
+  - `/api/mcp/.well-known/oauth-authorization-server`
+- Only workspace `owner` and `admin` roles can authorize MCP OAuth access.
+
 ## Testing
 
 ```bash

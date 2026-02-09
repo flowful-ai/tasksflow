@@ -31,6 +31,13 @@
 - Shared types/schemas/contracts: `packages/shared/src/types`.
 - Database tables/relations/client config: `packages/database/src`.
 
+## MCP OAuth Rules
+- MCP auth is OAuth-only for runtime MCP endpoints (`/api/mcp/sse`, `/api/mcp/sse/stream`, `/api/mcp/sse/message`, and MCP tool execution routes).
+- Do not introduce or re-enable static bearer token (`ft_v1_*`) auth for MCP runtime routes.
+- Workspace role gate for MCP OAuth authorization/management is `owner` or `admin` only.
+- Legacy workspace agent token routes are deprecated and should remain hard-disabled with explicit deprecation responses.
+- Settings page at `/settings/agents` is for MCP OAuth connection management (list/edit scopes/revoke), not token creation/regeneration.
+
 ## Agent Output Contract (Token-Efficient)
 - Response order: Plan, Edits, Validation.
 - Keep summaries short and actionable.

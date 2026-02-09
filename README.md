@@ -442,10 +442,14 @@ FlowTask uses Bun as its primary runtime for several reasons:
 
 ### AI Agents (MCP)
 
-1. Get an API key from https://openrouter.ai/
-2. Add `OPENROUTER_API_KEY` to `.env`
-3. Generate a 32-byte encryption key for storing user API keys
-4. Configure agents in the workspace settings
+FlowTask MCP now uses OAuth 2.1 (Authorization Code + PKCE) with dynamic client registration.
+
+1. Add the MCP server in ChatGPT or Claude using `https://your-domain.com/api/mcp/sse`.
+2. The client discovers OAuth metadata from:
+   - `https://your-domain.com/.well-known/oauth-protected-resource/api/mcp/sse`
+   - `https://your-domain.com/api/mcp/.well-known/oauth-authorization-server`
+3. Sign in and approve consent for one workspace scope (`mcp:workspace:<workspaceId>`) plus tool scopes (`mcp:tool:create_task`, `mcp:tool:add_comment`, etc.).
+4. Only workspace `owner` and `admin` roles can approve MCP OAuth access.
 
 ---
 

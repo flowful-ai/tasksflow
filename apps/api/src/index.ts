@@ -16,15 +16,19 @@ import { publicRoutes } from './routes/public.js';
 import { agentRoutes } from './routes/agents.js';
 import { mcpRoutes } from './routes/mcp.js';
 import { mcpSseRoutes } from './routes/mcp-sse.js';
+import { mcpOAuthRoutes } from './routes/mcp-oauth.js';
+import { mcpConnectionsRoutes } from './routes/mcp-connections.js';
 import { workspaceAgentRoutes } from './routes/workspace-agents.js';
 import { eventRoutes } from './routes/events.js';
 import { githubRoutes, githubPublicRoutes } from './routes/github.js';
 import { invitationRoutes, publicInvitationRoutes, acceptInvitationRoutes } from './routes/invitations.js';
+import { McpOAuthService } from './services/mcp-oauth-service.js';
 
 // Import SSE manager
 import { initSSE } from './sse/manager.js';
 
 const app = new Hono();
+const mcpOAuthService = new McpOAuthService();
 
 // Global middleware
 app.use('*', logger());
@@ -68,6 +72,28 @@ app.get('/', (c) => {
   });
 });
 
+app.get('/.well-known/oauth-protected-resource/api/mcp/sse', (c) => {
+  const url = new URL(c.req.url);
+  const forwardedProto = c.req.header('x-forwarded-proto');
+  const forwardedHost = c.req.header('x-forwarded-host');
+  const protocol = forwardedProto || url.protocol.replace(':', '');
+  const host = forwardedHost || url.host;
+  const baseUrl = `${protocol}://${host}`;
+
+  return c.json(mcpOAuthService.getProtectedResourceMetadata(baseUrl));
+});
+
+app.get('/.well-known/oauth-authorization-server', (c) => {
+  const url = new URL(c.req.url);
+  const forwardedProto = c.req.header('x-forwarded-proto');
+  const forwardedHost = c.req.header('x-forwarded-host');
+  const protocol = forwardedProto || url.protocol.replace(':', '');
+  const host = forwardedHost || url.host;
+  const baseUrl = `${protocol}://${host}`;
+
+  return c.json(mcpOAuthService.getAuthorizationServerMetadata(baseUrl));
+});
+
 // Auth routes (public, handled by Better Auth)
 app.route('/api/auth', authRoutes);
 
@@ -85,6 +111,7 @@ app.route('/api', publicInvitationRoutes);
 
 // MCP SSE routes (handles its own token authentication)
 app.route('/api/mcp', mcpSseRoutes);
+app.route('/api/mcp', mcpOAuthRoutes);
 
 // SSE event routes (handles its own authentication for streaming)
 app.route('/api/events', eventRoutes);
@@ -96,6 +123,7 @@ app.use('/api/*', authMiddleware);
 app.route('/api/workspaces', workspaceRoutes);
 app.route('/api/projects', projectRoutes);
 app.route('/api/workspaces', workspaceAgentRoutes); // Workspace agent routes nested under workspaces
+app.route('/api/workspaces', mcpConnectionsRoutes);
 app.route('/api', invitationRoutes); // Invitation routes under /api/workspaces/:workspaceId/invitations
 app.route('/api', acceptInvitationRoutes); // Accept invitation route (requires auth)
 app.route('/api/tasks', taskRoutes);

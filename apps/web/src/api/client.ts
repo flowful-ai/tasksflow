@@ -141,6 +141,42 @@ export const workspaceAgentApi = {
     ),
 };
 
+export interface McpOAuthConnection {
+  consentId: string;
+  workspaceId: string;
+  clientId: string;
+  clientName: string;
+  grantedBy: {
+    id: string;
+    email: string;
+    name: string | null;
+  };
+  grantedByRole: string;
+  toolScopes: string[];
+  createdAt: string;
+  updatedAt: string;
+  revokedAt: string | null;
+  lastActivityAt: string | null;
+}
+
+export const mcpConnectionApi = {
+  list: (workspaceId: string) =>
+    api.get<{ success: boolean; data: { connections: McpOAuthConnection[] } }>(
+      `/api/workspaces/${workspaceId}/mcp-connections`
+    ),
+
+  updateScopes: (workspaceId: string, consentId: string, toolScopes: string[]) =>
+    api.patch<{ success: boolean; data: McpOAuthConnection }>(
+      `/api/workspaces/${workspaceId}/mcp-connections/${consentId}/scopes`,
+      { toolScopes }
+    ),
+
+  revoke: (workspaceId: string, consentId: string) =>
+    api.delete<{ success: boolean; data: null }>(
+      `/api/workspaces/${workspaceId}/mcp-connections/${consentId}`
+    ),
+};
+
 export { ApiError };
 
 // Workspace member types
