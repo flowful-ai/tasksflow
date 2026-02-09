@@ -292,7 +292,7 @@ mcpOAuth.get('/oauth/authorize', async (c) => {
 });
 
 mcpOAuth.post('/oauth/authorize', async (c) => {
-  const body = await c.req.parseBody();
+  const body = await c.req.parseBody({ all: true });
 
   const responseType = readBodyValue(body, 'response_type') || undefined;
   const clientId = readBodyValue(body, 'client_id') || undefined;
