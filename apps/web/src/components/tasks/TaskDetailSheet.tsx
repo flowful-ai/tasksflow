@@ -85,6 +85,7 @@ interface Comment {
     id: string;
     name: string | null;
     email: string;
+    avatarUrl: string | null;
   } | null;
   agent: {
     id: string;
@@ -835,72 +836,99 @@ export function TaskDetailSheet({
                 ) : comments.length === 0 ? (
                   <p className="text-sm text-gray-400 italic">No comments yet</p>
                 ) : (
-                  comments.map((comment) => (
-                    <div key={comment.id} className="bg-gray-50 rounded-lg p-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-gray-700">
-                            {comment.agent?.name || comment.user?.name || comment.user?.email || 'Unknown user'}
-                          </span>
-                          {comment.agent && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
-                              Agent
-                            </span>
-                          )}
-                        </div>
-                        <span className="text-xs text-gray-400">
-                          {new Date(comment.createdAt).toLocaleDateString(undefined, {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </span>
-                      </div>
-                      <div className="prose prose-sm max-w-none">
-                        <ReactMarkdown
-                          rehypePlugins={[rehypeSanitize]}
-                          components={{
-                            p: ({ children }) => (
-                              <p className="text-sm text-gray-600 mb-1 last:mb-0">{children}</p>
-                            ),
-                            strong: ({ children }) => (
-                              <strong className="font-semibold text-gray-700">{children}</strong>
-                            ),
-                            em: ({ children }) => <em className="italic">{children}</em>,
-                            ul: ({ children }) => (
-                              <ul className="list-disc list-inside text-sm text-gray-600 mb-1 space-y-0.5">
-                                {children}
-                              </ul>
-                            ),
-                            ol: ({ children }) => (
-                              <ol className="list-decimal list-inside text-sm text-gray-600 mb-1 space-y-0.5">
-                                {children}
-                              </ol>
-                            ),
-                            li: ({ children }) => <li>{children}</li>,
-                            a: ({ href, children }) => (
-                              <a
-                                href={href}
-                                className="text-primary-600 hover:underline"
-                                target="_blank"
-                                rel="noopener noreferrer"
+                  comments.map((comment) => {
+                    const authorName =
+                      comment.agent?.name || comment.user?.name || comment.user?.email || 'Unknown user';
+                    const avatarUrl = comment.user?.avatarUrl;
+
+                    return (
+                      <div key={comment.id} className="bg-gray-50 rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {avatarUrl ? (
+                              <img
+                                src={avatarUrl}
+                                alt={authorName}
+                                className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                              />
+                            ) : (
+                              <div
+                                className={clsx(
+                                  'w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0',
+                                  comment.agent ? 'bg-purple-100' : 'bg-primary-100'
+                                )}
                               >
-                                {children}
-                              </a>
-                            ),
-                            code: ({ children }) => (
-                              <code className="text-xs bg-gray-200 text-gray-800 px-1 py-0.5 rounded">
-                                {children}
-                              </code>
-                            ),
-                          }}
-                        >
-                          {comment.content}
-                        </ReactMarkdown>
+                                <span
+                                  className={clsx(
+                                    'text-xs font-medium',
+                                    comment.agent ? 'text-purple-700' : 'text-primary-600'
+                                  )}
+                                >
+                                  {authorName.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                            )}
+                            <span className="text-sm font-medium text-gray-700 truncate">{authorName}</span>
+                            {comment.agent && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
+                                Agent
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-gray-400 whitespace-nowrap">
+                            {new Date(comment.createdAt).toLocaleDateString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        </div>
+                        <div className="prose prose-sm max-w-none">
+                          <ReactMarkdown
+                            rehypePlugins={[rehypeSanitize]}
+                            components={{
+                              p: ({ children }) => (
+                                <p className="text-sm text-gray-600 mb-1 last:mb-0">{children}</p>
+                              ),
+                              strong: ({ children }) => (
+                                <strong className="font-semibold text-gray-700">{children}</strong>
+                              ),
+                              em: ({ children }) => <em className="italic">{children}</em>,
+                              ul: ({ children }) => (
+                                <ul className="list-disc list-inside text-sm text-gray-600 mb-1 space-y-0.5">
+                                  {children}
+                                </ul>
+                              ),
+                              ol: ({ children }) => (
+                                <ol className="list-decimal list-inside text-sm text-gray-600 mb-1 space-y-0.5">
+                                  {children}
+                                </ol>
+                              ),
+                              li: ({ children }) => <li>{children}</li>,
+                              a: ({ href, children }) => (
+                                <a
+                                  href={href}
+                                  className="text-primary-600 hover:underline"
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  {children}
+                                </a>
+                              ),
+                              code: ({ children }) => (
+                                <code className="text-xs bg-gray-200 text-gray-800 px-1 py-0.5 rounded">
+                                  {children}
+                                </code>
+                              ),
+                            }}
+                          >
+                            {comment.content}
+                          </ReactMarkdown>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
