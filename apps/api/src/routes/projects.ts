@@ -188,6 +188,24 @@ projects.delete('/:projectId', async (c) => {
 
 // === Task States ===
 
+// Get task states for a project
+projects.get('/:projectId/states', async (c) => {
+  const user = getCurrentUser(c);
+  const projectId = c.req.param('projectId');
+
+  const projectResult = await projectService.getById(projectId);
+  if (!projectResult.ok) {
+    return c.json({ success: false, error: { code: 'NOT_FOUND', message: projectResult.error.message } }, 404);
+  }
+
+  const { allowed } = await checkWorkspaceAccess(projectResult.value.workspaceId, user.id, 'project:read');
+  if (!allowed) {
+    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
+  }
+
+  return c.json({ success: true, data: projectResult.value.taskStates || [] });
+});
+
 // Create task state
 projects.post(
   '/:projectId/states',

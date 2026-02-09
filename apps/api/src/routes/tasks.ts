@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { getDatabase, projectIntegrations, externalLinks } from '@flowtask/database';
+import { getDatabase, projectIntegrations, externalLinks, taskStates } from '@flowtask/database';
 import { TaskService, ProjectService, WorkspaceService } from '@flowtask/domain';
 import { getCurrentUser } from '@flowtask/auth';
 import { CreateTaskSchema, UpdateTaskSchema, MoveTaskSchema, CreateCommentSchema } from '@flowtask/shared';
@@ -296,6 +296,24 @@ tasks.post(
     const { allowed, project } = await checkTaskAccess(taskResult.value.projectId, user.id, 'task:update');
     if (!allowed) {
       return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
+    }
+
+    // Validate that target state belongs to the same project (safety net for cross-project moves)
+    if (data.stateId) {
+      const targetState = await db.query.taskStates.findFirst({
+        where: eq(taskStates.id, data.stateId),
+      });
+
+      if (!targetState) {
+        return c.json({ success: false, error: { code: 'STATE_NOT_FOUND', message: 'Invalid state' } }, 400);
+      }
+
+      if (targetState.projectId !== taskResult.value.projectId) {
+        return c.json({
+          success: false,
+          error: { code: 'CROSS_PROJECT_MOVE', message: 'Cannot move task to a state from a different project' }
+        }, 400);
+      }
     }
 
     const result = await taskService.move(taskId, {

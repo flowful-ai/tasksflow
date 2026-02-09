@@ -87,11 +87,17 @@ const displayTypeIcons: Record<DisplayType, React.ComponentType<{ className?: st
   calendar: Calendar,
 };
 
+// Extended TaskState with projectId for cross-project state resolution
+interface AvailableState extends TaskState {
+  projectId: string;
+}
+
 export function SmartViewPage() {
   const { viewId } = useParams<{ viewId: string }>();
   const queryClient = useQueryClient();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [showShareDialog, setShowShareDialog] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['smart-view-execute', viewId],
@@ -143,6 +149,37 @@ export function SmartViewPage() {
     },
   });
 
+  // Extract unique project IDs from tasks
+  const projectIds = useMemo(() => {
+    if (!data?.tasks) return [];
+    return [...new Set(data.tasks.map(t => t.project.id))];
+  }, [data?.tasks]);
+
+  // Fetch states for all projects appearing in the view
+  const { data: allProjectStates } = useQuery({
+    queryKey: ['projects-states', projectIds],
+    queryFn: async (): Promise<AvailableState[]> => {
+      const results = await Promise.all(
+        projectIds.map(pid =>
+          api.get<{ data: TaskState[] }>(`/api/projects/${pid}/states`)
+            .then(r => r.data.map(s => ({ ...s, projectId: pid })))
+        )
+      );
+      return results.flat();
+    },
+    enabled: projectIds.length > 0,
+  });
+
+  // Move task mutation
+  const moveMutation = useMutation({
+    mutationFn: async ({ taskId, stateId, position }: { taskId: string; stateId: string; position: string }) => {
+      await api.post(`/api/tasks/${taskId}/move`, { stateId, position });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['smart-view-execute', viewId] });
+    },
+  });
+
   // Transform tasks to TaskCardTask format
   const tasks: TaskCardTask[] = useMemo(() => {
     if (!data?.tasks) return [];
@@ -151,6 +188,7 @@ export function SmartViewPage() {
       title: task.title,
       priority: task.priority,
       dueDate: task.dueDate,
+      position: task.position,
       state: task.state,
       assignees: task.assignees,
       labels: task.labels,
@@ -196,6 +234,15 @@ export function SmartViewPage() {
     queryClient.invalidateQueries({ queryKey: ['smart-view-execute', viewId] });
   };
 
+  const handleTaskMove = async (taskId: string, stateId: string, position: string) => {
+    await moveMutation.mutateAsync({ taskId, stateId, position });
+  };
+
+  const handleInvalidDrop = (message: string) => {
+    setErrorMessage(message);
+    setTimeout(() => setErrorMessage(null), 3000);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -217,6 +264,7 @@ export function SmartViewPage() {
   const groupBy = view.groupBy || 'state';
   const secondaryGroupBy = view.secondaryGroupBy || undefined;
   const DisplayIcon = displayTypeIcons[displayType] || List;
+  const isStateGrouping = groupBy === 'state' || secondaryGroupBy === 'state';
 
   return (
     <div className="h-full flex flex-col">
@@ -269,11 +317,21 @@ export function SmartViewPage() {
           groupBy={groupBy}
           secondaryGroupBy={secondaryGroupBy}
           onTaskClick={handleTaskClick}
+          onTaskMove={isStateGrouping ? handleTaskMove : undefined}
+          onInvalidDrop={handleInvalidDrop}
           showProject={true}
-          allowDragDrop={false}
+          allowDragDrop={displayType === 'kanban' && isStateGrouping}
+          availableStates={allProjectStates}
           mergeStatesByCategory={true}
         />
       </div>
+
+      {/* Error toast for invalid drops */}
+      {errorMessage && (
+        <div className="fixed bottom-4 right-4 bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-in fade-in slide-in-from-bottom-2">
+          {errorMessage}
+        </div>
+      )}
 
       {/* Task detail sheet */}
       {selectedTaskId && selectedTask && (

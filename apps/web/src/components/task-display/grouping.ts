@@ -7,6 +7,7 @@ export interface TaskGroup {
   name: string;
   color: string | null;
   category?: string;
+  projectId?: string;
   tasks: TaskCardTask[];
 }
 
@@ -14,6 +15,8 @@ export interface AvailableState {
   id: string;
   name: string;
   color: string | null;
+  category?: string;
+  projectId?: string;
 }
 
 const priorityOrder: Record<string, number> = {
@@ -82,15 +85,30 @@ export function groupTasks(
 
   const groupMap = new Map<string, TaskGroup>();
 
-  // For state grouping with availableStates, pre-populate all states to ensure empty columns appear
+  // For state grouping with availableStates, pre-populate to ensure empty columns appear
   if (groupBy === 'state' && availableStates) {
-    for (const state of availableStates) {
-      groupMap.set(state.id, {
-        id: state.id,
-        name: state.name,
-        color: state.color,
-        tasks: [],
-      });
+    if (mergeStatesByCategory) {
+      // When merging by category, pre-populate by category names (matching getGroupInfo logic)
+      const categories = new Set(availableStates.map(s => s.category || 'backlog'));
+      for (const category of categories) {
+        groupMap.set(category, {
+          id: category,
+          name: categoryLabels[category] || category,
+          color: categoryColors[category] || '#6b7280',
+          category,
+          tasks: [],
+        });
+      }
+    } else {
+      // Pre-populate individual states
+      for (const state of availableStates) {
+        groupMap.set(state.id, {
+          id: state.id,
+          name: state.name,
+          color: state.color,
+          tasks: [],
+        });
+      }
     }
   }
 
@@ -107,7 +125,7 @@ export function groupTasks(
 
   // Sort groups based on groupBy type
   const groups = Array.from(groupMap.values());
-  return sortGroups(groups, groupBy, availableStates);
+  return sortGroups(groups, groupBy, availableStates, mergeStatesByCategory);
 }
 
 /**
@@ -192,7 +210,8 @@ export function taskMatchesGroup(
 function sortGroups(
   groups: TaskGroup[],
   groupBy: GroupBy,
-  availableStates?: AvailableState[]
+  availableStates?: AvailableState[],
+  mergeStatesByCategory?: boolean
 ): TaskGroup[] {
   switch (groupBy) {
     case 'priority':
@@ -203,6 +222,14 @@ function sortGroups(
       });
 
     case 'state':
+      // When merging by category, sort by category order
+      if (mergeStatesByCategory) {
+        return groups.sort((a, b) => {
+          const aOrder = stateCategoryOrder[a.id] ?? 999;
+          const bOrder = stateCategoryOrder[b.id] ?? 999;
+          return aOrder - bOrder;
+        });
+      }
       // Sort states according to availableStates order if provided
       if (availableStates) {
         const stateOrder = new Map(availableStates.map((s, i) => [s.id, i]));

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -24,7 +24,8 @@ interface GroupedKanbanBoardProps {
   groupBy: GroupBy;
   secondaryGroupBy?: GroupBy;
   onTaskClick: (taskId: string) => void;
-  onTaskMove?: (taskId: string, groupId: string, position: string) => Promise<void>;
+  onTaskMove?: (taskId: string, stateId: string, position: string) => Promise<void>;
+  onInvalidDrop?: (message: string) => void;
   showProject?: boolean;
   allowDragDrop?: boolean;
   availableStates?: AvailableState[];
@@ -37,13 +38,26 @@ export function GroupedKanbanBoard({
   secondaryGroupBy,
   onTaskClick,
   onTaskMove,
+  onInvalidDrop,
   showProject = true,
   allowDragDrop = false,
   availableStates,
   mergeStatesByCategory,
 }: GroupedKanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
-  const dragEnabled = allowDragDrop && !secondaryGroupBy;
+
+  // Allow drag when state is primary OR secondary grouping
+  const isStateGrouping = groupBy === 'state' || secondaryGroupBy === 'state';
+  const dragEnabled = allowDragDrop && isStateGrouping;
+
+  // Helper to find the actual state ID for a project within a category
+  const findStateForProject = useCallback((projectId: string, category: string): string | null => {
+    if (!availableStates) return null;
+    const state = availableStates.find(
+      s => s.projectId === projectId && s.category === category
+    );
+    return state?.id || null;
+  }, [availableStates]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -85,36 +99,154 @@ export function GroupedKanbanBoard({
     const taskId = active.id as string;
     const overId = over.id as string;
 
-    // Find the target group
-    const targetGroup = groups.find((g) => g.id === overId);
-    if (targetGroup) {
-      // Dropped on a column - place at the end
-      const columnTasks = targetGroup.tasks;
-      const lastTask = columnTasks[columnTasks.length - 1];
-      const position = lastTask ? generatePositionAfter(lastTask.id) : 'a0';
+    const draggedTask = tasks.find(t => t.id === taskId);
+    if (!draggedTask) return;
 
-      await onTaskMove(taskId, targetGroup.id, position);
-      return;
-    }
+    let targetStateId: string | null = null;
+    let targetTasks: TaskCardTask[] = [];
 
-    // Find if dropped on another task
-    const targetTask = tasks.find((t) => t.id === overId);
-    if (targetTask) {
-      const taskGroup = groups.find((g) => g.tasks.some((t) => t.id === overId));
-      if (taskGroup) {
-        const columnTasks = taskGroup.tasks;
-        const targetIndex = columnTasks.findIndex((t) => t.id === overId);
-        const beforeTask = columnTasks[targetIndex - 1];
-        const afterTask = targetTask;
-
-        const position = beforeTask
-          ? generatePositionBetween(beforeTask.id, afterTask.id)
-          : generatePositionBefore(afterTask.id);
-
-        await onTaskMove(taskId, taskGroup.id, position);
+    // Case 1: State is PRIMARY grouping (state columns)
+    if (groupBy === 'state') {
+      // Check if dropped on a column
+      const targetGroup = groups.find((g) => g.id === overId);
+      if (targetGroup) {
+        if (mergeStatesByCategory && targetGroup.category) {
+          // Merged by category: resolve to actual state for task's project
+          targetStateId = findStateForProject(draggedTask.project.id, targetGroup.category);
+          if (!targetStateId) {
+            onInvalidDrop?.(`No ${targetGroup.name} state found for project ${draggedTask.project.name}`);
+            return;
+          }
+        } else {
+          // Direct state grouping: validate same project
+          const targetState = availableStates?.find(s => s.id === targetGroup.id);
+          if (targetState && targetState.projectId !== draggedTask.project.id) {
+            onInvalidDrop?.('Cannot move to a state from another project');
+            return;
+          }
+          targetStateId = targetGroup.id;
+        }
+        targetTasks = targetGroup.tasks;
+      } else {
+        // Check if dropped on a task
+        const targetTask = tasks.find((t) => t.id === overId);
+        if (targetTask) {
+          const taskGroup = groups.find((g) => g.tasks.some((t) => t.id === overId));
+          if (taskGroup) {
+            if (mergeStatesByCategory && taskGroup.category) {
+              targetStateId = findStateForProject(draggedTask.project.id, taskGroup.category);
+              if (!targetStateId) {
+                onInvalidDrop?.(`No ${taskGroup.name} state found for project ${draggedTask.project.name}`);
+                return;
+              }
+            } else {
+              const targetState = availableStates?.find(s => s.id === taskGroup.id);
+              if (targetState && targetState.projectId !== draggedTask.project.id) {
+                onInvalidDrop?.('Cannot move to a state from another project');
+                return;
+              }
+              targetStateId = taskGroup.id;
+            }
+            targetTasks = taskGroup.tasks;
+          }
+        }
       }
     }
+
+    // Case 2: State is SECONDARY grouping (state rows)
+    else if (secondaryGroupBy === 'state') {
+      // Parse compound ID: "stateCategory:primaryGroupId"
+      const [stateCategory, primaryGroupId] = overId.includes(':')
+        ? overId.split(':')
+        : [null, overId];
+
+      if (stateCategory) {
+        // Find the row (state category) and validate
+        const targetRowGroup = rowGroups?.find(g => g.id === stateCategory);
+        if (!targetRowGroup) return;
+
+        // When primary is 'project', the primaryGroupId IS the projectId
+        if (groupBy === 'project') {
+          if (primaryGroupId !== draggedTask.project.id) {
+            onInvalidDrop?.('Cannot move task to a different project');
+            return;
+          }
+        }
+
+        // Resolve actual state ID for this category in the task's project
+        targetStateId = findStateForProject(draggedTask.project.id, stateCategory);
+        if (!targetStateId) {
+          onInvalidDrop?.(`No ${targetRowGroup.name} state found for project ${draggedTask.project.name}`);
+          return;
+        }
+
+        // Find target tasks for position calculation
+        const rowTasks = tasks.filter(t => taskMatchesGroup(t, secondaryGroupBy, stateCategory, mergeStatesByCategory));
+        targetTasks = rowTasks.filter(t => taskMatchesGroup(t, groupBy, primaryGroupId, mergeStatesByCategory));
+      } else {
+        // Dropped on a task without compound ID - find its group
+        const targetTask = tasks.find((t) => t.id === overId);
+        const targetCategory = targetTask?.state?.category;
+        if (targetTask && targetCategory) {
+          // Validate same project
+          if (targetTask.project.id !== draggedTask.project.id) {
+            onInvalidDrop?.('Cannot move task to a different project');
+            return;
+          }
+
+          targetStateId = findStateForProject(draggedTask.project.id, targetCategory);
+          if (!targetStateId) {
+            onInvalidDrop?.(`No ${targetTask.state?.name || targetCategory} state found for project ${draggedTask.project.name}`);
+            return;
+          }
+
+          // Find target tasks for position calculation
+          // secondaryGroupBy is guaranteed to be 'state' here (checked in parent if)
+          const rowTasks = tasks.filter(t => taskMatchesGroup(t, secondaryGroupBy!, targetCategory, mergeStatesByCategory));
+          targetTasks = rowTasks.filter(t => taskMatchesGroup(t, groupBy, getGroupId(targetTask, groupBy), mergeStatesByCategory));
+        }
+      }
+    }
+
+    if (!targetStateId) return;
+
+    // Calculate position
+    const targetIndex = targetTasks.findIndex((t) => t.id === overId);
+    let position: string;
+
+    if (targetIndex >= 0) {
+      // Dropped on a task - insert before it
+      const beforeTask = targetTasks[targetIndex - 1];
+      const afterTask = targetTasks[targetIndex];
+      position = beforeTask
+        ? generatePositionBetween(beforeTask.position || 'a0', afterTask?.position || 'z')
+        : generatePositionBefore(afterTask?.position || 'a0');
+    } else {
+      // Dropped on column - place at end
+      const lastTask = targetTasks[targetTasks.length - 1];
+      position = lastTask ? generatePositionAfter(lastTask.position || 'a0') : 'a0';
+    }
+
+    await onTaskMove(taskId, targetStateId, position);
   };
+
+  // Helper to get the primary group ID for a task
+  function getGroupId(task: TaskCardTask, group: GroupBy): string {
+    switch (group) {
+      case 'project':
+        return task.project.id;
+      case 'state':
+        return task.state?.id || 'no-state';
+      case 'priority':
+        return task.priority || 'none';
+      case 'assignee':
+        return task.assignees[0]?.id || 'unassigned';
+      case 'label':
+        return task.labels[0]?.id || 'no-label';
+      default:
+        return 'all';
+    }
+  }
 
   if (groups.length === 0) {
     return (
@@ -168,31 +300,37 @@ export function GroupedKanbanBoard({
                     <span className="text-sm text-gray-500">({rowGroup.tasks.length})</span>
                   </div>
                 </div>
-                {rowColumns.map((group) => (
-                  <SortableContext
-                    key={`${rowGroup.id}-${group.id}`}
-                    items={group.tasks.map((t) => t.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    <GroupedKanbanColumn
-                      id={group.id}
-                      name={group.name}
-                      color={group.color}
-                      taskCount={group.tasks.length}
+                {rowColumns.map((group) => {
+                  // Use compound ID when state is secondary grouping: "stateCategory:primaryGroupId"
+                  const columnId = secondaryGroupBy === 'state'
+                    ? `${rowGroup.id}:${group.id}`
+                    : group.id;
+                  return (
+                    <SortableContext
+                      key={`${rowGroup.id}-${group.id}`}
+                      items={group.tasks.map((t) => t.id)}
+                      strategy={verticalListSortingStrategy}
                     >
-                      {group.tasks.map((task) => (
-                        <TaskCard
-                          key={task.id}
-                          task={task}
-                          onClick={() => onTaskClick(task.id)}
-                          showProject={effectiveShowProject}
-                          showState={showState}
-                          draggable={dragEnabled}
-                        />
-                      ))}
-                    </GroupedKanbanColumn>
-                  </SortableContext>
-                ))}
+                      <GroupedKanbanColumn
+                        id={columnId}
+                        name={group.name}
+                        color={group.color}
+                        taskCount={group.tasks.length}
+                      >
+                        {group.tasks.map((task) => (
+                          <TaskCard
+                            key={task.id}
+                            task={task}
+                            onClick={() => onTaskClick(task.id)}
+                            showProject={effectiveShowProject}
+                            showState={showState}
+                            draggable={dragEnabled}
+                          />
+                        ))}
+                      </GroupedKanbanColumn>
+                    </SortableContext>
+                  );
+                })}
               </div>
             );
           })}

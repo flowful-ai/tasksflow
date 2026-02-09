@@ -8,6 +8,7 @@ interface TaskCardTask {
   title: string;
   priority: string | null;
   dueDate: string | null;
+  position?: string;
   state: {
     id: string;
     name: string;

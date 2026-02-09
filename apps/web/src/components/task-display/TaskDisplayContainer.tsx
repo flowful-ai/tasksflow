@@ -11,7 +11,8 @@ interface TaskDisplayContainerProps {
   groupBy: GroupBy;
   secondaryGroupBy?: GroupBy | null;
   onTaskClick: (taskId: string) => void;
-  onTaskMove?: (taskId: string, groupId: string, position: string) => Promise<void>;
+  onTaskMove?: (taskId: string, stateId: string, position: string) => Promise<void>;
+  onInvalidDrop?: (message: string) => void;
   showProject?: boolean;
   allowDragDrop?: boolean;
   availableStates?: AvailableState[];
@@ -25,6 +26,7 @@ export function TaskDisplayContainer({
   secondaryGroupBy,
   onTaskClick,
   onTaskMove,
+  onInvalidDrop,
   showProject = true,
   allowDragDrop = false,
   availableStates,
@@ -39,6 +41,7 @@ export function TaskDisplayContainer({
           secondaryGroupBy={secondaryGroupBy ?? undefined}
           onTaskClick={onTaskClick}
           onTaskMove={onTaskMove}
+          onInvalidDrop={onInvalidDrop}
           showProject={showProject}
           allowDragDrop={allowDragDrop}
           availableStates={availableStates}
