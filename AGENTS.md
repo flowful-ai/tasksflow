@@ -51,3 +51,6 @@
   - `bun run typecheck`
   - `bun run lint` (if configured)
   - package-scoped commands when changes are localized
+- Build changed workspace dependencies before downstream validation when they publish types/artifacts from `dist` (for example `packages/domain` consumed by `apps/api`):
+  - run `bun run --filter <changed-package> build` first
+  - then run dependent package checks (`typecheck`/`build`)

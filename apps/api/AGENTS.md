@@ -26,5 +26,8 @@
 - For API-local changes:
   - `bun run --filter @flowtask/api typecheck`
   - `bun run --filter @flowtask/api build`
+- If API changes depend on updates in workspace libraries that ship `dist` types/artifacts (for example `@flowtask/domain` or `@flowtask/shared`), build those packages first:
+  - `bun run --filter @flowtask/domain build`
+  - `bun run --filter @flowtask/shared build` (if changed)
 - When contracts/shared types changed:
   - `bun run typecheck`

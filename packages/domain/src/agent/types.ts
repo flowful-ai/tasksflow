@@ -57,6 +57,13 @@ export interface ToolDefinition {
     }>;
     required: string[];
   };
+  annotations?: {
+    title?: string;
+    readOnlyHint?: boolean;
+    destructiveHint?: boolean;
+    idempotentHint?: boolean;
+    openWorldHint?: boolean;
+  };
 }
 
 export const AGENT_TOOLS: ToolDefinition[] = [
@@ -78,6 +85,11 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       },
       required: ['projectId', 'title'],
     },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
   },
   {
     name: 'update_task',
@@ -97,6 +109,11 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       },
       required: ['taskId'],
     },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
   },
   {
     name: 'delete_task',
@@ -107,6 +124,11 @@ export const AGENT_TOOLS: ToolDefinition[] = [
         taskId: { type: 'string', description: 'The ID of the task to delete' },
       },
       required: ['taskId'],
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      openWorldHint: false,
     },
   },
   {
@@ -128,6 +150,10 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       },
       required: [],
     },
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
+    },
   },
   {
     name: 'move_task',
@@ -139,6 +165,11 @@ export const AGENT_TOOLS: ToolDefinition[] = [
         stateId: { type: 'string', description: 'The target state ID' },
       },
       required: ['taskId', 'stateId'],
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: false,
     },
   },
   {
@@ -157,6 +188,11 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       },
       required: ['taskId', 'userId', 'action'],
     },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
   },
   {
     name: 'add_comment',
@@ -169,6 +205,11 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       },
       required: ['taskId', 'content'],
     },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
   },
   {
     name: 'summarize_project',
@@ -179,6 +220,10 @@ export const AGENT_TOOLS: ToolDefinition[] = [
         projectId: { type: 'string', description: 'The ID of the project to summarize' },
       },
       required: ['projectId'],
+    },
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
     },
   },
   {
@@ -193,6 +238,11 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       },
       required: ['name'],
     },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: false,
+    },
   },
   {
     name: 'search_tasks',
@@ -205,6 +255,10 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       },
       required: ['query'],
     },
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
+    },
   },
   {
     name: 'list_projects',
@@ -213,6 +267,10 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       type: 'object',
       properties: {},
       required: [],
+    },
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
     },
   },
 ];

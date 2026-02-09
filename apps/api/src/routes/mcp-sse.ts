@@ -454,6 +454,7 @@ function createMcpServer(tokenAuth: OAuthMcpAuthContext): McpServer {
         name: tool.name,
         description: tool.description,
         inputSchema: tool.parameters,
+        annotations: tool.annotations,
       })),
     };
   });
