@@ -15,11 +15,23 @@ export function RegisterPage() {
   const [validationError, setValidationError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const completeRedirect = (target: string, replace = false) => {
+    if (/^https?:\/\//i.test(target)) {
+      if (replace) {
+        window.location.replace(target);
+      } else {
+        window.location.assign(target);
+      }
+      return;
+    }
+    navigate(target, { replace });
+  };
+
   useEffect(() => {
     if (isAuthenticated) {
-      navigate(redirectTo, { replace: true });
+      completeRedirect(redirectTo, true);
     }
-  }, [isAuthenticated, navigate, redirectTo]);
+  }, [isAuthenticated, redirectTo]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,7 +50,7 @@ export function RegisterPage() {
     setIsSubmitting(true);
     try {
       await register(email, password, name || undefined);
-      navigate(redirectTo);
+      completeRedirect(redirectTo);
     } catch {
       // Error is handled by the store
     } finally {
