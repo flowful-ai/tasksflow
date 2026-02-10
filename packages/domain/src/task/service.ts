@@ -29,6 +29,27 @@ import type {
   TaskEventInput,
 } from './types.js';
 
+export function taskListNeedsAssigneeJoin(
+  filters: TaskFilters,
+  requiredJoins: Set<'task_states' | 'task_assignees' | 'task_labels'>
+): boolean {
+  return requiredJoins.has('task_assignees') || Boolean(filters.assigneeId) || Boolean(filters.assigneeIds?.length);
+}
+
+export function buildTaskAssigneeConditions(filters: TaskFilters): SQL[] {
+  const conditions: SQL[] = [];
+
+  if (filters.assigneeId) {
+    conditions.push(eq(taskAssignees.userId, filters.assigneeId));
+  }
+
+  if (filters.assigneeIds?.length) {
+    conditions.push(inArray(taskAssignees.userId, filters.assigneeIds));
+  }
+
+  return conditions;
+}
+
 export class TaskService {
   constructor(private db: Database) {}
 
@@ -377,6 +398,8 @@ export class TaskService {
         conditions.push(inArray(tasks.stateId, filters.stateIds));
       }
 
+      conditions.push(...buildTaskAssigneeConditions(filters));
+
       if (filters.priority) {
         conditions.push(eq(tasks.priority, filters.priority));
       }
@@ -423,7 +446,7 @@ export class TaskService {
       const orderFn = sortOrder === 'desc' ? desc : asc;
 
       // Determine if we need additional joins for the count query
-      const needsAssigneeJoin = requiredJoins.has('task_assignees');
+      const needsAssigneeJoin = taskListNeedsAssigneeJoin(filters, requiredJoins);
       const needsLabelJoin = requiredJoins.has('task_labels');
 
       // Get total count (with necessary joins for filter conditions)

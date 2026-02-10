@@ -9,6 +9,7 @@ import { AGENT_TOOLS } from '@flowtask/domain';
 import { extractBearerToken } from '@flowtask/auth';
 import { publishEvent } from '../sse/manager.js';
 import { McpOAuthService, OAuthError, type OAuthMcpAuthContext } from '../services/mcp-oauth-service.js';
+import { resolveQueryTasksAssigneeId } from './mcp-tool-args.js';
 
 /**
  * MCP SSE transport endpoints for native MCP protocol support.
@@ -243,6 +244,7 @@ async function executeMcpTool(
 
     case 'query_tasks': {
       const projectId = args.projectId as string | undefined;
+      const assigneeId = resolveQueryTasksAssigneeId(args, tokenAuth.userId);
 
       if (projectId) {
         const canAccess = await canTokenAccessProject(tokenAuth, projectId);
@@ -256,7 +258,7 @@ async function executeMcpTool(
           projectId,
           stateId: args.stateId as string | undefined,
           priority: args.priority as 'urgent' | 'high' | 'medium' | 'low' | 'none' | undefined,
-          assigneeId: args.assigneeId as string | undefined,
+          assigneeId,
           search: args.search as string | undefined,
         },
         limit: parseInt(args.limit as string || '20', 10),
@@ -520,7 +522,7 @@ function createMcpServer(tokenAuth: OAuthMcpAuthContext): McpServer {
       capabilities: {
         tools: {},
       },
-      instructions: 'FlowTask MCP server for task management. Use the available tools to manage tasks, projects, and comments.',
+      instructions: 'FlowTask MCP server for task management. Use query_tasks for listing/filtering tasks. For "my tasks", call query_tasks with assigneeId set to "me". Use search_tasks only for full-text keyword search.',
     }
   );
 

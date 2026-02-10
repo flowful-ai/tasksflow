@@ -8,6 +8,7 @@ import { extractBearerToken } from '@flowtask/auth';
 import { AGENT_TOOLS } from '@flowtask/domain';
 import { publishEvent } from '../sse/manager.js';
 import { McpOAuthService, OAuthError, type OAuthMcpAuthContext } from '../services/mcp-oauth-service.js';
+import { resolveQueryTasksAssigneeId } from './mcp-tool-args.js';
 
 /**
  * MCP (Model Context Protocol) endpoints for AI agent tool execution.
@@ -276,6 +277,7 @@ mcp.post(
 
         case 'query_tasks': {
           let projectId = args.projectId as string | undefined;
+          const assigneeId = resolveQueryTasksAssigneeId(args, oauthAuth.userId);
 
           if (projectId) {
             const canAccess = await canTokenAccessProject(oauthAuth, projectId);
@@ -292,7 +294,7 @@ mcp.post(
               projectId,
               stateId: args.stateId as string | undefined,
               priority: args.priority as 'urgent' | 'high' | 'medium' | 'low' | 'none' | undefined,
-              assigneeId: args.assigneeId as string | undefined,
+              assigneeId,
               search: args.search as string | undefined,
             },
             limit: parseInt(args.limit as string || '20', 10),

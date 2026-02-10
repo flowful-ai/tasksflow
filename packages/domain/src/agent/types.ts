@@ -172,7 +172,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'query_tasks',
-    description: 'Search and filter tasks',
+    description: 'Primary tool to list and filter tasks using structured filters',
     parameters: {
       type: 'object',
       properties: {
@@ -183,7 +183,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
           description: 'Filter by priority',
           enum: ['urgent', 'high', 'medium', 'low', 'none'],
         },
-        assigneeId: { type: 'string', description: 'Filter by assignee ID' },
+        assigneeId: { type: 'string', description: 'Filter by assignee ID. Use "me" for the current authenticated user' },
         search: { type: 'string', description: 'Search in title and description' },
         limit: { type: 'string', description: 'Maximum number of results (default 20)' },
       },
@@ -285,7 +285,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'search_tasks',
-    description: 'Full-text search across all tasks',
+    description: 'Full-text keyword search across tasks (not for structured assignee filtering)',
     parameters: {
       type: 'object',
       properties: {
