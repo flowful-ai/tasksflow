@@ -61,6 +61,24 @@ export function createAuth(options?: { baseURL?: string }) {
         image: 'avatarUrl',
       },
     },
+    databaseHooks: {
+      user: {
+        create: {
+          // Bootstrap the very first account as app_manager for fresh deployments.
+          before: async (user) => {
+            const [existingUser] = await db.select({ id: schema.users.id }).from(schema.users).limit(1);
+            const existingRole = 'appRole' in user ? user.appRole : undefined;
+
+            return {
+              data: {
+                ...user,
+                appRole: existingRole ?? (existingUser ? 'user' : 'app_manager'),
+              },
+            };
+          },
+        },
+      },
+    },
     trustedOrigins: [
       'http://localhost:3000',
       'http://localhost:3001',
