@@ -57,7 +57,7 @@ export function BulkTaskToolbar({
 
   return (
     <>
-      <div className="mb-4 rounded-lg border border-primary-200 bg-primary-50 px-4 py-3">
+      <div className="sticky top-0 z-30 mb-4 rounded-lg border border-primary-200 bg-primary-50/95 px-4 py-3 shadow-sm backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-sm">
             <span className="font-semibold text-primary-900">{selectedCount} selected</span>
