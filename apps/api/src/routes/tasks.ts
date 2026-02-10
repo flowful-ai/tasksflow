@@ -4,11 +4,18 @@ import { z } from 'zod';
 import { getDatabase, projectIntegrations, externalLinks, taskStates } from '@flowtask/database';
 import { TaskService, ProjectService, WorkspaceService } from '@flowtask/domain';
 import { getCurrentUser } from '@flowtask/auth';
-import { CreateTaskSchema, UpdateTaskSchema, MoveTaskSchema, CreateCommentSchema } from '@flowtask/shared';
+import {
+  CreateTaskSchema,
+  UpdateTaskSchema,
+  MoveTaskSchema,
+  CreateCommentSchema,
+  LinkTaskGitHubPrSchema,
+} from '@flowtask/shared';
 import { hasPermission } from '@flowtask/auth';
 import { publishEvent } from '../sse/manager.js';
 import { GitHubReverseSyncService, createGitHubClientForInstallation } from '@flowtask/integrations';
 import { and, eq } from 'drizzle-orm';
+import { TaskGitHubLinkError, TaskGitHubLinkService } from '../services/task-github-link-service.js';
 
 const tasks = new Hono();
 const db = getDatabase();
@@ -16,6 +23,7 @@ const taskService = new TaskService(db);
 const projectService = new ProjectService(db);
 const workspaceService = new WorkspaceService(db);
 const githubReverseSync = new GitHubReverseSyncService(db);
+const taskGitHubLinkService = new TaskGitHubLinkService(db);
 
 // Helper to trigger GitHub reverse sync (async, non-blocking)
 function triggerGitHubSync(
@@ -658,6 +666,63 @@ tasks.post(
       return c.json({
         success: false,
         error: { code: 'GITHUB_ERROR', message: error instanceof Error ? error.message : 'Failed to create GitHub issue' },
+      }, 500);
+    }
+  }
+);
+
+// Link an existing GitHub pull request to an existing task
+tasks.post(
+  '/:taskId/github-pr',
+  zValidator('json', LinkTaskGitHubPrSchema),
+  async (c) => {
+    const user = getCurrentUser(c);
+    const taskId = c.req.param('taskId');
+    const { owner, repo, prNumber } = c.req.valid('json');
+
+    // 1. Get task and verify access
+    const taskResult = await taskService.getById(taskId);
+    if (!taskResult.ok) {
+      return c.json({ success: false, error: { code: 'NOT_FOUND', message: taskResult.error.message } }, 404);
+    }
+
+    const { allowed, project } = await checkTaskAccess(taskResult.value.projectId, user.id, 'task:update');
+    if (!allowed) {
+      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
+    }
+
+    try {
+      const linkResult = await taskGitHubLinkService.linkPullRequestToTask({
+        taskId,
+        projectId: taskResult.value.projectId,
+        owner,
+        repo,
+        prNumber,
+      });
+
+      const updatedTask = await taskService.getById(taskId);
+      if (updatedTask.ok) {
+        publishEvent(project!.workspaceId, 'task:updated', updatedTask.value);
+      }
+
+      return c.json({
+        success: true,
+        data: linkResult,
+      }, 201);
+    } catch (error) {
+      if (error instanceof TaskGitHubLinkError) {
+        return c.json({
+          success: false,
+          error: { code: error.code, message: error.message },
+        }, error.status);
+      }
+
+      return c.json({
+        success: false,
+        error: {
+          code: 'GITHUB_ERROR',
+          message: error instanceof Error ? error.message : 'Failed to link GitHub pull request',
+        },
       }, 500);
     }
   }

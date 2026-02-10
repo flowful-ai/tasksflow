@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { resolveQueryTasksAssigneeId } from './mcp-tool-args.js';
+import { resolveQueryTasksAssigneeId, resolveUpdateTaskGitHubPrArgs } from './mcp-tool-args.js';
 
 describe('resolveQueryTasksAssigneeId', () => {
   it('resolves "me" to current user id', () => {
@@ -21,5 +21,43 @@ describe('resolveQueryTasksAssigneeId', () => {
     expect(() => resolveQueryTasksAssigneeId({ assignedId: 'me' }, 'user-123')).toThrow(
       'assignedId is not supported. Use assigneeId.'
     );
+  });
+});
+
+describe('resolveUpdateTaskGitHubPrArgs', () => {
+  it('returns null when no pull request arguments are provided', () => {
+    const args = resolveUpdateTaskGitHubPrArgs({});
+    expect(args).toBeNull();
+  });
+
+  it('parses and normalizes pull request arguments', () => {
+    const args = resolveUpdateTaskGitHubPrArgs({
+      githubPrOwner: '  flowful-ai  ',
+      githubPrRepo: '  tasksflow ',
+      githubPrNumber: '42',
+    });
+    expect(args).toEqual({
+      owner: 'flowful-ai',
+      repo: 'tasksflow',
+      prNumber: 42,
+    });
+  });
+
+  it('throws when pull request arguments are incomplete', () => {
+    expect(() =>
+      resolveUpdateTaskGitHubPrArgs({
+        githubPrOwner: 'flowful-ai',
+      })
+    ).toThrow('githubPrRepo is required when linking a pull request');
+  });
+
+  it('throws when pull request number is not a positive integer', () => {
+    expect(() =>
+      resolveUpdateTaskGitHubPrArgs({
+        githubPrOwner: 'flowful-ai',
+        githubPrRepo: 'tasksflow',
+        githubPrNumber: 0,
+      })
+    ).toThrow('githubPrNumber must be a positive integer when linking a pull request');
   });
 });

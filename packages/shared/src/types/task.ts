@@ -76,6 +76,14 @@ export const MoveTaskSchema = z.object({
 
 export type MoveTask = z.infer<typeof MoveTaskSchema>;
 
+export const LinkTaskGitHubPrSchema = z.object({
+  owner: z.string().min(1),
+  repo: z.string().min(1),
+  prNumber: z.coerce.number().int().positive(),
+});
+
+export type LinkTaskGitHubPr = z.infer<typeof LinkTaskGitHubPrSchema>;
+
 // Task with relations
 export const TaskWithRelationsSchema = TaskSchema.extend({
   state: TaskStateSchema.nullable(),

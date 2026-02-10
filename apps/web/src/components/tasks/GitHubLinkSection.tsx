@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ExternalLink, Plus, Loader2, GitBranch } from 'lucide-react';
+import { ExternalLink, Plus, Loader2, GitBranch, Link2 } from 'lucide-react';
 import { api, githubApi } from '../../api/client';
 
 interface ExternalLinkData {
@@ -19,7 +19,10 @@ interface Props {
 
 export function GitHubLinkSection({ taskId, projectId, externalLinks, onUpdated }: Props) {
   const queryClient = useQueryClient();
-  const [showRepoSelector, setShowRepoSelector] = useState(false);
+  const [showIssueRepoSelector, setShowIssueRepoSelector] = useState(false);
+  const [showPrLinker, setShowPrLinker] = useState(false);
+  const [selectedPrRepo, setSelectedPrRepo] = useState('');
+  const [prNumber, setPrNumber] = useState('');
 
   const { data: integration } = useQuery({
     queryKey: ['github-integration', projectId],
@@ -34,7 +37,22 @@ export function GitHubLinkSection({ taskId, projectId, externalLinks, onUpdated 
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['task', taskId] });
-      setShowRepoSelector(false);
+      setShowIssueRepoSelector(false);
+      onUpdated?.();
+    },
+  });
+
+  const linkPrMutation = useMutation({
+    mutationFn: (payload: { owner: string; repo: string; prNumber: number }) =>
+      api.post<{ success: boolean; data: { url: string; number: number } }>(
+        `/api/tasks/${taskId}/github-pr`,
+        payload
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+      setShowPrLinker(false);
+      setSelectedPrRepo('');
+      setPrNumber('');
       onUpdated?.();
     },
   });
@@ -54,14 +72,27 @@ export function GitHubLinkSection({ taskId, projectId, externalLinks, onUpdated 
           <GitBranch className="w-4 h-4" />
           <span>GitHub</span>
         </div>
-        {hasIntegration && !hasLinkedIssue && !showRepoSelector && (
-          <button
-            onClick={() => setShowRepoSelector(true)}
-            className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-            title="Create GitHub issue"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
+        {hasIntegration && (
+          <div className="flex items-center gap-1">
+            {!hasLinkedIssue && !showIssueRepoSelector && (
+              <button
+                onClick={() => setShowIssueRepoSelector(true)}
+                className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                title="Create GitHub issue"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            )}
+            {!showPrLinker && (
+              <button
+                onClick={() => setShowPrLinker(true)}
+                className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                title="Link pull request"
+              >
+                <Link2 className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -100,7 +131,7 @@ export function GitHubLinkSection({ taskId, projectId, externalLinks, onUpdated 
       ))}
 
       {/* Repo selector for creating issue */}
-      {showRepoSelector && (
+      {showIssueRepoSelector && (
         <div className="mt-2 p-3 border border-gray-200 rounded-lg bg-white">
           <p className="text-xs text-gray-500 mb-2">Select repository to create issue:</p>
           <div className="space-y-1">
@@ -124,7 +155,7 @@ export function GitHubLinkSection({ taskId, projectId, externalLinks, onUpdated 
             </p>
           )}
           <button
-            onClick={() => setShowRepoSelector(false)}
+            onClick={() => setShowIssueRepoSelector(false)}
             className="mt-2 text-xs text-gray-500 hover:text-gray-700 transition-colors"
           >
             Cancel
@@ -132,8 +163,79 @@ export function GitHubLinkSection({ taskId, projectId, externalLinks, onUpdated 
         </div>
       )}
 
-      {externalLinks.length === 0 && hasIntegration && !showRepoSelector && (
-        <p className="text-sm text-gray-400 italic">No linked issues</p>
+      {showPrLinker && (
+        <div className="mt-2 p-3 border border-gray-200 rounded-lg bg-white">
+          <p className="text-xs text-gray-500 mb-2">Link existing pull request:</p>
+          <div className="space-y-2">
+            <select
+              value={selectedPrRepo}
+              onChange={(e) => setSelectedPrRepo(e.target.value)}
+              className="w-full rounded border border-gray-200 px-2 py-1.5 text-sm text-gray-700 focus:border-primary-500 focus:outline-none"
+              disabled={linkPrMutation.isPending}
+            >
+              <option value="">Select repository</option>
+              {integration?.repositories.map((repo) => (
+                <option key={`${repo.owner}/${repo.repo}`} value={`${repo.owner}/${repo.repo}`}>
+                  {repo.owner}/{repo.repo}
+                </option>
+              ))}
+            </select>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              placeholder="Pull request number"
+              value={prNumber}
+              onChange={(e) => setPrNumber(e.target.value)}
+              className="w-full rounded border border-gray-200 px-2 py-1.5 text-sm text-gray-700 focus:border-primary-500 focus:outline-none"
+              disabled={linkPrMutation.isPending}
+            />
+            <button
+              onClick={() => {
+                const parsedPrNumber = Number(prNumber);
+                if (!selectedPrRepo || !Number.isInteger(parsedPrNumber) || parsedPrNumber <= 0) {
+                  return;
+                }
+
+                const [owner, repo] = selectedPrRepo.split('/');
+                if (!owner || !repo) {
+                  return;
+                }
+
+                linkPrMutation.mutate({ owner, repo, prNumber: parsedPrNumber });
+              }}
+              disabled={
+                linkPrMutation.isPending ||
+                !selectedPrRepo ||
+                !Number.isInteger(Number(prNumber)) ||
+                Number(prNumber) <= 0
+              }
+              className="inline-flex items-center gap-2 rounded bg-primary-600 px-3 py-1.5 text-sm text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {linkPrMutation.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+              Link PR
+            </button>
+          </div>
+          {linkPrMutation.isError && (
+            <p className="mt-2 text-xs text-red-600">
+              {linkPrMutation.error instanceof Error ? linkPrMutation.error.message : 'Failed to link pull request'}
+            </p>
+          )}
+          <button
+            onClick={() => {
+              setShowPrLinker(false);
+              setSelectedPrRepo('');
+              setPrNumber('');
+            }}
+            className="mt-2 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {externalLinks.length === 0 && hasIntegration && !showIssueRepoSelector && !showPrLinker && (
+        <p className="text-sm text-gray-400 italic">No linked issues or pull requests</p>
       )}
     </div>
   );

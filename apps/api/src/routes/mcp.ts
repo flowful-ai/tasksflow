@@ -8,7 +8,8 @@ import { extractBearerToken } from '@flowtask/auth';
 import { AGENT_TOOLS } from '@flowtask/domain';
 import { publishEvent } from '../sse/manager.js';
 import { McpOAuthService, OAuthError, type OAuthMcpAuthContext } from '../services/mcp-oauth-service.js';
-import { resolveQueryTasksAssigneeId } from './mcp-tool-args.js';
+import { TaskGitHubLinkError, TaskGitHubLinkService } from '../services/task-github-link-service.js';
+import { resolveQueryTasksAssigneeId, resolveUpdateTaskGitHubPrArgs } from './mcp-tool-args.js';
 
 /**
  * MCP (Model Context Protocol) endpoints for AI agent tool execution.
@@ -24,6 +25,7 @@ const commentService = new CommentService(db);
 const smartViewService = new SmartViewService(db);
 const workspaceService = new WorkspaceService(db);
 const oauthService = new McpOAuthService();
+const taskGitHubLinkService = new TaskGitHubLinkService(db);
 
 function getBaseUrl(requestUrl: string, headers: Headers): string {
   const url = new URL(requestUrl);
@@ -230,6 +232,8 @@ mcp.post(
             throw new Error('taskId is required');
           }
 
+          const prLinkArgs = resolveUpdateTaskGitHubPrArgs(args);
+
           const taskResult = await taskService.getById(taskId);
           if (!taskResult.ok) throw taskResult.error;
           const canAccess = await canTokenAccessProject(oauthAuth, taskResult.value.projectId);
@@ -249,6 +253,22 @@ mcp.post(
           });
 
           if (!updateResult.ok) throw updateResult.error;
+
+          if (prLinkArgs) {
+            await taskGitHubLinkService.linkPullRequestToTask({
+              taskId,
+              projectId: taskResult.value.projectId,
+              owner: prLinkArgs.owner,
+              repo: prLinkArgs.repo,
+              prNumber: prLinkArgs.prNumber,
+            });
+
+            const refreshedTask = await taskService.getById(taskId);
+            if (!refreshedTask.ok) throw refreshedTask.error;
+            result = refreshedTask.value;
+            break;
+          }
+
           result = updateResult.value;
           break;
         }
@@ -574,6 +594,16 @@ mcp.post(
             message: error.message,
           },
         }, error.statusCode as 400 | 401 | 403);
+      }
+
+      if (error instanceof TaskGitHubLinkError) {
+        return c.json({
+          success: false,
+          error: {
+            code: error.code,
+            message: error.message,
+          },
+        }, error.status);
       }
 
       return c.json({
