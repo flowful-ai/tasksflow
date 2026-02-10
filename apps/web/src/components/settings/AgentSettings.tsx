@@ -211,6 +211,10 @@ function ConnectGuide() {
     }),
     [origin]
   );
+  const claudeCodeCommand = useMemo(
+    () => `claude mcp add --transport http [CustomeTokenName] ${values.mcpUrl}`,
+    [values.mcpUrl]
+  );
 
   const copy = async (key: string, value: string) => {
     await navigator.clipboard.writeText(value);
@@ -227,10 +231,25 @@ function ConnectGuide() {
 
       <ul className="list-disc pl-5 text-sm text-gray-700 space-y-1 mb-4">
         <li>Add this MCP server URL in your client: <code className="font-mono">{values.mcpUrl}</code></li>
+        <li>For Claude Code, run the command below, then run <code className="font-mono">/mcp</code> and authorize.</li>
         <li>OAuth discovery is automatic using the well-known endpoints below.</li>
         <li>Approve workspace + tool scopes during OAuth consent.</li>
         <li>Only workspace owners/admins can authorize MCP access.</li>
       </ul>
+
+      <div className="mb-4 p-2 bg-gray-50 rounded border border-gray-200">
+        <div className="text-xs text-gray-600 mb-1">Claude Code command</div>
+        <div className="flex items-center gap-2">
+          <code className="flex-1 text-xs font-mono text-gray-800 break-all">{claudeCodeCommand}</code>
+          <button
+            onClick={() => copy('claude-cli', claudeCodeCommand)}
+            className="p-1.5 rounded hover:bg-gray-200"
+            title="Copy"
+          >
+            {copied === 'claude-cli' ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-gray-500" />}
+          </button>
+        </div>
+      </div>
 
       <div className="space-y-2">
         {[
