@@ -1,5 +1,8 @@
 # FlowTask Agent Instructions
 
+## Progress report
+- If you have access to the TasksFlow MCP create tasks in the taskflow project first when executing the project and then move state as you progress
+
 ## Project Snapshot
 - Monorepo runtime/package manager: Bun.
 - Apps: `apps/api` (Hono API), `apps/web` (React + Vite).
