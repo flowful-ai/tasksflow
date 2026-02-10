@@ -6,7 +6,7 @@ import { REALTIME_EVENTS } from '@flowtask/shared';
 // Event data types
 interface TaskEventData {
   id: string;
-  projectId: string;
+  projectId?: string;
   timestamp: string;
 }
 
@@ -43,10 +43,25 @@ export function useRealtimeEvents() {
   const handleEvent = useCallback(
     (event: string, data: EventData) => {
       switch (event) {
-        case REALTIME_EVENTS.TASK_CREATED:
+        case REALTIME_EVENTS.TASK_CREATED: {
+          const taskData = data as TaskEventData;
+          if (taskData.projectId) {
+            queryClient.invalidateQueries({ queryKey: ['tasks', taskData.projectId] });
+          }
+          queryClient.invalidateQueries({ queryKey: ['smart-view-execute'] });
+          break;
+        }
+
         case REALTIME_EVENTS.TASK_DELETED: {
           const taskData = data as TaskEventData;
-          queryClient.invalidateQueries({ queryKey: ['tasks', taskData.projectId] });
+          if (taskData.id) {
+            queryClient.invalidateQueries({ queryKey: ['task', taskData.id] });
+          }
+          if (taskData.projectId) {
+            queryClient.invalidateQueries({ queryKey: ['tasks', taskData.projectId] });
+          } else {
+            queryClient.invalidateQueries({ queryKey: ['tasks'] });
+          }
           queryClient.invalidateQueries({ queryKey: ['smart-view-execute'] });
           break;
         }

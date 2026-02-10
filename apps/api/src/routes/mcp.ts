@@ -298,6 +298,14 @@ mcp.post(
           const deleteResult = await taskService.delete(taskId, oauthAuth.userId);
           if (!deleteResult.ok) throw deleteResult.error;
           result = { deleted: true, taskId };
+
+          const projectInfo = await projectService.getById(taskResult.value.projectId);
+          if (projectInfo.ok) {
+            publishEvent(projectInfo.value.workspaceId, REALTIME_EVENTS.TASK_DELETED, {
+              id: taskId,
+              projectId: taskResult.value.projectId,
+            });
+          }
           break;
         }
 
@@ -362,6 +370,11 @@ mcp.post(
 
           if (!moveResult.ok) throw moveResult.error;
           result = moveResult.value;
+
+          const projectInfo = await projectService.getById(taskResult.value.projectId);
+          if (projectInfo.ok) {
+            publishEvent(projectInfo.value.workspaceId, REALTIME_EVENTS.TASK_MOVED, moveResult.value);
+          }
           break;
         }
 
@@ -395,6 +408,11 @@ mcp.post(
           const updatedTask = await taskService.getById(taskId);
           if (!updatedTask.ok) throw updatedTask.error;
           result = updatedTask.value;
+
+          const projectInfo = await projectService.getById(taskResult.value.projectId);
+          if (projectInfo.ok) {
+            publishEvent(projectInfo.value.workspaceId, REALTIME_EVENTS.TASK_UPDATED, updatedTask.value);
+          }
           break;
         }
 
