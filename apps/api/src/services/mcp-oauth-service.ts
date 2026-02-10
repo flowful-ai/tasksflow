@@ -841,7 +841,6 @@ export class McpOAuthService {
 
       const nextScopeString = normalizeScopeString(nextScopes.join(' '));
       const accessToken = randomOpaqueToken(32);
-      const newRefreshToken = randomOpaqueToken(32);
 
       const [newAccessRow] = await tx
         .insert(mcpOAuthAccessTokens)
@@ -856,31 +855,16 @@ export class McpOAuthService {
         })
         .returning();
       if (!newAccessRow) {
-        throw new OAuthError('server_error', 'Failed to rotate access token', 500);
+        throw new OAuthError('server_error', 'Failed to issue access token', 500);
       }
 
-      const [newRefreshRow] = await tx
-        .insert(mcpOAuthRefreshTokens)
-        .values({
-          accessTokenId: newAccessRow.id,
-          clientId: client.id,
-          userId: refreshRow.userId,
-          workspaceId: refreshRow.workspaceId,
-          tokenHash: hashSecret(newRefreshToken),
-          scope: nextScopeString,
-          expiresAt: nowPlusSeconds(REFRESH_TOKEN_TTL_SECONDS),
-          createdAt: now,
-        })
-        .returning();
-      if (!newRefreshRow) {
-        throw new OAuthError('server_error', 'Failed to rotate refresh token', 500);
-      }
-
+      // Keep refresh token stable to avoid client-side rotation races.
       await tx
         .update(mcpOAuthRefreshTokens)
         .set({
-          revokedAt: now,
-          replacedByTokenId: newRefreshRow.id,
+          accessTokenId: newAccessRow.id,
+          scope: nextScopeString,
+          replacedByTokenId: null,
         })
         .where(eq(mcpOAuthRefreshTokens.id, refreshRow.id));
 
@@ -888,7 +872,7 @@ export class McpOAuthService {
         access_token: accessToken,
         token_type: 'Bearer',
         expires_in: ACCESS_TOKEN_TTL_SECONDS,
-        refresh_token: newRefreshToken,
+        refresh_token: input.refreshToken,
         scope: nextScopeString,
       };
     });
