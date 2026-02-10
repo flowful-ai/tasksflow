@@ -9,6 +9,7 @@ import {
   BulkTaskToolbar,
   type BulkAssignMode,
   type BulkAssigneeOption,
+  type BulkLabelOption,
   TaskDisplayContainer,
   type DisplayType,
   type GroupBy,
@@ -102,6 +103,16 @@ interface WorkspaceDetail {
   }[];
 }
 
+interface ProjectDetail {
+  id: string;
+  identifier: string;
+  labels: {
+    id: string;
+    name: string;
+    color: string | null;
+  }[];
+}
+
 type NoticeType = 'success' | 'warning' | 'error';
 
 interface BulkNotice {
@@ -118,6 +129,14 @@ const displayTypeIcons: Record<DisplayType, React.ComponentType<{ className?: st
 
 interface AvailableState extends TaskState {
   projectId: string;
+}
+
+interface AvailableLabel {
+  id: string;
+  name: string;
+  color: string | null;
+  projectId: string;
+  projectIdentifier: string;
 }
 
 function resolveDoneStateId(states: AvailableState[]): string | null {
@@ -250,6 +269,28 @@ export function SmartViewPage() {
     enabled: projectIds.length > 0,
   });
 
+  const { data: allProjectLabels = [] } = useQuery({
+    queryKey: ['projects-labels', projectIds],
+    queryFn: async (): Promise<AvailableLabel[]> => {
+      const results = await Promise.all(
+        projectIds.map((pid) =>
+          api.get<{ data: ProjectDetail }>(`/api/projects/${pid}`).then((response) => response.data)
+        )
+      );
+
+      return results.flatMap((project) =>
+        project.labels.map((label) => ({
+          id: label.id,
+          name: label.name,
+          color: label.color,
+          projectId: project.id,
+          projectIdentifier: project.identifier,
+        }))
+      );
+    },
+    enabled: projectIds.length > 0,
+  });
+
   const moveMutation = useMutation({
     mutationFn: async ({ taskId, stateId, position }: { taskId: string; stateId: string; position: string }) => {
       await api.post(`/api/tasks/${taskId}/move`, { stateId, position });
@@ -281,6 +322,11 @@ export function SmartViewPage() {
     return tasks.filter((task) => selectedTaskIds.has(task.id));
   }, [tasks, selectedTaskIds]);
 
+  const selectedProjectIds = useMemo(
+    () => [...new Set(selectedTasks.map((task) => task.project.id))],
+    [selectedTasks]
+  );
+
   const statesByProject = useMemo(() => {
     const grouped = new Map<string, AvailableState[]>();
     allProjectStates.forEach((state) => {
@@ -299,6 +345,19 @@ export function SmartViewPage() {
       avatarUrl: member.user.avatarUrl,
     }));
   }, [workspaceDetail?.members]);
+
+  const labelOptions = useMemo<BulkLabelOption[]>(() => {
+    const isMultiProjectSelection = selectedProjectIds.length > 1;
+    const visibleProjectIds = new Set(selectedProjectIds);
+
+    return allProjectLabels
+      .filter((label) => visibleProjectIds.has(label.projectId))
+      .map((label) => ({
+        id: `${label.projectId}:${label.id}`,
+        name: isMultiProjectSelection ? `${label.projectIdentifier} · ${label.name}` : label.name,
+        color: label.color,
+      }));
+  }, [allProjectLabels, selectedProjectIds]);
 
   const selectedTask = useMemo(() => {
     if (!selectedTaskId || !data?.tasks) return null;
@@ -488,6 +547,52 @@ export function SmartViewPage() {
     }));
   };
 
+  const handleBulkSetLabels = async (selectedCompositeLabelIds: string[]) => {
+    await runBulkAction('Set labels', () => {
+      let skipped = 0;
+      const hasLabelSelection = selectedCompositeLabelIds.length > 0;
+      const targetLabelsByProject = new Map<string, string[]>();
+
+      selectedCompositeLabelIds.forEach((compositeId) => {
+        const [projectId, labelId] = compositeId.split(':');
+        if (!projectId || !labelId) return;
+        const existing = targetLabelsByProject.get(projectId) || [];
+        existing.push(labelId);
+        targetLabelsByProject.set(projectId, existing);
+      });
+
+      const operations = selectedTasks.flatMap((task) => {
+        const targetLabelIds = targetLabelsByProject.get(task.project.id) || [];
+        const currentLabelIds = task.labels.map((label) => label.id);
+
+        // In multi-project selections, if no labels were selected for this task's project, skip instead of clearing.
+        if (hasLabelSelection && targetLabelIds.length === 0) {
+          skipped += 1;
+          return [];
+        }
+
+        const labelsToAdd = targetLabelIds.filter((labelId) => !currentLabelIds.includes(labelId));
+        const labelsToRemove = currentLabelIds.filter((labelId) => !targetLabelIds.includes(labelId));
+
+        if (labelsToAdd.length === 0 && labelsToRemove.length === 0) {
+          skipped += 1;
+          return [];
+        }
+
+        return [
+          (async () => {
+            await Promise.all([
+              ...labelsToAdd.map((labelId) => api.post(`/api/tasks/${task.id}/labels`, { labelId })),
+              ...labelsToRemove.map((labelId) => api.delete(`/api/tasks/${task.id}/labels/${labelId}`)),
+            ]);
+          })(),
+        ];
+      });
+
+      return { operations, skipped };
+    });
+  };
+
   const handleInvalidDrop = (message: string) => {
     setErrorMessage(message);
     setTimeout(() => setErrorMessage(null), 3000);
@@ -552,9 +657,11 @@ export function SmartViewPage() {
       <BulkTaskToolbar
         selectedCount={selectedTaskIds.size}
         members={assigneeOptions}
+        labels={labelOptions}
         isLoading={isBulkActionPending}
         onClearSelection={() => setSelectedTaskIds(new Set())}
         onAssign={handleBulkAssign}
+        onSetLabels={handleBulkSetLabels}
         onMoveToDone={handleBulkMoveToDone}
         onCancel={handleBulkCancel}
         onDelete={handleBulkDelete}

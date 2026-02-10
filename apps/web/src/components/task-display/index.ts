@@ -1,5 +1,10 @@
 export { TaskCard, type TaskCardTask } from './TaskCard';
-export { BulkTaskToolbar, type BulkAssignMode, type BulkAssigneeOption } from './BulkTaskToolbar';
+export {
+  BulkTaskToolbar,
+  type BulkAssignMode,
+  type BulkAssigneeOption,
+  type BulkLabelOption,
+} from './BulkTaskToolbar';
 export { TaskListView } from './TaskListView';
 export { GroupedKanbanBoard } from './GroupedKanbanBoard';
 export { GroupedKanbanColumn } from './GroupedKanbanColumn';

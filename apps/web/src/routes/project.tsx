@@ -9,6 +9,7 @@ import {
   BulkTaskToolbar,
   type BulkAssignMode,
   type BulkAssigneeOption,
+  type BulkLabelOption,
   TaskDisplayContainer,
   type DisplayType,
   type TaskCardTask,
@@ -53,6 +54,7 @@ interface Project {
   name: string;
   identifier: string;
   taskStates: { id: string; name: string; color: string | null; category: string }[];
+  labels: { id: string; name: string; color: string | null }[];
 }
 
 interface WorkspaceDetail {
@@ -186,6 +188,14 @@ export function ProjectPage() {
       avatarUrl: member.user.avatarUrl,
     }));
   }, [workspaceDetail?.members]);
+
+  const labelOptions = useMemo<BulkLabelOption[]>(() => {
+    return (project?.labels || []).map((label) => ({
+      id: label.id,
+      name: label.name,
+      color: label.color,
+    }));
+  }, [project?.labels]);
 
   useEffect(() => {
     function handleClickOutside(event: globalThis.MouseEvent) {
@@ -371,6 +381,34 @@ export function ProjectPage() {
     }));
   };
 
+  const handleBulkSetLabels = async (selectedLabelIds: string[]) => {
+    await runBulkAction('Set labels', () => {
+      let skipped = 0;
+
+      const operations = selectedTasks.flatMap((task) => {
+        const currentLabelIds = task.labels.map((label) => label.id);
+        const labelsToAdd = selectedLabelIds.filter((labelId) => !currentLabelIds.includes(labelId));
+        const labelsToRemove = currentLabelIds.filter((labelId) => !selectedLabelIds.includes(labelId));
+
+        if (labelsToAdd.length === 0 && labelsToRemove.length === 0) {
+          skipped += 1;
+          return [];
+        }
+
+        return [
+          (async () => {
+            await Promise.all([
+              ...labelsToAdd.map((labelId) => api.post(`/api/tasks/${task.id}/labels`, { labelId })),
+              ...labelsToRemove.map((labelId) => api.delete(`/api/tasks/${task.id}/labels/${labelId}`)),
+            ]);
+          })(),
+        ];
+      });
+
+      return { operations, skipped };
+    });
+  };
+
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between mb-6">
@@ -425,9 +463,11 @@ export function ProjectPage() {
       <BulkTaskToolbar
         selectedCount={selectedTaskIds.size}
         members={assigneeOptions}
+        labels={labelOptions}
         isLoading={isBulkActionPending}
         onClearSelection={() => setSelectedTaskIds(new Set())}
         onAssign={handleBulkAssign}
+        onSetLabels={handleBulkSetLabels}
         onMoveToDone={handleBulkMoveToDone}
         onCancel={handleBulkCancel}
         onDelete={handleBulkDelete}
