@@ -22,6 +22,7 @@ import { workspaceAgentRoutes } from './routes/workspace-agents.js';
 import { eventRoutes } from './routes/events.js';
 import { githubRoutes, githubPublicRoutes } from './routes/github.js';
 import { invitationRoutes, publicInvitationRoutes, acceptInvitationRoutes } from './routes/invitations.js';
+import { appAdminRoutes } from './routes/app-admin.js';
 import { McpOAuthService } from './services/mcp-oauth-service.js';
 
 // Import SSE manager
@@ -133,6 +134,7 @@ app.route('/api/agents', agentRoutes);
 app.route('/api/mcp', mcpRoutes);
 app.route('/api/github', githubRoutes);
 app.route('/api/projects', githubRoutes); // GitHub routes nested under projects
+app.route('/api/app', appAdminRoutes);
 
 // Error handler
 app.onError((err, c) => {

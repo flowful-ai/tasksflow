@@ -1,3 +1,5 @@
+import type { AppRole } from '@flowtask/shared';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 interface ApiOptions {
@@ -178,6 +180,54 @@ export const mcpConnectionApi = {
 };
 
 export { ApiError };
+
+export interface AppContext {
+  userId: string;
+  appRole: AppRole;
+  isAppManager: boolean;
+}
+
+export interface AppManagedUser {
+  id: string;
+  email: string;
+  name: string | null;
+  avatarUrl: string | null;
+  appRole: AppRole;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AppUsersListResponse {
+  users: AppManagedUser[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export const appAdminApi = {
+  me: () =>
+    api.get<{ success: boolean; data: AppContext }>(
+      '/api/app/me'
+    ),
+
+  listUsers: (params?: { search?: string; limit?: number; offset?: number }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.search) searchParams.set('search', params.search);
+    if (params?.limit !== undefined) searchParams.set('limit', String(params.limit));
+    if (params?.offset !== undefined) searchParams.set('offset', String(params.offset));
+
+    const queryString = searchParams.toString();
+    return api.get<{ success: boolean; data: AppUsersListResponse }>(
+      `/api/app/users${queryString ? `?${queryString}` : ''}`
+    );
+  },
+
+  updateRole: (userId: string, appRole: AppRole) =>
+    api.patch<{ success: boolean; data: AppManagedUser }>(
+      `/api/app/users/${userId}/role`,
+      { appRole }
+    ),
+};
 
 // Workspace member types
 export interface WorkspaceMember {
