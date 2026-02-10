@@ -2,6 +2,8 @@
 
 ## Progress report
 - If you have access to the TasksFlow MCP create tasks in the taskflow project first when executing the project and then move state as you progress
+- when you finish the task should be in review. Only when the code is pushed or PR merged you can set the task as done
+- When creating a PR add it to the task if you created one
 
 ## Project Snapshot
 - Monorepo runtime/package manager: Bun.
