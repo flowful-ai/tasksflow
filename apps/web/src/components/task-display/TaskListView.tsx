@@ -2,15 +2,17 @@ import { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { TaskCard, type TaskCardTask } from './TaskCard';
 import { groupTasks, taskMatchesGroup, type GroupBy, type TaskGroup, type AvailableState } from './grouping';
+import type { MouseEvent } from 'react';
 
 interface TaskListViewProps {
   tasks: TaskCardTask[];
   groupBy: GroupBy;
   secondaryGroupBy?: GroupBy;
-  onTaskClick: (taskId: string) => void;
+  onTaskClick: (taskId: string, event: MouseEvent<HTMLDivElement>) => void;
   showProject?: boolean;
   availableStates?: AvailableState[];
   mergeStatesByCategory?: boolean;
+  selectedTaskIds?: Set<string>;
 }
 
 export function TaskListView({
@@ -21,6 +23,7 @@ export function TaskListView({
   showProject = true,
   availableStates,
   mergeStatesByCategory,
+  selectedTaskIds,
 }: TaskListViewProps) {
   const groups = groupTasks(tasks, groupBy, availableStates, mergeStatesByCategory);
   const secondaryGroups = secondaryGroupBy
@@ -38,10 +41,11 @@ export function TaskListView({
             <TaskCard
               key={task.id}
               task={task}
-              onClick={() => onTaskClick(task.id)}
+              onClick={(event) => onTaskClick(task.id, event)}
               showProject={showProject}
               showState={true}
               draggable={false}
+              isSelected={selectedTaskIds?.has(task.id)}
             />
           ))
         )}
@@ -57,6 +61,7 @@ export function TaskListView({
       onTaskClick={onTaskClick}
       showProject={showProjectValue}
       secondaryGroupBy={secondaryGroupBy}
+      selectedTaskIds={selectedTaskIds}
     />
   );
 
@@ -110,9 +115,10 @@ export function TaskListView({
 interface TaskGroupSectionProps {
   group: TaskGroup;
   groupBy: GroupBy;
-  onTaskClick: (taskId: string) => void;
+  onTaskClick: (taskId: string, event: MouseEvent<HTMLDivElement>) => void;
   showProject: boolean;
   secondaryGroupBy?: GroupBy;
+  selectedTaskIds?: Set<string>;
 }
 
 function TaskGroupSection({
@@ -121,6 +127,7 @@ function TaskGroupSection({
   onTaskClick,
   showProject,
   secondaryGroupBy,
+  selectedTaskIds,
 }: TaskGroupSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -163,10 +170,11 @@ function TaskGroupSection({
               <TaskCard
                 key={task.id}
                 task={task}
-                onClick={() => onTaskClick(task.id)}
+                onClick={(event) => onTaskClick(task.id, event)}
                 showProject={effectiveShowProject}
                 showState={showState}
                 draggable={false}
+                isSelected={selectedTaskIds?.has(task.id)}
               />
             ))
           )}

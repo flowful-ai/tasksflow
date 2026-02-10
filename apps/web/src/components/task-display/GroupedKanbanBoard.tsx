@@ -18,18 +18,20 @@ import {
 import { TaskCard, type TaskCardTask } from './TaskCard';
 import { GroupedKanbanColumn } from './GroupedKanbanColumn';
 import { groupTasks, taskMatchesGroup, type GroupBy, type AvailableState, type TaskGroup } from './grouping';
+import type { MouseEvent } from 'react';
 
 interface GroupedKanbanBoardProps {
   tasks: TaskCardTask[];
   groupBy: GroupBy;
   secondaryGroupBy?: GroupBy;
-  onTaskClick: (taskId: string) => void;
+  onTaskClick: (taskId: string, event: MouseEvent<HTMLDivElement>) => void;
   onTaskMove?: (taskId: string, stateId: string, position: string) => Promise<void>;
   onInvalidDrop?: (message: string) => void;
   showProject?: boolean;
   allowDragDrop?: boolean;
   availableStates?: AvailableState[];
   mergeStatesByCategory?: boolean;
+  selectedTaskIds?: Set<string>;
 }
 
 export function GroupedKanbanBoard({
@@ -43,6 +45,7 @@ export function GroupedKanbanBoard({
   allowDragDrop = false,
   availableStates,
   mergeStatesByCategory,
+  selectedTaskIds,
 }: GroupedKanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -321,10 +324,11 @@ export function GroupedKanbanBoard({
                           <TaskCard
                             key={task.id}
                             task={task}
-                            onClick={() => onTaskClick(task.id)}
+                            onClick={(event) => onTaskClick(task.id, event)}
                             showProject={effectiveShowProject}
                             showState={showState}
                             draggable={dragEnabled}
+                            isSelected={selectedTaskIds?.has(task.id)}
                           />
                         ))}
                       </GroupedKanbanColumn>
@@ -353,10 +357,11 @@ export function GroupedKanbanBoard({
                   <TaskCard
                     key={task.id}
                     task={task}
-                    onClick={() => onTaskClick(task.id)}
+                    onClick={(event) => onTaskClick(task.id, event)}
                     showProject={effectiveShowProject}
                     showState={showState}
                     draggable={dragEnabled}
+                    isSelected={selectedTaskIds?.has(task.id)}
                   />
                 ))}
               </GroupedKanbanColumn>

@@ -1,5 +1,6 @@
 import type { TaskCardTask } from './TaskCard';
 import type { GroupBy, AvailableState } from './grouping';
+import type { MouseEvent } from 'react';
 import { TaskListView } from './TaskListView';
 import { GroupedKanbanBoard } from './GroupedKanbanBoard';
 
@@ -10,13 +11,14 @@ interface TaskDisplayContainerProps {
   displayType: DisplayType;
   groupBy: GroupBy;
   secondaryGroupBy?: GroupBy | null;
-  onTaskClick: (taskId: string) => void;
+  onTaskClick: (taskId: string, event: MouseEvent<HTMLDivElement>) => void;
   onTaskMove?: (taskId: string, stateId: string, position: string) => Promise<void>;
   onInvalidDrop?: (message: string) => void;
   showProject?: boolean;
   allowDragDrop?: boolean;
   availableStates?: AvailableState[];
   mergeStatesByCategory?: boolean;
+  selectedTaskIds?: Set<string>;
 }
 
 export function TaskDisplayContainer({
@@ -31,6 +33,7 @@ export function TaskDisplayContainer({
   allowDragDrop = false,
   availableStates,
   mergeStatesByCategory,
+  selectedTaskIds,
 }: TaskDisplayContainerProps) {
   switch (displayType) {
     case 'kanban':
@@ -46,6 +49,7 @@ export function TaskDisplayContainer({
           allowDragDrop={allowDragDrop}
           availableStates={availableStates}
           mergeStatesByCategory={mergeStatesByCategory}
+          selectedTaskIds={selectedTaskIds}
         />
       );
 
@@ -59,6 +63,7 @@ export function TaskDisplayContainer({
           showProject={showProject}
           availableStates={availableStates}
           mergeStatesByCategory={mergeStatesByCategory}
+          selectedTaskIds={selectedTaskIds}
         />
       );
 
@@ -77,6 +82,7 @@ export function TaskDisplayContainer({
               showProject={showProject}
               availableStates={availableStates}
               mergeStatesByCategory={mergeStatesByCategory}
+              selectedTaskIds={selectedTaskIds}
             />
           </div>
         </div>
@@ -97,6 +103,7 @@ export function TaskDisplayContainer({
               showProject={showProject}
               availableStates={availableStates}
               mergeStatesByCategory={mergeStatesByCategory}
+              selectedTaskIds={selectedTaskIds}
             />
           </div>
         </div>
@@ -112,6 +119,7 @@ export function TaskDisplayContainer({
           showProject={showProject}
           availableStates={availableStates}
           mergeStatesByCategory={mergeStatesByCategory}
+          selectedTaskIds={selectedTaskIds}
         />
       );
   }

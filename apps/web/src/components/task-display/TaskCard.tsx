@@ -2,6 +2,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import clsx from 'clsx';
 import { Calendar } from 'lucide-react';
+import type { MouseEvent } from 'react';
 
 interface TaskCardTask {
   id: string;
@@ -40,11 +41,12 @@ interface TaskCardTask {
 
 interface TaskCardProps {
   task: TaskCardTask;
-  onClick: () => void;
+  onClick: (event: MouseEvent<HTMLDivElement>) => void;
   showProject?: boolean;
   showState?: boolean;
   isDragging?: boolean;
   draggable?: boolean;
+  isSelected?: boolean;
 }
 
 const priorityColors: Record<string, string> = {
@@ -61,6 +63,7 @@ export function TaskCard({
   showState = false,
   isDragging = false,
   draggable = true,
+  isSelected = false,
 }: TaskCardProps) {
   const {
     attributes,
@@ -87,7 +90,8 @@ export function TaskCard({
         'p-3 bg-white rounded-lg border border-gray-200 cursor-pointer',
         'hover:border-primary-300 hover:shadow-sm transition-all',
         task.priority && `border-l-4 ${priorityColors[task.priority]}`,
-        isDragging && 'opacity-50 shadow-lg'
+        isDragging && 'opacity-50 shadow-lg',
+        isSelected && 'border-primary-500 ring-2 ring-primary-200 bg-primary-50/40'
       )}
     >
       {/* Title row with optional project identifier */}

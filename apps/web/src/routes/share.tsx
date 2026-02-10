@@ -95,7 +95,7 @@ export function PublicSharePage() {
     }
   };
 
-  const handleTaskClick = (taskId: string) => {
+  const handleTaskClick = (taskId: string, _event: React.MouseEvent<HTMLDivElement>) => {
     const task = data?.tasks?.find((t) => t.id === taskId);
     if (task) {
       setSelectedTask(task);
