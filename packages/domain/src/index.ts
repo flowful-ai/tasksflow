@@ -33,3 +33,7 @@ export * from './rate-limit/service.js';
 // Invitation domain
 export * from './invitation/service.js';
 export * from './invitation/types.js';
+
+// App admin domain
+export * from './app-admin/service.js';
+export * from './app-admin/types.js';

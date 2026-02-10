@@ -1,10 +1,12 @@
 import { z } from 'zod';
 import { BaseEntitySchema } from './common.js';
+import { AppRoleSchema } from './app.js';
 
 export const UserSchema = BaseEntitySchema.extend({
   email: z.string().email(),
   name: z.string().nullable(),
   avatarUrl: z.string().url().nullable(),
+  appRole: AppRoleSchema.optional(),
 });
 
 export type User = z.infer<typeof UserSchema>;

@@ -1,12 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
-import { User, Building2, Link2, Key, Bot, Eye, Users } from 'lucide-react';
+import { useEffect, useMemo, useState, type ComponentType } from 'react';
+import { Routes, Route, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
+import { User, Building2, Link2, Key, Bot, Eye, Users, Shield } from 'lucide-react';
 import clsx from 'clsx';
+import type { AppRole } from '@flowtask/shared';
 import { useWorkspaceStore } from '../stores/workspace';
 import { AgentSettings } from '../components/settings/AgentSettings';
 import { SmartViewForm } from '../components/smart-views/SmartViewForm';
 import { MemberSettings } from '../components/settings/MemberSettings';
+import { AppOverviewSettings } from '../components/settings/AppOverviewSettings';
+import { AppUserManagementSettings } from '../components/settings/AppUserManagementSettings';
 import { authApi, type LinkedAccount } from '../api/auth';
+import { appAdminApi } from '../api/client';
 
 function ProfileSettings() {
   return (
@@ -22,6 +26,17 @@ function WorkspaceSettings() {
     <div className="card p-6">
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Workspace Settings</h2>
       <p className="text-gray-600">Workspace settings coming soon...</p>
+    </div>
+  );
+}
+
+function AppScopeForbidden() {
+  return (
+    <div className="card p-6">
+      <h2 className="text-lg font-semibold text-gray-900 mb-2">App Settings</h2>
+      <p className="text-sm text-gray-600">
+        App settings are available only to app managers.
+      </p>
     </div>
   );
 }
@@ -56,7 +71,6 @@ function IntegrationSettings() {
   }, []);
 
   const handleConnectGithub = async () => {
-    console.log('[handleConnectGithub] Called, githubEnabled:', githubEnabled);
     if (!githubEnabled) {
       setError('GitHub integration is not configured.');
       return;
@@ -66,24 +80,20 @@ function IntegrationSettings() {
     setError(null);
 
     try {
-      const callbackURL = `${window.location.origin}/settings/integrations`;
-      console.log('[handleConnectGithub] Calling linkSocial with callbackURL:', callbackURL);
+      const callbackURL = `${window.location.origin}/settings/user/integrations`;
       const response = await authApi.linkSocial({
         provider: 'github',
         callbackURL,
         scopes: ['repo', 'read:user', 'user:email'],
       });
 
-      console.log('[handleConnectGithub] Response:', response);
       if (response.redirect && response.url) {
-        console.log('[handleConnectGithub] Redirecting to:', response.url);
         window.location.href = response.url;
         return;
       }
 
       await loadAccounts();
     } catch (err) {
-      console.error('[handleConnectGithub] Error:', err);
       setError(err instanceof Error ? err.message : 'Failed to connect GitHub');
     } finally {
       setIsMutating(false);
@@ -232,7 +242,7 @@ function ViewsSettings() {
           </p>
         </div>
         <button
-          onClick={() => navigate('/settings/views/new')}
+          onClick={() => navigate('/settings/workspace/views/new')}
           className="btn btn-primary"
         >
           New View
@@ -326,7 +336,7 @@ function NewWorkspaceSettings() {
             />
           </div>
           <p className="mt-1 text-sm text-gray-500">
-            This will be your workspace's unique identifier.
+            This will be your workspace&apos;s unique identifier.
           </p>
         </div>
 
@@ -351,63 +361,171 @@ function NewWorkspaceSettings() {
   );
 }
 
+type NavigationItem = {
+  name: string;
+  href: string;
+  icon: ComponentType<{ className?: string }>;
+};
+
+type NavigationSection = {
+  title: string;
+  description: string;
+  items: NavigationItem[];
+};
+
 export function SettingsPage() {
   const location = useLocation();
+  const [isLoadingAppContext, setIsLoadingAppContext] = useState(true);
+  const [appRole, setAppRole] = useState<AppRole | null>(null);
+  const [appContextError, setAppContextError] = useState<string | null>(null);
 
-  const navigation = [
-    { name: 'Profile', href: '/settings', icon: User },
-    { name: 'Workspace', href: '/settings/workspace', icon: Building2 },
-    { name: 'Members', href: '/settings/members', icon: Users },
-    { name: 'Views', href: '/settings/views', icon: Eye },
-    { name: 'Integrations', href: '/settings/integrations', icon: Link2 },
-    { name: 'Agents', href: '/settings/agents', icon: Bot },
-    { name: 'API Keys', href: '/settings/api-keys', icon: Key },
-  ];
+  useEffect(() => {
+    const loadAppContext = async () => {
+      setIsLoadingAppContext(true);
+      setAppContextError(null);
+
+      try {
+        const response = await appAdminApi.me();
+        setAppRole(response.data.appRole);
+      } catch (err) {
+        setAppRole(null);
+        setAppContextError(err instanceof Error ? err.message : 'Failed to load app context');
+      } finally {
+        setIsLoadingAppContext(false);
+      }
+    };
+
+    loadAppContext();
+  }, []);
+
+  const isAppManager = appRole === 'app_manager';
+
+  const navigationSections = useMemo<NavigationSection[]>(() => {
+    const sections: NavigationSection[] = [
+      {
+        title: 'User Settings',
+        description: 'Personal settings for your account.',
+        items: [
+          { name: 'Profile', href: '/settings/user/profile', icon: User },
+          { name: 'Integrations', href: '/settings/user/integrations', icon: Link2 },
+          { name: 'API Keys', href: '/settings/user/api-keys', icon: Key },
+        ],
+      },
+      {
+        title: 'Workspace Settings',
+        description: 'Settings for the selected workspace.',
+        items: [
+          { name: 'Workspace', href: '/settings/workspace/general', icon: Building2 },
+          { name: 'Members', href: '/settings/workspace/members', icon: Users },
+          { name: 'Views', href: '/settings/workspace/views', icon: Eye },
+          { name: 'Agents', href: '/settings/workspace/agents', icon: Bot },
+        ],
+      },
+    ];
+
+    if (isAppManager) {
+      sections.push({
+        title: 'App Settings',
+        description: 'Global settings for the whole application.',
+        items: [
+          { name: 'Overview', href: '/settings/app/overview', icon: Shield },
+          { name: 'User Management', href: '/settings/app/users', icon: Users },
+        ],
+      });
+    }
+
+    return sections;
+  }, [isAppManager]);
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Settings</h1>
+    <div className="max-w-5xl mx-auto">
+      <h1 className="text-2xl font-bold text-gray-900 mb-2">Settings</h1>
+      <p className="text-sm text-gray-600 mb-6">
+        Settings are separated by scope: user, workspace, and app.
+      </p>
+
+      {appContextError && (
+        <div className="mb-4 p-3 text-sm text-amber-700 bg-amber-50 rounded-lg">
+          {appContextError}
+        </div>
+      )}
 
       <div className="flex flex-col md:flex-row gap-6">
-        {/* Navigation */}
-        <nav className="w-full md:w-48 space-y-1">
-          {navigation.map((item) => {
-            const Icon = item.icon;
-            const isActive = location.pathname === item.href;
-            return (
-              <Link
-                key={item.name}
-                to={item.href}
-                className={clsx(
-                  'flex items-center px-3 py-2 text-sm font-medium rounded-lg',
-                  isActive
-                    ? 'bg-primary-50 text-primary-600'
-                    : 'text-gray-700 hover:bg-gray-100'
-                )}
-              >
-                <Icon className="w-5 h-5 mr-3" />
-                {item.name}
-              </Link>
-            );
-          })}
+        <nav className="w-full md:w-64 space-y-4">
+          {navigationSections.map((section) => (
+            <div key={section.title} className="border border-gray-200 rounded-lg p-3">
+              <h2 className="text-sm font-semibold text-gray-900">{section.title}</h2>
+              <p className="text-xs text-gray-500 mt-1 mb-2">{section.description}</p>
+              <div className="space-y-1">
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive =
+                    location.pathname === item.href || location.pathname.startsWith(`${item.href}/`);
+
+                  return (
+                    <Link
+                      key={item.name}
+                      to={item.href}
+                      className={clsx(
+                        'flex items-center px-3 py-2 text-sm font-medium rounded-lg',
+                        isActive
+                          ? 'bg-primary-50 text-primary-600'
+                          : 'text-gray-700 hover:bg-gray-100'
+                      )}
+                    >
+                      <Icon className="w-5 h-5 mr-3" />
+                      {item.name}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
-        {/* Content */}
         <div className="flex-1">
           <Routes>
-            <Route index element={<ProfileSettings />} />
-            <Route path="workspace" element={<WorkspaceSettings />} />
-            <Route path="workspaces/new" element={<NewWorkspaceSettings />} />
-            <Route path="members" element={<MemberSettings />} />
-            <Route path="views" element={<ViewsSettings />} />
-            <Route path="views/new" element={<SmartViewForm />} />
+            <Route index element={<Navigate to="user/profile" replace />} />
+
+            <Route path="user/profile" element={<ProfileSettings />} />
+            <Route path="user/integrations" element={<IntegrationSettings />} />
+            <Route path="user/api-keys" element={<ApiKeySettings />} />
+
+            <Route path="workspace/general" element={<WorkspaceSettings />} />
+            <Route path="workspace/new" element={<NewWorkspaceSettings />} />
+            <Route path="workspace/members" element={<MemberSettings />} />
+            <Route path="workspace/views" element={<ViewsSettings />} />
+            <Route path="workspace/views/new" element={<SmartViewForm />} />
+            <Route path="workspace/views/:viewId/edit" element={<SmartViewForm />} />
+            <Route path="workspace/agents" element={<AgentSettings />} />
+
+            <Route
+              path="app/overview"
+              element={isAppManager ? <AppOverviewSettings appRole={appRole} /> : <AppScopeForbidden />}
+            />
+            <Route
+              path="app/users"
+              element={isAppManager ? <AppUserManagementSettings isAppManager={isAppManager} /> : <AppScopeForbidden />}
+            />
+
+            {/* Legacy compatibility paths */}
+            <Route path="profile" element={<Navigate to="/settings/user/profile" replace />} />
+            <Route path="integrations" element={<Navigate to="/settings/user/integrations" replace />} />
+            <Route path="api-keys" element={<Navigate to="/settings/user/api-keys" replace />} />
+            <Route path="workspace" element={<Navigate to="/settings/workspace/general" replace />} />
+            <Route path="workspaces/new" element={<Navigate to="/settings/workspace/new" replace />} />
+            <Route path="members" element={<Navigate to="/settings/workspace/members" replace />} />
+            <Route path="views" element={<Navigate to="/settings/workspace/views" replace />} />
+            <Route path="views/new" element={<Navigate to="/settings/workspace/views/new" replace />} />
             <Route path="views/:viewId/edit" element={<SmartViewForm />} />
-            <Route path="integrations" element={<IntegrationSettings />} />
-            <Route path="agents" element={<AgentSettings />} />
-            <Route path="api-keys" element={<ApiKeySettings />} />
+            <Route path="agents" element={<Navigate to="/settings/workspace/agents" replace />} />
           </Routes>
         </div>
       </div>
+
+      {isLoadingAppContext && (
+        <div className="mt-4 text-xs text-gray-500">Loading app permissions...</div>
+      )}
     </div>
   );
 }
