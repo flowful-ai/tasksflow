@@ -371,7 +371,7 @@ tasks.delete('/:taskId', async (c) => {
   }
 
   // Publish WebSocket event
-  publishEvent(project!.workspaceId, 'task:deleted', { id: taskId });
+  publishEvent(project!.workspaceId, 'task:deleted', { id: taskId, projectId: taskResult.value.projectId });
 
   return c.json({ success: true, data: null });
 });
