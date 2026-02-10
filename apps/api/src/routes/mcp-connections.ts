@@ -81,14 +81,14 @@ mcpConnectionsRoutes.delete('/:workspaceId/mcp-connections/:consentId', async (c
 
     await requireWorkspaceAdminOrOwner(workspaceId, user.id);
 
-    await oauthService.revokeConsent({ consentId, workspaceId });
+    await oauthService.deleteConsent({ consentId, workspaceId });
     return c.json({ success: true, data: null });
   } catch (error) {
     if (error instanceof OAuthError) {
       return c.json({ success: false, error: { code: error.oauthError.toUpperCase(), message: error.message } }, error.statusCode as 403 | 404);
     }
 
-    return c.json({ success: false, error: { code: 'DELETE_FAILED', message: 'Failed to revoke MCP OAuth connection' } }, 500);
+    return c.json({ success: false, error: { code: 'DELETE_FAILED', message: 'Failed to delete MCP OAuth connection' } }, 500);
   }
 });
 

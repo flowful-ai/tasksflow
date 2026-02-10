@@ -112,31 +112,26 @@ function ScopeEditorDialog({ connection, onClose, onSave, isSaving }: ScopeEdito
 interface ConnectionCardProps {
   connection: McpOAuthConnection;
   onEditScopes: () => void;
-  onDisconnect: () => void;
+  onDelete: () => void;
 }
 
-function ConnectionCard({ connection, onEditScopes, onDisconnect }: ConnectionCardProps) {
-  const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
+function ConnectionCard({ connection, onEditScopes, onDelete }: ConnectionCardProps) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   return (
-    <div className={clsx('p-4 border rounded-lg', connection.revokedAt ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-200')}>
+    <div className="p-4 border rounded-lg bg-white border-gray-200">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className={clsx('w-10 h-10 rounded-lg flex items-center justify-center', connection.revokedAt ? 'bg-gray-200' : 'bg-primary-100')}>
-            <Bot className={clsx('w-5 h-5', connection.revokedAt ? 'text-gray-500' : 'text-primary-600')} />
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-primary-100">
+            <Bot className="w-5 h-5 text-primary-600" />
           </div>
           <div>
             <h3 className="font-medium text-gray-900">{connection.clientName}</h3>
             <p className="text-xs text-gray-500 font-mono">{connection.clientId}</p>
           </div>
         </div>
-        <span
-          className={clsx(
-            'px-2 py-1 text-xs font-medium rounded-full',
-            connection.revokedAt ? 'bg-gray-100 text-gray-600' : 'bg-green-100 text-green-700'
-          )}
-        >
-          {connection.revokedAt ? 'Disconnected' : 'Connected'}
+        <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700">
+          Connected
         </span>
       </div>
 
@@ -154,42 +149,40 @@ function ConnectionCard({ connection, onEditScopes, onDisconnect }: ConnectionCa
         <div>Last activity: {formatRelativeTime(connection.lastActivityAt)}</div>
       </div>
 
-      {!connection.revokedAt && (
-        <div className="mt-4 pt-4 border-t border-gray-100 flex gap-2">
-          <button onClick={onEditScopes} className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-            <Pencil className="w-4 h-4" />
-            Edit Scopes
-          </button>
-          <button
-            onClick={() => setShowDisconnectConfirm(true)}
-            className="flex items-center gap-1 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-            Disconnect
-          </button>
-        </div>
-      )}
+      <div className="mt-4 pt-4 border-t border-gray-100 flex gap-2">
+        <button onClick={onEditScopes} className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+          <Pencil className="w-4 h-4" />
+          Edit Scopes
+        </button>
+        <button
+          onClick={() => setShowDeleteConfirm(true)}
+          className="flex items-center gap-1 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+        >
+          <Trash2 className="w-4 h-4" />
+          Delete
+        </button>
+      </div>
 
-      {showDisconnectConfirm && (
+      {showDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowDisconnectConfirm(false)} />
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowDeleteConfirm(false)} />
           <div className="relative bg-white rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Disconnect OAuth Connection</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete OAuth Connection</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Disconnect {connection.clientName}? Existing OAuth tokens will be revoked immediately.
+              Permanently delete {connection.clientName}? All OAuth tokens will be revoked and the connection record will be removed.
             </p>
             <div className="flex justify-end gap-3">
-              <button onClick={() => setShowDisconnectConfirm(false)} className="btn btn-secondary">
+              <button onClick={() => setShowDeleteConfirm(false)} className="btn btn-secondary">
                 Cancel
               </button>
               <button
                 onClick={() => {
-                  setShowDisconnectConfirm(false);
-                  onDisconnect();
+                  setShowDeleteConfirm(false);
+                  onDelete();
                 }}
                 className="btn bg-red-600 text-white hover:bg-red-700"
               >
-                Disconnect
+                Delete
               </button>
             </div>
           </div>
@@ -295,8 +288,8 @@ export function AgentSettings() {
     },
   });
 
-  const revokeMutation = useMutation({
-    mutationFn: (consentId: string) => mcpConnectionApi.revoke(workspaceId!, consentId),
+  const deleteMutation = useMutation({
+    mutationFn: (consentId: string) => mcpConnectionApi.delete(workspaceId!, consentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['mcp-connections', workspaceId] });
     },
@@ -359,7 +352,7 @@ export function AgentSettings() {
                 key={connection.consentId}
                 connection={connection}
                 onEditScopes={() => setEditingConnection(connection)}
-                onDisconnect={() => revokeMutation.mutate(connection.consentId)}
+                onDelete={() => deleteMutation.mutate(connection.consentId)}
               />
             ))}
           </div>

@@ -566,12 +566,10 @@ export class McpOAuthService {
     return connection;
   }
 
-  async revokeConsent(input: {
+  async deleteConsent(input: {
     consentId: string;
     workspaceId: string;
   }): Promise<void> {
-    const now = new Date();
-
     await this.db.transaction(async (tx) => {
       const [consent] = await tx
         .select()
@@ -582,38 +580,26 @@ export class McpOAuthService {
         throw new OAuthError('not_found', 'OAuth connection not found', 404);
       }
 
-      if (consent.revokedAt) {
-        return;
-      }
+      // Delete refresh tokens first (foreign key to access tokens)
+      await tx.delete(mcpOAuthRefreshTokens).where(
+        and(
+          eq(mcpOAuthRefreshTokens.userId, consent.userId),
+          eq(mcpOAuthRefreshTokens.clientId, consent.clientId),
+          eq(mcpOAuthRefreshTokens.workspaceId, consent.workspaceId)
+        )
+      );
 
-      await tx
-        .update(mcpOAuthConsents)
-        .set({ revokedAt: now, updatedAt: now })
-        .where(eq(mcpOAuthConsents.id, consent.id));
+      // Delete access tokens
+      await tx.delete(mcpOAuthAccessTokens).where(
+        and(
+          eq(mcpOAuthAccessTokens.userId, consent.userId),
+          eq(mcpOAuthAccessTokens.clientId, consent.clientId),
+          eq(mcpOAuthAccessTokens.workspaceId, consent.workspaceId)
+        )
+      );
 
-      await tx
-        .update(mcpOAuthAccessTokens)
-        .set({ revokedAt: now })
-        .where(
-          and(
-            eq(mcpOAuthAccessTokens.userId, consent.userId),
-            eq(mcpOAuthAccessTokens.clientId, consent.clientId),
-            eq(mcpOAuthAccessTokens.workspaceId, consent.workspaceId),
-            isNull(mcpOAuthAccessTokens.revokedAt)
-          )
-        );
-
-      await tx
-        .update(mcpOAuthRefreshTokens)
-        .set({ revokedAt: now })
-        .where(
-          and(
-            eq(mcpOAuthRefreshTokens.userId, consent.userId),
-            eq(mcpOAuthRefreshTokens.clientId, consent.clientId),
-            eq(mcpOAuthRefreshTokens.workspaceId, consent.workspaceId),
-            isNull(mcpOAuthRefreshTokens.revokedAt)
-          )
-        );
+      // Delete the consent record
+      await tx.delete(mcpOAuthConsents).where(eq(mcpOAuthConsents.id, consent.id));
     });
   }
 

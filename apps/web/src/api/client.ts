@@ -171,7 +171,7 @@ export const mcpConnectionApi = {
       { toolScopes }
     ),
 
-  revoke: (workspaceId: string, consentId: string) =>
+  delete: (workspaceId: string, consentId: string) =>
     api.delete<{ success: boolean; data: null }>(
       `/api/workspaces/${workspaceId}/mcp-connections/${consentId}`
     ),
