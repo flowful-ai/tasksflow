@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { BulkCreateTasksInputSchema } from '@flowtask/shared';
+import { BulkCreateTasksInputSchema, REALTIME_EVENTS } from '@flowtask/shared';
 import { getDatabase } from '@flowtask/database';
 import { TaskService, ProjectService, CommentService, SmartViewService, WorkspaceService } from '@flowtask/domain';
 import { AGENT_TOOLS } from '@flowtask/domain';
@@ -131,7 +131,7 @@ async function executeMcpTool(
       // Publish SSE event for real-time UI updates
       const projectInfo = await projectService.getById(projectId);
       if (projectInfo.ok) {
-        publishEvent(projectInfo.value.workspaceId, 'task.created', {
+        publishEvent(projectInfo.value.workspaceId, REALTIME_EVENTS.TASK_CREATED, {
           task: createResult.value,
           projectId,
         });
@@ -180,7 +180,7 @@ async function executeMcpTool(
         });
 
         if (projectInfo.ok) {
-          publishEvent(projectInfo.value.workspaceId, 'task.created', {
+          publishEvent(projectInfo.value.workspaceId, REALTIME_EVENTS.TASK_CREATED, {
             task: createResult.value,
             projectId,
           });
@@ -224,6 +224,8 @@ async function executeMcpTool(
 
       if (!updateResult.ok) throw updateResult.error;
 
+      let updatedTask = updateResult.value;
+
       if (prLinkArgs) {
         await taskGitHubLinkService.linkPullRequestToTask({
           taskId,
@@ -235,11 +237,15 @@ async function executeMcpTool(
 
         const refreshedTask = await taskService.getById(taskId);
         if (!refreshedTask.ok) throw refreshedTask.error;
-        result = refreshedTask.value;
-        break;
+        updatedTask = refreshedTask.value;
       }
 
-      result = updateResult.value;
+      result = updatedTask;
+
+      const projectInfo = await projectService.getById(taskResult.value.projectId);
+      if (projectInfo.ok) {
+        publishEvent(projectInfo.value.workspaceId, REALTIME_EVENTS.TASK_UPDATED, updatedTask);
+      }
       break;
     }
 
@@ -374,7 +380,7 @@ async function executeMcpTool(
       // Publish SSE event for real-time UI updates
       const projectInfo = await projectService.getById(taskResult.value.projectId);
       if (projectInfo.ok) {
-        publishEvent(projectInfo.value.workspaceId, 'comment.created', {
+        publishEvent(projectInfo.value.workspaceId, REALTIME_EVENTS.COMMENT_CREATED, {
           comment: commentResult.value,
           taskId,
           projectId: taskResult.value.projectId,

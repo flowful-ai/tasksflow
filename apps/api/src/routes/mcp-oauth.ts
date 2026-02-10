@@ -414,6 +414,18 @@ mcpOAuth.post('/oauth/authorize', async (c) => {
 mcpOAuth.post('/oauth/token', async (c) => {
   const body = await c.req.parseBody();
   const grantType = readBodyValue(body, 'grant_type');
+  const tokenRequestContext = {
+    grantType: grantType ?? null,
+    hasClientId: Boolean(readBodyValue(body, 'client_id')),
+    hasCode: Boolean(readBodyValue(body, 'code')),
+    hasCodeVerifier: Boolean(readBodyValue(body, 'code_verifier')),
+    hasRedirectUri: Boolean(readBodyValue(body, 'redirect_uri')),
+    hasRefreshToken: Boolean(readBodyValue(body, 'refresh_token')),
+    hasScope: Boolean(readBodyValue(body, 'scope')),
+    hasSessionHeader: Boolean(c.req.header('Mcp-Session-Id')),
+    userAgent: c.req.header('user-agent') ?? null,
+    forwardedFor: c.req.header('x-forwarded-for') ?? null,
+  };
 
   try {
     if (grantType === 'authorization_code') {
@@ -461,9 +473,19 @@ mcpOAuth.post('/oauth/token', async (c) => {
     throw new OAuthError('unsupported_grant_type', 'Unsupported grant_type');
   } catch (error) {
     if (error instanceof OAuthError) {
+      console.warn('MCP OAuth token exchange failed', {
+        ...tokenRequestContext,
+        oauthError: error.oauthError,
+        statusCode: error.statusCode,
+        errorDescription: error.message,
+      });
       return c.json(oauthErrorResponse(error), error.statusCode as 400 | 401 | 403);
     }
 
+    console.error('MCP OAuth token exchange failed with unexpected error', {
+      ...tokenRequestContext,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
     return c.json({ error: 'server_error', error_description: 'Token exchange failed' }, 500);
   }
 });

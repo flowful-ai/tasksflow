@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { BulkCreateTasksInputSchema } from '@flowtask/shared';
+import { BulkCreateTasksInputSchema, REALTIME_EVENTS } from '@flowtask/shared';
 import { getDatabase } from '@flowtask/database';
 import { TaskService, ProjectService, CommentService, SmartViewService, WorkspaceService } from '@flowtask/domain';
 import { extractBearerToken } from '@flowtask/auth';
@@ -155,7 +155,7 @@ mcp.post(
           // Publish SSE event for real-time UI updates
           const projectInfo = await projectService.getById(projectId);
           if (projectInfo.ok) {
-            publishEvent(projectInfo.value.workspaceId, 'task.created', {
+            publishEvent(projectInfo.value.workspaceId, REALTIME_EVENTS.TASK_CREATED, {
               task: createResult.value,
               projectId,
             });
@@ -207,7 +207,7 @@ mcp.post(
             });
 
             if (projectInfo.ok) {
-              publishEvent(projectInfo.value.workspaceId, 'task.created', {
+              publishEvent(projectInfo.value.workspaceId, REALTIME_EVENTS.TASK_CREATED, {
                 task: createResult.value,
                 projectId,
               });
@@ -254,6 +254,8 @@ mcp.post(
 
           if (!updateResult.ok) throw updateResult.error;
 
+          let updatedTask = updateResult.value;
+
           if (prLinkArgs) {
             await taskGitHubLinkService.linkPullRequestToTask({
               taskId,
@@ -265,11 +267,15 @@ mcp.post(
 
             const refreshedTask = await taskService.getById(taskId);
             if (!refreshedTask.ok) throw refreshedTask.error;
-            result = refreshedTask.value;
-            break;
+            updatedTask = refreshedTask.value;
           }
 
-          result = updateResult.value;
+          result = updatedTask;
+
+          const projectInfo = await projectService.getById(taskResult.value.projectId);
+          if (projectInfo.ok) {
+            publishEvent(projectInfo.value.workspaceId, REALTIME_EVENTS.TASK_UPDATED, updatedTask);
+          }
           break;
         }
 
@@ -426,7 +432,7 @@ mcp.post(
           if (taskProjectId) {
             const projectInfo = await projectService.getById(taskProjectId);
             if (projectInfo.ok) {
-              publishEvent(projectInfo.value.workspaceId, 'comment.created', {
+              publishEvent(projectInfo.value.workspaceId, REALTIME_EVENTS.COMMENT_CREATED, {
                 comment: commentResult.value,
                 taskId,
                 projectId: taskProjectId,
