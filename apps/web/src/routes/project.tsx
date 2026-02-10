@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, MoreHorizontal, LayoutGrid, List } from 'lucide-react';
+import { Plus, MoreHorizontal, LayoutGrid, List, User } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '../api/client';
 import {
@@ -16,6 +16,7 @@ import {
 } from '../components/task-display';
 import { TaskModal } from '../components/tasks/TaskModal';
 import { TaskDetailSheet } from '../components/tasks/TaskDetailSheet';
+import { useAuthStore } from '../stores/auth';
 
 interface ProjectTask {
   id: string;
@@ -122,11 +123,13 @@ async function settleOperations(operations: Array<Promise<unknown>>): Promise<{ 
 
 export function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
+  const currentUserId = useAuthStore((state) => state.user?.id ?? null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [displayType, setDisplayType] = useState<DisplayType>('kanban');
+  const [isAssignedToMeOnly, setIsAssignedToMeOnly] = useState(false);
   const [isBulkActionPending, setIsBulkActionPending] = useState(false);
   const [bulkNotice, setBulkNotice] = useState<BulkNotice | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -151,9 +154,18 @@ export function ProjectPage() {
   });
 
   const { data: tasksData, isLoading: tasksLoading, refetch: refetchTasks } = useQuery({
-    queryKey: ['tasks', projectId],
+    queryKey: ['tasks', projectId, isAssignedToMeOnly ? currentUserId : null],
     queryFn: async () => {
-      const response = await api.get<{ data: ProjectTask[] }>(`/api/tasks?projectId=${projectId}`);
+      if (isAssignedToMeOnly && !currentUserId) {
+        return [];
+      }
+
+      const searchParams = new URLSearchParams({ projectId: projectId! });
+      if (isAssignedToMeOnly && currentUserId) {
+        searchParams.set('assigneeId', currentUserId);
+      }
+
+      const response = await api.get<{ data: ProjectTask[] }>(`/api/tasks?${searchParams.toString()}`);
       return response.data;
     },
     enabled: !!projectId,
@@ -437,6 +449,21 @@ export function ProjectPage() {
               <List className="w-4 h-4" />
             </button>
           </div>
+          <button
+            type="button"
+            onClick={() => setIsAssignedToMeOnly((previous) => !previous)}
+            className={clsx(
+              'inline-flex items-center gap-1.5 border rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+              isAssignedToMeOnly
+                ? 'border-primary-200 bg-primary-50 text-primary-700'
+                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+            )}
+            title="Show only tasks assigned to me"
+            aria-pressed={isAssignedToMeOnly}
+          >
+            <User className="w-4 h-4" />
+            My tasks
+          </button>
           <button onClick={() => setIsCreateModalOpen(true)} className="btn btn-primary">
             <Plus className="w-4 h-4 mr-2" />
             Add Task
