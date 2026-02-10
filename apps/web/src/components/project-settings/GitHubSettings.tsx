@@ -164,7 +164,7 @@ export function GitHubSettings({ projectId, onUpdated }: GitHubSettingsProps) {
             <h2 className="text-lg font-semibold text-gray-900">GitHub Integration</h2>
             <p className="text-sm text-gray-500 mt-1">
               Connect GitHub repositories to sync issues and pull requests with your project tasks.
-              Changes sync both ways - updates in FlowTask reflect in GitHub and vice versa.
+              Changes sync both ways - updates in TasksFlow reflect in GitHub and vice versa.
             </p>
           </div>
         </div>
@@ -275,7 +275,7 @@ export function GitHubSettings({ projectId, onUpdated }: GitHubSettingsProps) {
                 </div>
                 <h3 className="text-sm font-medium text-gray-900 mb-1">No repositories linked</h3>
                 <p className="text-sm text-gray-500 mb-4">
-                  Install the FlowTask GitHub App to start syncing issues.
+                  Install the TasksFlow GitHub App to start syncing issues.
                 </p>
                 <button
                   onClick={handleInstallGitHubApp}
@@ -495,7 +495,7 @@ export function GitHubSettings({ projectId, onUpdated }: GitHubSettingsProps) {
             <li>• GitHub issues sync as tasks in this project</li>
             <li>• Task title and description changes sync back to GitHub</li>
             <li>• Moving a task to "Done" closes the linked GitHub issue</li>
-            <li>• Comments added in FlowTask appear on GitHub issues</li>
+            <li>• Comments added in TasksFlow appear on GitHub issues</li>
           </ul>
         </div>
       )}

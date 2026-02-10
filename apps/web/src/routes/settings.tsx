@@ -113,7 +113,7 @@ function IntegrationSettings() {
     <div className="card p-6">
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Integrations</h2>
       <p className="text-gray-600">
-        Connect FlowTask with GitHub, Slack, and other tools.
+        Connect TasksFlow with GitHub, Slack, and other tools.
       </p>
 
       {error && (
@@ -315,7 +315,7 @@ function NewWorkspaceSettings() {
             Workspace URL
           </label>
           <div className="flex items-center">
-            <span className="text-gray-500 text-sm mr-1">flowtask.app/</span>
+            <span className="text-gray-500 text-sm mr-1">tasksflow.app/</span>
             <input
               type="text"
               className="input flex-1"

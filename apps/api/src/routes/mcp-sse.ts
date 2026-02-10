@@ -522,7 +522,7 @@ function createMcpServer(tokenAuth: OAuthMcpAuthContext): McpServer {
       capabilities: {
         tools: {},
       },
-      instructions: 'FlowTask MCP server for task management. Use query_tasks for listing/filtering tasks. For "my tasks", call query_tasks with assigneeId set to "me". Use search_tasks only for full-text keyword search.',
+      instructions: 'TasksFlow MCP server for task management. Use query_tasks for listing/filtering tasks. For "my tasks", call query_tasks with assigneeId set to "me". Use search_tasks only for full-text keyword search.',
     }
   );
 

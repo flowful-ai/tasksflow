@@ -66,7 +66,7 @@ export function Layout({ children }: LayoutProps) {
                 <path d="M5 12l5 5L19 7" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
-            <span className="text-lg font-display font-bold text-white tracking-tight">FlowTask</span>
+            <span className="text-lg font-display font-bold text-white tracking-tight">TasksFlow</span>
           </Link>
           <button
             onClick={() => setSidebarOpen(false)}
@@ -245,7 +245,7 @@ export function Layout({ children }: LayoutProps) {
                 <path d="M5 12l5 5L19 7" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
-            <span className="text-lg font-display font-bold text-neutral-900">FlowTask</span>
+            <span className="text-lg font-display font-bold text-neutral-900">TasksFlow</span>
           </div>
         </header>
 

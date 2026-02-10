@@ -389,7 +389,7 @@ export function ShareDialog({
           {showCreateForm && (
             <div className="space-y-4">
               <p className="text-sm text-gray-600">
-                Create a public link to share this view with anyone, even without a FlowTask account.
+                Create a public link to share this view with anyone, even without a TasksFlow account.
               </p>
 
               <div>

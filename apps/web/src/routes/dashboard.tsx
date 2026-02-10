@@ -109,7 +109,7 @@ export function DashboardPage() {
           {firstName}
         </h1>
         <p className="text-neutral-500 mt-2">
-          {currentWorkspace ? `Here's what's happening in ${currentWorkspace.name}` : 'Welcome to FlowTask'}
+          {currentWorkspace ? `Here's what's happening in ${currentWorkspace.name}` : 'Welcome to TasksFlow'}
         </p>
       </div>
 

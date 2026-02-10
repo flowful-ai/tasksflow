@@ -198,7 +198,7 @@ export function PublicSharePage() {
                 <path d="M5 12l5 5L19 7" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
-            <span className="text-lg font-semibold text-gray-900">FlowTask</span>
+            <span className="text-lg font-semibold text-gray-900">TasksFlow</span>
           </div>
         </div>
       </header>
@@ -234,7 +234,7 @@ export function PublicSharePage() {
       {/* Footer */}
       <footer className="border-t border-gray-200 mt-12">
         <div className="max-w-7xl mx-auto px-4 py-4 text-center text-sm text-gray-500">
-          Shared via FlowTask
+          Shared via TasksFlow
         </div>
       </footer>
 
