@@ -3,10 +3,15 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { getDatabase } from '@flowtask/database';
 import { SmartViewService, WorkspaceService, TaskService, ProjectService } from '@flowtask/domain';
-import { FilterEngine } from '@flowtask/domain';
 import { getCurrentUser } from '@flowtask/auth';
 import { CreateSmartViewSchema, UpdateSmartViewSchema, CreatePublicShareSchema, type FilterGroup } from '@flowtask/shared';
 import { hasPermission } from '@flowtask/auth';
+import {
+  executeSmartViewTaskList,
+  smartViewUsesCurrentUserTemplate,
+  UNSUPPORTED_PUBLIC_FILTER_CODE,
+  UNSUPPORTED_PUBLIC_FILTER_MESSAGE,
+} from './smart-view-query-utils.js';
 
 const smartViews = new Hono();
 const db = getDatabase();
@@ -121,36 +126,16 @@ smartViews.get('/:viewId/execute', async (c) => {
   }
 
   const view = viewResult.value;
+  const page = parseInt(c.req.query('page') || '1', 10);
+  const limit = parseInt(c.req.query('limit') || '50', 10);
 
-  // Create filter context with current user for template variable resolution
-  const filterContext = FilterEngine.createContext(user.id);
-
-  // Cast filters to proper type (database stores as jsonb)
-  const viewFilters = view.filters as FilterGroup | undefined;
-
-  // Build SQL from view's filters using FilterEngine
-  const filterSql = viewFilters?.conditions?.length
-    ? FilterEngine.buildWhereClause(viewFilters, filterContext)
-    : null;
-
-  const requiredJoins = viewFilters?.conditions?.length
-    ? FilterEngine.getRequiredJoins(viewFilters)
-    : new Set<'task_states' | 'task_assignees' | 'task_labels'>();
-
-  // Get workspace projects to scope the query
-  const projectsResult = await projectService.list({ filters: { workspaceId: view.workspaceId } });
-  const projectIds = projectsResult.ok ? projectsResult.value.map((p) => p.id) : [];
-
-  const tasksResult = await taskService.list({
-    filters: {
-      projectIds,
-    },
-    filterSql,
-    requiredJoins,
-    sortBy: view.sortBy as 'position' | 'created_at' | 'updated_at' | 'due_date' | 'priority' | 'sequence_number',
-    sortOrder: view.sortOrder as 'asc' | 'desc',
-    page: parseInt(c.req.query('page') || '1', 10),
-    limit: parseInt(c.req.query('limit') || '50', 10),
+  const tasksResult = await executeSmartViewTaskList({
+    view,
+    taskService,
+    projectService,
+    filterContextUserId: user.id,
+    page,
+    limit,
   });
 
   if (!tasksResult.ok) {
@@ -164,8 +149,8 @@ smartViews.get('/:viewId/execute', async (c) => {
       tasks: tasksResult.value.tasks,
       meta: {
         total: tasksResult.value.total,
-        page: parseInt(c.req.query('page') || '1', 10),
-        limit: parseInt(c.req.query('limit') || '50', 10),
+        page,
+        limit,
       },
     },
   });
@@ -312,6 +297,20 @@ smartViews.post(
     const { allowed } = await checkWorkspaceAccess(viewResult.value.workspaceId, user.id, 'smart_view:share');
     if (!allowed) {
       return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
+    }
+
+    const viewFilters = viewResult.value.filters as FilterGroup | undefined;
+    if (smartViewUsesCurrentUserTemplate(viewFilters)) {
+      return c.json(
+        {
+          success: false,
+          error: {
+            code: UNSUPPORTED_PUBLIC_FILTER_CODE,
+            message: UNSUPPORTED_PUBLIC_FILTER_MESSAGE,
+          },
+        },
+        400
+      );
     }
 
     const result = await smartViewService.createPublicShare({

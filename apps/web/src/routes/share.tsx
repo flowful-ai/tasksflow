@@ -78,6 +78,8 @@ export function PublicSharePage() {
     retry: false,
   });
 
+  const shareErrorMessage = error instanceof ApiError ? error.message : 'This share link may have expired or been disabled.';
+
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError('');
@@ -115,7 +117,7 @@ export function PublicSharePage() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Share not found</h1>
-          <p className="text-gray-600">This share link may have expired or been disabled.</p>
+          <p className="text-gray-600">{shareErrorMessage}</p>
         </div>
       </div>
     );

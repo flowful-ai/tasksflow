@@ -3,31 +3,152 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { Redis } from 'ioredis';
 import { getDatabase } from '@flowtask/database';
-import { SmartViewService, TaskService, RateLimitService } from '@flowtask/domain';
+import { SmartViewService, TaskService, RateLimitService, ProjectService } from '@flowtask/domain';
+import type { FilterGroup } from '@flowtask/shared';
+import {
+  executeSmartViewTaskList,
+  smartViewUsesCurrentUserTemplate,
+  UNSUPPORTED_PUBLIC_FILTER_CODE,
+  UNSUPPORTED_PUBLIC_FILTER_MESSAGE,
+} from './smart-view-query-utils.js';
 
 const publicRoutes = new Hono();
 
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 const redis = new Redis(redisUrl);
 const rateLimitService = new RateLimitService(redis);
-
-// Valid sort options for task list
-const VALID_SORT_BY = ['position', 'created_at', 'updated_at', 'due_date', 'priority', 'sequence_number'] as const;
-const VALID_SORT_ORDER = ['asc', 'desc'] as const;
-
-type TaskSortBy = (typeof VALID_SORT_BY)[number];
-type TaskSortOrder = (typeof VALID_SORT_ORDER)[number];
-
-function isValidSortBy(value: string): value is TaskSortBy {
-  return (VALID_SORT_BY as readonly string[]).includes(value);
-}
-
-function isValidSortOrder(value: string): value is TaskSortOrder {
-  return (VALID_SORT_ORDER as readonly string[]).includes(value);
-}
 const db = getDatabase();
 const smartViewService = new SmartViewService(db);
 const taskService = new TaskService(db);
+const projectService = new ProjectService(db);
+
+function applyHiddenFields<T extends object>(items: T[], hideFields: string[]): T[] {
+  if (hideFields.length === 0) {
+    return items;
+  }
+
+  return items.map((item) => {
+    const itemCopy = { ...item } as T & Record<string, unknown>;
+    for (const field of hideFields) {
+      if (field in itemCopy) {
+        delete itemCopy[field];
+      }
+    }
+    return itemCopy as T;
+  });
+}
+
+type PublicSharePayloadResult =
+  | {
+      ok: true;
+      data: {
+        view: {
+          name: string;
+          description: string | null;
+          displayType: string;
+          groupBy: string;
+          secondaryGroupBy: string | null;
+          sortBy: string | null;
+          sortOrder: string | null;
+          visibleFields: string[] | null;
+        };
+        tasks: object[];
+        meta: {
+          total: number;
+          page: number;
+          limit: number;
+        };
+      };
+    }
+  | {
+      ok: false;
+      status: 400 | 500;
+      code: string;
+      message: string;
+    };
+
+async function buildPublicSharePayload({
+  view,
+  share,
+  page,
+  limit,
+}: {
+  view: {
+    workspaceId: string;
+    filters: unknown;
+    sortBy: string | null;
+    sortOrder: string | null;
+    name: string;
+    description: string | null;
+    displayType: string;
+    groupBy: string;
+    secondaryGroupBy: string | null;
+    visibleFields: unknown;
+  };
+  share: {
+    displayTypeOverride: string | null;
+    hideFields: unknown;
+  };
+  page: number;
+  limit: number;
+}): Promise<PublicSharePayloadResult> {
+  const viewFilters = view.filters as FilterGroup | undefined;
+  if (smartViewUsesCurrentUserTemplate(viewFilters)) {
+    return {
+      ok: false as const,
+      status: 400,
+      code: UNSUPPORTED_PUBLIC_FILTER_CODE,
+      message: UNSUPPORTED_PUBLIC_FILTER_MESSAGE,
+    };
+  }
+
+  const tasksResult = await executeSmartViewTaskList({
+    view,
+    taskService,
+    projectService,
+    filterContextUserId: 'public-share',
+    page,
+    limit,
+  });
+
+  if (!tasksResult.ok) {
+    return {
+      ok: false as const,
+      status: 500,
+      code: 'FETCH_FAILED',
+      message: tasksResult.error.message,
+    };
+  }
+
+  const hideFields = Array.isArray(share.hideFields) ? share.hideFields.filter((f): f is string => typeof f === 'string') : [];
+  const filteredTasks = applyHiddenFields(tasksResult.value.tasks, hideFields);
+  const displayType = share.displayTypeOverride || view.displayType;
+  const visibleFields = Array.isArray(view.visibleFields)
+    ? view.visibleFields.filter((field): field is string => typeof field === 'string')
+    : null;
+
+  return {
+    ok: true as const,
+    data: {
+      view: {
+        name: view.name,
+        description: view.description,
+        displayType,
+        groupBy: view.groupBy,
+        secondaryGroupBy: view.secondaryGroupBy,
+        sortBy: view.sortBy,
+        sortOrder: view.sortOrder,
+        visibleFields,
+      },
+      tasks: filteredTasks,
+      meta: {
+        total: tasksResult.value.total,
+        page,
+        limit,
+      },
+    },
+  };
+}
 
 // Access public share by token
 publicRoutes.get('/share/:token', async (c) => {
@@ -63,64 +184,26 @@ publicRoutes.get('/share/:token', async (c) => {
   }
 
   const view = viewResult.value;
-
-  // Apply display type override if set
-  const displayType = share.displayTypeOverride || view.displayType;
-
-  // Get tasks (using a system context for public access)
-  const sortBy = isValidSortBy(view.sortBy) ? view.sortBy : 'position';
-  const sortOrder = isValidSortOrder(view.sortOrder) ? view.sortOrder : 'asc';
-
   const page = Math.max(1, parseInt(c.req.query('page') || '1', 10));
   const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') || '50', 10)));
 
-  const tasksResult = await taskService.list({
-    sortBy,
-    sortOrder,
-    page,
-    limit,
-  });
-
-  if (!tasksResult.ok) {
-    return c.json({ success: false, error: { code: 'FETCH_FAILED', message: tasksResult.error.message } }, 500);
+  const payloadResult = await buildPublicSharePayload({ view, share, page, limit });
+  if (!payloadResult.ok) {
+    return c.json(
+      {
+        success: false,
+        error: {
+          code: payloadResult.code,
+          message: payloadResult.message,
+        },
+      },
+      payloadResult.status
+    );
   }
-
-  // Filter out hidden fields if configured
-  const tasks = tasksResult.value.tasks;
-  const hideFields = Array.isArray(share.hideFields) ? share.hideFields.filter((f): f is string => typeof f === 'string') : [];
-
-  const filteredTasks = hideFields.length > 0
-    ? tasks.map((task) => {
-        const taskCopy = { ...task };
-        for (const field of hideFields) {
-          if (field in taskCopy) {
-            delete (taskCopy as Record<string, typeof taskCopy[keyof typeof taskCopy]>)[field];
-          }
-        }
-        return taskCopy;
-      })
-    : tasks;
 
   return c.json({
     success: true,
-    data: {
-      view: {
-        name: view.name,
-        description: view.description,
-        displayType,
-        groupBy: view.groupBy,
-        secondaryGroupBy: view.secondaryGroupBy,
-        sortBy: view.sortBy,
-        sortOrder: view.sortOrder,
-        visibleFields: view.visibleFields,
-      },
-      tasks: filteredTasks,
-      meta: {
-        total: tasksResult.value.total,
-        page: parseInt(c.req.query('page') || '1', 10),
-        limit: parseInt(c.req.query('limit') || '50', 10),
-      },
-    },
+    data: payloadResult.data,
   });
 });
 
@@ -169,62 +252,27 @@ publicRoutes.post(
     }
 
     const view = viewResult.value;
-    const displayType = share.displayTypeOverride || view.displayType;
-
-    // Get tasks
-    const sortBy = isValidSortBy(view.sortBy) ? view.sortBy : 'position';
-    const sortOrder = isValidSortOrder(view.sortOrder) ? view.sortOrder : 'asc';
 
     const page = Math.max(1, parseInt(c.req.query('page') || '1', 10));
     const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') || '50', 10)));
 
-    const tasksResult = await taskService.list({
-      sortBy,
-      sortOrder,
-      page,
-      limit,
-    });
-
-    if (!tasksResult.ok) {
-      return c.json({ success: false, error: { code: 'FETCH_FAILED', message: tasksResult.error.message } }, 500);
+    const payloadResult = await buildPublicSharePayload({ view, share, page, limit });
+    if (!payloadResult.ok) {
+      return c.json(
+        {
+          success: false,
+          error: {
+            code: payloadResult.code,
+            message: payloadResult.message,
+          },
+        },
+        payloadResult.status
+      );
     }
-
-    // Filter out hidden fields
-    const tasks = tasksResult.value.tasks;
-    const hideFields = Array.isArray(share.hideFields) ? share.hideFields.filter((f): f is string => typeof f === 'string') : [];
-
-    const filteredTasks = hideFields.length > 0
-      ? tasks.map((task) => {
-          const taskCopy = { ...task };
-          for (const field of hideFields) {
-            if (field in taskCopy) {
-              delete (taskCopy as Record<string, typeof taskCopy[keyof typeof taskCopy]>)[field];
-            }
-          }
-          return taskCopy;
-        })
-      : tasks;
 
     return c.json({
       success: true,
-      data: {
-        view: {
-          name: view.name,
-          description: view.description,
-          displayType,
-          groupBy: view.groupBy,
-          secondaryGroupBy: view.secondaryGroupBy,
-          sortBy: view.sortBy,
-          sortOrder: view.sortOrder,
-          visibleFields: view.visibleFields,
-        },
-        tasks: filteredTasks,
-        meta: {
-          total: tasksResult.value.total,
-          page,
-          limit,
-        },
-      },
+      data: payloadResult.data,
     });
   }
 );

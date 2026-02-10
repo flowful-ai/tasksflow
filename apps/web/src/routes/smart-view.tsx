@@ -4,7 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Pencil, LayoutGrid, List, Table, Calendar } from 'lucide-react';
 import clsx from 'clsx';
-import { api } from '../api/client';
+import { api, ApiError } from '../api/client';
 import {
   BulkTaskToolbar,
   type BulkAssignMode,
@@ -228,6 +228,11 @@ export function SmartViewPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['smart-view-execute', viewId] });
       setShowShareDialog(false);
+    },
+    onError: (error) => {
+      const message = error instanceof ApiError ? error.message : 'Failed to create public share';
+      setErrorMessage(message);
+      setTimeout(() => setErrorMessage(null), 4000);
     },
   });
 
