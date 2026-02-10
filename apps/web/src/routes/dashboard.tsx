@@ -1,9 +1,44 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { FolderKanban, Plus, CheckCircle, Clock, AlertCircle, ArrowRight, Sparkles } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { useWorkspaceStore } from '../stores/workspace';
 import { useAuthStore } from '../stores/auth';
+import { api } from '../api/client';
 import clsx from 'clsx';
+
+interface DashboardTask {
+  id: string;
+  dueDate: string | null;
+  state: {
+    category: string;
+  } | null;
+}
+
+interface TaskListResponse {
+  data: DashboardTask[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+  };
+}
+
+async function fetchProjectTasks(projectId: string): Promise<DashboardTask[]> {
+  const limit = 100;
+  let page = 1;
+  let total = 0;
+  const allTasks: DashboardTask[] = [];
+
+  do {
+    const response = await api.get<TaskListResponse>(`/api/tasks?projectId=${projectId}&page=${page}&limit=${limit}`);
+    allTasks.push(...response.data);
+    total = response.meta.total;
+    page += 1;
+  } while (allTasks.length < total);
+
+  return allTasks;
+}
 
 export function DashboardPage() {
   const { currentWorkspace, projects, fetchWorkspaces, fetchProjects } = useWorkspaceStore();
@@ -27,6 +62,43 @@ export function DashboardPage() {
   };
 
   const firstName = user?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'there';
+  const projectIdsKey = projects.map((project) => project.id).join(',');
+
+  const { data: taskStats, isLoading: statsLoading, isError: statsError } = useQuery({
+    queryKey: ['dashboard-task-stats', currentWorkspace?.id, projectIdsKey],
+    queryFn: async () => {
+      if (!currentWorkspace || projects.length === 0) {
+        return { completed: 0, inProgress: 0, overdue: 0 };
+      }
+
+      const projectTasks = await Promise.all(projects.map((project) => fetchProjectTasks(project.id)));
+      const allTasks = projectTasks.flat();
+      const now = Date.now();
+
+      return allTasks.reduce(
+        (acc, task) => {
+          const isDone = task.state?.category === 'done';
+
+          if (isDone) {
+            acc.completed += 1;
+          }
+
+          if (task.state?.category === 'in_progress') {
+            acc.inProgress += 1;
+          }
+
+          if (!isDone && task.dueDate && new Date(task.dueDate).getTime() < now) {
+            acc.overdue += 1;
+          }
+
+          return acc;
+        },
+        { completed: 0, inProgress: 0, overdue: 0 }
+      );
+    },
+    enabled: !!currentWorkspace,
+    staleTime: 30_000,
+  });
 
   return (
     <div className="max-w-6xl mx-auto space-y-10">
@@ -47,7 +119,9 @@ export function DashboardPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-neutral-600">Completed</p>
-              <p className="text-3xl font-display font-bold text-neutral-900 mt-1">0</p>
+              <p className="text-3xl font-display font-bold text-neutral-900 mt-1">
+                {statsLoading ? '...' : taskStats?.completed ?? 0}
+              </p>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center">
               <CheckCircle className="w-6 h-6 text-emerald-600" />
@@ -55,7 +129,13 @@ export function DashboardPage() {
           </div>
           <div className="mt-4 flex items-center text-sm text-emerald-600">
             <Sparkles className="w-4 h-4 mr-1" />
-            <span>All tasks complete</span>
+            <span>
+              {statsError
+                ? "Couldn't load task stats"
+                : (taskStats?.completed ?? 0) > 0
+                  ? 'Tasks in done states'
+                  : 'No completed tasks yet'}
+            </span>
           </div>
         </div>
 
@@ -63,14 +143,22 @@ export function DashboardPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-neutral-600">In Progress</p>
-              <p className="text-3xl font-display font-bold text-neutral-900 mt-1">0</p>
+              <p className="text-3xl font-display font-bold text-neutral-900 mt-1">
+                {statsLoading ? '...' : taskStats?.inProgress ?? 0}
+              </p>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center">
               <Clock className="w-6 h-6 text-blue-600" />
             </div>
           </div>
           <div className="mt-4 flex items-center text-sm text-blue-600">
-            <span>No active tasks</span>
+            <span>
+              {statsError
+                ? "Couldn't load task stats"
+                : (taskStats?.inProgress ?? 0) > 0
+                  ? 'Tasks actively being worked on'
+                  : 'No active tasks'}
+            </span>
           </div>
         </div>
 
@@ -78,14 +166,22 @@ export function DashboardPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-neutral-600">Overdue</p>
-              <p className="text-3xl font-display font-bold text-neutral-900 mt-1">0</p>
+              <p className="text-3xl font-display font-bold text-neutral-900 mt-1">
+                {statsLoading ? '...' : taskStats?.overdue ?? 0}
+              </p>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center">
               <AlertCircle className="w-6 h-6 text-red-600" />
             </div>
           </div>
           <div className="mt-4 flex items-center text-sm text-neutral-500">
-            <span>Nothing overdue</span>
+            <span>
+              {statsError
+                ? "Couldn't load task stats"
+                : (taskStats?.overdue ?? 0) > 0
+                  ? 'Requires attention'
+                  : 'Nothing overdue'}
+            </span>
           </div>
         </div>
       </div>
