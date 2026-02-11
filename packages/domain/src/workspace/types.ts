@@ -48,3 +48,47 @@ export interface WorkspaceListOptions {
   sortBy?: 'name' | 'created_at';
   sortOrder?: 'asc' | 'desc';
 }
+
+export interface WorkspaceActivityCursorInput {
+  createdAt: Date;
+  id: string;
+}
+
+export interface WorkspaceActivityListOptions {
+  limit?: number;
+  cursor?: WorkspaceActivityCursorInput;
+}
+
+export interface WorkspaceActivityActor {
+  id: string;
+  name: string | null;
+  email: string;
+}
+
+export interface WorkspaceActivityItem {
+  id: string;
+  createdAt: Date;
+  eventType:
+    | 'created'
+    | 'updated'
+    | 'moved'
+    | 'assigned'
+    | 'unassigned'
+    | 'labeled'
+    | 'unlabeled'
+    | 'commented'
+    | 'deleted'
+    | 'restored';
+  fieldName: string | null;
+  task: {
+    id: string;
+    title: string;
+    sequenceNumber: number;
+    project: {
+      id: string;
+      identifier: string;
+      name: string;
+    };
+  };
+  actor: WorkspaceActivityActor | null;
+}

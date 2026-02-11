@@ -1,10 +1,27 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { FolderKanban, Plus, CheckCircle, Clock, AlertCircle, ArrowRight, Sparkles } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import {
+  FolderKanban,
+  Plus,
+  CheckCircle,
+  Clock,
+  AlertCircle,
+  ArrowRight,
+  Sparkles,
+  History,
+  MessageSquare,
+  ArrowRightLeft,
+  UserPlus,
+  UserMinus,
+  Tag,
+  Trash2,
+  RotateCcw,
+  CircleDot,
+} from 'lucide-react';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useWorkspaceStore } from '../stores/workspace';
 import { useAuthStore } from '../stores/auth';
-import { api } from '../api/client';
+import { api, workspaceApi, type WorkspaceActivityItem } from '../api/client';
 import clsx from 'clsx';
 
 interface DashboardTask {
@@ -22,6 +39,59 @@ interface TaskListResponse {
     page: number;
     limit: number;
   };
+}
+
+const ACTIVITY_PAGE_SIZE = 20;
+
+function formatRelativeTime(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins} minute${diffMins === 1 ? '' : 's'} ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+  if (diffDays < 30) return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
+  return date.toLocaleDateString();
+}
+
+function getActivityPresentation(eventType: WorkspaceActivityItem['eventType']) {
+  switch (eventType) {
+    case 'created':
+      return { icon: Plus, iconClass: 'text-emerald-600', bgClass: 'bg-emerald-100', label: 'created this task' };
+    case 'updated':
+      return { icon: Sparkles, iconClass: 'text-blue-600', bgClass: 'bg-blue-100', label: 'updated this task' };
+    case 'moved':
+      return { icon: ArrowRightLeft, iconClass: 'text-indigo-600', bgClass: 'bg-indigo-100', label: 'moved this task' };
+    case 'assigned':
+      return { icon: UserPlus, iconClass: 'text-cyan-600', bgClass: 'bg-cyan-100', label: 'assigned someone' };
+    case 'unassigned':
+      return { icon: UserMinus, iconClass: 'text-slate-600', bgClass: 'bg-slate-200', label: 'removed an assignee' };
+    case 'labeled':
+      return { icon: Tag, iconClass: 'text-amber-600', bgClass: 'bg-amber-100', label: 'added a label' };
+    case 'unlabeled':
+      return { icon: Tag, iconClass: 'text-neutral-600', bgClass: 'bg-neutral-200', label: 'removed a label' };
+    case 'commented':
+      return { icon: MessageSquare, iconClass: 'text-fuchsia-600', bgClass: 'bg-fuchsia-100', label: 'commented' };
+    case 'deleted':
+      return { icon: Trash2, iconClass: 'text-red-600', bgClass: 'bg-red-100', label: 'deleted this task' };
+    case 'restored':
+      return { icon: RotateCcw, iconClass: 'text-green-700', bgClass: 'bg-green-100', label: 'restored this task' };
+    default:
+      return { icon: CircleDot, iconClass: 'text-neutral-600', bgClass: 'bg-neutral-200', label: 'changed this task' };
+  }
+}
+
+function activityText(item: WorkspaceActivityItem): string {
+  const actorName = item.actor?.name || item.actor?.email || 'Someone';
+  const presentation = getActivityPresentation(item.eventType);
+  if (item.eventType === 'updated' && item.fieldName) {
+    return `${actorName} updated ${item.fieldName}`;
+  }
+  return `${actorName} ${presentation.label}`;
 }
 
 async function fetchProjectTasks(projectId: string): Promise<DashboardTask[]> {
@@ -99,6 +169,32 @@ export function DashboardPage() {
     enabled: !!currentWorkspace,
     staleTime: 30_000,
   });
+
+  const {
+    data: activityPages,
+    isLoading: activityLoading,
+    isError: activityError,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['workspace-activity', currentWorkspace?.id],
+    queryFn: ({ pageParam }) => {
+      if (!currentWorkspace) {
+        throw new Error('No workspace selected');
+      }
+      return workspaceApi.listActivity(currentWorkspace.id, {
+        limit: ACTIVITY_PAGE_SIZE,
+        cursor: pageParam ?? undefined,
+      });
+    },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.meta.nextCursor ?? undefined,
+    enabled: !!currentWorkspace,
+    staleTime: 15_000,
+  });
+
+  const activities = activityPages?.pages.flatMap((page) => page.data) ?? [];
 
   return (
     <div className="max-w-6xl mx-auto space-y-10">
@@ -270,6 +366,87 @@ export function DashboardPage() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Activity Section */}
+      <div className="opacity-0 animate-fade-in stagger-5">
+        <div className="card overflow-hidden bg-gradient-to-b from-white to-neutral-50/70">
+          <div className="px-6 py-5 border-b border-neutral-200/80 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-neutral-100 flex items-center justify-center">
+                <History className="w-5 h-5 text-neutral-700" />
+              </div>
+              <div>
+                <h2 className="text-xl font-display font-semibold text-neutral-900">Recent activity</h2>
+                <p className="text-sm text-neutral-500">Latest actions across this workspace</p>
+              </div>
+            </div>
+          </div>
+
+          {!currentWorkspace ? (
+            <div className="px-6 py-10 text-sm text-neutral-500">Select a workspace to view activity.</div>
+          ) : activityLoading ? (
+            <div className="divide-y divide-neutral-200/70">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div key={index} className="px-6 py-4 animate-pulse">
+                  <div className="h-4 bg-neutral-200 rounded w-3/4 mb-2" />
+                  <div className="h-3 bg-neutral-100 rounded w-1/3" />
+                </div>
+              ))}
+            </div>
+          ) : activityError ? (
+            <div className="px-6 py-10 text-sm text-red-600">Couldn&apos;t load activity right now.</div>
+          ) : activities.length === 0 ? (
+            <div className="px-6 py-10 text-sm text-neutral-500">No activity yet in this workspace.</div>
+          ) : (
+            <>
+              <div className="divide-y divide-neutral-200/70">
+                {activities.map((activity) => {
+                  const presentation = getActivityPresentation(activity.eventType);
+                  const Icon = presentation.icon;
+                  return (
+                    <Link
+                      key={activity.id}
+                      to={`/task/${activity.task.id}`}
+                      className="px-6 py-4 flex items-start gap-3 hover:bg-white/80 transition-colors"
+                    >
+                      <div className={clsx('w-9 h-9 rounded-xl flex items-center justify-center shrink-0', presentation.bgClass)}>
+                        <Icon className={clsx('w-4 h-4', presentation.iconClass)} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-neutral-700">
+                          <span className="font-medium text-neutral-900">{activityText(activity)}</span>{' '}
+                          <span className="text-neutral-600">on</span>{' '}
+                          <span className="font-medium text-neutral-900">{activity.task.title}</span>
+                        </p>
+                        <p className="mt-1 text-xs text-neutral-500">
+                          <span className="font-semibold text-neutral-600">{activity.task.project.identifier}-{activity.task.sequenceNumber}</span>
+                          <span className="mx-1.5">•</span>
+                          <span>{activity.task.project.name}</span>
+                          <span className="mx-1.5">•</span>
+                          <span>{formatRelativeTime(activity.createdAt)}</span>
+                        </p>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+
+              {hasNextPage && (
+                <div className="px-6 py-5 border-t border-neutral-200/80 text-center">
+                  <button
+                    type="button"
+                    onClick={() => fetchNextPage()}
+                    disabled={isFetchingNextPage}
+                    className="btn btn-secondary"
+                  >
+                    {isFetchingNextPage ? 'Loading...' : 'Load more'}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

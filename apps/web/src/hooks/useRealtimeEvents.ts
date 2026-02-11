@@ -49,6 +49,7 @@ export function useRealtimeEvents() {
             queryClient.invalidateQueries({ queryKey: ['tasks', taskData.projectId] });
           }
           queryClient.invalidateQueries({ queryKey: ['smart-view-execute'] });
+          queryClient.invalidateQueries({ queryKey: ['workspace-activity'] });
           break;
         }
 
@@ -63,6 +64,7 @@ export function useRealtimeEvents() {
             queryClient.invalidateQueries({ queryKey: ['tasks'] });
           }
           queryClient.invalidateQueries({ queryKey: ['smart-view-execute'] });
+          queryClient.invalidateQueries({ queryKey: ['workspace-activity'] });
           break;
         }
 
@@ -72,6 +74,7 @@ export function useRealtimeEvents() {
           queryClient.invalidateQueries({ queryKey: ['task', taskData.id] });
           queryClient.invalidateQueries({ queryKey: ['tasks', taskData.projectId] });
           queryClient.invalidateQueries({ queryKey: ['smart-view-execute'] });
+          queryClient.invalidateQueries({ queryKey: ['workspace-activity'] });
           break;
         }
 
@@ -81,6 +84,7 @@ export function useRealtimeEvents() {
           const commentData = data as CommentEventData;
           queryClient.invalidateQueries({ queryKey: ['task', commentData.taskId] });
           queryClient.invalidateQueries({ queryKey: ['comments', commentData.taskId] });
+          queryClient.invalidateQueries({ queryKey: ['workspace-activity'] });
           break;
         }
 

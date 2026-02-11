@@ -1,10 +1,10 @@
-import { eq, and, sql, desc, asc, like, inArray, SQL } from 'drizzle-orm';
+import { eq, and, or, sql, desc, asc, like, inArray, lt, SQL } from 'drizzle-orm';
 
 function escapeLike(value: string): string {
   return value.replace(/[%_\\]/g, '\\$&');
 }
 import type { Database } from '@flowtask/database';
-import { workspaces, workspaceMembers, users, projects } from '@flowtask/database';
+import { workspaces, workspaceMembers, users, projects, tasks, taskEvents } from '@flowtask/database';
 import type { Result, WorkspaceRole } from '@flowtask/shared';
 import { ok, err } from '@flowtask/shared';
 import type {
@@ -16,6 +16,9 @@ import type {
   UpdateMemberInput,
   RemoveMemberInput,
   WorkspaceListOptions,
+  WorkspaceActivityListOptions,
+  WorkspaceActivityCursorInput,
+  WorkspaceActivityItem,
 } from './types.js';
 
 export class WorkspaceService {
@@ -254,6 +257,92 @@ export class WorkspaceService {
       }));
 
       return ok(result);
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error('Unknown error'));
+    }
+  }
+
+  /**
+   * List recent task activity for a workspace.
+   */
+  async listActivity(
+    workspaceId: string,
+    options: WorkspaceActivityListOptions = {}
+  ): Promise<Result<{ items: WorkspaceActivityItem[]; nextCursor: WorkspaceActivityCursorInput | null }, Error>> {
+    try {
+      const limit = Math.max(1, Math.min(100, options.limit ?? 20));
+      const conditions: SQL[] = [eq(projects.workspaceId, workspaceId)];
+
+      if (options.cursor) {
+        conditions.push(
+          or(
+            lt(taskEvents.createdAt, options.cursor.createdAt),
+            and(eq(taskEvents.createdAt, options.cursor.createdAt), lt(taskEvents.id, options.cursor.id))
+          )!
+        );
+      }
+
+      const rows = await this.db
+        .select({
+          id: taskEvents.id,
+          createdAt: taskEvents.createdAt,
+          eventType: taskEvents.eventType,
+          fieldName: taskEvents.fieldName,
+          task: {
+            id: tasks.id,
+            title: tasks.title,
+            sequenceNumber: tasks.sequenceNumber,
+          },
+          project: {
+            id: projects.id,
+            identifier: projects.identifier,
+            name: projects.name,
+          },
+          actor: {
+            id: users.id,
+            name: users.name,
+            email: users.email,
+          },
+        })
+        .from(taskEvents)
+        .innerJoin(tasks, eq(taskEvents.taskId, tasks.id))
+        .innerJoin(projects, eq(tasks.projectId, projects.id))
+        .leftJoin(users, eq(taskEvents.actorId, users.id))
+        .where(and(...conditions))
+        .orderBy(desc(taskEvents.createdAt), desc(taskEvents.id))
+        .limit(limit + 1);
+
+      const hasMore = rows.length > limit;
+      const pageRows = rows.slice(0, limit);
+
+      const items: WorkspaceActivityItem[] = pageRows.map((row) => {
+        const actor = row.actor;
+
+        return {
+          id: row.id,
+          createdAt: row.createdAt,
+          eventType: row.eventType as WorkspaceActivityItem['eventType'],
+          fieldName: row.fieldName,
+          task: {
+            id: row.task.id,
+            title: row.task.title,
+            sequenceNumber: row.task.sequenceNumber,
+            project: row.project,
+          },
+          actor: actor?.id && actor.email
+            ? {
+                id: actor.id,
+                name: actor.name,
+                email: actor.email,
+              }
+            : null,
+        };
+      });
+
+      const last = items[items.length - 1] || null;
+      const nextCursor = hasMore && last ? { createdAt: last.createdAt, id: last.id } : null;
+
+      return ok({ items, nextCursor });
     } catch (error) {
       return err(error instanceof Error ? error : new Error('Unknown error'));
     }

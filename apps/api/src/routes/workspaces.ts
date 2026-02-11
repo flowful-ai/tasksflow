@@ -3,13 +3,34 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { getDatabase } from '@flowtask/database';
 import { WorkspaceService } from '@flowtask/domain';
-import { getCurrentUser, type AuthContext } from '@flowtask/auth';
-import { CreateWorkspaceSchema, UpdateWorkspaceSchema, WorkspaceRoleSchema } from '@flowtask/shared';
+import { getCurrentUser } from '@flowtask/auth';
+import {
+  CreateWorkspaceSchema,
+  UpdateWorkspaceSchema,
+  WorkspaceRoleSchema,
+  WorkspaceActivityQuerySchema,
+  WorkspaceActivityCursorSchema,
+} from '@flowtask/shared';
 import { hasPermission } from '@flowtask/auth';
 
 const workspaces = new Hono();
 const db = getDatabase();
 const workspaceService = new WorkspaceService(db);
+
+function encodeCursor(cursor: { createdAt: Date; id: string }): string {
+  return Buffer.from(JSON.stringify(cursor)).toString('base64url');
+}
+
+function decodeCursor(cursor: string): { createdAt: Date; id: string } | null {
+  try {
+    const decoded = Buffer.from(cursor, 'base64url').toString('utf8');
+    const parsed = JSON.parse(decoded);
+    const validated = WorkspaceActivityCursorSchema.safeParse(parsed);
+    return validated.success ? validated.data : null;
+  } catch {
+    return null;
+  }
+}
 
 // List workspaces for current user
 workspaces.get('/', async (c) => {
@@ -86,6 +107,52 @@ workspaces.get('/by-slug/:slug', async (c) => {
 
   return c.json({ success: true, data: result.value });
 });
+
+// List recent task activity for workspace
+workspaces.get(
+  '/:workspaceId/activity',
+  zValidator('query', WorkspaceActivityQuerySchema),
+  async (c) => {
+    const user = getCurrentUser(c);
+    const workspaceId = c.req.param('workspaceId');
+    const query = c.req.valid('query');
+
+    const roleResult = await workspaceService.getMemberRole(workspaceId, user.id);
+    if (!roleResult.ok || !roleResult.value) {
+      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not a workspace member' } }, 403);
+    }
+
+    if (!hasPermission(roleResult.value, 'project:read')) {
+      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, 403);
+    }
+
+    let cursor: { createdAt: Date; id: string } | undefined;
+    if (query.cursor) {
+      cursor = decodeCursor(query.cursor) || undefined;
+      if (!cursor) {
+        return c.json({ success: false, error: { code: 'INVALID_CURSOR', message: 'Invalid cursor format' } }, 400);
+      }
+    }
+
+    const result = await workspaceService.listActivity(workspaceId, {
+      limit: query.limit,
+      cursor,
+    });
+
+    if (!result.ok) {
+      return c.json({ success: false, error: { code: 'LIST_FAILED', message: result.error.message } }, 500);
+    }
+
+    return c.json({
+      success: true,
+      data: result.value.items,
+      meta: {
+        limit: query.limit,
+        nextCursor: result.value.nextCursor ? encodeCursor(result.value.nextCursor) : null,
+      },
+    });
+  }
+);
 
 // Update workspace
 workspaces.patch(

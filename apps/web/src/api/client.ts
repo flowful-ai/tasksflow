@@ -244,6 +244,61 @@ export interface WorkspaceMember {
   };
 }
 
+export type WorkspaceActivityEventType =
+  | 'created'
+  | 'updated'
+  | 'moved'
+  | 'assigned'
+  | 'unassigned'
+  | 'labeled'
+  | 'unlabeled'
+  | 'commented'
+  | 'deleted'
+  | 'restored';
+
+export interface WorkspaceActivityItem {
+  id: string;
+  createdAt: string;
+  eventType: WorkspaceActivityEventType;
+  fieldName: string | null;
+  task: {
+    id: string;
+    title: string;
+    sequenceNumber: number;
+    project: {
+      id: string;
+      identifier: string;
+      name: string;
+    };
+  };
+  actor: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
+}
+
+export interface WorkspaceActivityResponse {
+  success: boolean;
+  data: WorkspaceActivityItem[];
+  meta: {
+    limit: number;
+    nextCursor: string | null;
+  };
+}
+
+export const workspaceApi = {
+  listActivity: (workspaceId: string, params?: { limit?: number; cursor?: string | null }) => {
+    const searchParams = new URLSearchParams();
+    if (params?.limit !== undefined) searchParams.set('limit', String(params.limit));
+    if (params?.cursor) searchParams.set('cursor', params.cursor);
+    const query = searchParams.toString();
+    return api.get<WorkspaceActivityResponse>(
+      `/api/workspaces/${workspaceId}/activity${query ? `?${query}` : ''}`
+    );
+  },
+};
+
 // Workspace invitation types
 export interface WorkspaceInvitation {
   id: string;
