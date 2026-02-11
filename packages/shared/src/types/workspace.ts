@@ -82,6 +82,10 @@ export const WorkspaceActivityItemSchema = z.object({
     name: z.string().nullable(),
     email: z.string().email(),
   }).nullable(),
+  agent: z.object({
+    id: z.string(),
+    name: z.string(),
+  }).nullable(),
 });
 export type WorkspaceActivityItem = z.infer<typeof WorkspaceActivityItemSchema>;
 

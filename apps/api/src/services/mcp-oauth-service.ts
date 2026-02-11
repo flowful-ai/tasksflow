@@ -184,6 +184,7 @@ export interface OAuthMcpAuthContext {
   scopes: string[];
   toolPermissions: string[];
   clientId: string;
+  clientName: string;
 }
 
 export interface McpOAuthConnection {
@@ -955,6 +956,7 @@ export class McpOAuthService {
         workspaceId: mcpOAuthAccessTokens.workspaceId,
         scope: mcpOAuthAccessTokens.scope,
         clientId: mcpOAuthClients.clientId,
+        clientName: mcpOAuthClients.clientName,
       })
       .from(mcpOAuthAccessTokens)
       .innerJoin(mcpOAuthClients, eq(mcpOAuthAccessTokens.clientId, mcpOAuthClients.id))
@@ -997,6 +999,7 @@ export class McpOAuthService {
       scopes,
       toolPermissions,
       clientId: row.clientId,
+      clientName: row.clientName,
     };
   }
 

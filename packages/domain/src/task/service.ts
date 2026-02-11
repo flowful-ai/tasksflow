@@ -146,6 +146,7 @@ export class TaskService {
       await this.recordEvent({
         taskId: task.id,
         actorId: input.createdBy,
+        mcpClientId: input.mcpClientId,
         eventType: 'created',
       });
 
@@ -269,6 +270,7 @@ export class TaskService {
             await this.recordEvent({
               taskId,
               actorId: input.updatedBy,
+              mcpClientId: input.mcpClientId,
               eventType: 'updated',
               fieldName: field,
               oldValue,
@@ -314,6 +316,7 @@ export class TaskService {
         await this.recordEvent({
           taskId,
           actorId: input.movedBy,
+          mcpClientId: input.mcpClientId,
           eventType: 'moved',
           fieldName: 'stateId',
           oldValue: current.stateId,
@@ -330,7 +333,7 @@ export class TaskService {
   /**
    * Soft delete a task.
    */
-  async delete(taskId: string, deletedBy: string | null): Promise<Result<void, Error>> {
+  async delete(taskId: string, deletedBy: string | null, options?: { mcpClientId?: string | null }): Promise<Result<void, Error>> {
     try {
       await this.db
         .update(tasks)
@@ -340,6 +343,7 @@ export class TaskService {
       await this.recordEvent({
         taskId,
         actorId: deletedBy,
+        mcpClientId: options?.mcpClientId,
         eventType: 'deleted',
       });
 
@@ -572,13 +576,19 @@ export class TaskService {
   /**
    * Add an assignee to a task.
    */
-  async addAssignee(taskId: string, userId: string, assignedBy: string | null): Promise<Result<void, Error>> {
+  async addAssignee(
+    taskId: string,
+    userId: string,
+    assignedBy: string | null,
+    options?: { mcpClientId?: string | null }
+  ): Promise<Result<void, Error>> {
     try {
       await this.db.insert(taskAssignees).values({ taskId, userId }).onConflictDoNothing();
 
       await this.recordEvent({
         taskId,
         actorId: assignedBy,
+        mcpClientId: options?.mcpClientId,
         eventType: 'assigned',
         newValue: userId,
       });
@@ -592,7 +602,12 @@ export class TaskService {
   /**
    * Remove an assignee from a task.
    */
-  async removeAssignee(taskId: string, userId: string, removedBy: string | null): Promise<Result<void, Error>> {
+  async removeAssignee(
+    taskId: string,
+    userId: string,
+    removedBy: string | null,
+    options?: { mcpClientId?: string | null }
+  ): Promise<Result<void, Error>> {
     try {
       await this.db
         .delete(taskAssignees)
@@ -601,6 +616,7 @@ export class TaskService {
       await this.recordEvent({
         taskId,
         actorId: removedBy,
+        mcpClientId: options?.mcpClientId,
         eventType: 'unassigned',
         oldValue: userId,
       });
@@ -676,6 +692,7 @@ export class TaskService {
     await this.db.insert(taskEvents).values({
       taskId: input.taskId,
       actorId: input.actorId,
+      mcpClientId: input.mcpClientId || null,
       eventType: input.eventType,
       fieldName: input.fieldName || null,
       oldValue: input.oldValue ?? null,

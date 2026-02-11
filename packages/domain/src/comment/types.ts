@@ -14,6 +14,7 @@ export interface CommentCreateInput {
   taskId: string;
   userId: string | null;
   agentId?: string | null;
+  mcpClientId?: string | null;
   content: string;
   externalCommentId?: string | null;
 }

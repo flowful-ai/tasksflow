@@ -237,6 +237,7 @@ export const taskEvents = pgTable(
       .references(() => tasks.id, { onDelete: 'cascade' })
       .notNull(),
     actorId: uuid('actor_id').references(() => users.id, { onDelete: 'set null' }),
+    mcpClientId: text('mcp_client_id').references(() => mcpOAuthClients.clientId, { onDelete: 'set null' }),
     eventType: text('event_type').notNull(), // 'created', 'updated', 'moved', 'assigned', 'commented'
     fieldName: text('field_name'),
     oldValue: jsonb('old_value'),

@@ -32,6 +32,7 @@ export class CommentService {
       await this.db.insert(taskEvents).values({
         taskId: input.taskId,
         actorId: input.userId,
+        mcpClientId: input.mcpClientId || null,
         eventType: 'commented',
         newValue: { commentId: comment.id },
       });

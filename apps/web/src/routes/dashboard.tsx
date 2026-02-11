@@ -87,11 +87,12 @@ function getActivityPresentation(eventType: WorkspaceActivityItem['eventType']) 
 
 function activityText(item: WorkspaceActivityItem): string {
   const actorName = item.actor?.name || item.actor?.email || 'Someone';
+  const attributedActor = item.agent ? `${actorName} (by Agent ${item.agent.name})` : actorName;
   const presentation = getActivityPresentation(item.eventType);
   if (item.eventType === 'updated' && item.fieldName) {
-    return `${actorName} updated ${item.fieldName}`;
+    return `${attributedActor} updated ${item.fieldName}`;
   }
-  return `${actorName} ${presentation.label}`;
+  return `${attributedActor} ${presentation.label}`;
 }
 
 async function fetchProjectTasks(projectId: string): Promise<DashboardTask[]> {

@@ -276,6 +276,10 @@ export interface WorkspaceActivityItem {
     name: string | null;
     email: string;
   } | null;
+  agent: {
+    id: string;
+    name: string;
+  } | null;
 }
 
 export interface WorkspaceActivityResponse {

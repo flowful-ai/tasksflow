@@ -65,6 +65,11 @@ export interface WorkspaceActivityActor {
   email: string;
 }
 
+export interface WorkspaceActivityAgent {
+  id: string;
+  name: string;
+}
+
 export interface WorkspaceActivityItem {
   id: string;
   createdAt: Date;
@@ -91,4 +96,5 @@ export interface WorkspaceActivityItem {
     };
   };
   actor: WorkspaceActivityActor | null;
+  agent: WorkspaceActivityAgent | null;
 }

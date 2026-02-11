@@ -123,6 +123,7 @@ async function executeMcpTool(
         stateId: args.stateId as string | undefined,
         createdBy: tokenAuth.userId,
         agentId: null,
+        mcpClientId: tokenAuth.clientId,
       });
 
       if (!createResult.ok) throw createResult.error;
@@ -161,6 +162,7 @@ async function executeMcpTool(
           stateId: taskInput.stateId,
           createdBy: tokenAuth.userId,
           agentId: null,
+          mcpClientId: tokenAuth.clientId,
         });
 
         if (!createResult.ok) {
@@ -220,6 +222,7 @@ async function executeMcpTool(
         priority: args.priority as 'urgent' | 'high' | 'medium' | 'low' | 'none' | undefined,
         stateId: args.stateId as string | undefined,
         updatedBy: tokenAuth.userId,
+        mcpClientId: tokenAuth.clientId,
       });
 
       if (!updateResult.ok) throw updateResult.error;
@@ -262,7 +265,7 @@ async function executeMcpTool(
         throw new Error('Agent cannot access this project');
       }
 
-      const deleteResult = await taskService.delete(taskId, null);
+      const deleteResult = await taskService.delete(taskId, tokenAuth.userId, { mcpClientId: tokenAuth.clientId });
       if (!deleteResult.ok) throw deleteResult.error;
       result = { deleted: true, taskId };
 
@@ -322,7 +325,8 @@ async function executeMcpTool(
       const moveResult = await taskService.move(taskId, {
         stateId,
         position,
-        movedBy: null,
+        movedBy: tokenAuth.userId,
+        mcpClientId: tokenAuth.clientId,
       });
 
       if (!moveResult.ok) throw moveResult.error;
@@ -352,10 +356,14 @@ async function executeMcpTool(
       }
 
       if (action === 'assign') {
-        const assignResult = await taskService.addAssignee(taskId, userId, null);
+        const assignResult = await taskService.addAssignee(taskId, userId, tokenAuth.userId, {
+          mcpClientId: tokenAuth.clientId,
+        });
         if (!assignResult.ok) throw assignResult.error;
       } else {
-        const unassignResult = await taskService.removeAssignee(taskId, userId, null);
+        const unassignResult = await taskService.removeAssignee(taskId, userId, tokenAuth.userId, {
+          mcpClientId: tokenAuth.clientId,
+        });
         if (!unassignResult.ok) throw unassignResult.error;
       }
 
@@ -390,6 +398,7 @@ async function executeMcpTool(
         content,
         userId: tokenAuth.userId,
         agentId: null,
+        mcpClientId: tokenAuth.clientId,
       });
 
       if (!commentResult.ok) throw commentResult.error;

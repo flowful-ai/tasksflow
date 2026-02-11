@@ -31,16 +31,19 @@ export interface TaskCreateInput extends CreateTask {
   projectId: string;
   createdBy: string | null;
   agentId?: string | null;
+  mcpClientId?: string | null;
 }
 
 export interface TaskUpdateInput extends UpdateTask {
   updatedBy: string | null;
+  mcpClientId?: string | null;
   /** Skip reverse sync to GitHub (used when update comes from GitHub webhook) */
   skipGitHubSync?: boolean;
 }
 
 export interface TaskMoveInput extends MoveTask {
   movedBy: string | null;
+  mcpClientId?: string | null;
   /** Skip reverse sync to GitHub (used when update comes from GitHub webhook) */
   skipGitHubSync?: boolean;
 }
@@ -78,6 +81,7 @@ export interface TaskListOptions {
 export interface TaskEventInput {
   taskId: string;
   actorId: string | null;
+  mcpClientId?: string | null;
   eventType: 'created' | 'updated' | 'moved' | 'assigned' | 'unassigned' | 'labeled' | 'unlabeled' | 'commented' | 'deleted' | 'restored';
   fieldName?: string;
   oldValue?: unknown;

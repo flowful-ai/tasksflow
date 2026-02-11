@@ -1,0 +1,2 @@
+ALTER TABLE "task_events" ADD COLUMN "mcp_client_id" text;--> statement-breakpoint
+ALTER TABLE "task_events" ADD CONSTRAINT "task_events_mcp_client_id_mcp_oauth_clients_client_id_fk" FOREIGN KEY ("mcp_client_id") REFERENCES "public"."mcp_oauth_clients"("client_id") ON DELETE set null ON UPDATE no action;

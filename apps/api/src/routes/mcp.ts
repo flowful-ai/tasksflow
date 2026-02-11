@@ -147,6 +147,7 @@ mcp.post(
             stateId: args.stateId as string | undefined,
             createdBy: oauthAuth.userId,
             agentId: null,
+            mcpClientId: oauthAuth.clientId,
           });
 
           if (!createResult.ok) throw createResult.error;
@@ -188,6 +189,7 @@ mcp.post(
               stateId: taskInput.stateId,
               createdBy: oauthAuth.userId,
               agentId: null,
+              mcpClientId: oauthAuth.clientId,
             });
 
             if (!createResult.ok) {
@@ -250,6 +252,7 @@ mcp.post(
             priority: args.priority as 'urgent' | 'high' | 'medium' | 'low' | 'none' | undefined,
             stateId: args.stateId as string | undefined,
             updatedBy: oauthAuth.userId,
+            mcpClientId: oauthAuth.clientId,
           });
 
           if (!updateResult.ok) throw updateResult.error;
@@ -295,7 +298,7 @@ mcp.post(
             }, 403);
           }
 
-          const deleteResult = await taskService.delete(taskId, oauthAuth.userId);
+          const deleteResult = await taskService.delete(taskId, oauthAuth.userId, { mcpClientId: oauthAuth.clientId });
           if (!deleteResult.ok) throw deleteResult.error;
           result = { deleted: true, taskId };
 
@@ -366,6 +369,7 @@ mcp.post(
             stateId,
             position,
             movedBy: oauthAuth.userId,
+            mcpClientId: oauthAuth.clientId,
           });
 
           if (!moveResult.ok) throw moveResult.error;
@@ -398,10 +402,14 @@ mcp.post(
           }
 
           if (action === 'assign') {
-            const assignResult = await taskService.addAssignee(taskId, userId, oauthAuth.userId);
+            const assignResult = await taskService.addAssignee(taskId, userId, oauthAuth.userId, {
+              mcpClientId: oauthAuth.clientId,
+            });
             if (!assignResult.ok) throw assignResult.error;
           } else {
-            const unassignResult = await taskService.removeAssignee(taskId, userId, oauthAuth.userId);
+            const unassignResult = await taskService.removeAssignee(taskId, userId, oauthAuth.userId, {
+              mcpClientId: oauthAuth.clientId,
+            });
             if (!unassignResult.ok) throw unassignResult.error;
           }
 
@@ -441,6 +449,7 @@ mcp.post(
             content,
             userId: oauthAuth.userId,
             agentId: null,
+            mcpClientId: oauthAuth.clientId,
           });
 
           if (!commentResult.ok) throw commentResult.error;

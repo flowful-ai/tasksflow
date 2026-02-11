@@ -4,7 +4,7 @@ function escapeLike(value: string): string {
   return value.replace(/[%_\\]/g, '\\$&');
 }
 import type { Database } from '@flowtask/database';
-import { workspaces, workspaceMembers, users, projects, tasks, taskEvents } from '@flowtask/database';
+import { workspaces, workspaceMembers, users, projects, tasks, taskEvents, mcpOAuthClients } from '@flowtask/database';
 import type { Result, WorkspaceRole } from '@flowtask/shared';
 import { ok, err } from '@flowtask/shared';
 import type {
@@ -303,11 +303,17 @@ export class WorkspaceService {
             name: users.name,
             email: users.email,
           },
+          mcpClient: {
+            id: mcpOAuthClients.clientId,
+            name: mcpOAuthClients.clientName,
+          },
+          mcpClientId: taskEvents.mcpClientId,
         })
         .from(taskEvents)
         .innerJoin(tasks, eq(taskEvents.taskId, tasks.id))
         .innerJoin(projects, eq(tasks.projectId, projects.id))
         .leftJoin(users, eq(taskEvents.actorId, users.id))
+        .leftJoin(mcpOAuthClients, eq(taskEvents.mcpClientId, mcpOAuthClients.clientId))
         .where(and(...conditions))
         .orderBy(desc(taskEvents.createdAt), desc(taskEvents.id))
         .limit(limit + 1);
@@ -334,6 +340,12 @@ export class WorkspaceService {
                 id: actor.id,
                 name: actor.name,
                 email: actor.email,
+              }
+            : null,
+          agent: row.mcpClient?.id
+            ? {
+                id: row.mcpClient.id,
+                name: row.mcpClient.name,
               }
             : null,
         };
