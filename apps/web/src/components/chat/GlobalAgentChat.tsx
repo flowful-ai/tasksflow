@@ -87,7 +87,13 @@ export function GlobalAgentChat() {
 
           return {
             api: `${API_BASE_URL}/api/agents/${agentId}/execute`,
-            body: options.body ?? {},
+            body: {
+              id: options.id,
+              messages: options.messages,
+              trigger: options.trigger,
+              messageId: options.messageId,
+              ...(options.body ?? {}),
+            },
           };
         },
       }),
