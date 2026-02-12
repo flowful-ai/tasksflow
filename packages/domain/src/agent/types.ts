@@ -78,22 +78,25 @@ const TASK_PRIORITY_PARAMETER: ToolParameterSchema = {
 
 const VIEW_PARAMETER: ToolParameterSchema = {
   type: 'string',
+  description: 'compact|full|custom; use custom with fields',
   enum: ['compact', 'full', 'custom'],
 };
 
 const RETURN_PARAMETER: ToolParameterSchema = {
   type: 'string',
+  description: 'ack by default; compact/full only when needed',
   enum: ['ack', 'compact', 'full'],
 };
 
 const FIELDS_PARAMETER: ToolParameterSchema = {
   type: 'array',
+  description: 'Required only when view=custom',
   items: { type: 'string' },
 };
 
-const INCLUDE_ASSIGNEES_PARAMETER: ToolParameterSchema = { type: 'boolean' };
-const INCLUDE_LABELS_PARAMETER: ToolParameterSchema = { type: 'boolean' };
-const INCLUDE_EXTERNAL_LINKS_PARAMETER: ToolParameterSchema = { type: 'boolean' };
+const INCLUDE_ASSIGNEES_PARAMETER: ToolParameterSchema = { type: 'boolean', description: 'Include assignees only if needed' };
+const INCLUDE_LABELS_PARAMETER: ToolParameterSchema = { type: 'boolean', description: 'Include labels only if needed' };
+const INCLUDE_EXTERNAL_LINKS_PARAMETER: ToolParameterSchema = { type: 'boolean', description: 'Include external links only if needed' };
 
 export const AGENT_TOOLS: ToolDefinition[] = [
   {
@@ -189,16 +192,16 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'query_tasks',
-    description: 'List tasks',
+    description: 'List/filter tasks; use assigneeId="me" for my tasks',
     parameters: {
       type: 'object',
       properties: {
         projectId: { type: 'string' },
         stateId: { type: 'string' },
         priority: TASK_PRIORITY_PARAMETER,
-        assigneeId: { type: 'string' },
-        search: { type: 'string' },
-        limit: { type: 'string' },
+        assigneeId: { type: 'string', description: 'Use "me" for current user' },
+        search: { type: 'string', description: 'Structured text filter' },
+        limit: { type: 'string', description: 'Default 10, max 50' },
         view: VIEW_PARAMETER,
         fields: FIELDS_PARAMETER,
         includeAssignees: INCLUDE_ASSIGNEES_PARAMETER,
@@ -214,7 +217,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'get_task',
-    description: 'Get task',
+    description: 'Get one task (detail-on-demand after query/search)',
     parameters: {
       type: 'object',
       properties: {
@@ -234,7 +237,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'move_task',
-    description: 'Move task',
+    description: 'Move task to stateId',
     parameters: {
       type: 'object',
       properties: {
@@ -325,13 +328,13 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'search_tasks',
-    description: 'Search tasks',
+    description: 'Keyword search; use query_tasks for structured filters',
     parameters: {
       type: 'object',
       properties: {
-        query: { type: 'string' },
+        query: { type: 'string', description: 'Keyword query' },
         projectId: { type: 'string' },
-        limit: { type: 'string' },
+        limit: { type: 'string', description: 'Default 10, max 50' },
         view: VIEW_PARAMETER,
         fields: FIELDS_PARAMETER,
         includeAssignees: INCLUDE_ASSIGNEES_PARAMETER,

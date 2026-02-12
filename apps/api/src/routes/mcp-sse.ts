@@ -628,7 +628,7 @@ function createMcpServer(tokenAuth: OAuthMcpAuthContext): McpServer {
       capabilities: {
         tools: {},
       },
-      instructions: 'TasksFlow MCP server for task management.',
+      instructions: 'Use query_tasks for structured filters (assigneeId="me" for my tasks), search_tasks for keywords, get_task for details; keep defaults (compact/ack) unless full data is required.',
     }
   );
 
