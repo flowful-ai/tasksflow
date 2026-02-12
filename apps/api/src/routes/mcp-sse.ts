@@ -11,6 +11,16 @@ import { publishEvent } from '../sse/manager.js';
 import { McpOAuthService, OAuthError, type OAuthMcpAuthContext } from '../services/mcp-oauth-service.js';
 import { TaskGitHubLinkService } from '../services/task-github-link-service.js';
 import { resolveQueryTasksAssigneeId, resolveUpdateTaskGitHubPrArgs } from './mcp-tool-args.js';
+import {
+  formatBulkCreateResult,
+  formatWriteCommentResult,
+  formatWriteTaskResult,
+  projectTask,
+  projectTaskList,
+  resolveListLimit,
+  resolveTaskProjectionArgs,
+  resolveWriteMode,
+} from './mcp-response-shaping.js';
 
 /**
  * MCP SSE transport endpoints for native MCP protocol support.
@@ -127,7 +137,13 @@ async function executeMcpTool(
       });
 
       if (!createResult.ok) throw createResult.error;
-      result = createResult.value;
+      const writeMode = resolveWriteMode(args);
+      result = formatWriteTaskResult(
+        'create_task',
+        createResult.value,
+        writeMode,
+        resolveTaskProjectionArgs({ view: writeMode === 'full' ? 'full' : 'compact' })
+      );
 
       // Publish SSE event for real-time UI updates
       const projectInfo = await projectService.getById(projectId);
@@ -150,8 +166,8 @@ async function executeMcpTool(
       }
 
       const projectInfo = await projectService.getById(projectId);
-      const results: Array<{ index: number; ok: boolean; task?: unknown; error?: string }> = [];
-      let created = 0;
+      const createdTasks: Parameters<typeof formatBulkCreateResult>[1] = [];
+      const failed: Array<{ index: number; error: string }> = [];
 
       for (const [index, taskInput] of tasks.entries()) {
         const createResult = await taskService.create({
@@ -166,20 +182,14 @@ async function executeMcpTool(
         });
 
         if (!createResult.ok) {
-          results.push({
+          failed.push({
             index,
-            ok: false,
             error: createResult.error.message,
           });
           continue;
         }
 
-        created += 1;
-        results.push({
-          index,
-          ok: true,
-          task: createResult.value,
-        });
+        createdTasks.push(createResult.value);
 
         if (projectInfo.ok) {
           publishEvent(projectInfo.value.workspaceId, REALTIME_EVENTS.TASK_CREATED, {
@@ -189,15 +199,14 @@ async function executeMcpTool(
         }
       }
 
-      result = {
-        projectId,
-        summary: {
-          requested: tasks.length,
-          created,
-          failed: tasks.length - created,
-        },
-        results,
-      };
+      const writeMode = resolveWriteMode(args);
+      result = formatBulkCreateResult(
+        'bulk_create_tasks',
+        createdTasks,
+        failed,
+        writeMode,
+        resolveTaskProjectionArgs({ view: writeMode === 'full' ? 'full' : 'compact' })
+      );
       break;
     }
 
@@ -243,7 +252,13 @@ async function executeMcpTool(
         updatedTask = refreshedTask.value;
       }
 
-      result = updatedTask;
+      const writeMode = resolveWriteMode(args);
+      result = formatWriteTaskResult(
+        'update_task',
+        updatedTask,
+        writeMode,
+        resolveTaskProjectionArgs({ view: writeMode === 'full' ? 'full' : 'compact' })
+      );
 
       const projectInfo = await projectService.getById(taskResult.value.projectId);
       if (projectInfo.ok) {
@@ -298,11 +313,32 @@ async function executeMcpTool(
           assigneeId,
           search: args.search as string | undefined,
         },
-        limit: parseInt(args.limit as string || '20', 10),
+        limit: resolveListLimit(args),
       });
 
       if (!queryResult.ok) throw queryResult.error;
-      result = queryResult.value;
+      result = projectTaskList(
+        queryResult.value.tasks,
+        queryResult.value.total,
+        resolveTaskProjectionArgs(args)
+      );
+      break;
+    }
+
+    case 'get_task': {
+      const taskId = args.taskId as string;
+      if (!taskId) {
+        throw new Error('taskId is required');
+      }
+
+      const taskResult = await taskService.getById(taskId);
+      if (!taskResult.ok) throw taskResult.error;
+      const canAccess = await canTokenAccessProject(tokenAuth, taskResult.value.projectId);
+      if (!canAccess) {
+        throw new Error('Agent cannot access this project');
+      }
+
+      result = projectTask(taskResult.value, resolveTaskProjectionArgs(args));
       break;
     }
 
@@ -330,7 +366,13 @@ async function executeMcpTool(
       });
 
       if (!moveResult.ok) throw moveResult.error;
-      result = moveResult.value;
+      const writeMode = resolveWriteMode(args);
+      result = formatWriteTaskResult(
+        'move_task',
+        moveResult.value,
+        writeMode,
+        resolveTaskProjectionArgs({ view: writeMode === 'full' ? 'full' : 'compact' })
+      );
 
       const projectInfo = await projectService.getById(taskResult.value.projectId);
       if (projectInfo.ok) {
@@ -369,7 +411,13 @@ async function executeMcpTool(
 
       const updatedTask = await taskService.getById(taskId);
       if (!updatedTask.ok) throw updatedTask.error;
-      result = updatedTask.value;
+      const writeMode = resolveWriteMode(args);
+      result = formatWriteTaskResult(
+        'assign_task',
+        updatedTask.value,
+        writeMode,
+        resolveTaskProjectionArgs({ view: writeMode === 'full' ? 'full' : 'compact' })
+      );
 
       const projectInfo = await projectService.getById(taskResult.value.projectId);
       if (projectInfo.ok) {
@@ -402,7 +450,8 @@ async function executeMcpTool(
       });
 
       if (!commentResult.ok) throw commentResult.error;
-      result = commentResult.value;
+      const writeMode = resolveWriteMode(args);
+      result = formatWriteCommentResult('add_comment', commentResult.value.id, commentResult.value, writeMode);
 
       // Publish SSE event for real-time UI updates
       const projectInfo = await projectService.getById(taskResult.value.projectId);
@@ -523,11 +572,15 @@ async function executeMcpTool(
           projectId,
           search: query,
         },
-        limit: parseInt(args.limit as string || '20', 10),
+        limit: resolveListLimit(args),
       });
 
       if (!searchResult.ok) throw searchResult.error;
-      result = searchResult.value;
+      result = projectTaskList(
+        searchResult.value.tasks,
+        searchResult.value.total,
+        resolveTaskProjectionArgs(args)
+      );
       break;
     }
 
@@ -558,7 +611,7 @@ async function executeMcpTool(
   }
 
   return {
-    content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+    content: [{ type: 'text', text: JSON.stringify(result) }],
   };
 }
 
@@ -575,7 +628,7 @@ function createMcpServer(tokenAuth: OAuthMcpAuthContext): McpServer {
       capabilities: {
         tools: {},
       },
-      instructions: 'TasksFlow MCP server for task management. Use query_tasks for listing/filtering tasks. For "my tasks", call query_tasks with assigneeId set to "me". Use search_tasks only for full-text keyword search.',
+      instructions: 'TasksFlow MCP server for task management.',
     }
   );
 

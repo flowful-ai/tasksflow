@@ -71,22 +71,43 @@ export interface ToolDefinition {
   };
 }
 
+const TASK_PRIORITY_PARAMETER: ToolParameterSchema = {
+  type: 'string',
+  enum: ['urgent', 'high', 'medium', 'low', 'none'],
+};
+
+const VIEW_PARAMETER: ToolParameterSchema = {
+  type: 'string',
+  enum: ['compact', 'full', 'custom'],
+};
+
+const RETURN_PARAMETER: ToolParameterSchema = {
+  type: 'string',
+  enum: ['ack', 'compact', 'full'],
+};
+
+const FIELDS_PARAMETER: ToolParameterSchema = {
+  type: 'array',
+  items: { type: 'string' },
+};
+
+const INCLUDE_ASSIGNEES_PARAMETER: ToolParameterSchema = { type: 'boolean' };
+const INCLUDE_LABELS_PARAMETER: ToolParameterSchema = { type: 'boolean' };
+const INCLUDE_EXTERNAL_LINKS_PARAMETER: ToolParameterSchema = { type: 'boolean' };
+
 export const AGENT_TOOLS: ToolDefinition[] = [
   {
     name: 'create_task',
-    description: 'Create a new task in a project',
+    description: 'Create task',
     parameters: {
       type: 'object',
       properties: {
-        projectId: { type: 'string', description: 'The ID of the project to create the task in' },
-        title: { type: 'string', description: 'The title of the task' },
-        description: { type: 'string', description: 'Optional description in markdown' },
-        priority: {
-          type: 'string',
-          description: 'Task priority',
-          enum: ['urgent', 'high', 'medium', 'low', 'none'],
-        },
-        stateId: { type: 'string', description: 'Optional state ID to place the task in' },
+        projectId: { type: 'string' },
+        title: { type: 'string' },
+        description: { type: 'string' },
+        priority: TASK_PRIORITY_PARAMETER,
+        stateId: { type: 'string' },
+        return: RETURN_PARAMETER,
       },
       required: ['projectId', 'title'],
     },
@@ -98,29 +119,25 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'bulk_create_tasks',
-    description: 'Create multiple tasks in a project in a single request',
+    description: 'Create tasks',
     parameters: {
       type: 'object',
       properties: {
-        projectId: { type: 'string', description: 'The ID of the project where tasks will be created' },
+        projectId: { type: 'string' },
         tasks: {
           type: 'array',
-          description: 'List of tasks to create',
           items: {
             type: 'object',
             properties: {
-              title: { type: 'string', description: 'The title of the task' },
-              description: { type: 'string', description: 'Optional description in markdown' },
-              priority: {
-                type: 'string',
-                description: 'Task priority',
-                enum: ['urgent', 'high', 'medium', 'low', 'none'],
-              },
-              stateId: { type: 'string', description: 'Optional state ID to place the task in' },
+              title: { type: 'string' },
+              description: { type: 'string' },
+              priority: TASK_PRIORITY_PARAMETER,
+              stateId: { type: 'string' },
             },
             required: ['title'],
           },
         },
+        return: RETURN_PARAMETER,
       },
       required: ['projectId', 'tasks'],
     },
@@ -132,22 +149,19 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'update_task',
-    description: 'Update an existing task',
+    description: 'Update task',
     parameters: {
       type: 'object',
       properties: {
-        taskId: { type: 'string', description: 'The ID of the task to update' },
-        title: { type: 'string', description: 'New title for the task' },
-        description: { type: 'string', description: 'New description in markdown' },
-        priority: {
-          type: 'string',
-          description: 'New priority',
-          enum: ['urgent', 'high', 'medium', 'low', 'none'],
-        },
-        stateId: { type: 'string', description: 'New state ID' },
-        githubPrOwner: { type: 'string', description: 'GitHub repository owner for pull request linking' },
-        githubPrRepo: { type: 'string', description: 'GitHub repository name for pull request linking' },
-        githubPrNumber: { type: 'integer', description: 'GitHub pull request number to link to the task' },
+        taskId: { type: 'string' },
+        title: { type: 'string' },
+        description: { type: 'string' },
+        priority: TASK_PRIORITY_PARAMETER,
+        stateId: { type: 'string' },
+        githubPrOwner: { type: 'string' },
+        githubPrRepo: { type: 'string' },
+        githubPrNumber: { type: 'integer' },
+        return: RETURN_PARAMETER,
       },
       required: ['taskId'],
     },
@@ -159,11 +173,11 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'delete_task',
-    description: 'Soft delete a task',
+    description: 'Delete task',
     parameters: {
       type: 'object',
       properties: {
-        taskId: { type: 'string', description: 'The ID of the task to delete' },
+        taskId: { type: 'string' },
       },
       required: ['taskId'],
     },
@@ -175,20 +189,21 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'query_tasks',
-    description: 'Primary tool to list and filter tasks using structured filters',
+    description: 'List tasks',
     parameters: {
       type: 'object',
       properties: {
-        projectId: { type: 'string', description: 'Filter by project ID' },
-        stateId: { type: 'string', description: 'Filter by state ID' },
-        priority: {
-          type: 'string',
-          description: 'Filter by priority',
-          enum: ['urgent', 'high', 'medium', 'low', 'none'],
-        },
-        assigneeId: { type: 'string', description: 'Filter by assignee ID. Use "me" for the current authenticated user' },
-        search: { type: 'string', description: 'Search in title and description' },
-        limit: { type: 'string', description: 'Maximum number of results (default 20)' },
+        projectId: { type: 'string' },
+        stateId: { type: 'string' },
+        priority: TASK_PRIORITY_PARAMETER,
+        assigneeId: { type: 'string' },
+        search: { type: 'string' },
+        limit: { type: 'string' },
+        view: VIEW_PARAMETER,
+        fields: FIELDS_PARAMETER,
+        includeAssignees: INCLUDE_ASSIGNEES_PARAMETER,
+        includeLabels: INCLUDE_LABELS_PARAMETER,
+        includeExternalLinks: INCLUDE_EXTERNAL_LINKS_PARAMETER,
       },
       required: [],
     },
@@ -198,13 +213,34 @@ export const AGENT_TOOLS: ToolDefinition[] = [
     },
   },
   {
-    name: 'move_task',
-    description: 'Move a task to a different state',
+    name: 'get_task',
+    description: 'Get task',
     parameters: {
       type: 'object',
       properties: {
-        taskId: { type: 'string', description: 'The ID of the task to move' },
-        stateId: { type: 'string', description: 'The target state ID' },
+        taskId: { type: 'string' },
+        view: VIEW_PARAMETER,
+        fields: FIELDS_PARAMETER,
+        includeAssignees: INCLUDE_ASSIGNEES_PARAMETER,
+        includeLabels: INCLUDE_LABELS_PARAMETER,
+        includeExternalLinks: INCLUDE_EXTERNAL_LINKS_PARAMETER,
+      },
+      required: ['taskId'],
+    },
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
+    },
+  },
+  {
+    name: 'move_task',
+    description: 'Move task',
+    parameters: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string' },
+        stateId: { type: 'string' },
+        return: RETURN_PARAMETER,
       },
       required: ['taskId', 'stateId'],
     },
@@ -216,17 +252,17 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'assign_task',
-    description: 'Assign or unassign a user to/from a task',
+    description: 'Assign task',
     parameters: {
       type: 'object',
       properties: {
-        taskId: { type: 'string', description: 'The ID of the task' },
-        userId: { type: 'string', description: 'The ID of the user to assign' },
+        taskId: { type: 'string' },
+        userId: { type: 'string' },
         action: {
           type: 'string',
-          description: 'Whether to assign or unassign',
           enum: ['assign', 'unassign'],
         },
+        return: RETURN_PARAMETER,
       },
       required: ['taskId', 'userId', 'action'],
     },
@@ -238,12 +274,13 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'add_comment',
-    description: 'Add a comment to a task',
+    description: 'Add comment',
     parameters: {
       type: 'object',
       properties: {
-        taskId: { type: 'string', description: 'The ID of the task' },
-        content: { type: 'string', description: 'The comment content in markdown' },
+        taskId: { type: 'string' },
+        content: { type: 'string' },
+        return: RETURN_PARAMETER,
       },
       required: ['taskId', 'content'],
     },
@@ -255,11 +292,11 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'summarize_project',
-    description: 'Get a summary of a project including task statistics and available states (with IDs for use with move_task)',
+    description: 'Summarize project',
     parameters: {
       type: 'object',
       properties: {
-        projectId: { type: 'string', description: 'The ID of the project to summarize' },
+        projectId: { type: 'string' },
       },
       required: ['projectId'],
     },
@@ -270,13 +307,13 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'create_smart_view',
-    description: 'Create a smart view with filters',
+    description: 'Create smart view',
     parameters: {
       type: 'object',
       properties: {
-        name: { type: 'string', description: 'Name of the smart view' },
-        description: { type: 'string', description: 'Description of the smart view' },
-        filters: { type: 'string', description: 'JSON filter configuration' },
+        name: { type: 'string' },
+        description: { type: 'string' },
+        filters: { type: 'string' },
       },
       required: ['name'],
     },
@@ -288,12 +325,18 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'search_tasks',
-    description: 'Full-text keyword search across tasks (not for structured assignee filtering)',
+    description: 'Search tasks',
     parameters: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: 'Search query' },
-        limit: { type: 'string', description: 'Maximum number of results (default 20)' },
+        query: { type: 'string' },
+        projectId: { type: 'string' },
+        limit: { type: 'string' },
+        view: VIEW_PARAMETER,
+        fields: FIELDS_PARAMETER,
+        includeAssignees: INCLUDE_ASSIGNEES_PARAMETER,
+        includeLabels: INCLUDE_LABELS_PARAMETER,
+        includeExternalLinks: INCLUDE_EXTERNAL_LINKS_PARAMETER,
       },
       required: ['query'],
     },
@@ -304,7 +347,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'list_projects',
-    description: 'List all projects accessible to this agent',
+    description: 'List projects',
     parameters: {
       type: 'object',
       properties: {},

@@ -21,6 +21,7 @@ export const AgentToolSchema = z.enum([
   'update_task',
   'delete_task',
   'query_tasks',
+  'get_task',
   'move_task',
   'assign_task',
   'add_comment',
