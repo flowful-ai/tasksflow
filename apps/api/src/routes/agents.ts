@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { getDatabase } from '@flowtask/database';
 import { AgentService, WorkspaceService } from '@flowtask/domain';
 import { getCurrentUser } from '@flowtask/auth';
-import { CreateAgentSchema, UpdateAgentSchema, RunAgentSchema } from '@flowtask/shared';
+import { CreateAgentSchema, UpdateAgentSchema, RunAgentSchema, getRequiredApiKeyProvidersForModel } from '@flowtask/shared';
 import { hasPermission } from '@flowtask/auth';
 
 const agents = new Hono();
@@ -186,14 +186,22 @@ agents.post(
       }, 429);
     }
 
-    // Check if user has API key
-    const hasKey = await agentService.hasApiKey(agentResult.value.workspaceId, 'openrouter');
-    if (!hasKey) {
+    const requiredProviders = getRequiredApiKeyProvidersForModel(agentResult.value.model);
+    const keyChecks = await Promise.all(
+      requiredProviders.map(async (provider) => ({
+        provider,
+        hasKey: await agentService.hasApiKey(agentResult.value.workspaceId, provider),
+      }))
+    );
+    const hasAnyKey = keyChecks.some((entry) => entry.hasKey);
+
+    if (!hasAnyKey) {
+      const requiredProviderNames = requiredProviders.map((provider) => provider.toUpperCase()).join(' or ');
       return c.json({
         success: false,
         error: {
           code: 'NO_API_KEY',
-          message: 'Please configure your OpenRouter API key first',
+          message: `Please configure a workspace ${requiredProviderNames} API key first`,
         },
       }, 400);
     }

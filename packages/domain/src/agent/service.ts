@@ -1,7 +1,7 @@
 import { eq, and, desc, asc, SQL } from 'drizzle-orm';
 import type { Database } from '@flowtask/database';
 import { agents, workspaceApiKeys } from '@flowtask/database';
-import type { Result, AgentTool } from '@flowtask/shared';
+import type { Result, AgentTool, ApiKeyProvider } from '@flowtask/shared';
 import { ok, err } from '@flowtask/shared';
 import type {
   AgentWithRelations,
@@ -290,7 +290,7 @@ export class AgentService {
   /**
    * Get the decrypted API key for a workspace.
    */
-  async getApiKey(workspaceId: string, provider: 'openrouter'): Promise<Result<string, Error>> {
+  async getApiKey(workspaceId: string, provider: ApiKeyProvider): Promise<Result<string, Error>> {
     try {
       const [apiKey] = await this.db
         .select()
@@ -317,7 +317,7 @@ export class AgentService {
   /**
    * Check if a workspace has an API key stored.
    */
-  async hasApiKey(workspaceId: string, provider: 'openrouter'): Promise<boolean> {
+  async hasApiKey(workspaceId: string, provider: ApiKeyProvider): Promise<boolean> {
     const [apiKey] = await this.db
       .select({ id: workspaceApiKeys.id })
       .from(workspaceApiKeys)
@@ -329,7 +329,7 @@ export class AgentService {
   /**
    * Delete a workspace API key.
    */
-  async deleteApiKey(workspaceId: string, provider: 'openrouter'): Promise<Result<void, Error>> {
+  async deleteApiKey(workspaceId: string, provider: ApiKeyProvider): Promise<Result<void, Error>> {
     try {
       await this.db
         .delete(workspaceApiKeys)
@@ -339,5 +339,14 @@ export class AgentService {
     } catch (error) {
       return err(error instanceof Error ? error : new Error('Unknown error'));
     }
+  }
+
+  async listApiKeyProviders(workspaceId: string): Promise<Set<ApiKeyProvider>> {
+    const rows = await this.db
+      .select({ provider: workspaceApiKeys.provider })
+      .from(workspaceApiKeys)
+      .where(eq(workspaceApiKeys.workspaceId, workspaceId));
+
+    return new Set(rows.map((row) => row.provider as ApiKeyProvider));
   }
 }

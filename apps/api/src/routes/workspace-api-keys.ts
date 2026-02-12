@@ -4,13 +4,15 @@ import { zValidator } from '@hono/zod-validator';
 import { getDatabase } from '@flowtask/database';
 import { AgentService, WorkspaceService } from '@flowtask/domain';
 import { getCurrentUser } from '@flowtask/auth';
+import { ApiKeyProviderSchema } from '@flowtask/shared';
 
 const workspaceApiKeysRoutes = new Hono();
 const db = getDatabase();
 const agentService = new AgentService(db);
 const workspaceService = new WorkspaceService(db);
 
-const ProviderSchema = z.enum(['openrouter']);
+const ProviderSchema = ApiKeyProviderSchema;
+const PROVIDERS = ApiKeyProviderSchema.options;
 
 async function requireWorkspaceAdminOrOwner(workspaceId: string, userId: string): Promise<void> {
   const roleResult = await workspaceService.getMemberRole(workspaceId, userId);
@@ -64,6 +66,29 @@ workspaceApiKeysRoutes.post(
     );
   }
 );
+
+workspaceApiKeysRoutes.get('/:workspaceId/api-keys', async (c) => {
+  const user = getCurrentUser(c);
+  const workspaceId = c.req.param('workspaceId');
+
+  try {
+    await requireWorkspaceAdminOrOwner(workspaceId, user.id);
+  } catch {
+    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
+  }
+
+  const configuredProviders = await agentService.listApiKeyProviders(workspaceId);
+
+  return c.json({
+    success: true,
+    data: {
+      providers: PROVIDERS.map((provider) => ({
+        provider,
+        hasKey: configuredProviders.has(provider),
+      })),
+    },
+  });
+});
 
 workspaceApiKeysRoutes.get('/:workspaceId/api-keys/:provider', async (c) => {
   const user = getCurrentUser(c);

@@ -143,7 +143,7 @@ export const workspaceAgentApi = {
     ),
 };
 
-export type ApiKeyProvider = 'openrouter';
+export type ApiKeyProvider = 'openai' | 'anthropic' | 'google' | 'openrouter';
 
 export interface WorkspaceApiKeyStatus {
   hasKey: boolean;
@@ -151,6 +151,11 @@ export interface WorkspaceApiKeyStatus {
 }
 
 export const workspaceApiKeyApi = {
+  listStatuses: (workspaceId: string) =>
+    api.get<{ success: boolean; data: { providers: WorkspaceApiKeyStatus[] } }>(
+      `/api/workspaces/${workspaceId}/api-keys`
+    ),
+
   upsert: (workspaceId: string, data: { provider: ApiKeyProvider; apiKey: string }) =>
     api.post<{ success: boolean; data: { id: string; workspaceId: string; provider: ApiKeyProvider; createdAt: string } }>(
       `/api/workspaces/${workspaceId}/api-keys`,

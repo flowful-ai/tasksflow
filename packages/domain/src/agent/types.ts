@@ -1,5 +1,5 @@
 import type { Agent } from '@flowtask/database';
-import type { CreateAgent, UpdateAgent, AgentTool, AIModel, AgentExecution, RunAgent } from '@flowtask/shared';
+import type { CreateAgent, UpdateAgent, AgentTool, AIModel, AgentExecution, RunAgent, ApiKeyProvider } from '@flowtask/shared';
 
 export interface AgentWithRelations extends Agent {
   // Additional computed fields
@@ -18,7 +18,7 @@ export interface AgentUpdateInput extends UpdateAgent {
 
 export interface ApiKeyCreateInput {
   workspaceId: string;
-  provider: 'openrouter';
+  provider: ApiKeyProvider;
   apiKey: string;
 }
 

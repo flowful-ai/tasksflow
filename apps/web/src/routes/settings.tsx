@@ -10,7 +10,7 @@ import { MemberSettings } from '../components/settings/MemberSettings';
 import { AppOverviewSettings } from '../components/settings/AppOverviewSettings';
 import { AppUserManagementSettings } from '../components/settings/AppUserManagementSettings';
 import { authApi, type LinkedAccount } from '../api/auth';
-import { ApiError, appAdminApi, workspaceApiKeyApi } from '../api/client';
+import { ApiError, appAdminApi, workspaceApiKeyApi, type ApiKeyProvider } from '../api/client';
 
 function ProfileSettings() {
   return (
@@ -193,14 +193,65 @@ function IntegrationSettings() {
   );
 }
 
+const API_KEY_PROVIDERS: {
+  provider: ApiKeyProvider;
+  label: string;
+  placeholder: string;
+  docsUrl: string;
+  docsLabel: string;
+}[] = [
+  {
+    provider: 'openai',
+    label: 'OpenAI',
+    placeholder: 'sk-...',
+    docsUrl: 'https://platform.openai.com/api-keys',
+    docsLabel: 'platform.openai.com',
+  },
+  {
+    provider: 'anthropic',
+    label: 'Anthropic',
+    placeholder: 'sk-ant-...',
+    docsUrl: 'https://console.anthropic.com/settings/keys',
+    docsLabel: 'console.anthropic.com',
+  },
+  {
+    provider: 'google',
+    label: 'Google AI',
+    placeholder: 'AIza...',
+    docsUrl: 'https://aistudio.google.com/app/apikey',
+    docsLabel: 'aistudio.google.com',
+  },
+  {
+    provider: 'openrouter',
+    label: 'OpenRouter',
+    placeholder: 'sk-or-...',
+    docsUrl: 'https://openrouter.ai/keys',
+    docsLabel: 'openrouter.ai',
+  },
+];
+
+const EMPTY_PROVIDER_STATUS: Record<ApiKeyProvider, boolean> = {
+  openai: false,
+  anthropic: false,
+  google: false,
+  openrouter: false,
+};
+
+const EMPTY_PROVIDER_INPUTS: Record<ApiKeyProvider, string> = {
+  openai: '',
+  anthropic: '',
+  google: '',
+  openrouter: '',
+};
+
 function ApiKeySettings() {
   const { currentWorkspace } = useWorkspaceStore();
   const workspaceId = currentWorkspace?.id;
-  const [apiKey, setApiKey] = useState('');
-  const [hasKey, setHasKey] = useState(false);
+  const [apiKeys, setApiKeys] = useState<Record<ApiKeyProvider, string>>(EMPTY_PROVIDER_INPUTS);
+  const [statusByProvider, setStatusByProvider] = useState<Record<ApiKeyProvider, boolean>>(EMPTY_PROVIDER_STATUS);
   const [isLoadingStatus, setIsLoadingStatus] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [savingProvider, setSavingProvider] = useState<ApiKeyProvider | null>(null);
+  const [deletingProvider, setDeletingProvider] = useState<ApiKeyProvider | null>(null);
   const [isForbidden, setIsForbidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -212,8 +263,12 @@ function ApiKeySettings() {
     setIsForbidden(false);
 
     try {
-      const response = await workspaceApiKeyApi.status(id, 'openrouter');
-      setHasKey(response.data.hasKey);
+      const response = await workspaceApiKeyApi.listStatuses(id);
+      const nextStatus = { ...EMPTY_PROVIDER_STATUS };
+      for (const entry of response.data.providers) {
+        nextStatus[entry.provider] = entry.hasKey;
+      }
+      setStatusByProvider(nextStatus);
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) {
         setIsForbidden(true);
@@ -230,17 +285,17 @@ function ApiKeySettings() {
     loadStatus(workspaceId);
   }, [workspaceId]);
 
-  const handleSave = async () => {
-    if (!workspaceId || !apiKey.trim()) return;
+  const handleSave = async (provider: ApiKeyProvider) => {
+    if (!workspaceId || !apiKeys[provider].trim()) return;
 
-    setIsSaving(true);
+    setSavingProvider(provider);
     setError(null);
     setSuccess(null);
 
     try {
-      await workspaceApiKeyApi.upsert(workspaceId, { provider: 'openrouter', apiKey: apiKey.trim() });
-      setApiKey('');
-      setSuccess('Workspace API key saved.');
+      await workspaceApiKeyApi.upsert(workspaceId, { provider, apiKey: apiKeys[provider].trim() });
+      setApiKeys((prev) => ({ ...prev, [provider]: '' }));
+      setSuccess(`${provider.toUpperCase()} API key saved.`);
       await loadStatus(workspaceId);
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) {
@@ -249,20 +304,20 @@ function ApiKeySettings() {
       }
       setError(err instanceof Error ? err.message : 'Failed to save API key');
     } finally {
-      setIsSaving(false);
+      setSavingProvider(null);
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = async (provider: ApiKeyProvider) => {
     if (!workspaceId) return;
 
-    setIsDeleting(true);
+    setDeletingProvider(provider);
     setError(null);
     setSuccess(null);
 
     try {
-      await workspaceApiKeyApi.delete(workspaceId, 'openrouter');
-      setSuccess('Workspace API key deleted.');
+      await workspaceApiKeyApi.delete(workspaceId, provider);
+      setSuccess(`${provider.toUpperCase()} API key deleted.`);
       await loadStatus(workspaceId);
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) {
@@ -271,14 +326,14 @@ function ApiKeySettings() {
       }
       setError(err instanceof Error ? err.message : 'Failed to delete API key');
     } finally {
-      setIsDeleting(false);
+      setDeletingProvider(null);
     }
   };
 
   if (!workspaceId) {
     return (
       <div className="card p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">Workspace API Keys</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-2">Workspace AI Keys</h2>
         <p className="text-gray-600">Select a workspace to manage API keys.</p>
       </div>
     );
@@ -287,7 +342,7 @@ function ApiKeySettings() {
   if (isForbidden) {
     return (
       <div className="card p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">Workspace API Keys</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-2">Workspace AI Keys</h2>
         <p className="text-gray-600">Only workspace owners and admins can manage API keys.</p>
       </div>
     );
@@ -295,69 +350,80 @@ function ApiKeySettings() {
 
   return (
     <div className="card p-6">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">Workspace API Keys</h2>
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">Workspace AI Keys</h2>
       <p className="text-gray-600 mb-6">
-        Configure the OpenRouter API key for this workspace.
+        Configure provider API keys for this workspace.
       </p>
 
       <div className="mb-4 text-sm text-gray-600">
         Workspace: <span className="font-medium text-gray-900">{currentWorkspace?.name}</span>
       </div>
 
-      {isLoadingStatus ? (
-        <div className="mb-4 text-sm text-gray-500">Loading key status...</div>
-      ) : (
-        <div className="mb-4 text-sm text-gray-600">
-          Status:{' '}
-          <span className={hasKey ? 'text-green-700 font-medium' : 'text-amber-700 font-medium'}>
-            {hasKey ? 'Configured' : 'Not configured'}
-          </span>
-        </div>
-      )}
+      {isLoadingStatus && <div className="mb-4 text-sm text-gray-500">Loading key status...</div>}
 
       {error && <div className="mb-4 p-3 text-sm text-red-600 bg-red-50 rounded-lg">{error}</div>}
       {success && <div className="mb-4 p-3 text-sm text-green-700 bg-green-50 rounded-lg">{success}</div>}
 
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            OpenRouter API Key
-          </label>
-          <input
-            type="password"
-            className="input"
-            placeholder="sk-or-..."
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-          />
-          <p className="mt-1 text-sm text-gray-500">
-            Get your API key from{' '}
-            <a
-              href="https://openrouter.ai/keys"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary-600 hover:underline"
-            >
-              openrouter.ai
-            </a>
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            className="btn btn-primary"
-            onClick={handleSave}
-            disabled={isSaving || !apiKey.trim()}
-          >
-            {isSaving ? 'Saving...' : hasKey ? 'Update API Key' : 'Save API Key'}
-          </button>
-          <button
-            className="btn btn-secondary"
-            onClick={handleDelete}
-            disabled={isDeleting || !hasKey}
-          >
-            {isDeleting ? 'Deleting...' : 'Delete'}
-          </button>
-        </div>
+      <div className="space-y-5">
+        {API_KEY_PROVIDERS.map((config) => {
+          const hasKey = statusByProvider[config.provider];
+          const isSaving = savingProvider === config.provider;
+          const isDeleting = deletingProvider === config.provider;
+          const keyValue = apiKeys[config.provider];
+
+          return (
+            <div key={config.provider} className="rounded-lg border border-gray-200 p-4">
+              <div className="mb-4 flex items-center justify-between">
+                <div>
+                  <h3 className="text-base font-medium text-gray-900">{config.label}</h3>
+                  <div className="text-sm text-gray-600">
+                    Status:{' '}
+                    <span className={hasKey ? 'text-green-700 font-medium' : 'text-amber-700 font-medium'}>
+                      {hasKey ? 'Configured' : 'Not configured'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                {config.label} API Key
+              </label>
+              <input
+                type="password"
+                className="input"
+                placeholder={config.placeholder}
+                value={keyValue}
+                onChange={(e) => setApiKeys((prev) => ({ ...prev, [config.provider]: e.target.value }))}
+              />
+              <p className="mt-1 text-sm text-gray-500">
+                Get your API key from{' '}
+                <a
+                  href={config.docsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary-600 hover:underline"
+                >
+                  {config.docsLabel}
+                </a>
+              </p>
+              <div className="mt-4 flex items-center gap-3">
+                <button
+                  className="btn btn-primary"
+                  onClick={() => handleSave(config.provider)}
+                  disabled={isSaving || !keyValue.trim()}
+                >
+                  {isSaving ? 'Saving...' : hasKey ? 'Update API Key' : 'Save API Key'}
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => handleDelete(config.provider)}
+                  disabled={isDeleting || !hasKey}
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -551,7 +617,7 @@ export function SettingsPage() {
           { name: 'Workspace', href: '/settings/workspace/general', icon: Building2 },
           { name: 'Members', href: '/settings/workspace/members', icon: Users },
           { name: 'Views', href: '/settings/workspace/views', icon: Eye },
-          { name: 'Agent', href: '/settings/workspace/api-keys', icon: Bot },
+          { name: 'AI Keys', href: '/settings/workspace/api-keys', icon: Bot },
           { name: 'MCP Connections', href: '/settings/workspace/agents', icon: Plug },
         ],
       },

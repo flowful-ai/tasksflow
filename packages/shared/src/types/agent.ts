@@ -66,9 +66,16 @@ export const UpdateAgentSchema = CreateAgentSchema.partial().extend({
 
 export type UpdateAgent = z.infer<typeof UpdateAgentSchema>;
 
-// User API keys
-export const ApiKeyProviderSchema = z.enum(['openrouter']);
+// Workspace API keys
+export const ApiKeyProviderSchema = z.enum(['openai', 'anthropic', 'google', 'openrouter']);
 export type ApiKeyProvider = z.infer<typeof ApiKeyProviderSchema>;
+
+const NATIVE_API_KEY_PROVIDERS = ['openai', 'anthropic', 'google'] as const satisfies readonly ApiKeyProvider[];
+
+export function getRequiredApiKeyProvidersForModel(model: string): ApiKeyProvider[] {
+  const nativeProvider = NATIVE_API_KEY_PROVIDERS.find((provider) => model.startsWith(`${provider}/`));
+  return nativeProvider ? [nativeProvider, 'openrouter'] : ['openrouter'];
+}
 
 export const WorkspaceApiKeySchema = z.object({
   id: z.string().uuid(),
