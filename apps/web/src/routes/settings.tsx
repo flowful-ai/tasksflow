@@ -254,16 +254,26 @@ const EMPTY_PROVIDER_INPUTS: Record<ApiKeyProvider, string> = {
   openrouter: '',
 };
 
-const ALL_AI_MODELS: AIModel[] = [
-  'anthropic/claude-3-opus',
-  'anthropic/claude-3-sonnet',
-  'anthropic/claude-3-haiku',
-  'openai/gpt-4-turbo',
-  'openai/gpt-4',
-  'openai/gpt-3.5-turbo',
-  'google/gemini-pro',
-  'meta/llama-2-70b',
-];
+function normalizeModelInput(rawModel: string): string | null {
+  const trimmed = rawModel.trim();
+  if (!trimmed || /\s/.test(trimmed)) {
+    return null;
+  }
+
+  const slashIndex = trimmed.indexOf('/');
+  if (slashIndex <= 0 || slashIndex === trimmed.length - 1) {
+    return null;
+  }
+
+  const provider = trimmed.slice(0, slashIndex);
+  const model = trimmed.slice(slashIndex + 1);
+
+  if (!/^[a-z0-9][a-z0-9-]*$/i.test(provider)) {
+    return null;
+  }
+
+  return `${provider.toLowerCase()}/${model}`;
+}
 
 function ApiKeySettings() {
   const { currentWorkspace } = useWorkspaceStore();
@@ -279,6 +289,8 @@ function ApiKeySettings() {
   const [aiSettings, setAiSettings] = useState<WorkspaceAiSettings | null>(null);
   const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [isSavingAiSettings, setIsSavingAiSettings] = useState(false);
+  const [modelInput, setModelInput] = useState('');
+  const [modelInputError, setModelInputError] = useState<string | null>(null);
 
   const loadStatus = async (id: string) => {
     setIsLoadingStatus(true);
@@ -377,17 +389,44 @@ function ApiKeySettings() {
     }
   };
 
-  const toggleModel = (model: AIModel) => {
+  const addModel = () => {
+    if (!aiSettings) return;
+
+    const normalizedModel = normalizeModelInput(modelInput);
+    if (!normalizedModel) {
+      setModelInputError('Model must follow "provider/model" format (for example: openai/gpt-4.1).');
+      return;
+    }
+
+    if (aiSettings.allowedModels.includes(normalizedModel)) {
+      setModelInputError('This model is already in the allowed list.');
+      return;
+    }
+
+    setModelInput('');
+    setModelInputError(null);
+    setAiSettings({
+      ...aiSettings,
+      allowedModels: [...aiSettings.allowedModels, normalizedModel],
+    });
+  };
+
+  const removeModel = (model: AIModel) => {
     setAiSettings((previous) => {
       if (!previous) return previous;
-      const hasModel = previous.allowedModels.includes(model);
-      const nextModels = hasModel
-        ? previous.allowedModels.filter((item) => item !== model)
-        : [...previous.allowedModels, model];
-
       return {
         ...previous,
-        allowedModels: nextModels,
+        allowedModels: previous.allowedModels.filter((item) => item !== model),
+      };
+    });
+  };
+
+  const makeModelDefault = (model: AIModel) => {
+    setAiSettings((previous) => {
+      if (!previous || previous.allowedModels[0] === model) return previous;
+      return {
+        ...previous,
+        allowedModels: [model, ...previous.allowedModels.filter((item) => item !== model)],
       };
     });
   };
@@ -518,18 +557,60 @@ function ApiKeySettings() {
           <>
             <div className="mt-4">
               <label className="mb-2 block text-sm font-medium text-gray-700">Allowed Models</label>
-              <div className="space-y-2">
-                {ALL_AI_MODELS.map((model) => (
-                  <label key={model} className="flex items-center gap-2 text-sm text-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={aiSettings.allowedModels.includes(model)}
-                      onChange={() => toggleModel(model)}
-                      className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                    />
-                    <span className="font-mono text-xs">{model}</span>
-                  </label>
-                ))}
+              <div className="flex items-start gap-2">
+                <input
+                  type="text"
+                  className="input flex-1"
+                  placeholder="provider/model (for example: openai/gpt-4.1)"
+                  value={modelInput}
+                  onChange={(event) => {
+                    setModelInput(event.target.value);
+                    if (modelInputError) {
+                      setModelInputError(null);
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      addModel();
+                    }
+                  }}
+                />
+                <button className="btn btn-secondary" onClick={addModel}>
+                  Add model
+                </button>
+              </div>
+              {modelInputError && <p className="mt-2 text-sm text-red-600">{modelInputError}</p>}
+              <div className="mt-3 space-y-2">
+                {aiSettings.allowedModels.length === 0 ? (
+                  <p className="text-sm text-gray-500">No models configured yet.</p>
+                ) : (
+                  aiSettings.allowedModels.map((model, index) => (
+                    <div key={model} className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs text-gray-700">{model}</span>
+                        {index === 0 && (
+                          <span className="rounded bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700">Default</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="btn btn-secondary !px-2 !py-1 text-xs"
+                          onClick={() => makeModelDefault(model)}
+                          disabled={index === 0}
+                        >
+                          Make default
+                        </button>
+                        <button
+                          className="btn btn-secondary !px-2 !py-1 text-xs"
+                          onClick={() => removeModel(model)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 

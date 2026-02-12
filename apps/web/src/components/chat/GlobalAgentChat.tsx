@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { MessageSquare, X, Send, Bot } from 'lucide-react';
-import { agentApi, workspaceAiSettingsApi, type AIModel, type AgentSummary } from '../../api/client';
+import { agentApi, workspaceAiSettingsApi, type AgentSummary } from '../../api/client';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useAuthStore } from '../../stores/auth';
 
@@ -22,10 +22,10 @@ export function GlobalAgentChat() {
   const [isOpen, setIsOpen] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [agents, setAgents] = useState<AgentSummary[]>([]);
-  const [allowedModels, setAllowedModels] = useState<AIModel[]>([]);
+  const [allowedModels, setAllowedModels] = useState<string[]>([]);
   const [defaultAgentId, setDefaultAgentId] = useState<string | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
-  const [selectedModel, setSelectedModel] = useState<AIModel | ''>('');
+  const [selectedModel, setSelectedModel] = useState<string>('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -74,7 +74,7 @@ export function GlobalAgentChat() {
   useEffect(() => {
     if (!currentWorkspace || !userId || allowedModels.length === 0) return;
 
-    const rememberedModel = localStorage.getItem(storageKey(userId, currentWorkspace.id, 'model')) as AIModel | null;
+    const rememberedModel = localStorage.getItem(storageKey(userId, currentWorkspace.id, 'model'));
     const nextModel =
       (rememberedModel && allowedModels.includes(rememberedModel) && rememberedModel) ||
       allowedModels[0] ||
@@ -185,7 +185,7 @@ export function GlobalAgentChat() {
                   </option>
                 ))}
               </select>
-              <select className="input" value={selectedModel} onChange={(event) => setSelectedModel(event.target.value as AIModel)}>
+              <select className="input" value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
                 {allowedModels.map((model) => (
                   <option key={model} value={model}>
                     {model}

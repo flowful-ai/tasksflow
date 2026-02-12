@@ -6,7 +6,7 @@ function escapeLike(value: string): string {
 import type { Database } from '@flowtask/database';
 import { workspaces, workspaceMembers, users, projects, tasks, taskEvents, mcpOAuthClients } from '@flowtask/database';
 import type { Result, WorkspaceRole, WorkspaceAiSettings, UpdateWorkspaceAiSettings } from '@flowtask/shared';
-import { AIModelSchema, DEFAULT_AI_MODELS } from '@flowtask/shared';
+import { AIModelSchema } from '@flowtask/shared';
 import { ok, err } from '@flowtask/shared';
 import type {
   WorkspaceWithRelations,
@@ -24,6 +24,26 @@ import type {
 
 export class WorkspaceService {
   constructor(private db: Database) {}
+
+  private normalizeAllowedModels(rawValue: unknown): string[] {
+    if (!Array.isArray(rawValue)) {
+      return [];
+    }
+
+    const sanitized: string[] = [];
+    const seen = new Set<string>();
+
+    for (const entry of rawValue) {
+      const parsed = AIModelSchema.safeParse(entry);
+      if (!parsed.success || seen.has(parsed.data)) {
+        continue;
+      }
+      seen.add(parsed.data);
+      sanitized.push(parsed.data);
+    }
+
+    return sanitized;
+  }
 
   /**
    * Create a new workspace with the creator as owner.
@@ -277,12 +297,7 @@ export class WorkspaceService {
         return err(new Error('Workspace not found'));
       }
 
-      const allowedModelSet = new Set<string>(AIModelSchema.options);
-      const rawModels = Array.isArray(workspace.allowedAgentModels) ? workspace.allowedAgentModels : DEFAULT_AI_MODELS;
-      const sanitizedModels = rawModels.filter(
-        (model): model is (typeof DEFAULT_AI_MODELS)[number] =>
-          typeof model === 'string' && allowedModelSet.has(model)
-      );
+      const sanitizedModels = this.normalizeAllowedModels(workspace.allowedAgentModels);
 
       return ok({
         allowedModels: sanitizedModels,
@@ -301,7 +316,7 @@ export class WorkspaceService {
       const [updated] = await this.db
         .update(workspaces)
         .set({
-          allowedAgentModels: input.allowedModels,
+          allowedAgentModels: this.normalizeAllowedModels(input.allowedModels),
           defaultAgentId: input.defaultAgentId,
         })
         .where(eq(workspaces.id, workspaceId))

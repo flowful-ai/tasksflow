@@ -150,15 +150,7 @@ export interface WorkspaceApiKeyStatus {
   provider: ApiKeyProvider;
 }
 
-export type AIModel =
-  | 'anthropic/claude-3-opus'
-  | 'anthropic/claude-3-sonnet'
-  | 'anthropic/claude-3-haiku'
-  | 'openai/gpt-4-turbo'
-  | 'openai/gpt-4'
-  | 'openai/gpt-3.5-turbo'
-  | 'google/gemini-pro'
-  | 'meta/llama-2-70b';
+export type AIModel = string;
 
 export interface WorkspaceAiSettings {
   allowedModels: AIModel[];
