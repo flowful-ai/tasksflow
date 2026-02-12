@@ -131,12 +131,6 @@ export function GlobalAgentChat() {
     localStorage.setItem(storageKey(userId, currentWorkspace.id), selectedAgentId);
   }, [selectedAgentId, currentWorkspace, userId]);
 
-  useEffect(() => {
-    if (isStreaming) {
-      void stop();
-    }
-  }, [selectedAgentId, isStreaming, stop]);
-
   const canSend = useMemo(() => {
     return enabled && !!selectedAgentId && input.trim().length > 0 && !isStreaming;
   }, [enabled, selectedAgentId, input, isStreaming]);
@@ -195,7 +189,16 @@ export function GlobalAgentChat() {
             </div>
 
             <div className="border-b border-gray-200 px-4 py-3">
-              <select className="input" value={selectedAgentId} onChange={(event) => setSelectedAgentId(event.target.value)}>
+              <select
+                className="input"
+                value={selectedAgentId}
+                onChange={(event) => {
+                  if (isStreaming) {
+                    void stop();
+                  }
+                  setSelectedAgentId(event.target.value);
+                }}
+              >
                 {agents.map((agent) => (
                   <option key={agent.id} value={agent.id}>
                     {agent.name}
