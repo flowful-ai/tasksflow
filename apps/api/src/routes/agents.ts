@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { streamText } from 'ai';
+import { stepCountIs, streamText } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
@@ -337,6 +337,7 @@ agents.post(
           .join('\n'),
         messages: data.messages,
         tools: tools as any,
+        stopWhen: stepCountIs(5),
         onFinish: async ({ usage }) => {
           const totalTokens = usage.totalTokens ?? 0;
           if (totalTokens > 0) {

@@ -77,11 +77,23 @@ export function GlobalAgentChat() {
     return enabled && !!selectedAgentId && input.trim().length > 0 && !isSending;
   }, [enabled, selectedAgentId, input, isSending]);
 
+  const removeTrailingEmptyAssistantMessage = () => {
+    setMessages((previous) => {
+      const copy = [...previous];
+      const last = copy[copy.length - 1];
+      if (!last || last.role !== 'assistant' || last.content.trim().length > 0) {
+        return previous;
+      }
+      copy.pop();
+      return copy;
+    });
+  };
+
   const handleSend = async () => {
     if (!canSend) return;
 
     const userMessage: ChatMessage = { role: 'user', content: input.trim() };
-    const nextMessages = [...messages, userMessage];
+    const nextMessages = [...messages.filter((message) => message.content.trim().length > 0), userMessage];
 
     setMessages([...nextMessages, { role: 'assistant', content: '' }]);
     setInput('');
@@ -107,12 +119,19 @@ export function GlobalAgentChat() {
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
+      let hasAssistantText = false;
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
         const chunk = decoder.decode(value, { stream: true });
+        if (!chunk) {
+          continue;
+        }
+        if (!hasAssistantText && chunk.trim().length > 0) {
+          hasAssistantText = true;
+        }
         setMessages((previous) => {
           const copy = [...previous];
           const last = copy[copy.length - 1];
@@ -121,7 +140,27 @@ export function GlobalAgentChat() {
           return copy;
         });
       }
+
+      const trailingChunk = decoder.decode();
+      if (trailingChunk) {
+        if (!hasAssistantText && trailingChunk.trim().length > 0) {
+          hasAssistantText = true;
+        }
+        setMessages((previous) => {
+          const copy = [...previous];
+          const last = copy[copy.length - 1];
+          if (!last || last.role !== 'assistant') return previous;
+          copy[copy.length - 1] = { ...last, content: `${last.content}${trailingChunk}` };
+          return copy;
+        });
+      }
+
+      if (!hasAssistantText) {
+        removeTrailingEmptyAssistantMessage();
+        setError('Assistant returned an empty response. Please try again.');
+      }
     } catch (err) {
+      removeTrailingEmptyAssistantMessage();
       setError(err instanceof Error ? err.message : 'Agent execution failed');
     } finally {
       setIsSending(false);
