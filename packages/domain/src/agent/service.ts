@@ -1,6 +1,6 @@
 import { eq, and, desc, asc, SQL } from 'drizzle-orm';
 import type { Database } from '@flowtask/database';
-import { agents, userApiKeys } from '@flowtask/database';
+import { agents, workspaceApiKeys } from '@flowtask/database';
 import type { Result, AgentTool } from '@flowtask/shared';
 import { ok, err } from '@flowtask/shared';
 import type {
@@ -258,21 +258,21 @@ export class AgentService {
   // === API Key Management ===
 
   /**
-   * Store an encrypted API key for a user.
+   * Store an encrypted API key for a workspace.
    */
-  async storeApiKey(input: ApiKeyCreateInput): Promise<Result<typeof userApiKeys.$inferSelect, Error>> {
+  async storeApiKey(input: ApiKeyCreateInput): Promise<Result<typeof workspaceApiKeys.$inferSelect, Error>> {
     try {
       const encryptedKey = await encryptApiKey(input.apiKey);
 
       const [apiKey] = await this.db
-        .insert(userApiKeys)
+        .insert(workspaceApiKeys)
         .values({
-          userId: input.userId,
+          workspaceId: input.workspaceId,
           provider: input.provider,
           encryptedKey,
         })
         .onConflictDoUpdate({
-          target: [userApiKeys.userId, userApiKeys.provider],
+          target: [workspaceApiKeys.workspaceId, workspaceApiKeys.provider],
           set: { encryptedKey, lastUsedAt: null },
         })
         .returning();
@@ -288,14 +288,14 @@ export class AgentService {
   }
 
   /**
-   * Get the decrypted API key for a user.
+   * Get the decrypted API key for a workspace.
    */
-  async getApiKey(userId: string, provider: 'openrouter'): Promise<Result<string, Error>> {
+  async getApiKey(workspaceId: string, provider: 'openrouter'): Promise<Result<string, Error>> {
     try {
       const [apiKey] = await this.db
         .select()
-        .from(userApiKeys)
-        .where(and(eq(userApiKeys.userId, userId), eq(userApiKeys.provider, provider)));
+        .from(workspaceApiKeys)
+        .where(and(eq(workspaceApiKeys.workspaceId, workspaceId), eq(workspaceApiKeys.provider, provider)));
 
       if (!apiKey) {
         return err(new Error('API key not found'));
@@ -303,9 +303,9 @@ export class AgentService {
 
       // Update last used timestamp
       await this.db
-        .update(userApiKeys)
+        .update(workspaceApiKeys)
         .set({ lastUsedAt: new Date() })
-        .where(eq(userApiKeys.id, apiKey.id));
+        .where(eq(workspaceApiKeys.id, apiKey.id));
 
       const decrypted = await decryptApiKey(apiKey.encryptedKey);
       return ok(decrypted);
@@ -315,25 +315,25 @@ export class AgentService {
   }
 
   /**
-   * Check if a user has an API key stored.
+   * Check if a workspace has an API key stored.
    */
-  async hasApiKey(userId: string, provider: 'openrouter'): Promise<boolean> {
+  async hasApiKey(workspaceId: string, provider: 'openrouter'): Promise<boolean> {
     const [apiKey] = await this.db
-      .select({ id: userApiKeys.id })
-      .from(userApiKeys)
-      .where(and(eq(userApiKeys.userId, userId), eq(userApiKeys.provider, provider)));
+      .select({ id: workspaceApiKeys.id })
+      .from(workspaceApiKeys)
+      .where(and(eq(workspaceApiKeys.workspaceId, workspaceId), eq(workspaceApiKeys.provider, provider)));
 
     return !!apiKey;
   }
 
   /**
-   * Delete a user's API key.
+   * Delete a workspace API key.
    */
-  async deleteApiKey(userId: string, provider: 'openrouter'): Promise<Result<void, Error>> {
+  async deleteApiKey(workspaceId: string, provider: 'openrouter'): Promise<Result<void, Error>> {
     try {
       await this.db
-        .delete(userApiKeys)
-        .where(and(eq(userApiKeys.userId, userId), eq(userApiKeys.provider, provider)));
+        .delete(workspaceApiKeys)
+        .where(and(eq(workspaceApiKeys.workspaceId, workspaceId), eq(workspaceApiKeys.provider, provider)));
 
       return ok(undefined);
     } catch (error) {

@@ -143,6 +143,31 @@ export const workspaceAgentApi = {
     ),
 };
 
+export type ApiKeyProvider = 'openrouter';
+
+export interface WorkspaceApiKeyStatus {
+  hasKey: boolean;
+  provider: ApiKeyProvider;
+}
+
+export const workspaceApiKeyApi = {
+  upsert: (workspaceId: string, data: { provider: ApiKeyProvider; apiKey: string }) =>
+    api.post<{ success: boolean; data: { id: string; workspaceId: string; provider: ApiKeyProvider; createdAt: string } }>(
+      `/api/workspaces/${workspaceId}/api-keys`,
+      data
+    ),
+
+  status: (workspaceId: string, provider: ApiKeyProvider) =>
+    api.get<{ success: boolean; data: WorkspaceApiKeyStatus }>(
+      `/api/workspaces/${workspaceId}/api-keys/${provider}`
+    ),
+
+  delete: (workspaceId: string, provider: ApiKeyProvider) =>
+    api.delete<{ success: boolean; data: null }>(
+      `/api/workspaces/${workspaceId}/api-keys/${provider}`
+    ),
+};
+
 export interface McpOAuthConnection {
   consentId: string;
   workspaceId: string;

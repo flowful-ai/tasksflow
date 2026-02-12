@@ -187,7 +187,7 @@ agents.post(
     }
 
     // Check if user has API key
-    const hasKey = await agentService.hasApiKey(user.id, 'openrouter');
+    const hasKey = await agentService.hasApiKey(agentResult.value.workspaceId, 'openrouter');
     if (!hasKey) {
       return c.json({
         success: false,
@@ -215,72 +215,5 @@ agents.post(
     });
   }
 );
-
-// === API Key Management ===
-
-// Store API key
-agents.post(
-  '/api-keys',
-  zValidator(
-    'json',
-    z.object({
-      provider: z.enum(['openrouter']),
-      apiKey: z.string().min(1),
-    })
-  ),
-  async (c) => {
-    const user = getCurrentUser(c);
-    const { provider, apiKey } = c.req.valid('json');
-
-    const result = await agentService.storeApiKey({
-      userId: user.id,
-      provider,
-      apiKey,
-    });
-
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'STORE_FAILED', message: result.error.message } }, 400);
-    }
-
-    return c.json({
-      success: true,
-      data: {
-        id: result.value.id,
-        provider: result.value.provider,
-        createdAt: result.value.createdAt,
-      },
-    }, 201);
-  }
-);
-
-// Check API key status
-agents.get('/api-keys/:provider', async (c) => {
-  const user = getCurrentUser(c);
-  const provider = c.req.param('provider') as 'openrouter';
-
-  const hasKey = await agentService.hasApiKey(user.id, provider);
-
-  return c.json({
-    success: true,
-    data: {
-      hasKey,
-      provider,
-    },
-  });
-});
-
-// Delete API key
-agents.delete('/api-keys/:provider', async (c) => {
-  const user = getCurrentUser(c);
-  const provider = c.req.param('provider') as 'openrouter';
-
-  const result = await agentService.deleteApiKey(user.id, provider);
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'DELETE_FAILED', message: result.error.message } }, 400);
-  }
-
-  return c.json({ success: true, data: null });
-});
 
 export { agents as agentRoutes };

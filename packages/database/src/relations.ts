@@ -24,7 +24,7 @@ import {
   smartViewShares,
   publicShares,
   agents,
-  userApiKeys,
+  workspaceApiKeys,
   sessions,
   accounts,
   githubInstallations,
@@ -37,7 +37,6 @@ export const usersRelations = relations(users, ({ many }) => ({
   taskAssignees: many(taskAssignees),
   comments: many(comments),
   agents: many(agents),
-  apiKeys: many(userApiKeys),
   sessions: many(sessions),
   accounts: many(accounts),
   githubInstallations: many(githubInstallations),
@@ -48,6 +47,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   mcpOAuthAuthorizationCodes: many(mcpOAuthAuthorizationCodes),
   mcpOAuthAccessTokens: many(mcpOAuthAccessTokens),
   mcpOAuthRefreshTokens: many(mcpOAuthRefreshTokens),
+  apiKeys: many(workspaceApiKeys),
 }));
 
 // Workspace relations
@@ -355,11 +355,11 @@ export const agentsRelations = relations(agents, ({ one }) => ({
   }),
 }));
 
-// User API key relations
-export const userApiKeysRelations = relations(userApiKeys, ({ one }) => ({
-  user: one(users, {
-    fields: [userApiKeys.userId],
-    references: [users.id],
+// Workspace API key relations
+export const workspaceApiKeysRelations = relations(workspaceApiKeys, ({ one }) => ({
+  workspace: one(workspaces, {
+    fields: [workspaceApiKeys.workspaceId],
+    references: [workspaces.id],
   }),
 }));
 

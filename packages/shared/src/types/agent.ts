@@ -70,15 +70,15 @@ export type UpdateAgent = z.infer<typeof UpdateAgentSchema>;
 export const ApiKeyProviderSchema = z.enum(['openrouter']);
 export type ApiKeyProvider = z.infer<typeof ApiKeyProviderSchema>;
 
-export const UserApiKeySchema = z.object({
+export const WorkspaceApiKeySchema = z.object({
   id: z.string().uuid(),
-  userId: z.string().uuid(),
+  workspaceId: z.string().uuid(),
   provider: ApiKeyProviderSchema,
   lastUsedAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
 });
 
-export type UserApiKey = z.infer<typeof UserApiKeySchema>;
+export type WorkspaceApiKey = z.infer<typeof WorkspaceApiKeySchema>;
 
 // Agent execution
 export const AgentExecutionStatusSchema = z.enum(['pending', 'running', 'completed', 'failed']);

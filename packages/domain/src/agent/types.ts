@@ -1,4 +1,4 @@
-import type { Agent, UserApiKey } from '@flowtask/database';
+import type { Agent } from '@flowtask/database';
 import type { CreateAgent, UpdateAgent, AgentTool, AIModel, AgentExecution, RunAgent } from '@flowtask/shared';
 
 export interface AgentWithRelations extends Agent {
@@ -17,7 +17,7 @@ export interface AgentUpdateInput extends UpdateAgent {
 }
 
 export interface ApiKeyCreateInput {
-  userId: string;
+  workspaceId: string;
   provider: 'openrouter';
   apiKey: string;
 }

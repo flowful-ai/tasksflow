@@ -10,7 +10,7 @@ import { MemberSettings } from '../components/settings/MemberSettings';
 import { AppOverviewSettings } from '../components/settings/AppOverviewSettings';
 import { AppUserManagementSettings } from '../components/settings/AppUserManagementSettings';
 import { authApi, type LinkedAccount } from '../api/auth';
-import { appAdminApi } from '../api/client';
+import { ApiError, appAdminApi, workspaceApiKeyApi } from '../api/client';
 
 function ProfileSettings() {
   return (
@@ -194,12 +194,129 @@ function IntegrationSettings() {
 }
 
 function ApiKeySettings() {
+  const { currentWorkspace } = useWorkspaceStore();
+  const workspaceId = currentWorkspace?.id;
+  const [apiKey, setApiKey] = useState('');
+  const [hasKey, setHasKey] = useState(false);
+  const [isLoadingStatus, setIsLoadingStatus] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isForbidden, setIsForbidden] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const loadStatus = async (id: string) => {
+    setIsLoadingStatus(true);
+    setError(null);
+    setSuccess(null);
+    setIsForbidden(false);
+
+    try {
+      const response = await workspaceApiKeyApi.status(id, 'openrouter');
+      setHasKey(response.data.hasKey);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) {
+        setIsForbidden(true);
+        return;
+      }
+      setError(err instanceof Error ? err.message : 'Failed to load API key status');
+    } finally {
+      setIsLoadingStatus(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    loadStatus(workspaceId);
+  }, [workspaceId]);
+
+  const handleSave = async () => {
+    if (!workspaceId || !apiKey.trim()) return;
+
+    setIsSaving(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      await workspaceApiKeyApi.upsert(workspaceId, { provider: 'openrouter', apiKey: apiKey.trim() });
+      setApiKey('');
+      setSuccess('Workspace API key saved.');
+      await loadStatus(workspaceId);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) {
+        setIsForbidden(true);
+        return;
+      }
+      setError(err instanceof Error ? err.message : 'Failed to save API key');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!workspaceId) return;
+
+    setIsDeleting(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      await workspaceApiKeyApi.delete(workspaceId, 'openrouter');
+      setSuccess('Workspace API key deleted.');
+      await loadStatus(workspaceId);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) {
+        setIsForbidden(true);
+        return;
+      }
+      setError(err instanceof Error ? err.message : 'Failed to delete API key');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  if (!workspaceId) {
+    return (
+      <div className="card p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-2">Workspace API Keys</h2>
+        <p className="text-gray-600">Select a workspace to manage API keys.</p>
+      </div>
+    );
+  }
+
+  if (isForbidden) {
+    return (
+      <div className="card p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-2">Workspace API Keys</h2>
+        <p className="text-gray-600">Only workspace owners and admins can manage API keys.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="card p-6">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">API Keys</h2>
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">Workspace API Keys</h2>
       <p className="text-gray-600 mb-6">
-        Configure your OpenRouter API key to enable AI agent features.
+        Configure the OpenRouter API key for this workspace.
       </p>
+
+      <div className="mb-4 text-sm text-gray-600">
+        Workspace: <span className="font-medium text-gray-900">{currentWorkspace?.name}</span>
+      </div>
+
+      {isLoadingStatus ? (
+        <div className="mb-4 text-sm text-gray-500">Loading key status...</div>
+      ) : (
+        <div className="mb-4 text-sm text-gray-600">
+          Status:{' '}
+          <span className={hasKey ? 'text-green-700 font-medium' : 'text-amber-700 font-medium'}>
+            {hasKey ? 'Configured' : 'Not configured'}
+          </span>
+        </div>
+      )}
+
+      {error && <div className="mb-4 p-3 text-sm text-red-600 bg-red-50 rounded-lg">{error}</div>}
+      {success && <div className="mb-4 p-3 text-sm text-green-700 bg-green-50 rounded-lg">{success}</div>}
 
       <div className="space-y-4">
         <div>
@@ -210,6 +327,8 @@ function ApiKeySettings() {
             type="password"
             className="input"
             placeholder="sk-or-..."
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
           />
           <p className="mt-1 text-sm text-gray-500">
             Get your API key from{' '}
@@ -223,7 +342,22 @@ function ApiKeySettings() {
             </a>
           </p>
         </div>
-        <button className="btn btn-primary">Save API Key</button>
+        <div className="flex items-center gap-3">
+          <button
+            className="btn btn-primary"
+            onClick={handleSave}
+            disabled={isSaving || !apiKey.trim()}
+          >
+            {isSaving ? 'Saving...' : hasKey ? 'Update API Key' : 'Save API Key'}
+          </button>
+          <button
+            className="btn btn-secondary"
+            onClick={handleDelete}
+            disabled={isDeleting || !hasKey}
+          >
+            {isDeleting ? 'Deleting...' : 'Delete'}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -408,7 +542,6 @@ export function SettingsPage() {
         items: [
           { name: 'Profile', href: '/settings/user/profile', icon: User },
           { name: 'Integrations', href: '/settings/user/integrations', icon: Link2 },
-          { name: 'API Keys', href: '/settings/user/api-keys', icon: Key },
         ],
       },
       {
@@ -418,6 +551,7 @@ export function SettingsPage() {
           { name: 'Workspace', href: '/settings/workspace/general', icon: Building2 },
           { name: 'Members', href: '/settings/workspace/members', icon: Users },
           { name: 'Views', href: '/settings/workspace/views', icon: Eye },
+          { name: 'API Keys', href: '/settings/workspace/api-keys', icon: Key },
           { name: 'Agents', href: '/settings/workspace/agents', icon: Bot },
         ],
       },
@@ -489,7 +623,7 @@ export function SettingsPage() {
 
             <Route path="user/profile" element={<ProfileSettings />} />
             <Route path="user/integrations" element={<IntegrationSettings />} />
-            <Route path="user/api-keys" element={<ApiKeySettings />} />
+            <Route path="user/api-keys" element={<Navigate to="/settings/workspace/api-keys" replace />} />
 
             <Route path="workspace/general" element={<WorkspaceSettings />} />
             <Route path="workspace/new" element={<NewWorkspaceSettings />} />
@@ -497,6 +631,7 @@ export function SettingsPage() {
             <Route path="workspace/views" element={<ViewsSettings />} />
             <Route path="workspace/views/new" element={<SmartViewForm />} />
             <Route path="workspace/views/:viewId/edit" element={<SmartViewForm />} />
+            <Route path="workspace/api-keys" element={<ApiKeySettings />} />
             <Route path="workspace/agents" element={<AgentSettings />} />
 
             <Route
@@ -511,7 +646,7 @@ export function SettingsPage() {
             {/* Legacy compatibility paths */}
             <Route path="profile" element={<Navigate to="/settings/user/profile" replace />} />
             <Route path="integrations" element={<Navigate to="/settings/user/integrations" replace />} />
-            <Route path="api-keys" element={<Navigate to="/settings/user/api-keys" replace />} />
+            <Route path="api-keys" element={<Navigate to="/settings/workspace/api-keys" replace />} />
             <Route path="workspace" element={<Navigate to="/settings/workspace/general" replace />} />
             <Route path="workspaces/new" element={<Navigate to="/settings/workspace/new" replace />} />
             <Route path="members" element={<Navigate to="/settings/workspace/members" replace />} />

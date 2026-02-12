@@ -546,20 +546,20 @@ export const mcpOAuthRefreshTokens = pgTable(
   ]
 );
 
-// User's OpenRouter API keys (encrypted)
-export const userApiKeys = pgTable(
-  'user_api_keys',
+// Workspace OpenRouter API keys (encrypted)
+export const workspaceApiKeys = pgTable(
+  'workspace_api_keys',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    userId: uuid('user_id')
-      .references(() => users.id, { onDelete: 'cascade' })
+    workspaceId: uuid('workspace_id')
+      .references(() => workspaces.id, { onDelete: 'cascade' })
       .notNull(),
     provider: text('provider').notNull(), // 'openrouter'
     encryptedKey: text('encrypted_key').notNull(),
     lastUsedAt: timestamp('last_used_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
-  (table) => [uniqueIndex('unique_user_api_key').on(table.userId, table.provider)]
+  (table) => [uniqueIndex('unique_workspace_api_key').on(table.workspaceId, table.provider)]
 );
 
 // ============ GITHUB INSTALLATIONS (User-level) ============
@@ -694,8 +694,8 @@ export type NewPublicShare = typeof publicShares.$inferInsert;
 export type Agent = typeof agents.$inferSelect;
 export type NewAgent = typeof agents.$inferInsert;
 
-export type UserApiKey = typeof userApiKeys.$inferSelect;
-export type NewUserApiKey = typeof userApiKeys.$inferInsert;
+export type WorkspaceApiKey = typeof workspaceApiKeys.$inferSelect;
+export type NewWorkspaceApiKey = typeof workspaceApiKeys.$inferInsert;
 
 export type Session = typeof sessions.$inferSelect;
 export type NewSession = typeof sessions.$inferInsert;

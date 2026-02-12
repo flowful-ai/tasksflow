@@ -19,6 +19,7 @@ import { mcpSseRoutes } from './routes/mcp-sse.js';
 import { mcpOAuthRoutes } from './routes/mcp-oauth.js';
 import { mcpConnectionsRoutes } from './routes/mcp-connections.js';
 import { workspaceAgentRoutes } from './routes/workspace-agents.js';
+import { workspaceApiKeysRoutes } from './routes/workspace-api-keys.js';
 import { eventRoutes } from './routes/events.js';
 import { githubRoutes, githubPublicRoutes } from './routes/github.js';
 import { invitationRoutes, publicInvitationRoutes, acceptInvitationRoutes } from './routes/invitations.js';
@@ -124,6 +125,7 @@ app.use('/api/*', authMiddleware);
 app.route('/api/workspaces', workspaceRoutes);
 app.route('/api/projects', projectRoutes);
 app.route('/api/workspaces', workspaceAgentRoutes); // Workspace agent routes nested under workspaces
+app.route('/api/workspaces', workspaceApiKeysRoutes);
 app.route('/api/workspaces', mcpConnectionsRoutes);
 app.route('/api', invitationRoutes); // Invitation routes under /api/workspaces/:workspaceId/invitations
 app.route('/api', acceptInvitationRoutes); // Accept invitation route (requires auth)
