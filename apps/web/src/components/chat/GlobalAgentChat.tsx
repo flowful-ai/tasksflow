@@ -11,6 +11,7 @@ import { useAuthStore } from '../../stores/auth';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 const TOOL_ONLY_FALLBACK_MESSAGE = 'Done. I completed the requested actions.';
+const AUTO_SCROLL_THRESHOLD_PX = 64;
 
 function storageKey(userId: string, workspaceId: string): string {
   return `flowtask:chat:agent:${workspaceId}:${userId}`;
@@ -69,6 +70,8 @@ export function GlobalAgentChat() {
   const [input, setInput] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const selectedAgentIdRef = useRef<string>('');
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+  const shouldAutoScrollRef = useRef(true);
 
   useEffect(() => {
     selectedAgentIdRef.current = selectedAgentId;
@@ -166,6 +169,26 @@ export function GlobalAgentChat() {
   const showThinking = isStreaming && !lastAssistantHasVisibleOutput;
   const currentError = errorMessage || chatError?.message || null;
 
+  const handleMessagesScroll = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    shouldAutoScrollRef.current = distanceFromBottom <= AUTO_SCROLL_THRESHOLD_PX;
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const container = messagesContainerRef.current;
+    if (!container || !shouldAutoScrollRef.current) return;
+
+    const frame = requestAnimationFrame(() => {
+      container.scrollTop = container.scrollHeight;
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [messages, showThinking, isOpen]);
+
   const handleSend = async () => {
     if (!canSend) return;
 
@@ -229,7 +252,11 @@ export function GlobalAgentChat() {
               </select>
             </div>
 
-            <div className="h-[calc(70vh-180px)] space-y-3 overflow-y-auto px-4 py-3">
+            <div
+              ref={messagesContainerRef}
+              onScroll={handleMessagesScroll}
+              className="h-[calc(70vh-180px)] space-y-3 overflow-y-auto px-4 py-3"
+            >
               {messages.length === 0 && (
                 <div className="text-sm text-gray-500">Ask anything about your workspace, tasks, and projects.</div>
               )}
