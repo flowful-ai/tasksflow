@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ComponentType } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
-import { User, Building2, Link2, Key, Bot, Eye, Users, Shield } from 'lucide-react';
+import { User, Building2, Link2, Bot, Eye, Users, Shield, Plug } from 'lucide-react';
 import clsx from 'clsx';
 import type { AppRole } from '@flowtask/shared';
 import { useWorkspaceStore } from '../stores/workspace';
@@ -551,8 +551,8 @@ export function SettingsPage() {
           { name: 'Workspace', href: '/settings/workspace/general', icon: Building2 },
           { name: 'Members', href: '/settings/workspace/members', icon: Users },
           { name: 'Views', href: '/settings/workspace/views', icon: Eye },
-          { name: 'API Keys', href: '/settings/workspace/api-keys', icon: Key },
-          { name: 'Agents', href: '/settings/workspace/agents', icon: Bot },
+          { name: 'Agent', href: '/settings/workspace/api-keys', icon: Bot },
+          { name: 'MCP Connections', href: '/settings/workspace/agents', icon: Plug },
         ],
       },
     ];
