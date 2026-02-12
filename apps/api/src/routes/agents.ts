@@ -24,10 +24,20 @@ const ExecuteAgentSchema = z.object({
     .array(
       z.object({
         role: z.enum(['user', 'assistant']),
-        content: z.string().min(1),
+        content: z.string(),
       })
     )
-    .min(1),
+    .transform((messages) =>
+      messages
+        .map((message) => ({
+          ...message,
+          content: message.content.trim(),
+        }))
+        .filter((message) => message.content.length > 0)
+    )
+    .refine((messages) => messages.length > 0, {
+      message: 'At least one non-empty message is required',
+    }),
   context: z
     .object({
       projectId: z.string().uuid().optional(),

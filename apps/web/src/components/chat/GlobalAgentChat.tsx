@@ -8,6 +8,7 @@ import { useWorkspaceStore } from '../../stores/workspace';
 import { useAuthStore } from '../../stores/auth';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+const TOOL_ONLY_FALLBACK_MESSAGE = 'Done. I completed the requested actions.';
 
 type ChatMessage = {
   role: 'user' | 'assistant';
@@ -159,8 +160,15 @@ export function GlobalAgentChat() {
       }
 
       if (!hasAssistantText) {
-        removeTrailingEmptyAssistantMessage();
-        setError('Assistant returned an empty response. Please try again.');
+        setMessages((previous) => {
+          const copy = [...previous];
+          const last = copy[copy.length - 1];
+          if (!last || last.role !== 'assistant') {
+            return [...copy, { role: 'assistant', content: TOOL_ONLY_FALLBACK_MESSAGE }];
+          }
+          copy[copy.length - 1] = { ...last, content: TOOL_ONLY_FALLBACK_MESSAGE };
+          return copy;
+        });
       }
     } catch (err) {
       removeTrailingEmptyAssistantMessage();
