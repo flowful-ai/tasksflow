@@ -150,6 +150,21 @@ export interface WorkspaceApiKeyStatus {
   provider: ApiKeyProvider;
 }
 
+export type AIModel =
+  | 'anthropic/claude-3-opus'
+  | 'anthropic/claude-3-sonnet'
+  | 'anthropic/claude-3-haiku'
+  | 'openai/gpt-4-turbo'
+  | 'openai/gpt-4'
+  | 'openai/gpt-3.5-turbo'
+  | 'google/gemini-pro'
+  | 'meta/llama-2-70b';
+
+export interface WorkspaceAiSettings {
+  allowedModels: AIModel[];
+  defaultAgentId: string | null;
+}
+
 export const workspaceApiKeyApi = {
   listStatuses: (workspaceId: string) =>
     api.get<{ success: boolean; data: { providers: WorkspaceApiKeyStatus[] } }>(
@@ -170,6 +185,40 @@ export const workspaceApiKeyApi = {
   delete: (workspaceId: string, provider: ApiKeyProvider) =>
     api.delete<{ success: boolean; data: null }>(
       `/api/workspaces/${workspaceId}/api-keys/${provider}`
+    ),
+};
+
+export const workspaceAiSettingsApi = {
+  get: (workspaceId: string) =>
+    api.get<{ success: boolean; data: WorkspaceAiSettings }>(
+      `/api/workspaces/${workspaceId}/ai-settings`
+    ),
+
+  update: (workspaceId: string, data: WorkspaceAiSettings) =>
+    api.patch<{ success: boolean; data: WorkspaceAiSettings }>(
+      `/api/workspaces/${workspaceId}/ai-settings`,
+      data
+    ),
+};
+
+export interface AgentSummary {
+  id: string;
+  workspaceId: string;
+  name: string;
+  model: AIModel;
+  tools: string[];
+  isActive: boolean;
+}
+
+export const agentApi = {
+  list: (workspaceId: string, isActive = true) =>
+    api.get<{ success: boolean; data: AgentSummary[] }>(
+      `/api/agents?workspaceId=${workspaceId}&isActive=${String(isActive)}`
+    ),
+
+  availability: (workspaceId: string) =>
+    api.get<{ success: boolean; data: { enabled: boolean; hasProviderKey: boolean; modelCount: number } }>(
+      `/api/agents/availability?workspaceId=${workspaceId}`
     ),
 };
 

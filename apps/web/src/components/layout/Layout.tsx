@@ -14,6 +14,7 @@ import {
 import { useAuthStore } from '../../stores/auth';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useRealtimeEvents } from '../../hooks/useRealtimeEvents';
+import { GlobalAgentChat } from '../chat/GlobalAgentChat';
 import clsx from 'clsx';
 
 interface LayoutProps {
@@ -260,6 +261,8 @@ export function Layout({ children }: LayoutProps) {
           onClick={() => setSidebarOpen(false)}
         />
       )}
+
+      <GlobalAgentChat />
     </div>
   );
 }

@@ -4,7 +4,8 @@ import { zValidator } from '@hono/zod-validator';
 import { getDatabase } from '@flowtask/database';
 import { AgentService, WorkspaceService } from '@flowtask/domain';
 import { getCurrentUser } from '@flowtask/auth';
-import { ApiKeyProviderSchema } from '@flowtask/shared';
+import { ApiKeyProviderSchema, UpdateWorkspaceAiSettingsSchema } from '@flowtask/shared';
+import { hasPermission } from '@flowtask/auth';
 
 const workspaceApiKeysRoutes = new Hono();
 const db = getDatabase();
@@ -137,5 +138,56 @@ workspaceApiKeysRoutes.delete('/:workspaceId/api-keys/:provider', async (c) => {
 
   return c.json({ success: true, data: null });
 });
+
+workspaceApiKeysRoutes.get('/:workspaceId/ai-settings', async (c) => {
+  const user = getCurrentUser(c);
+  const workspaceId = c.req.param('workspaceId');
+
+  const roleResult = await workspaceService.getMemberRole(workspaceId, user.id);
+  const role = roleResult.ok ? roleResult.value : null;
+  if (!role || !hasPermission(role, 'agent:execute')) {
+    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
+  }
+
+  const result = await workspaceService.getAgentAiSettings(workspaceId);
+  if (!result.ok) {
+    return c.json({ success: false, error: { code: 'READ_FAILED', message: result.error.message } }, 400);
+  }
+
+  return c.json({ success: true, data: result.value });
+});
+
+workspaceApiKeysRoutes.patch(
+  '/:workspaceId/ai-settings',
+  zValidator('json', UpdateWorkspaceAiSettingsSchema),
+  async (c) => {
+    const user = getCurrentUser(c);
+    const workspaceId = c.req.param('workspaceId');
+    const data = c.req.valid('json');
+
+    try {
+      await requireWorkspaceAdminOrOwner(workspaceId, user.id);
+    } catch {
+      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
+    }
+
+    if (data.defaultAgentId) {
+      const agentResult = await agentService.getById(data.defaultAgentId);
+      if (!agentResult.ok || agentResult.value.workspaceId !== workspaceId || !agentResult.value.isActive) {
+        return c.json(
+          { success: false, error: { code: 'INVALID_DEFAULT_AGENT', message: 'Default agent must be active and in this workspace' } },
+          400
+        );
+      }
+    }
+
+    const result = await workspaceService.updateAgentAiSettings(workspaceId, data);
+    if (!result.ok) {
+      return c.json({ success: false, error: { code: 'UPDATE_FAILED', message: result.error.message } }, 400);
+    }
+
+    return c.json({ success: true, data: result.value });
+  }
+);
 
 export { workspaceApiKeysRoutes };

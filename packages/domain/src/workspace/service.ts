@@ -5,7 +5,8 @@ function escapeLike(value: string): string {
 }
 import type { Database } from '@flowtask/database';
 import { workspaces, workspaceMembers, users, projects, tasks, taskEvents, mcpOAuthClients } from '@flowtask/database';
-import type { Result, WorkspaceRole } from '@flowtask/shared';
+import type { Result, WorkspaceRole, WorkspaceAiSettings, UpdateWorkspaceAiSettings } from '@flowtask/shared';
+import { AIModelSchema, DEFAULT_AI_MODELS } from '@flowtask/shared';
 import { ok, err } from '@flowtask/shared';
 import type {
   WorkspaceWithRelations,
@@ -257,6 +258,60 @@ export class WorkspaceService {
       }));
 
       return ok(result);
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error('Unknown error'));
+    }
+  }
+
+  async getAgentAiSettings(workspaceId: string): Promise<Result<WorkspaceAiSettings, Error>> {
+    try {
+      const [workspace] = await this.db
+        .select({
+          allowedAgentModels: workspaces.allowedAgentModels,
+          defaultAgentId: workspaces.defaultAgentId,
+        })
+        .from(workspaces)
+        .where(eq(workspaces.id, workspaceId));
+
+      if (!workspace) {
+        return err(new Error('Workspace not found'));
+      }
+
+      const allowedModelSet = new Set<string>(AIModelSchema.options);
+      const rawModels = Array.isArray(workspace.allowedAgentModels) ? workspace.allowedAgentModels : DEFAULT_AI_MODELS;
+      const sanitizedModels = rawModels.filter(
+        (model): model is (typeof DEFAULT_AI_MODELS)[number] =>
+          typeof model === 'string' && allowedModelSet.has(model)
+      );
+
+      return ok({
+        allowedModels: sanitizedModels,
+        defaultAgentId: workspace.defaultAgentId,
+      });
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error('Unknown error'));
+    }
+  }
+
+  async updateAgentAiSettings(
+    workspaceId: string,
+    input: UpdateWorkspaceAiSettings
+  ): Promise<Result<WorkspaceAiSettings, Error>> {
+    try {
+      const [updated] = await this.db
+        .update(workspaces)
+        .set({
+          allowedAgentModels: input.allowedModels,
+          defaultAgentId: input.defaultAgentId,
+        })
+        .where(eq(workspaces.id, workspaceId))
+        .returning({ id: workspaces.id });
+
+      if (!updated) {
+        return err(new Error('Workspace not found'));
+      }
+
+      return this.getAgentAiSettings(workspaceId);
     } catch (error) {
       return err(error instanceof Error ? error : new Error('Unknown error'));
     }

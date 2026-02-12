@@ -27,6 +27,8 @@ export const workspaces = pgTable('workspaces', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
+  allowedAgentModels: jsonb('allowed_agent_models'),
+  defaultAgentId: uuid('default_agent_id'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

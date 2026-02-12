@@ -13,6 +13,7 @@ export const AIModelSchema = z.enum([
   'meta/llama-2-70b',
 ]);
 export type AIModel = z.infer<typeof AIModelSchema>;
+export const DEFAULT_AI_MODELS = [...AIModelSchema.options] as AIModel[];
 
 // Agent tools
 export const AgentToolSchema = z.enum([
@@ -143,3 +144,15 @@ export const RunAgentSchema = z.object({
 });
 
 export type RunAgent = z.infer<typeof RunAgentSchema>;
+
+export const WorkspaceAiSettingsSchema = z.object({
+  allowedModels: z.array(AIModelSchema),
+  defaultAgentId: z.string().uuid().nullable(),
+});
+export type WorkspaceAiSettings = z.infer<typeof WorkspaceAiSettingsSchema>;
+
+export const UpdateWorkspaceAiSettingsSchema = z.object({
+  allowedModels: z.array(AIModelSchema),
+  defaultAgentId: z.string().uuid().nullable(),
+});
+export type UpdateWorkspaceAiSettings = z.infer<typeof UpdateWorkspaceAiSettingsSchema>;

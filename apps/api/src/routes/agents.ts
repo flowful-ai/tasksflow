@@ -1,18 +1,48 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
+import { streamText } from 'ai';
+import { createOpenAI } from '@ai-sdk/openai';
+import { createAnthropic } from '@ai-sdk/anthropic';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { getDatabase } from '@flowtask/database';
-import { AgentService, WorkspaceService } from '@flowtask/domain';
+import { AgentService, WorkspaceService, ProjectService } from '@flowtask/domain';
 import { getCurrentUser } from '@flowtask/auth';
-import { CreateAgentSchema, UpdateAgentSchema, RunAgentSchema, getRequiredApiKeyProvidersForModel } from '@flowtask/shared';
+import {
+  type AgentTool,
+  AIModelSchema,
+  CreateAgentSchema,
+  UpdateAgentSchema,
+  getRequiredApiKeyProvidersForModel,
+} from '@flowtask/shared';
 import { hasPermission } from '@flowtask/auth';
+import { buildAiSdkTools } from '../services/agent-tool-runtime.js';
+
+const ExecuteAgentSchema = z.object({
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(['user', 'assistant']),
+        content: z.string().min(1),
+      })
+    )
+    .min(1),
+  context: z
+    .object({
+      projectId: z.string().uuid().optional(),
+      taskId: z.string().uuid().optional(),
+    })
+    .optional(),
+  model: AIModelSchema,
+});
 
 const agents = new Hono();
 const db = getDatabase();
 const agentService = new AgentService(db);
 const workspaceService = new WorkspaceService(db);
+const projectService = new ProjectService(db);
 
-// Helper to check workspace access
 async function checkWorkspaceAccess(workspaceId: string, userId: string, permission: string) {
   const roleResult = await workspaceService.getMemberRole(workspaceId, userId);
   if (!roleResult.ok || !roleResult.value) {
@@ -22,6 +52,38 @@ async function checkWorkspaceAccess(workspaceId: string, userId: string, permiss
     allowed: hasPermission(roleResult.value, permission as any),
     role: roleResult.value,
   };
+}
+
+type ModelProvider = 'openai' | 'anthropic' | 'google' | 'openrouter';
+
+function resolveProviderModelId(model: string, provider: ModelProvider): string {
+  if (provider === 'openrouter') {
+    return model;
+  }
+  const [prefix, ...rest] = model.split('/');
+  if (prefix === provider && rest.length > 0) {
+    return rest.join('/');
+  }
+  return model;
+}
+
+function resolveLanguageModel(provider: ModelProvider, apiKey: string, model: string) {
+  const providerModel = resolveProviderModelId(model, provider);
+
+  switch (provider) {
+    case 'openai':
+      return createOpenAI({ apiKey })(providerModel);
+    case 'anthropic':
+      return createAnthropic({ apiKey })(providerModel);
+    case 'google':
+      return createGoogleGenerativeAI({ apiKey })(providerModel);
+    case 'openrouter': {
+      const openrouter = createOpenRouter({ apiKey });
+      return openrouter(model);
+    }
+    default:
+      throw new Error('Unsupported model provider');
+  }
 }
 
 // List agents
@@ -50,6 +112,39 @@ agents.get('/', async (c) => {
   }
 
   return c.json({ success: true, data: result.value });
+});
+
+agents.get('/availability', async (c) => {
+  const user = getCurrentUser(c);
+  const workspaceId = c.req.query('workspaceId');
+
+  if (!workspaceId) {
+    return c.json({ success: false, error: { code: 'MISSING_PARAM', message: 'workspaceId is required' } }, 400);
+  }
+
+  const { allowed } = await checkWorkspaceAccess(workspaceId, user.id, 'agent:execute');
+  if (!allowed) {
+    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
+  }
+
+  const configuredProviders = await agentService.listApiKeyProviders(workspaceId);
+  const aiSettingsResult = await workspaceService.getAgentAiSettings(workspaceId);
+
+  if (!aiSettingsResult.ok) {
+    return c.json({ success: false, error: { code: 'READ_FAILED', message: aiSettingsResult.error.message } }, 400);
+  }
+
+  const hasProviderKey = configuredProviders.size > 0;
+  const modelCount = aiSettingsResult.value.allowedModels.length;
+
+  return c.json({
+    success: true,
+    data: {
+      enabled: hasProviderKey && modelCount > 0,
+      hasProviderKey,
+      modelCount,
+    },
+  });
 });
 
 // Create agent
@@ -156,10 +251,9 @@ agents.delete('/:agentId', async (c) => {
   return c.json({ success: true, data: null });
 });
 
-// Run agent
 agents.post(
-  '/:agentId/run',
-  zValidator('json', RunAgentSchema),
+  '/:agentId/execute',
+  zValidator('json', ExecuteAgentSchema),
   async (c) => {
     const user = getCurrentUser(c);
     const agentId = c.req.param('agentId');
@@ -175,7 +269,6 @@ agents.post(
       return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
     }
 
-    // Check rate limiting
     if (agentResult.value.isRateLimited) {
       return c.json({
         success: false,
@@ -186,16 +279,36 @@ agents.post(
       }, 429);
     }
 
-    const requiredProviders = getRequiredApiKeyProvidersForModel(agentResult.value.model);
-    const keyChecks = await Promise.all(
-      requiredProviders.map(async (provider) => ({
-        provider,
-        hasKey: await agentService.hasApiKey(agentResult.value.workspaceId, provider),
-      }))
-    );
-    const hasAnyKey = keyChecks.some((entry) => entry.hasKey);
+    const workspaceAiSettings = await workspaceService.getAgentAiSettings(agentResult.value.workspaceId);
+    if (!workspaceAiSettings.ok) {
+      return c.json({ success: false, error: { code: 'SETTINGS_READ_FAILED', message: workspaceAiSettings.error.message } }, 400);
+    }
 
-    if (!hasAnyKey) {
+    if (!workspaceAiSettings.value.allowedModels.includes(data.model)) {
+      return c.json({
+        success: false,
+        error: {
+          code: 'MODEL_NOT_ALLOWED',
+          message: 'Selected model is not enabled for this workspace',
+        },
+      }, 400);
+    }
+
+    const requiredProviders = getRequiredApiKeyProvidersForModel(data.model);
+
+    let selectedProvider: ModelProvider | null = null;
+    let apiKey: string | null = null;
+
+    for (const provider of requiredProviders) {
+      const keyResult = await agentService.getApiKey(agentResult.value.workspaceId, provider);
+      if (keyResult.ok) {
+        selectedProvider = provider;
+        apiKey = keyResult.value;
+        break;
+      }
+    }
+
+    if (!selectedProvider || !apiKey) {
       const requiredProviderNames = requiredProviders.map((provider) => provider.toUpperCase()).join(' or ');
       return c.json({
         success: false,
@@ -206,21 +319,50 @@ agents.post(
       }, 400);
     }
 
-    // TODO: Implement actual agent execution with OpenRouter
-    // This would involve:
-    // 1. Getting the API key
-    // 2. Building the conversation with system prompt
-    // 3. Running the conversation loop with tool execution
-    // 4. Recording token usage
-
-    return c.json({
-      success: true,
-      data: {
-        message: 'Agent execution not yet implemented',
-        agentId,
-        input: data,
+    const allowedTools = (agentResult.value.tools as AgentTool[]) || [];
+    const tools = buildAiSdkTools(allowedTools, {
+      workspaceId: agentResult.value.workspaceId,
+      userId: user.id,
+      mcpClientId: null,
+      allowedToolNames: new Set(allowedTools),
+      canAccessProject: async (projectId: string) => {
+        const projectResult = await projectService.getById(projectId);
+        return projectResult.ok && projectResult.value.workspaceId === agentResult.value.workspaceId;
       },
     });
+
+    try {
+      const model = resolveLanguageModel(selectedProvider, apiKey, data.model);
+
+      const result = streamText({
+        model,
+        system: [
+          agentResult.value.systemPrompt || 'You are a helpful FlowTask workspace assistant.',
+          data.context?.projectId ? `Current project ID: ${data.context.projectId}` : '',
+          data.context?.taskId ? `Current task ID: ${data.context.taskId}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        messages: data.messages,
+        tools: tools as any,
+        onFinish: async ({ usage }) => {
+          const totalTokens = usage.totalTokens ?? 0;
+          if (totalTokens > 0) {
+            await agentService.recordTokenUsage(agentId, totalTokens);
+          }
+        },
+      });
+
+      return result.toTextStreamResponse();
+    } catch (error) {
+      return c.json({
+        success: false,
+        error: {
+          code: 'EXECUTION_FAILED',
+          message: process.env.NODE_ENV === 'production' ? 'Agent execution failed' : error instanceof Error ? error.message : 'Unknown error',
+        },
+      }, 400);
+    }
   }
 );
 

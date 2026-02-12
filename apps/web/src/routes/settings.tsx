@@ -10,7 +10,17 @@ import { MemberSettings } from '../components/settings/MemberSettings';
 import { AppOverviewSettings } from '../components/settings/AppOverviewSettings';
 import { AppUserManagementSettings } from '../components/settings/AppUserManagementSettings';
 import { authApi, type LinkedAccount } from '../api/auth';
-import { ApiError, appAdminApi, workspaceApiKeyApi, type ApiKeyProvider } from '../api/client';
+import {
+  ApiError,
+  appAdminApi,
+  workspaceApiKeyApi,
+  workspaceAiSettingsApi,
+  agentApi,
+  type ApiKeyProvider,
+  type AIModel,
+  type AgentSummary,
+  type WorkspaceAiSettings,
+} from '../api/client';
 
 function ProfileSettings() {
   return (
@@ -244,6 +254,17 @@ const EMPTY_PROVIDER_INPUTS: Record<ApiKeyProvider, string> = {
   openrouter: '',
 };
 
+const ALL_AI_MODELS: AIModel[] = [
+  'anthropic/claude-3-opus',
+  'anthropic/claude-3-sonnet',
+  'anthropic/claude-3-haiku',
+  'openai/gpt-4-turbo',
+  'openai/gpt-4',
+  'openai/gpt-3.5-turbo',
+  'google/gemini-pro',
+  'meta/llama-2-70b',
+];
+
 function ApiKeySettings() {
   const { currentWorkspace } = useWorkspaceStore();
   const workspaceId = currentWorkspace?.id;
@@ -255,6 +276,9 @@ function ApiKeySettings() {
   const [isForbidden, setIsForbidden] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [aiSettings, setAiSettings] = useState<WorkspaceAiSettings | null>(null);
+  const [agents, setAgents] = useState<AgentSummary[]>([]);
+  const [isSavingAiSettings, setIsSavingAiSettings] = useState(false);
 
   const loadStatus = async (id: string) => {
     setIsLoadingStatus(true);
@@ -284,6 +308,29 @@ function ApiKeySettings() {
     if (!workspaceId) return;
     loadStatus(workspaceId);
   }, [workspaceId]);
+
+  useEffect(() => {
+    if (!workspaceId || isForbidden) return;
+
+    const loadAiConfig = async () => {
+      try {
+        const [settingsResponse, agentsResponse] = await Promise.all([
+          workspaceAiSettingsApi.get(workspaceId),
+          agentApi.list(workspaceId, true),
+        ]);
+
+        setAiSettings(settingsResponse.data);
+        setAgents(agentsResponse.data);
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 403) {
+          return;
+        }
+        setError(err instanceof Error ? err.message : 'Failed to load AI settings');
+      }
+    };
+
+    loadAiConfig();
+  }, [workspaceId, isForbidden]);
 
   const handleSave = async (provider: ApiKeyProvider) => {
     if (!workspaceId || !apiKeys[provider].trim()) return;
@@ -327,6 +374,39 @@ function ApiKeySettings() {
       setError(err instanceof Error ? err.message : 'Failed to delete API key');
     } finally {
       setDeletingProvider(null);
+    }
+  };
+
+  const toggleModel = (model: AIModel) => {
+    setAiSettings((previous) => {
+      if (!previous) return previous;
+      const hasModel = previous.allowedModels.includes(model);
+      const nextModels = hasModel
+        ? previous.allowedModels.filter((item) => item !== model)
+        : [...previous.allowedModels, model];
+
+      return {
+        ...previous,
+        allowedModels: nextModels,
+      };
+    });
+  };
+
+  const handleSaveAiSettings = async () => {
+    if (!workspaceId || !aiSettings) return;
+
+    setIsSavingAiSettings(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const response = await workspaceAiSettingsApi.update(workspaceId, aiSettings);
+      setAiSettings(response.data);
+      setSuccess('Workspace AI settings saved.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save AI settings');
+    } finally {
+      setIsSavingAiSettings(false);
     }
   };
 
@@ -424,6 +504,67 @@ function ApiKeySettings() {
             </div>
           );
         })}
+      </div>
+
+      <div className="mt-8 rounded-lg border border-gray-200 p-4">
+        <h3 className="text-base font-medium text-gray-900">Agent Chat Configuration</h3>
+        <p className="mt-1 text-sm text-gray-600">
+          Configure allowed models and default agent used by the in-app chat.
+        </p>
+
+        {!aiSettings ? (
+          <div className="mt-3 text-sm text-gray-500">Loading chat settings...</div>
+        ) : (
+          <>
+            <div className="mt-4">
+              <label className="mb-2 block text-sm font-medium text-gray-700">Allowed Models</label>
+              <div className="space-y-2">
+                {ALL_AI_MODELS.map((model) => (
+                  <label key={model} className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={aiSettings.allowedModels.includes(model)}
+                      onChange={() => toggleModel(model)}
+                      className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span className="font-mono text-xs">{model}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-5">
+              <label className="mb-1 block text-sm font-medium text-gray-700">Default Agent</label>
+              <select
+                className="input"
+                value={aiSettings.defaultAgentId ?? ''}
+                onChange={(event) =>
+                  setAiSettings((previous) =>
+                    previous
+                      ? {
+                          ...previous,
+                          defaultAgentId: event.target.value || null,
+                        }
+                      : previous
+                  )
+                }
+              >
+                <option value="">No default agent</option>
+                {agents.map((agent) => (
+                  <option key={agent.id} value={agent.id}>
+                    {agent.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="mt-4">
+              <button className="btn btn-primary" onClick={handleSaveAiSettings} disabled={isSavingAiSettings}>
+                {isSavingAiSettings ? 'Saving...' : 'Save Chat Configuration'}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
