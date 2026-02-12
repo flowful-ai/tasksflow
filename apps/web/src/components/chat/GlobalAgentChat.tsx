@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { MessageSquare, X, Send, Bot, Wrench, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
@@ -68,14 +68,30 @@ export function GlobalAgentChat() {
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
   const [input, setInput] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const selectedAgentIdRef = useRef<string>('');
+
+  useEffect(() => {
+    selectedAgentIdRef.current = selectedAgentId;
+  }, [selectedAgentId]);
 
   const transport = useMemo(
     () =>
       new DefaultChatTransport({
-        api: `${API_BASE_URL}/api/agents/${selectedAgentId}/execute`,
+        api: `${API_BASE_URL}/api/agents/execute`,
         credentials: 'include',
+        prepareSendMessagesRequest: (options) => {
+          const agentId = selectedAgentIdRef.current;
+          if (!agentId) {
+            throw new Error('Please select an agent before sending a message.');
+          }
+
+          return {
+            api: `${API_BASE_URL}/api/agents/${agentId}/execute`,
+            body: options.body ?? {},
+          };
+        },
       }),
-    [selectedAgentId]
+    []
   );
 
   const { messages, status, sendMessage, stop, error: chatError } = useChat({
