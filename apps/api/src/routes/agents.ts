@@ -65,6 +65,9 @@ async function checkWorkspaceAccess(workspaceId: string, userId: string, permiss
 }
 
 type ModelProvider = 'openai' | 'anthropic' | 'google' | 'openrouter';
+const TOOL_EXECUTION_STEP_LIMIT = 25;
+const TOOL_COMPLETION_INSTRUCTION =
+  'When you use one or more tools, you must always finish with a plain-language assistant response that directly answers the user. Never end with only tool calls.';
 
 function resolveProviderModelId(model: string, provider: ModelProvider): string {
   if (provider === 'openrouter') {
@@ -88,8 +91,8 @@ function resolveLanguageModel(provider: ModelProvider, apiKey: string, model: st
     case 'google':
       return createGoogleGenerativeAI({ apiKey })(providerModel);
     case 'openrouter': {
-      const openrouter = createOpenRouter({ apiKey });
-      return openrouter(model);
+      const openrouter = createOpenRouter({ apiKey, compatibility: 'strict' });
+      return openrouter.chat(model);
     }
     default:
       throw new Error('Unsupported model provider');
@@ -336,18 +339,21 @@ agents.post(
     try {
       const model = resolveLanguageModel(selectedProvider, apiKey, effectiveModel);
 
+      const systemPrompt = [
+        agentResult.value.systemPrompt || 'You are a helpful FlowTask workspace assistant.',
+        TOOL_COMPLETION_INSTRUCTION,
+        data.context?.projectId ? `Current project ID: ${data.context.projectId}` : '',
+        data.context?.taskId ? `Current task ID: ${data.context.taskId}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
+
       const result = streamText({
         model,
-        system: [
-          agentResult.value.systemPrompt || 'You are a helpful FlowTask workspace assistant.',
-          data.context?.projectId ? `Current project ID: ${data.context.projectId}` : '',
-          data.context?.taskId ? `Current task ID: ${data.context.taskId}` : '',
-        ]
-          .filter(Boolean)
-          .join('\n'),
+        system: systemPrompt,
         messages: data.messages,
         tools: tools as any,
-        stopWhen: stepCountIs(5),
+        stopWhen: stepCountIs(TOOL_EXECUTION_STEP_LIMIT),
         onFinish: async ({ usage }) => {
           const totalTokens = usage.totalTokens ?? 0;
           if (totalTokens > 0) {
