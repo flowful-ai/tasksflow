@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { MessageSquare, X, Send, Bot } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import rehypeSanitize from 'rehype-sanitize';
+import remarkGfm from 'remark-gfm';
 import { agentApi, workspaceAiSettingsApi, type AgentSummary } from '../../api/client';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useAuthStore } from '../../stores/auth';
@@ -214,7 +217,48 @@ export function GlobalAgentChat() {
                   key={`${message.role}-${index}`}
                   className={message.role === 'user' ? 'ml-8 rounded-xl bg-neutral-900 px-3 py-2 text-sm text-white' : 'mr-8 rounded-xl bg-gray-100 px-3 py-2 text-sm text-gray-800'}
                 >
-                  {message.content}
+                  {message.role === 'assistant' ? (
+                    <div className="overflow-x-auto">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        rehypePlugins={[rehypeSanitize]}
+                        components={{
+                          p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                          strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
+                          em: ({ children }) => <em className="italic">{children}</em>,
+                          ul: ({ children }) => <ul className="mb-2 list-disc space-y-1 pl-5 last:mb-0">{children}</ul>,
+                          ol: ({ children }) => <ol className="mb-2 list-decimal space-y-1 pl-5 last:mb-0">{children}</ol>,
+                          a: ({ href, children }) => (
+                            <a
+                              href={href}
+                              className="text-primary-600 underline"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              {children}
+                            </a>
+                          ),
+                          code: ({ children }) => (
+                            <code className="rounded bg-gray-200 px-1 py-0.5 text-xs text-gray-900">{children}</code>
+                          ),
+                          table: ({ children }) => (
+                            <table className="my-2 w-full border-collapse overflow-hidden rounded border border-gray-300 text-left text-xs">
+                              {children}
+                            </table>
+                          ),
+                          thead: ({ children }) => <thead className="bg-gray-200">{children}</thead>,
+                          tbody: ({ children }) => <tbody>{children}</tbody>,
+                          tr: ({ children }) => <tr className="border-b border-gray-300 last:border-b-0">{children}</tr>,
+                          th: ({ children }) => <th className="px-2 py-1 font-semibold text-gray-900">{children}</th>,
+                          td: ({ children }) => <td className="px-2 py-1 align-top">{children}</td>,
+                        }}
+                      >
+                        {message.content}
+                      </ReactMarkdown>
+                    </div>
+                  ) : (
+                    <div className="whitespace-pre-wrap">{message.content}</div>
+                  )}
                 </div>
               ))}
             </div>
