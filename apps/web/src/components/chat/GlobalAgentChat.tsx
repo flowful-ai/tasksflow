@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { MessageSquare, X, Send, Bot } from 'lucide-react';
+import { MessageSquare, X, Send, Bot, Wrench, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
+import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport, type UIMessage, type UIMessagePart } from 'ai';
 import { agentApi, workspaceAiSettingsApi, type AgentSummary } from '../../api/client';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useAuthStore } from '../../stores/auth';
@@ -10,13 +12,49 @@ import { useAuthStore } from '../../stores/auth';
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 const TOOL_ONLY_FALLBACK_MESSAGE = 'Done. I completed the requested actions.';
 
-type ChatMessage = {
-  role: 'user' | 'assistant';
-  content: string;
-};
+function storageKey(userId: string, workspaceId: string): string {
+  return `flowtask:chat:agent:${workspaceId}:${userId}`;
+}
 
-function storageKey(userId: string, workspaceId: string, key: 'agent' | 'model'): string {
-  return `flowtask:chat:${key}:${workspaceId}:${userId}`;
+function stringifyJson(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function isToolPart(part: UIMessagePart<Record<string, never>, Record<string, { input: unknown; output: unknown }>>): boolean {
+  return part.type === 'dynamic-tool' || part.type.startsWith('tool-');
+}
+
+function getToolName(part: UIMessagePart<Record<string, never>, Record<string, { input: unknown; output: unknown }>>): string {
+  if (part.type === 'dynamic-tool') {
+    return part.toolName;
+  }
+  return part.type.replace(/^tool-/, '');
+}
+
+function getToolStatusLabel(state: string | undefined): string {
+  switch (state) {
+    case 'input-streaming':
+      return 'Preparing...';
+    case 'input-available':
+      return 'Queued';
+    case 'output-available':
+      return 'Completed';
+    case 'output-error':
+      return 'Failed';
+    default:
+      return state ?? 'Running';
+  }
+}
+
+function getUserMessageText(message: UIMessage): string {
+  return message.parts
+    .filter((part) => part.type === 'text')
+    .map((part) => part.text)
+    .join('');
 }
 
 export function GlobalAgentChat() {
@@ -28,10 +66,26 @@ export function GlobalAgentChat() {
   const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [defaultAgentId, setDefaultAgentId] = useState<string | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
-  const [isSending, setIsSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: `${API_BASE_URL}/api/agents/${selectedAgentId}/execute`,
+        credentials: 'include',
+      }),
+    [selectedAgentId]
+  );
+
+  const { messages, status, sendMessage, stop, error: chatError } = useChat({
+    transport,
+    onError: (error) => {
+      setErrorMessage(error.message);
+    },
+  });
+
+  const isStreaming = status === 'submitted' || status === 'streaming';
 
   useEffect(() => {
     if (!currentWorkspace || !userId) {
@@ -62,7 +116,7 @@ export function GlobalAgentChat() {
   useEffect(() => {
     if (!currentWorkspace || !userId || agents.length === 0) return;
 
-    const rememberedAgentId = localStorage.getItem(storageKey(userId, currentWorkspace.id, 'agent'));
+    const rememberedAgentId = localStorage.getItem(storageKey(userId, currentWorkspace.id));
     const nextAgentId =
       (rememberedAgentId && agents.some((agent) => agent.id === rememberedAgentId) && rememberedAgentId) ||
       (defaultAgentId && agents.some((agent) => agent.id === defaultAgentId) && defaultAgentId) ||
@@ -74,107 +128,41 @@ export function GlobalAgentChat() {
 
   useEffect(() => {
     if (!currentWorkspace || !userId || !selectedAgentId) return;
-    localStorage.setItem(storageKey(userId, currentWorkspace.id, 'agent'), selectedAgentId);
+    localStorage.setItem(storageKey(userId, currentWorkspace.id), selectedAgentId);
   }, [selectedAgentId, currentWorkspace, userId]);
 
-  const canSend = useMemo(() => {
-    return enabled && !!selectedAgentId && input.trim().length > 0 && !isSending;
-  }, [enabled, selectedAgentId, input, isSending]);
+  useEffect(() => {
+    if (isStreaming) {
+      void stop();
+    }
+  }, [selectedAgentId, isStreaming, stop]);
 
-  const removeTrailingEmptyAssistantMessage = () => {
-    setMessages((previous) => {
-      const copy = [...previous];
-      const last = copy[copy.length - 1];
-      if (!last || last.role !== 'assistant' || last.content.trim().length > 0) {
-        return previous;
-      }
-      copy.pop();
-      return copy;
-    });
-  };
+  const canSend = useMemo(() => {
+    return enabled && !!selectedAgentId && input.trim().length > 0 && !isStreaming;
+  }, [enabled, selectedAgentId, input, isStreaming]);
+
+  const lastAssistantMessage = [...messages].reverse().find((message) => message.role === 'assistant');
+  const lastAssistantHasVisibleOutput = !!lastAssistantMessage?.parts.some(
+    (part) =>
+      (part.type === 'text' && part.text.trim().length > 0) ||
+      isToolPart(part as UIMessagePart<Record<string, never>, Record<string, { input: unknown; output: unknown }>>)
+  );
+  const showThinking = isStreaming && !lastAssistantHasVisibleOutput;
+  const currentError = errorMessage || chatError?.message || null;
 
   const handleSend = async () => {
     if (!canSend) return;
 
-    const userMessage: ChatMessage = { role: 'user', content: input.trim() };
-    const nextMessages = [...messages.filter((message) => message.content.trim().length > 0), userMessage];
+    const text = input.trim();
+    if (!text) return;
 
-    setMessages([...nextMessages, { role: 'assistant', content: '' }]);
     setInput('');
-    setError(null);
-    setIsSending(true);
+    setErrorMessage(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/agents/${selectedAgentId}/execute`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messages: nextMessages,
-        }),
-      });
-
-      if (!response.ok || !response.body) {
-        const payload = await response.json().catch(() => null);
-        throw new Error(payload?.error?.message || 'Failed to execute agent');
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let hasAssistantText = false;
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        if (!chunk) {
-          continue;
-        }
-        if (!hasAssistantText && chunk.trim().length > 0) {
-          hasAssistantText = true;
-        }
-        setMessages((previous) => {
-          const copy = [...previous];
-          const last = copy[copy.length - 1];
-          if (!last || last.role !== 'assistant') return previous;
-          copy[copy.length - 1] = { ...last, content: `${last.content}${chunk}` };
-          return copy;
-        });
-      }
-
-      const trailingChunk = decoder.decode();
-      if (trailingChunk) {
-        if (!hasAssistantText && trailingChunk.trim().length > 0) {
-          hasAssistantText = true;
-        }
-        setMessages((previous) => {
-          const copy = [...previous];
-          const last = copy[copy.length - 1];
-          if (!last || last.role !== 'assistant') return previous;
-          copy[copy.length - 1] = { ...last, content: `${last.content}${trailingChunk}` };
-          return copy;
-        });
-      }
-
-      if (!hasAssistantText) {
-        setMessages((previous) => {
-          const copy = [...previous];
-          const last = copy[copy.length - 1];
-          if (!last || last.role !== 'assistant') {
-            return [...copy, { role: 'assistant', content: TOOL_ONLY_FALLBACK_MESSAGE }];
-          }
-          copy[copy.length - 1] = { ...last, content: TOOL_ONLY_FALLBACK_MESSAGE };
-          return copy;
-        });
-      }
-    } catch (err) {
-      removeTrailingEmptyAssistantMessage();
-      setError(err instanceof Error ? err.message : 'Agent execution failed');
-    } finally {
-      setIsSending(false);
+      await sendMessage({ text });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Agent execution failed');
     }
   };
 
@@ -220,59 +208,143 @@ export function GlobalAgentChat() {
               {messages.length === 0 && (
                 <div className="text-sm text-gray-500">Ask anything about your workspace, tasks, and projects.</div>
               )}
-              {messages.map((message, index) => (
-                <div
-                  key={`${message.role}-${index}`}
-                  className={message.role === 'user' ? 'ml-8 rounded-xl bg-neutral-900 px-3 py-2 text-sm text-white' : 'mr-8 rounded-xl bg-gray-100 px-3 py-2 text-sm text-gray-800'}
-                >
-                  {message.role === 'assistant' ? (
-                    <div className="overflow-x-auto">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        rehypePlugins={[rehypeSanitize]}
-                        components={{
-                          p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                          strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
-                          em: ({ children }) => <em className="italic">{children}</em>,
-                          ul: ({ children }) => <ul className="mb-2 list-disc space-y-1 pl-5 last:mb-0">{children}</ul>,
-                          ol: ({ children }) => <ol className="mb-2 list-decimal space-y-1 pl-5 last:mb-0">{children}</ol>,
-                          a: ({ href, children }) => (
-                            <a
-                              href={href}
-                              className="text-primary-600 underline"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              {children}
-                            </a>
-                          ),
-                          code: ({ children }) => (
-                            <code className="rounded bg-gray-200 px-1 py-0.5 text-xs text-gray-900">{children}</code>
-                          ),
-                          table: ({ children }) => (
-                            <table className="my-2 w-full border-collapse overflow-hidden rounded border border-gray-300 text-left text-xs">
-                              {children}
-                            </table>
-                          ),
-                          thead: ({ children }) => <thead className="bg-gray-200">{children}</thead>,
-                          tbody: ({ children }) => <tbody>{children}</tbody>,
-                          tr: ({ children }) => <tr className="border-b border-gray-300 last:border-b-0">{children}</tr>,
-                          th: ({ children }) => <th className="px-2 py-1 font-semibold text-gray-900">{children}</th>,
-                          td: ({ children }) => <td className="px-2 py-1 align-top">{children}</td>,
-                        }}
-                      >
-                        {message.content}
-                      </ReactMarkdown>
+              {messages.map((message) => {
+                if (message.role === 'system') {
+                  return null;
+                }
+
+                if (message.role === 'user') {
+                  return (
+                    <div key={message.id} className="ml-8 rounded-xl bg-neutral-900 px-3 py-2 text-sm text-white">
+                      <div className="whitespace-pre-wrap">{getUserMessageText(message)}</div>
                     </div>
-                  ) : (
-                    <div className="whitespace-pre-wrap">{message.content}</div>
-                  )}
+                  );
+                }
+
+                const assistantParts = message.parts;
+                const hasText = assistantParts.some((part) => part.type === 'text' && part.text.trim().length > 0);
+                const hasToolOutput = assistantParts.some((part) =>
+                  isToolPart(part as UIMessagePart<Record<string, never>, Record<string, { input: unknown; output: unknown }>>)
+                );
+
+                return (
+                  <div key={message.id} className="mr-8 rounded-xl bg-gray-100 px-3 py-2 text-sm text-gray-800">
+                    <div className="space-y-2 overflow-x-auto">
+                      {assistantParts.map((part, index) => {
+                        if (part.type === 'text') {
+                          if (part.text.length === 0) {
+                            return null;
+                          }
+
+                          return (
+                            <ReactMarkdown
+                              key={`${message.id}-text-${index}`}
+                              remarkPlugins={[remarkGfm]}
+                              rehypePlugins={[rehypeSanitize]}
+                              components={{
+                                p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                                strong: ({ children }) => <strong className="font-semibold text-gray-900">{children}</strong>,
+                                em: ({ children }) => <em className="italic">{children}</em>,
+                                ul: ({ children }) => <ul className="mb-2 list-disc space-y-1 pl-5 last:mb-0">{children}</ul>,
+                                ol: ({ children }) => <ol className="mb-2 list-decimal space-y-1 pl-5 last:mb-0">{children}</ol>,
+                                a: ({ href, children }) => (
+                                  <a href={href} className="text-primary-600 underline" target="_blank" rel="noopener noreferrer">
+                                    {children}
+                                  </a>
+                                ),
+                                code: ({ children }) => (
+                                  <code className="rounded bg-gray-200 px-1 py-0.5 text-xs text-gray-900">{children}</code>
+                                ),
+                                table: ({ children }) => (
+                                  <table className="my-2 w-full border-collapse overflow-hidden rounded border border-gray-300 text-left text-xs">
+                                    {children}
+                                  </table>
+                                ),
+                                thead: ({ children }) => <thead className="bg-gray-200">{children}</thead>,
+                                tbody: ({ children }) => <tbody>{children}</tbody>,
+                                tr: ({ children }) => <tr className="border-b border-gray-300 last:border-b-0">{children}</tr>,
+                                th: ({ children }) => <th className="px-2 py-1 font-semibold text-gray-900">{children}</th>,
+                                td: ({ children }) => <td className="px-2 py-1 align-top">{children}</td>,
+                              }}
+                            >
+                              {part.text}
+                            </ReactMarkdown>
+                          );
+                        }
+
+                        if (part.type === 'step-start') {
+                          return <div key={`${message.id}-step-${index}`} className="border-t border-dashed border-gray-300 pt-2 text-xs text-gray-500">Next step</div>;
+                        }
+
+                        if (
+                          part.type === 'dynamic-tool' ||
+                          part.type.startsWith('tool-')
+                        ) {
+                          const toolPart = part as UIMessagePart<Record<string, never>, Record<string, { input: unknown; output: unknown }>>;
+                          const hasInput = 'input' in toolPart && toolPart.input !== undefined;
+                          const hasOutput = 'output' in toolPart && toolPart.output !== undefined;
+                          const hasErrorText = 'errorText' in toolPart && typeof toolPart.errorText === 'string' && toolPart.errorText.length > 0;
+
+                          return (
+                            <div key={`${message.id}-tool-${index}`} className="rounded-lg border border-gray-300 bg-white p-2 text-xs text-gray-700">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="inline-flex items-center gap-1.5 font-medium text-gray-900">
+                                  <Wrench className="h-3.5 w-3.5" />
+                                  {getToolName(toolPart)}
+                                </div>
+                                <span className="rounded bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600">
+                                  {'state' in toolPart ? getToolStatusLabel(toolPart.state) : 'Running'}
+                                </span>
+                              </div>
+
+                              {hasInput && (
+                                <details className="mt-2">
+                                  <summary className="cursor-pointer text-gray-600">Input</summary>
+                                  <pre className="mt-1 overflow-x-auto rounded bg-gray-100 p-2 text-[11px] text-gray-800">
+                                    {stringifyJson(toolPart.input)}
+                                  </pre>
+                                </details>
+                              )}
+
+                              {hasOutput && (
+                                <details className="mt-2">
+                                  <summary className="cursor-pointer text-gray-600">Output</summary>
+                                  <pre className="mt-1 overflow-x-auto rounded bg-gray-100 p-2 text-[11px] text-gray-800">
+                                    {stringifyJson(toolPart.output)}
+                                  </pre>
+                                </details>
+                              )}
+
+                              {hasErrorText && (
+                                <div className="mt-2 rounded bg-red-50 px-2 py-1 text-red-700">{toolPart.errorText}</div>
+                              )}
+                            </div>
+                          );
+                        }
+
+                        return null;
+                      })}
+
+                      {!hasText && hasToolOutput && !isStreaming && (
+                        <div>{TOOL_ONLY_FALLBACK_MESSAGE}</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {showThinking && (
+                <div className="mr-8 rounded-xl bg-gray-100 px-3 py-2 text-sm text-gray-700">
+                  <div className="inline-flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Thinking...
+                  </div>
                 </div>
-              ))}
+              )}
             </div>
 
             <div className="border-t border-gray-200 p-3">
-              {error && <div className="mb-2 text-xs text-red-600">{error}</div>}
+              {currentError && <div className="mb-2 text-xs text-red-600">{currentError}</div>}
               <div className="flex items-center gap-2">
                 <input
                   className="input"
@@ -281,12 +353,12 @@ export function GlobalAgentChat() {
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' && !event.shiftKey) {
                       event.preventDefault();
-                      handleSend();
+                      void handleSend();
                     }
                   }}
                   placeholder="Ask the assistant..."
                 />
-                <button className="btn btn-primary" onClick={handleSend} disabled={!canSend}>
+                <button className="btn btn-primary" onClick={() => void handleSend()} disabled={!canSend}>
                   <Send className="h-4 w-4" />
                 </button>
               </div>

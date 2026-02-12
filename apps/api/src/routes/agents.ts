@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { stepCountIs, streamText } from 'ai';
+import { convertToModelMessages, stepCountIs, streamText, type UIMessage } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
@@ -19,25 +19,16 @@ import {
 import { hasPermission } from '@flowtask/auth';
 import { buildAiSdkTools } from '../services/agent-tool-runtime.js';
 
+const ExecuteAgentMessageSchema = z.object({
+  role: z.enum(['system', 'user', 'assistant']),
+  parts: z.array(z.unknown()).min(1, { message: 'Message parts are required' }),
+  metadata: z.unknown().optional(),
+});
+
 const ExecuteAgentSchema = z.object({
-  messages: z
-    .array(
-      z.object({
-        role: z.enum(['user', 'assistant']),
-        content: z.string(),
-      })
-    )
-    .transform((messages) =>
-      messages
-        .map((message) => ({
-          ...message,
-          content: message.content.trim(),
-        }))
-        .filter((message) => message.content.length > 0)
-    )
-    .refine((messages) => messages.length > 0, {
-      message: 'At least one non-empty message is required',
-    }),
+  messages: z.array(ExecuteAgentMessageSchema).min(1, {
+    message: 'At least one message is required',
+  }),
   context: z
     .object({
       projectId: z.string().uuid().optional(),
@@ -338,6 +329,9 @@ agents.post(
 
     try {
       const model = resolveLanguageModel(selectedProvider, apiKey, effectiveModel);
+      const modelMessages = convertToModelMessages(
+        data.messages as Array<Omit<UIMessage, 'id'>>
+      );
 
       const systemPrompt = [
         agentResult.value.systemPrompt || 'You are a helpful FlowTask workspace assistant.',
@@ -351,7 +345,7 @@ agents.post(
       const result = streamText({
         model,
         system: systemPrompt,
-        messages: data.messages,
+        messages: modelMessages,
         tools: tools as any,
         stopWhen: stepCountIs(TOOL_EXECUTION_STEP_LIMIT),
         onFinish: async ({ usage }) => {
@@ -362,7 +356,7 @@ agents.post(
         },
       });
 
-      return result.toTextStreamResponse();
+      return result.toUIMessageStreamResponse({ sendReasoning: false });
     } catch (error) {
       return c.json({
         success: false,
