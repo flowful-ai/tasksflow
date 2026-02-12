@@ -202,14 +202,66 @@ export interface AgentSummary {
   isActive: boolean;
 }
 
+export interface AgentDetail extends AgentSummary {
+  systemPrompt: string | null;
+  requestsPerMinute: number;
+  tokensPerDay: number;
+  currentDayTokens: number;
+  lastTokenReset: string | null;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface CreateAgentInput {
+  workspaceId: string;
+  name: string;
+  model: AIModel;
+  systemPrompt?: string;
+  tools?: string[];
+  requestsPerMinute?: number;
+  tokensPerDay?: number;
+}
+
+export interface UpdateAgentInput {
+  name?: string;
+  model?: AIModel;
+  systemPrompt?: string;
+  tools?: string[];
+  requestsPerMinute?: number;
+  tokensPerDay?: number;
+  isActive?: boolean;
+}
+
 export const agentApi = {
-  list: (workspaceId: string, isActive = true) =>
+  list: (workspaceId: string, isActive: boolean | 'all' = true) =>
     api.get<{ success: boolean; data: AgentSummary[] }>(
       `/api/agents?workspaceId=${workspaceId}&isActive=${String(isActive)}`
     ),
 
+  get: (agentId: string) =>
+    api.get<{ success: boolean; data: AgentDetail }>(
+      `/api/agents/${agentId}`
+    ),
+
+  create: (data: CreateAgentInput) =>
+    api.post<{ success: boolean; data: AgentDetail }>(
+      '/api/agents',
+      data
+    ),
+
+  update: (agentId: string, data: UpdateAgentInput) =>
+    api.patch<{ success: boolean; data: AgentDetail }>(
+      `/api/agents/${agentId}`,
+      data
+    ),
+
+  delete: (agentId: string) =>
+    api.delete<{ success: boolean; data: null }>(
+      `/api/agents/${agentId}`
+    ),
+
   availability: (workspaceId: string) =>
-    api.get<{ success: boolean; data: { enabled: boolean; hasProviderKey: boolean; modelCount: number } }>(
+    api.get<{ success: boolean; data: { enabled: boolean; hasProviderKey: boolean; modelCount: number; activeAgentCount: number } }>(
       `/api/agents/availability?workspaceId=${workspaceId}`
     ),
 };
@@ -362,7 +414,17 @@ export interface WorkspaceActivityResponse {
   };
 }
 
+export interface WorkspaceMeResponse {
+  success: boolean;
+  data: {
+    role: 'owner' | 'admin' | 'member';
+  };
+}
+
 export const workspaceApi = {
+  me: (workspaceId: string) =>
+    api.get<WorkspaceMeResponse>(`/api/workspaces/${workspaceId}/me`),
+
   listActivity: (workspaceId: string, params?: { limit?: number; cursor?: string | null }) => {
     const searchParams = new URLSearchParams();
     if (params?.limit !== undefined) searchParams.set('limit', String(params.limit));

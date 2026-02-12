@@ -13,11 +13,11 @@ import { authApi, type LinkedAccount } from '../api/auth';
 import {
   ApiError,
   appAdminApi,
+  workspaceApi,
   workspaceApiKeyApi,
   workspaceAiSettingsApi,
   agentApi,
   type ApiKeyProvider,
-  type AIModel,
   type AgentSummary,
   type WorkspaceAiSettings,
 } from '../api/client';
@@ -254,26 +254,43 @@ const EMPTY_PROVIDER_INPUTS: Record<ApiKeyProvider, string> = {
   openrouter: '',
 };
 
-function normalizeModelInput(rawModel: string): string | null {
-  const trimmed = rawModel.trim();
-  if (!trimmed || /\s/.test(trimmed)) {
-    return null;
-  }
+const AGENT_TOOL_OPTIONS = [
+  { id: 'create_task', label: 'Create tasks' },
+  { id: 'bulk_create_tasks', label: 'Bulk create tasks' },
+  { id: 'update_task', label: 'Update tasks' },
+  { id: 'delete_task', label: 'Delete tasks' },
+  { id: 'query_tasks', label: 'Query tasks' },
+  { id: 'get_task', label: 'Get task details' },
+  { id: 'move_task', label: 'Move tasks' },
+  { id: 'assign_task', label: 'Assign tasks' },
+  { id: 'add_comment', label: 'Add comments' },
+  { id: 'summarize_project', label: 'Summarize project' },
+  { id: 'create_smart_view', label: 'Create smart views' },
+  { id: 'search_tasks', label: 'Search tasks' },
+  { id: 'list_projects', label: 'List projects' },
+] as const;
 
-  const slashIndex = trimmed.indexOf('/');
-  if (slashIndex <= 0 || slashIndex === trimmed.length - 1) {
-    return null;
-  }
+const DEFAULT_AGENT_TOOLS = ['query_tasks', 'get_task', 'list_projects'];
 
-  const provider = trimmed.slice(0, slashIndex);
-  const model = trimmed.slice(slashIndex + 1);
-
-  if (!/^[a-z0-9][a-z0-9-]*$/i.test(provider)) {
-    return null;
-  }
-
-  return `${provider.toLowerCase()}/${model}`;
+interface AgentFormState {
+  name: string;
+  model: string;
+  systemPrompt: string;
+  tools: string[];
+  requestsPerMinute: string;
+  tokensPerDay: string;
+  isActive: boolean;
 }
+
+const EMPTY_AGENT_FORM: AgentFormState = {
+  name: '',
+  model: '',
+  systemPrompt: '',
+  tools: [...DEFAULT_AGENT_TOOLS],
+  requestsPerMinute: '10',
+  tokensPerDay: '100000',
+  isActive: true,
+};
 
 function ApiKeySettings() {
   const { currentWorkspace } = useWorkspaceStore();
@@ -288,9 +305,13 @@ function ApiKeySettings() {
   const [success, setSuccess] = useState<string | null>(null);
   const [aiSettings, setAiSettings] = useState<WorkspaceAiSettings | null>(null);
   const [agents, setAgents] = useState<AgentSummary[]>([]);
+  const [isLoadingAiConfig, setIsLoadingAiConfig] = useState(false);
   const [isSavingAiSettings, setIsSavingAiSettings] = useState(false);
-  const [modelInput, setModelInput] = useState('');
-  const [modelInputError, setModelInputError] = useState<string | null>(null);
+  const [agentForm, setAgentForm] = useState<AgentFormState>(EMPTY_AGENT_FORM);
+  const [agentFormError, setAgentFormError] = useState<string | null>(null);
+  const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
+  const [isSavingAgent, setIsSavingAgent] = useState(false);
+  const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null);
 
   const loadStatus = async (id: string) => {
     setIsLoadingStatus(true);
@@ -325,10 +346,11 @@ function ApiKeySettings() {
     if (!workspaceId || isForbidden) return;
 
     const loadAiConfig = async () => {
+      setIsLoadingAiConfig(true);
       try {
         const [settingsResponse, agentsResponse] = await Promise.all([
           workspaceAiSettingsApi.get(workspaceId),
-          agentApi.list(workspaceId, true),
+          agentApi.list(workspaceId, 'all'),
         ]);
 
         setAiSettings(settingsResponse.data);
@@ -338,6 +360,8 @@ function ApiKeySettings() {
           return;
         }
         setError(err instanceof Error ? err.message : 'Failed to load AI settings');
+      } finally {
+        setIsLoadingAiConfig(false);
       }
     };
 
@@ -389,71 +413,190 @@ function ApiKeySettings() {
     }
   };
 
-  const addModel = () => {
-    if (!aiSettings) return;
+  const resetAgentForm = () => {
+    setAgentForm(EMPTY_AGENT_FORM);
+    setEditingAgentId(null);
+    setAgentFormError(null);
+  };
 
-    const normalizedModel = normalizeModelInput(modelInput);
-    if (!normalizedModel) {
-      setModelInputError('Model must follow "provider/model" format (for example: openai/gpt-4.1).');
+  const beginEditAgent = async (agent: AgentSummary) => {
+    setError(null);
+    setAgentFormError(null);
+    try {
+      const response = await agentApi.get(agent.id);
+      const detail = response.data;
+      setEditingAgentId(detail.id);
+      setAgentForm({
+        name: detail.name,
+        model: detail.model,
+        systemPrompt: detail.systemPrompt ?? '',
+        tools: detail.tools.length > 0 ? detail.tools : [...DEFAULT_AGENT_TOOLS],
+        requestsPerMinute: String(detail.requestsPerMinute),
+        tokensPerDay: String(detail.tokensPerDay),
+        isActive: detail.isActive,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load agent details');
+    }
+  };
+
+  const toggleTool = (toolId: string) => {
+    setAgentForm((previous) => ({
+      ...previous,
+      tools: previous.tools.includes(toolId)
+        ? previous.tools.filter((id) => id !== toolId)
+        : [...previous.tools, toolId],
+    }));
+  };
+
+  const parsePositiveInt = (value: string, fieldName: string): number | null => {
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      setAgentFormError(`${fieldName} must be a positive whole number.`);
+      return null;
+    }
+    return parsed;
+  };
+
+  const saveAgent = async () => {
+    if (!workspaceId) return;
+
+    const name = agentForm.name.trim();
+    const model = agentForm.model.trim();
+    if (!name) {
+      setAgentFormError('Agent name is required.');
+      return;
+    }
+    if (!model || !model.includes('/')) {
+      setAgentFormError('Model must follow "provider/model" format.');
+      return;
+    }
+    if (agentForm.tools.length === 0) {
+      setAgentFormError('Select at least one tool.');
       return;
     }
 
-    if (aiSettings.allowedModels.includes(normalizedModel)) {
-      setModelInputError('This model is already in the allowed list.');
-      return;
+    const requestsPerMinute = parsePositiveInt(agentForm.requestsPerMinute, 'Requests per minute');
+    if (!requestsPerMinute) return;
+    const tokensPerDay = parsePositiveInt(agentForm.tokensPerDay, 'Daily token limit');
+    if (!tokensPerDay) return;
+
+    setIsSavingAgent(true);
+    setError(null);
+    setSuccess(null);
+    setAgentFormError(null);
+
+    try {
+      if (editingAgentId) {
+        await agentApi.update(editingAgentId, {
+          name,
+          model,
+          systemPrompt: agentForm.systemPrompt.trim() || undefined,
+          tools: agentForm.tools,
+          requestsPerMinute,
+          tokensPerDay,
+          isActive: agentForm.isActive,
+        });
+      } else {
+        await agentApi.create({
+          workspaceId,
+          name,
+          model,
+          systemPrompt: agentForm.systemPrompt.trim() || undefined,
+          tools: agentForm.tools,
+          requestsPerMinute,
+          tokensPerDay,
+        });
+      }
+
+      const refreshedAgents = await agentApi.list(workspaceId, 'all');
+      setAgents(refreshedAgents.data);
+      resetAgentForm();
+      setSuccess(editingAgentId ? 'Agent updated.' : 'Agent created.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save agent');
+    } finally {
+      setIsSavingAgent(false);
     }
-
-    setModelInput('');
-    setModelInputError(null);
-    setAiSettings({
-      ...aiSettings,
-      allowedModels: [...aiSettings.allowedModels, normalizedModel],
-    });
   };
 
-  const removeModel = (model: AIModel) => {
-    setAiSettings((previous) => {
-      if (!previous) return previous;
-      return {
-        ...previous,
-        allowedModels: previous.allowedModels.filter((item) => item !== model),
-      };
-    });
-  };
-
-  const makeModelDefault = (model: AIModel) => {
-    setAiSettings((previous) => {
-      if (!previous || previous.allowedModels[0] === model) return previous;
-      return {
-        ...previous,
-        allowedModels: [model, ...previous.allowedModels.filter((item) => item !== model)],
-      };
-    });
-  };
-
-  const handleSaveAiSettings = async () => {
+  const saveDefaultAgent = async (agentId: string | null) => {
     if (!workspaceId || !aiSettings) return;
-
     setIsSavingAiSettings(true);
     setError(null);
     setSuccess(null);
 
     try {
-      const response = await workspaceAiSettingsApi.update(workspaceId, aiSettings);
+      const response = await workspaceAiSettingsApi.update(workspaceId, {
+        ...aiSettings,
+        defaultAgentId: agentId,
+      });
       setAiSettings(response.data);
-      setSuccess('Workspace AI settings saved.');
+      setSuccess('Chat defaults saved.');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save AI settings');
+      setError(err instanceof Error ? err.message : 'Failed to save chat defaults');
     } finally {
       setIsSavingAiSettings(false);
     }
   };
 
+  const toggleAgentStatus = async (agent: AgentSummary) => {
+    setIsSavingAgent(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      await agentApi.update(agent.id, { isActive: !agent.isActive });
+      const refreshedAgents = await agentApi.list(workspaceId!, 'all');
+      setAgents(refreshedAgents.data);
+
+      if (agent.isActive && aiSettings?.defaultAgentId === agent.id) {
+        await saveDefaultAgent(null);
+      } else {
+        setSuccess(agent.isActive ? 'Agent deactivated.' : 'Agent activated.');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update agent status');
+    } finally {
+      setIsSavingAgent(false);
+    }
+  };
+
+  const deleteAgent = async (agent: AgentSummary) => {
+    if (!workspaceId) return;
+    const confirmed = window.confirm(`Delete agent "${agent.name}"? This action cannot be undone.`);
+    if (!confirmed) return;
+
+    setDeletingAgentId(agent.id);
+    setError(null);
+    setSuccess(null);
+    try {
+      await agentApi.delete(agent.id);
+      const refreshedAgents = await agentApi.list(workspaceId, 'all');
+      setAgents(refreshedAgents.data);
+      if (aiSettings?.defaultAgentId === agent.id) {
+        await saveDefaultAgent(null);
+      } else {
+        setSuccess('Agent deleted.');
+      }
+      if (editingAgentId === agent.id) {
+        resetAgentForm();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete agent');
+    } finally {
+      setDeletingAgentId(null);
+    }
+  };
+
+  const activeAgents = agents.filter((agent) => agent.isActive);
+  const hasProviderKey = Object.values(statusByProvider).some(Boolean);
+
   if (!workspaceId) {
     return (
       <div className="card p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">Workspace AI Keys</h2>
-        <p className="text-gray-600">Select a workspace to manage API keys.</p>
+        <h2 className="text-lg font-semibold text-gray-900 mb-2">AI & Agents</h2>
+        <p className="text-gray-600">Select a workspace to manage AI settings.</p>
       </div>
     );
   }
@@ -461,21 +604,25 @@ function ApiKeySettings() {
   if (isForbidden) {
     return (
       <div className="card p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">Workspace AI Keys</h2>
-        <p className="text-gray-600">Only workspace owners and admins can manage API keys.</p>
+        <h2 className="text-lg font-semibold text-gray-900 mb-2">AI & Agents</h2>
+        <p className="text-gray-600">Only workspace owners and admins can manage AI settings.</p>
       </div>
     );
   }
 
   return (
     <div className="card p-6">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">Workspace AI Keys</h2>
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">AI & Agents</h2>
       <p className="text-gray-600 mb-6">
-        Configure provider API keys for this workspace.
+        Set up provider keys, create agents, and choose the default chat agent for your workspace.
       </p>
 
       <div className="mb-4 text-sm text-gray-600">
         Workspace: <span className="font-medium text-gray-900">{currentWorkspace?.name}</span>
+      </div>
+      <div className="mb-6 rounded-lg border border-primary-100 bg-primary-50 p-4 text-sm text-primary-900">
+        <div className="font-medium">Recommended flow</div>
+        <div className="mt-1">1. Add at least one provider key. 2. Create agents. 3. Pick a default chat agent.</div>
       </div>
 
       {isLoadingStatus && <div className="mb-4 text-sm text-gray-500">Loading key status...</div>}
@@ -546,105 +693,154 @@ function ApiKeySettings() {
       </div>
 
       <div className="mt-8 rounded-lg border border-gray-200 p-4">
-        <h3 className="text-base font-medium text-gray-900">Agent Chat Configuration</h3>
+        <h3 className="text-base font-medium text-gray-900">Agents</h3>
         <p className="mt-1 text-sm text-gray-600">
-          Configure allowed models and default agent used by the in-app chat.
+          Create and manage reusable assistant profiles for workspace chat.
         </p>
-
-        {!aiSettings ? (
-          <div className="mt-3 text-sm text-gray-500">Loading chat settings...</div>
+        {!hasProviderKey && (
+          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Configure at least one provider key before creating agents.
+          </div>
+        )}
+        {isLoadingAiConfig ? (
+          <div className="mt-3 text-sm text-gray-500">Loading agents...</div>
         ) : (
-          <>
-            <div className="mt-4">
-              <label className="mb-2 block text-sm font-medium text-gray-700">Allowed Models</label>
-              <div className="flex items-start gap-2">
-                <input
-                  type="text"
-                  className="input flex-1"
-                  placeholder="provider/model (for example: openai/gpt-4.1)"
-                  value={modelInput}
-                  onChange={(event) => {
-                    setModelInput(event.target.value);
-                    if (modelInputError) {
-                      setModelInputError(null);
-                    }
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      addModel();
-                    }
-                  }}
-                />
-                <button className="btn btn-secondary" onClick={addModel}>
-                  Add model
-                </button>
-              </div>
-              {modelInputError && <p className="mt-2 text-sm text-red-600">{modelInputError}</p>}
-              <div className="mt-3 space-y-2">
-                {aiSettings.allowedModels.length === 0 ? (
-                  <p className="text-sm text-gray-500">No models configured yet.</p>
-                ) : (
-                  aiSettings.allowedModels.map((model, index) => (
-                    <div key={model} className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2">
+          <div className="mt-4 space-y-2">
+            {agents.length === 0 ? (
+              <p className="text-sm text-gray-500">No agents yet. Create your first agent below.</p>
+            ) : (
+              agents.map((agent) => (
+                <div key={agent.id} className="rounded-md border border-gray-200 px-3 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs text-gray-700">{model}</span>
-                        {index === 0 && (
-                          <span className="rounded bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700">Default</span>
+                        <span className="font-medium text-gray-900">{agent.name}</span>
+                        <span className={clsx(
+                          'rounded px-2 py-0.5 text-xs font-medium',
+                          agent.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                        )}>
+                          {agent.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                        {aiSettings?.defaultAgentId === agent.id && (
+                          <span className="rounded bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700">Default chat agent</span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          className="btn btn-secondary !px-2 !py-1 text-xs"
-                          onClick={() => makeModelDefault(model)}
-                          disabled={index === 0}
-                        >
-                          Make default
-                        </button>
-                        <button
-                          className="btn btn-secondary !px-2 !py-1 text-xs"
-                          onClick={() => removeModel(model)}
-                        >
-                          Remove
-                        </button>
-                      </div>
+                      <div className="mt-1 text-xs font-mono text-gray-600">{agent.model}</div>
                     </div>
-                  ))
-                )}
-              </div>
-            </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button className="btn btn-secondary !px-2 !py-1 text-xs" onClick={() => beginEditAgent(agent)}>
+                        Edit
+                      </button>
+                      <button className="btn btn-secondary !px-2 !py-1 text-xs" onClick={() => toggleAgentStatus(agent)} disabled={isSavingAgent}>
+                        {agent.isActive ? 'Deactivate' : 'Activate'}
+                      </button>
+                      <button
+                        className="btn btn-secondary !px-2 !py-1 text-xs"
+                        onClick={() => saveDefaultAgent(agent.id)}
+                        disabled={!agent.isActive || aiSettings?.defaultAgentId === agent.id || isSavingAiSettings}
+                      >
+                        Set default
+                      </button>
+                      <button
+                        className="btn btn-secondary !px-2 !py-1 text-xs"
+                        onClick={() => deleteAgent(agent)}
+                        disabled={deletingAgentId === agent.id}
+                      >
+                        {deletingAgentId === agent.id ? 'Deleting...' : 'Delete'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
 
-            <div className="mt-5">
-              <label className="mb-1 block text-sm font-medium text-gray-700">Default Agent</label>
-              <select
-                className="input"
-                value={aiSettings.defaultAgentId ?? ''}
-                onChange={(event) =>
-                  setAiSettings((previous) =>
-                    previous
-                      ? {
-                          ...previous,
-                          defaultAgentId: event.target.value || null,
-                        }
-                      : previous
-                  )
-                }
-              >
-                <option value="">No default agent</option>
-                {agents.map((agent) => (
-                  <option key={agent.id} value={agent.id}>
-                    {agent.name}
-                  </option>
-                ))}
-              </select>
+        <div className="mt-5 rounded-lg border border-gray-200 p-4">
+          <h4 className="text-sm font-semibold text-gray-900">{editingAgentId ? 'Edit Agent' : 'Create Agent'}</h4>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Name</label>
+              <input className="input" value={agentForm.name} onChange={(event) => setAgentForm((previous) => ({ ...previous, name: event.target.value }))} placeholder="Support assistant" />
             </div>
-
-            <div className="mt-4">
-              <button className="btn btn-primary" onClick={handleSaveAiSettings} disabled={isSavingAiSettings}>
-                {isSavingAiSettings ? 'Saving...' : 'Save Chat Configuration'}
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Model</label>
+              <input className="input" value={agentForm.model} onChange={(event) => setAgentForm((previous) => ({ ...previous, model: event.target.value }))} placeholder="openai/gpt-4.1" />
+            </div>
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-sm font-medium text-gray-700">System Prompt (optional)</label>
+              <textarea className="input min-h-[96px]" value={agentForm.systemPrompt} onChange={(event) => setAgentForm((previous) => ({ ...previous, systemPrompt: event.target.value }))} placeholder="You are a concise project assistant..." />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Requests / minute</label>
+              <input className="input" value={agentForm.requestsPerMinute} onChange={(event) => setAgentForm((previous) => ({ ...previous, requestsPerMinute: event.target.value }))} />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Tokens / day</label>
+              <input className="input" value={agentForm.tokensPerDay} onChange={(event) => setAgentForm((previous) => ({ ...previous, tokensPerDay: event.target.value }))} />
+            </div>
+          </div>
+          <div className="mt-4">
+            <label className="mb-2 block text-sm font-medium text-gray-700">Tools</label>
+            <div className="grid gap-2 md:grid-cols-2">
+              {AGENT_TOOL_OPTIONS.map((tool) => (
+                <label key={tool.id} className="flex items-center gap-2 rounded border border-gray-200 px-2 py-1.5 text-sm text-gray-700">
+                  <input type="checkbox" checked={agentForm.tools.includes(tool.id)} onChange={() => toggleTool(tool.id)} />
+                  <span>{tool.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          {editingAgentId && (
+            <div className="mt-3">
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={agentForm.isActive}
+                  onChange={(event) =>
+                    setAgentForm((previous) => ({ ...previous, isActive: event.target.checked }))
+                  }
+                />
+                Agent is active
+              </label>
+            </div>
+          )}
+          {agentFormError && <div className="mt-3 text-sm text-red-600">{agentFormError}</div>}
+          <div className="mt-4 flex items-center gap-2">
+            <button className="btn btn-primary" onClick={saveAgent} disabled={isSavingAgent || !hasProviderKey}>
+              {isSavingAgent ? 'Saving...' : editingAgentId ? 'Save Agent' : 'Create Agent'}
+            </button>
+            {editingAgentId && (
+              <button className="btn btn-secondary" onClick={resetAgentForm}>
+                Cancel
               </button>
-            </div>
-          </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-8 rounded-lg border border-gray-200 p-4">
+        <h3 className="text-base font-medium text-gray-900">Chat Defaults</h3>
+        <p className="mt-1 text-sm text-gray-600">Choose the default agent used by in-app workspace chat.</p>
+        {!aiSettings ? (
+          <div className="mt-3 text-sm text-gray-500">Loading chat defaults...</div>
+        ) : (
+          <div className="mt-4">
+            <label className="mb-1 block text-sm font-medium text-gray-700">Default Agent</label>
+            <select
+              className="input"
+              value={aiSettings.defaultAgentId ?? ''}
+              onChange={(event) => saveDefaultAgent(event.target.value || null)}
+              disabled={isSavingAiSettings}
+            >
+              <option value="">No default agent</option>
+              {activeAgents.map((agent) => (
+                <option key={agent.id} value={agent.id}>
+                  {agent.name}
+                </option>
+              ))}
+            </select>
+          </div>
         )}
       </div>
     </div>
@@ -797,8 +993,11 @@ type NavigationSection = {
 
 export function SettingsPage() {
   const location = useLocation();
+  const { currentWorkspace } = useWorkspaceStore();
   const [isLoadingAppContext, setIsLoadingAppContext] = useState(true);
+  const [isLoadingWorkspaceRole, setIsLoadingWorkspaceRole] = useState(false);
   const [appRole, setAppRole] = useState<AppRole | null>(null);
+  const [workspaceRole, setWorkspaceRole] = useState<'owner' | 'admin' | 'member' | null>(null);
   const [appContextError, setAppContextError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -820,9 +1019,45 @@ export function SettingsPage() {
     loadAppContext();
   }, []);
 
+  useEffect(() => {
+    const workspaceId = currentWorkspace?.id;
+    if (!workspaceId) {
+      setWorkspaceRole(null);
+      return;
+    }
+
+    const loadWorkspaceRole = async () => {
+      setIsLoadingWorkspaceRole(true);
+      try {
+        const response = await workspaceApi.me(workspaceId);
+        setWorkspaceRole(response.data.role);
+      } catch {
+        setWorkspaceRole(null);
+      } finally {
+        setIsLoadingWorkspaceRole(false);
+      }
+    };
+
+    loadWorkspaceRole();
+  }, [currentWorkspace?.id]);
+
   const isAppManager = appRole === 'app_manager';
+  const canManageWorkspaceAi = workspaceRole === 'owner' || workspaceRole === 'admin';
 
   const navigationSections = useMemo<NavigationSection[]>(() => {
+    const workspaceItems: NavigationItem[] = [
+      { name: 'Workspace', href: '/settings/workspace/general', icon: Building2 },
+      { name: 'Members', href: '/settings/workspace/members', icon: Users },
+      { name: 'Views', href: '/settings/workspace/views', icon: Eye },
+    ];
+
+    if (canManageWorkspaceAi) {
+      workspaceItems.push(
+        { name: 'AI & Agents', href: '/settings/workspace/api-keys', icon: Bot },
+        { name: 'MCP Connections', href: '/settings/workspace/mcp-connections', icon: Plug }
+      );
+    }
+
     const sections: NavigationSection[] = [
       {
         title: 'User Settings',
@@ -835,13 +1070,7 @@ export function SettingsPage() {
       {
         title: 'Workspace Settings',
         description: 'Settings for the selected workspace.',
-        items: [
-          { name: 'Workspace', href: '/settings/workspace/general', icon: Building2 },
-          { name: 'Members', href: '/settings/workspace/members', icon: Users },
-          { name: 'Views', href: '/settings/workspace/views', icon: Eye },
-          { name: 'AI Keys', href: '/settings/workspace/api-keys', icon: Bot },
-          { name: 'MCP Connections', href: '/settings/workspace/agents', icon: Plug },
-        ],
+        items: workspaceItems,
       },
     ];
 
@@ -857,7 +1086,7 @@ export function SettingsPage() {
     }
 
     return sections;
-  }, [isAppManager]);
+  }, [canManageWorkspaceAi, isAppManager]);
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -919,8 +1148,15 @@ export function SettingsPage() {
             <Route path="workspace/views" element={<ViewsSettings />} />
             <Route path="workspace/views/new" element={<SmartViewForm />} />
             <Route path="workspace/views/:viewId/edit" element={<SmartViewForm />} />
-            <Route path="workspace/api-keys" element={<ApiKeySettings />} />
-            <Route path="workspace/agents" element={<AgentSettings />} />
+            <Route
+              path="workspace/api-keys"
+              element={canManageWorkspaceAi ? <ApiKeySettings /> : <Navigate to="/settings/workspace/general" replace />}
+            />
+            <Route
+              path="workspace/mcp-connections"
+              element={canManageWorkspaceAi ? <AgentSettings /> : <Navigate to="/settings/workspace/general" replace />}
+            />
+            <Route path="workspace/agents" element={<Navigate to="/settings/workspace/mcp-connections" replace />} />
 
             <Route
               path="app/overview"
@@ -941,13 +1177,13 @@ export function SettingsPage() {
             <Route path="views" element={<Navigate to="/settings/workspace/views" replace />} />
             <Route path="views/new" element={<Navigate to="/settings/workspace/views/new" replace />} />
             <Route path="views/:viewId/edit" element={<SmartViewForm />} />
-            <Route path="agents" element={<Navigate to="/settings/workspace/agents" replace />} />
+            <Route path="agents" element={<Navigate to="/settings/workspace/mcp-connections" replace />} />
           </Routes>
         </div>
       </div>
 
-      {isLoadingAppContext && (
-        <div className="mt-4 text-xs text-gray-500">Loading app permissions...</div>
+      {(isLoadingAppContext || isLoadingWorkspaceRole) && (
+        <div className="mt-4 text-xs text-gray-500">Loading settings permissions...</div>
       )}
     </div>
   );

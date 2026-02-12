@@ -88,6 +88,24 @@ workspaces.get('/:workspaceId', async (c) => {
   return c.json({ success: true, data: result.value });
 });
 
+// Get current user's role in a workspace
+workspaces.get('/:workspaceId/me', async (c) => {
+  const user = getCurrentUser(c);
+  const workspaceId = c.req.param('workspaceId');
+
+  const roleResult = await workspaceService.getMemberRole(workspaceId, user.id);
+  if (!roleResult.ok || !roleResult.value) {
+    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not a workspace member' } }, 403);
+  }
+
+  return c.json({
+    success: true,
+    data: {
+      role: roleResult.value,
+    },
+  });
+});
+
 // Get workspace by slug
 workspaces.get('/by-slug/:slug', async (c) => {
   const user = getCurrentUser(c);

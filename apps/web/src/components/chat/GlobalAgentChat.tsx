@@ -22,10 +22,8 @@ export function GlobalAgentChat() {
   const [isOpen, setIsOpen] = useState(false);
   const [enabled, setEnabled] = useState(false);
   const [agents, setAgents] = useState<AgentSummary[]>([]);
-  const [allowedModels, setAllowedModels] = useState<string[]>([]);
   const [defaultAgentId, setDefaultAgentId] = useState<string | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
-  const [selectedModel, setSelectedModel] = useState<string>('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -47,7 +45,6 @@ export function GlobalAgentChat() {
         ]);
 
         setEnabled(availabilityResult.data.enabled);
-        setAllowedModels(settingsResult.data.allowedModels);
         setDefaultAgentId(settingsResult.data.defaultAgentId);
         setAgents(agentsResult.data);
       } catch {
@@ -72,30 +69,13 @@ export function GlobalAgentChat() {
   }, [agents, defaultAgentId, currentWorkspace, userId]);
 
   useEffect(() => {
-    if (!currentWorkspace || !userId || allowedModels.length === 0) return;
-
-    const rememberedModel = localStorage.getItem(storageKey(userId, currentWorkspace.id, 'model'));
-    const nextModel =
-      (rememberedModel && allowedModels.includes(rememberedModel) && rememberedModel) ||
-      allowedModels[0] ||
-      '';
-
-    setSelectedModel(nextModel);
-  }, [allowedModels, currentWorkspace, userId]);
-
-  useEffect(() => {
     if (!currentWorkspace || !userId || !selectedAgentId) return;
     localStorage.setItem(storageKey(userId, currentWorkspace.id, 'agent'), selectedAgentId);
   }, [selectedAgentId, currentWorkspace, userId]);
 
-  useEffect(() => {
-    if (!currentWorkspace || !userId || !selectedModel) return;
-    localStorage.setItem(storageKey(userId, currentWorkspace.id, 'model'), selectedModel);
-  }, [selectedModel, currentWorkspace, userId]);
-
   const canSend = useMemo(() => {
-    return enabled && !!selectedAgentId && !!selectedModel && input.trim().length > 0 && !isSending;
-  }, [enabled, selectedAgentId, selectedModel, input, isSending]);
+    return enabled && !!selectedAgentId && input.trim().length > 0 && !isSending;
+  }, [enabled, selectedAgentId, input, isSending]);
 
   const handleSend = async () => {
     if (!canSend) return;
@@ -117,7 +97,6 @@ export function GlobalAgentChat() {
         },
         body: JSON.stringify({
           messages: nextMessages,
-          model: selectedModel,
         }),
       });
 
@@ -149,7 +128,7 @@ export function GlobalAgentChat() {
     }
   };
 
-  if (!enabled || !currentWorkspace || !userId || allowedModels.length === 0) {
+  if (!enabled || !currentWorkspace || !userId) {
     return null;
   }
 
@@ -177,18 +156,11 @@ export function GlobalAgentChat() {
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 border-b border-gray-200 px-4 py-3">
+            <div className="border-b border-gray-200 px-4 py-3">
               <select className="input" value={selectedAgentId} onChange={(event) => setSelectedAgentId(event.target.value)}>
                 {agents.map((agent) => (
                   <option key={agent.id} value={agent.id}>
                     {agent.name}
-                  </option>
-                ))}
-              </select>
-              <select className="input" value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)}>
-                {allowedModels.map((model) => (
-                  <option key={model} value={model}>
-                    {model}
                   </option>
                 ))}
               </select>

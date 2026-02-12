@@ -34,7 +34,7 @@ const ExecuteAgentSchema = z.object({
       taskId: z.string().uuid().optional(),
     })
     .optional(),
-  model: AIModelSchema,
+  model: AIModelSchema.optional(),
 });
 
 const agents = new Hono();
@@ -103,7 +103,10 @@ agents.get('/', async (c) => {
   const result = await agentService.list({
     filters: {
       workspaceId,
-      isActive: c.req.query('isActive') !== 'false',
+      isActive:
+        c.req.query('isActive') === 'all'
+          ? undefined
+          : c.req.query('isActive') !== 'false',
     },
   });
 
@@ -127,22 +130,25 @@ agents.get('/availability', async (c) => {
     return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
   }
 
-  const configuredProviders = await agentService.listApiKeyProviders(workspaceId);
-  const aiSettingsResult = await workspaceService.getAgentAiSettings(workspaceId);
+  const [configuredProviders, activeAgentsResult] = await Promise.all([
+    agentService.listApiKeyProviders(workspaceId),
+    agentService.list({ filters: { workspaceId, isActive: true } }),
+  ]);
 
-  if (!aiSettingsResult.ok) {
-    return c.json({ success: false, error: { code: 'READ_FAILED', message: aiSettingsResult.error.message } }, 400);
+  if (!activeAgentsResult.ok) {
+    return c.json({ success: false, error: { code: 'READ_FAILED', message: activeAgentsResult.error.message } }, 400);
   }
 
   const hasProviderKey = configuredProviders.size > 0;
-  const modelCount = aiSettingsResult.value.allowedModels.length;
+  const activeAgentCount = activeAgentsResult.value.length;
 
   return c.json({
     success: true,
     data: {
-      enabled: hasProviderKey && modelCount > 0,
+      enabled: hasProviderKey && activeAgentCount > 0,
       hasProviderKey,
-      modelCount,
+      activeAgentCount,
+      modelCount: activeAgentCount,
     },
   });
 });
@@ -279,22 +285,8 @@ agents.post(
       }, 429);
     }
 
-    const workspaceAiSettings = await workspaceService.getAgentAiSettings(agentResult.value.workspaceId);
-    if (!workspaceAiSettings.ok) {
-      return c.json({ success: false, error: { code: 'SETTINGS_READ_FAILED', message: workspaceAiSettings.error.message } }, 400);
-    }
-
-    if (!workspaceAiSettings.value.allowedModels.includes(data.model)) {
-      return c.json({
-        success: false,
-        error: {
-          code: 'MODEL_NOT_ALLOWED',
-          message: 'Selected model is not enabled for this workspace',
-        },
-      }, 400);
-    }
-
-    const requiredProviders = getRequiredApiKeyProvidersForModel(data.model);
+    const effectiveModel = agentResult.value.model;
+    const requiredProviders = getRequiredApiKeyProvidersForModel(effectiveModel);
 
     let selectedProvider: ModelProvider | null = null;
     let apiKey: string | null = null;
@@ -332,7 +324,7 @@ agents.post(
     });
 
     try {
-      const model = resolveLanguageModel(selectedProvider, apiKey, data.model);
+      const model = resolveLanguageModel(selectedProvider, apiKey, effectiveModel);
 
       const result = streamText({
         model,
