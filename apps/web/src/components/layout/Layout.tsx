@@ -26,6 +26,7 @@ export function Layout({ children }: LayoutProps) {
   const { user, logout } = useAuthStore();
   const { currentWorkspace, workspaces, projects, setCurrentWorkspace, fetchWorkspaces, fetchProjects } = useWorkspaceStore();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isDesktop, setIsDesktop] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
 
   // Connect to real-time SSE stream for live updates
@@ -43,6 +44,22 @@ export function Layout({ children }: LayoutProps) {
     }
   }, [currentWorkspace, fetchProjects]);
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 1024px)');
+    const onDesktopChange = (event: MediaQueryListEvent) => {
+      setIsDesktop(event.matches);
+    };
+
+    setIsDesktop(mediaQuery.matches);
+    mediaQuery.addEventListener('change', onDesktopChange);
+
+    return () => {
+      mediaQuery.removeEventListener('change', onDesktopChange);
+    };
+  }, []);
+
+  const showSidebar = isDesktop || sidebarOpen;
+
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'Projects', href: '/projects', icon: FolderKanban },
@@ -56,7 +73,7 @@ export function Layout({ children }: LayoutProps) {
       <aside
         className={clsx(
           'fixed inset-y-0 left-0 z-50 flex flex-col w-64 bg-sidebar-bg border-r border-sidebar-border transition-transform duration-300 ease-out',
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          showSidebar ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         {/* Logo */}
@@ -231,7 +248,7 @@ export function Layout({ children }: LayoutProps) {
       </aside>
 
       {/* Main content */}
-      <div className={clsx('transition-all duration-300 ease-out', sidebarOpen ? 'lg:pl-64' : '')}>
+      <div className="transition-all duration-300 ease-out lg:pl-64">
         {/* Mobile header */}
         <header className="sticky top-0 z-40 flex items-center h-14 px-4 bg-white/80 backdrop-blur-lg border-b border-neutral-200/50 lg:hidden">
           <button
@@ -255,7 +272,7 @@ export function Layout({ children }: LayoutProps) {
       </div>
 
       {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
+      {!isDesktop && sidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden animate-fade-in"
           onClick={() => setSidebarOpen(false)}
