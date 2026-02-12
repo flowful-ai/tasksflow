@@ -324,10 +324,6 @@ export function GlobalAgentChat() {
                           );
                         }
 
-                        if (part.type === 'step-start') {
-                          return <div key={`${message.id}-step-${index}`} className="border-t border-dashed border-gray-300 pt-2 text-xs text-gray-500">Next step</div>;
-                        }
-
                         if (
                           part.type === 'dynamic-tool' ||
                           part.type.startsWith('tool-')
