@@ -336,6 +336,7 @@ agents.post(
       const systemPrompt = [
         agentResult.value.systemPrompt || 'You are a helpful FlowTask workspace assistant.',
         TOOL_COMPLETION_INSTRUCTION,
+        `Current user: ${user.name} (mail: ${user.email}, ID: ${user.id})`,
         data.context?.projectId ? `Current project ID: ${data.context.projectId}` : '',
         data.context?.taskId ? `Current task ID: ${data.context.taskId}` : '',
       ]
