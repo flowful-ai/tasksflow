@@ -17,7 +17,7 @@ import {
 } from '@dnd-kit/sortable';
 import { KanbanColumn } from './KanbanColumn';
 import { KanbanCard } from './KanbanCard';
-import { sortTasksByPriorityAndDate } from '../task-display/grouping';
+import { sortTasksForColumn, DONE_COLUMN_INITIAL_LIMIT } from '../task-display/grouping';
 
 interface TaskState {
   id: string;
@@ -44,6 +44,7 @@ interface KanbanBoardProps {
 
 export function KanbanBoard({ states, tasks, onTaskClick, onTaskMove }: KanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [expandedColumns, setExpandedColumns] = useState<Set<string>>(new Set());
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -117,27 +118,42 @@ export function KanbanBoard({ states, tasks, onTaskClick, onTaskMove }: KanbanBo
     >
       <div className="flex h-full gap-4 overflow-x-auto pb-4">
         {states.map((state) => {
-          const columnTasks = sortTasksByPriorityAndDate(
-            tasks.filter((t) => t.stateId === state.id)
+          const allColumnTasks = sortTasksForColumn(
+            tasks.filter((t) => t.stateId === state.id),
+            state.category
           );
+          const isDone = state.category === 'done';
+          const isExpanded = expandedColumns.has(state.id);
+          const visibleTasks = isDone && !isExpanded
+            ? allColumnTasks.slice(0, DONE_COLUMN_INITIAL_LIMIT)
+            : allColumnTasks;
+          const hiddenCount = allColumnTasks.length - visibleTasks.length;
 
           return (
             <SortableContext
               key={state.id}
-              items={columnTasks.map((t) => t.id)}
+              items={visibleTasks.map((t) => t.id)}
               strategy={verticalListSortingStrategy}
             >
               <KanbanColumn
                 state={state}
-                taskCount={columnTasks.length}
+                taskCount={allColumnTasks.length}
               >
-                {columnTasks.map((task) => (
+                {visibleTasks.map((task) => (
                   <KanbanCard
                     key={task.id}
                     task={task}
                     onClick={() => onTaskClick(task.id)}
                   />
                 ))}
+                {hiddenCount > 0 && (
+                  <button
+                    onClick={() => setExpandedColumns((prev) => new Set([...prev, state.id]))}
+                    className="w-full py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded transition-colors"
+                  >
+                    Show {hiddenCount} more tasks
+                  </button>
+                )}
               </KanbanColumn>
             </SortableContext>
           );

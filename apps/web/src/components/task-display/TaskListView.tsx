@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { TaskCard, type TaskCardTask } from './TaskCard';
-import { groupTasks, taskMatchesGroup, sortTasksByPriorityAndDate, type GroupBy, type TaskGroup, type AvailableState } from './grouping';
+import { groupTasks, taskMatchesGroup, sortTasksForColumn, DONE_COLUMN_INITIAL_LIMIT, type GroupBy, type TaskGroup, type AvailableState } from './grouping';
 import type { MouseEvent } from 'react';
 
 interface TaskListViewProps {
@@ -27,7 +27,7 @@ export function TaskListView({
 }: TaskListViewProps) {
   const groups = groupTasks(tasks, groupBy, availableStates, mergeStatesByCategory);
   for (const group of groups) {
-    group.tasks = sortTasksByPriorityAndDate(group.tasks);
+    group.tasks = sortTasksForColumn(group.tasks, group.category);
   }
   const secondaryGroups = secondaryGroupBy
     ? groupTasks(tasks, secondaryGroupBy, undefined, mergeStatesByCategory)
@@ -137,11 +137,16 @@ function TaskGroupSection({
   availableStates,
 }: TaskGroupSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
+  const [showAll, setShowAll] = useState(false);
 
   // Determine which task fields to show based on groupBy
   // Don't show the grouped field since it's redundant
   const showState = groupBy !== 'state' && secondaryGroupBy !== 'state';
   const effectiveShowProject = showProject && groupBy !== 'project' && secondaryGroupBy !== 'project';
+
+  const isDone = group.category === 'done';
+  const visibleTasks = isDone && !showAll ? group.tasks.slice(0, DONE_COLUMN_INITIAL_LIMIT) : group.tasks;
+  const hiddenCount = group.tasks.length - visibleTasks.length;
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -173,18 +178,28 @@ function TaskGroupSection({
           {group.tasks.length === 0 ? (
             <p className="text-center py-4 text-gray-400 text-sm">No tasks</p>
           ) : (
-            group.tasks.map((task) => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                onClick={(event) => onTaskClick(task.id, event)}
-                showProject={effectiveShowProject}
-                showState={showState}
-                draggable={false}
-                isSelected={selectedTaskIds?.has(task.id)}
-                states={availableStates?.filter((s) => s.projectId === task.project.id)}
-              />
-            ))
+            <>
+              {visibleTasks.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  onClick={(event) => onTaskClick(task.id, event)}
+                  showProject={effectiveShowProject}
+                  showState={showState}
+                  draggable={false}
+                  isSelected={selectedTaskIds?.has(task.id)}
+                  states={availableStates?.filter((s) => s.projectId === task.project.id)}
+                />
+              ))}
+              {hiddenCount > 0 && (
+                <button
+                  onClick={() => setShowAll(true)}
+                  className="w-full py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                >
+                  Show {hiddenCount} more tasks
+                </button>
+              )}
+            </>
           )}
         </div>
       )}

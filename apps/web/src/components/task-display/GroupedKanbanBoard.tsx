@@ -17,7 +17,7 @@ import {
 } from '@dnd-kit/sortable';
 import { TaskCard, type TaskCardTask } from './TaskCard';
 import { GroupedKanbanColumn } from './GroupedKanbanColumn';
-import { groupTasks, taskMatchesGroup, sortTasksByPriorityAndDate, type GroupBy, type AvailableState, type TaskGroup } from './grouping';
+import { groupTasks, taskMatchesGroup, sortTasksForColumn, DONE_COLUMN_INITIAL_LIMIT, type GroupBy, type AvailableState, type TaskGroup } from './grouping';
 import type { MouseEvent } from 'react';
 
 interface GroupedKanbanBoardProps {
@@ -48,6 +48,7 @@ export function GroupedKanbanBoard({
   selectedTaskIds,
 }: GroupedKanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   // Allow drag when state is primary OR secondary grouping
   const isStateGrouping = groupBy === 'state' || secondaryGroupBy === 'state';
@@ -75,7 +76,7 @@ export function GroupedKanbanBoard({
 
   const groups = groupTasks(tasks, groupBy, availableStates, mergeStatesByCategory);
   for (const group of groups) {
-    group.tasks = sortTasksByPriorityAndDate(group.tasks);
+    group.tasks = sortTasksForColumn(group.tasks, group.category);
   }
   const rowGroups = secondaryGroupBy
     ? groupTasks(tasks, secondaryGroupBy, undefined, mergeStatesByCategory)
@@ -265,7 +266,7 @@ export function GroupedKanbanBoard({
   const buildRowColumns = (rowTasks: TaskCardTask[]): TaskGroup[] => {
     const rowGroups = groupTasks(rowTasks, groupBy, availableStates, mergeStatesByCategory);
     for (const group of rowGroups) {
-      group.tasks = sortTasksByPriorityAndDate(group.tasks);
+      group.tasks = sortTasksForColumn(group.tasks, group.category);
     }
     return groups.map((column) => {
       const match = rowGroups.find((g) => g.id === column.id);
@@ -317,7 +318,13 @@ export function GroupedKanbanBoard({
                   return (
                     <SortableContext
                       key={`${rowGroup.id}-${group.id}`}
-                      items={group.tasks.map((t) => t.id)}
+                      items={(() => {
+                        const isDone = group.category === 'done';
+                        const groupKey = `${rowGroup.id}-${group.id}`;
+                        const isExp = expandedGroups.has(groupKey);
+                        const visible = isDone && !isExp ? group.tasks.slice(0, DONE_COLUMN_INITIAL_LIMIT) : group.tasks;
+                        return visible.map((t) => t.id);
+                      })()}
                       strategy={verticalListSortingStrategy}
                     >
                       <GroupedKanbanColumn
@@ -326,18 +333,37 @@ export function GroupedKanbanBoard({
                         color={group.color}
                         taskCount={group.tasks.length}
                       >
-                        {group.tasks.map((task) => (
-                          <TaskCard
-                            key={task.id}
-                            task={task}
-                            onClick={(event) => onTaskClick(task.id, event)}
-                            showProject={effectiveShowProject}
-                            showState={showState}
-                            draggable={dragEnabled}
-                            isSelected={selectedTaskIds?.has(task.id)}
-                            states={availableStates?.filter((s) => s.projectId === task.project.id)}
-                          />
-                        ))}
+                        {(() => {
+                          const isDone = group.category === 'done';
+                          const groupKey = `${rowGroup.id}-${group.id}`;
+                          const isExp = expandedGroups.has(groupKey);
+                          const visible = isDone && !isExp ? group.tasks.slice(0, DONE_COLUMN_INITIAL_LIMIT) : group.tasks;
+                          const hiddenCount = group.tasks.length - visible.length;
+                          return (
+                            <>
+                              {visible.map((task) => (
+                                <TaskCard
+                                  key={task.id}
+                                  task={task}
+                                  onClick={(event) => onTaskClick(task.id, event)}
+                                  showProject={effectiveShowProject}
+                                  showState={showState}
+                                  draggable={dragEnabled}
+                                  isSelected={selectedTaskIds?.has(task.id)}
+                                  states={availableStates?.filter((s) => s.projectId === task.project.id)}
+                                />
+                              ))}
+                              {hiddenCount > 0 && (
+                                <button
+                                  onClick={() => setExpandedGroups((prev) => new Set([...prev, groupKey]))}
+                                  className="w-full py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded transition-colors"
+                                >
+                                  Show {hiddenCount} more tasks
+                                </button>
+                              )}
+                            </>
+                          );
+                        })()}
                       </GroupedKanbanColumn>
                     </SortableContext>
                   );
@@ -348,33 +374,47 @@ export function GroupedKanbanBoard({
         </div>
       ) : (
         <div className="flex h-full gap-4 overflow-x-auto pb-4">
-          {groups.map((group) => (
-            <SortableContext
-              key={group.id}
-              items={group.tasks.map((t) => t.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <GroupedKanbanColumn
-                id={group.id}
-                name={group.name}
-                color={group.color}
-                taskCount={group.tasks.length}
+          {groups.map((group) => {
+            const isDone = group.category === 'done';
+            const isExp = expandedGroups.has(group.id);
+            const visibleTasks = isDone && !isExp ? group.tasks.slice(0, DONE_COLUMN_INITIAL_LIMIT) : group.tasks;
+            const hiddenCount = group.tasks.length - visibleTasks.length;
+            return (
+              <SortableContext
+                key={group.id}
+                items={visibleTasks.map((t) => t.id)}
+                strategy={verticalListSortingStrategy}
               >
-                {group.tasks.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    onClick={(event) => onTaskClick(task.id, event)}
-                    showProject={effectiveShowProject}
-                    showState={showState}
-                    draggable={dragEnabled}
-                    isSelected={selectedTaskIds?.has(task.id)}
-                    states={availableStates?.filter((s) => s.projectId === task.project.id)}
-                  />
-                ))}
-              </GroupedKanbanColumn>
-            </SortableContext>
-          ))}
+                <GroupedKanbanColumn
+                  id={group.id}
+                  name={group.name}
+                  color={group.color}
+                  taskCount={group.tasks.length}
+                >
+                  {visibleTasks.map((task) => (
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      onClick={(event) => onTaskClick(task.id, event)}
+                      showProject={effectiveShowProject}
+                      showState={showState}
+                      draggable={dragEnabled}
+                      isSelected={selectedTaskIds?.has(task.id)}
+                      states={availableStates?.filter((s) => s.projectId === task.project.id)}
+                    />
+                  ))}
+                  {hiddenCount > 0 && (
+                    <button
+                      onClick={() => setExpandedGroups((prev) => new Set([...prev, group.id]))}
+                      className="w-full py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded transition-colors"
+                    >
+                      Show {hiddenCount} more tasks
+                    </button>
+                  )}
+                </GroupedKanbanColumn>
+              </SortableContext>
+            );
+          })}
         </div>
       )}
 

@@ -41,6 +41,27 @@ export function sortTasksByPriorityAndDate<T extends { priority: string | null; 
   });
 }
 
+/**
+ * Sorts tasks based on column category:
+ * - 'done' columns: sort by last modification date only (most recent first)
+ * - Other columns: sort by priority then last modification date
+ */
+export function sortTasksForColumn<T extends { priority: string | null; updatedAt?: string | null }>(
+  tasks: T[],
+  category?: string
+): T[] {
+  if (category === 'done') {
+    return [...tasks].sort((a, b) => {
+      const aDate = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+      const bDate = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+      return bDate - aDate;
+    });
+  }
+  return sortTasksByPriorityAndDate(tasks);
+}
+
+export const DONE_COLUMN_INITIAL_LIMIT = 20;
+
 const stateCategoryOrder: Record<string, number> = {
   backlog: 0,
   in_progress: 1,
