@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { TaskCard, type TaskCardTask } from './TaskCard';
-import { groupTasks, taskMatchesGroup, type GroupBy, type TaskGroup, type AvailableState } from './grouping';
+import { groupTasks, taskMatchesGroup, sortTasksByPriorityAndDate, type GroupBy, type TaskGroup, type AvailableState } from './grouping';
 import type { MouseEvent } from 'react';
 
 interface TaskListViewProps {
@@ -26,6 +26,9 @@ export function TaskListView({
   selectedTaskIds,
 }: TaskListViewProps) {
   const groups = groupTasks(tasks, groupBy, availableStates, mergeStatesByCategory);
+  for (const group of groups) {
+    group.tasks = sortTasksByPriorityAndDate(group.tasks);
+  }
   const secondaryGroups = secondaryGroupBy
     ? groupTasks(tasks, secondaryGroupBy, undefined, mergeStatesByCategory)
     : null;

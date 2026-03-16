@@ -17,6 +17,7 @@ import {
 } from '@dnd-kit/sortable';
 import { KanbanColumn } from './KanbanColumn';
 import { KanbanCard } from './KanbanCard';
+import { sortTasksByPriorityAndDate } from '../task-display/grouping';
 
 interface TaskState {
   id: string;
@@ -31,6 +32,7 @@ interface Task {
   title: string;
   priority: string | null;
   position: string;
+  updatedAt?: string | null;
 }
 
 interface KanbanBoardProps {
@@ -115,9 +117,9 @@ export function KanbanBoard({ states, tasks, onTaskClick, onTaskMove }: KanbanBo
     >
       <div className="flex h-full gap-4 overflow-x-auto pb-4">
         {states.map((state) => {
-          const columnTasks = tasks
-            .filter((t) => t.stateId === state.id)
-            .sort((a, b) => a.position.localeCompare(b.position));
+          const columnTasks = sortTasksByPriorityAndDate(
+            tasks.filter((t) => t.stateId === state.id)
+          );
 
           return (
             <SortableContext

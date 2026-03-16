@@ -37,6 +37,7 @@ interface TaskCardTask {
     name: string;
   } | null;
   sequenceNumber: number;
+  updatedAt?: string | null;
 }
 
 interface TaskCardProps {

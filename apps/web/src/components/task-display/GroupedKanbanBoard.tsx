@@ -17,7 +17,7 @@ import {
 } from '@dnd-kit/sortable';
 import { TaskCard, type TaskCardTask } from './TaskCard';
 import { GroupedKanbanColumn } from './GroupedKanbanColumn';
-import { groupTasks, taskMatchesGroup, type GroupBy, type AvailableState, type TaskGroup } from './grouping';
+import { groupTasks, taskMatchesGroup, sortTasksByPriorityAndDate, type GroupBy, type AvailableState, type TaskGroup } from './grouping';
 import type { MouseEvent } from 'react';
 
 interface GroupedKanbanBoardProps {
@@ -74,6 +74,9 @@ export function GroupedKanbanBoard({
   );
 
   const groups = groupTasks(tasks, groupBy, availableStates, mergeStatesByCategory);
+  for (const group of groups) {
+    group.tasks = sortTasksByPriorityAndDate(group.tasks);
+  }
   const rowGroups = secondaryGroupBy
     ? groupTasks(tasks, secondaryGroupBy, undefined, mergeStatesByCategory)
     : null;
@@ -261,6 +264,9 @@ export function GroupedKanbanBoard({
 
   const buildRowColumns = (rowTasks: TaskCardTask[]): TaskGroup[] => {
     const rowGroups = groupTasks(rowTasks, groupBy, availableStates, mergeStatesByCategory);
+    for (const group of rowGroups) {
+      group.tasks = sortTasksByPriorityAndDate(group.tasks);
+    }
     return groups.map((column) => {
       const match = rowGroups.find((g) => g.id === column.id);
       return (

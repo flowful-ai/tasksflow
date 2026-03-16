@@ -24,6 +24,7 @@ interface ProjectTask {
   priority: string | null;
   position: string;
   dueDate: string | null;
+  updatedAt: string | null;
   sequenceNumber: number;
   stateId: string | null;
   state: {
@@ -178,6 +179,7 @@ export function ProjectPage() {
       title: task.title,
       priority: task.priority,
       dueDate: task.dueDate,
+      updatedAt: task.updatedAt,
       state: task.state,
       assignees: task.assignees || [],
       labels: task.labels || [],

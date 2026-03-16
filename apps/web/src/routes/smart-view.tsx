@@ -312,6 +312,7 @@ export function SmartViewPage() {
       title: task.title,
       priority: task.priority,
       dueDate: task.dueDate,
+      updatedAt: task.updatedAt,
       position: task.position,
       state: task.state,
       assignees: task.assignees,

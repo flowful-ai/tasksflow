@@ -180,6 +180,7 @@ export function PublicSharePage() {
     title: task.title,
     priority: task.priority,
     dueDate: task.dueDate,
+    updatedAt: task.updatedAt,
     state: task.state,
     assignees: task.assignees,
     labels: task.labels,

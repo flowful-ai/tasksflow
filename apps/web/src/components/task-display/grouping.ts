@@ -19,13 +19,27 @@ export interface AvailableState {
   projectId?: string;
 }
 
-const priorityOrder: Record<string, number> = {
+export const priorityOrder: Record<string, number> = {
   urgent: 0,
   high: 1,
   medium: 2,
   low: 3,
   none: 4,
 };
+
+/**
+ * Sorts tasks by priority (urgent first) then by last modification date (most recent first)
+ */
+export function sortTasksByPriorityAndDate<T extends { priority: string | null; updatedAt?: string | null }>(tasks: T[]): T[] {
+  return [...tasks].sort((a, b) => {
+    const aPrio = priorityOrder[a.priority || 'none'] ?? 4;
+    const bPrio = priorityOrder[b.priority || 'none'] ?? 4;
+    if (aPrio !== bPrio) return aPrio - bPrio;
+    const aDate = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+    const bDate = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+    return bDate - aDate;
+  });
+}
 
 const stateCategoryOrder: Record<string, number> = {
   backlog: 0,
