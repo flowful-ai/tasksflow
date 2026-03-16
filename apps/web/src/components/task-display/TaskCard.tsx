@@ -3,6 +3,7 @@ import { CSS } from '@dnd-kit/utilities';
 import clsx from 'clsx';
 import { Calendar } from 'lucide-react';
 import type { MouseEvent } from 'react';
+import { TaskContextMenu, type ContextMenuState } from '../tasks/TaskContextMenu';
 
 interface TaskCardTask {
   id: string;
@@ -48,6 +49,8 @@ interface TaskCardProps {
   isDragging?: boolean;
   draggable?: boolean;
   isSelected?: boolean;
+  states?: ContextMenuState[];
+  onContextMenuAction?: () => void;
 }
 
 const priorityColors: Record<string, string> = {
@@ -65,6 +68,8 @@ export function TaskCard({
   isDragging = false,
   draggable = true,
   isSelected = false,
+  states,
+  onContextMenuAction,
 }: TaskCardProps) {
   const {
     attributes,
@@ -81,7 +86,7 @@ export function TaskCard({
 
   const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
 
-  return (
+  const card = (
     <div
       ref={setNodeRef}
       style={style}
@@ -192,6 +197,24 @@ export function TaskCard({
       </div>
     </div>
   );
+
+  if (states && states.length > 0) {
+    return (
+      <TaskContextMenu
+        taskId={task.id}
+        projectId={task.project.id}
+        currentPriority={task.priority}
+        currentStateId={task.state?.id ?? null}
+        assigneeIds={task.assignees.map((a) => a.id)}
+        states={states}
+        onUpdated={onContextMenuAction}
+      >
+        {card}
+      </TaskContextMenu>
+    );
+  }
+
+  return card;
 }
 
 // Export the task type for reuse

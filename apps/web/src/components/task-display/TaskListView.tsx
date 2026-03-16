@@ -49,6 +49,7 @@ export function TaskListView({
               showState={true}
               draggable={false}
               isSelected={selectedTaskIds?.has(task.id)}
+              states={availableStates?.filter((s) => s.projectId === task.project.id)}
             />
           ))
         )}
@@ -65,6 +66,7 @@ export function TaskListView({
       showProject={showProjectValue}
       secondaryGroupBy={secondaryGroupBy}
       selectedTaskIds={selectedTaskIds}
+      availableStates={availableStates}
     />
   );
 
@@ -122,6 +124,7 @@ interface TaskGroupSectionProps {
   showProject: boolean;
   secondaryGroupBy?: GroupBy;
   selectedTaskIds?: Set<string>;
+  availableStates?: AvailableState[];
 }
 
 function TaskGroupSection({
@@ -131,6 +134,7 @@ function TaskGroupSection({
   showProject,
   secondaryGroupBy,
   selectedTaskIds,
+  availableStates,
 }: TaskGroupSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -178,6 +182,7 @@ function TaskGroupSection({
                 showState={showState}
                 draggable={false}
                 isSelected={selectedTaskIds?.has(task.id)}
+                states={availableStates?.filter((s) => s.projectId === task.project.id)}
               />
             ))
           )}

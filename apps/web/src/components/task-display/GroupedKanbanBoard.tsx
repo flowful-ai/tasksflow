@@ -335,6 +335,7 @@ export function GroupedKanbanBoard({
                             showState={showState}
                             draggable={dragEnabled}
                             isSelected={selectedTaskIds?.has(task.id)}
+                            states={availableStates?.filter((s) => s.projectId === task.project.id)}
                           />
                         ))}
                       </GroupedKanbanColumn>
@@ -368,6 +369,7 @@ export function GroupedKanbanBoard({
                     showState={showState}
                     draggable={dragEnabled}
                     isSelected={selectedTaskIds?.has(task.id)}
+                    states={availableStates?.filter((s) => s.projectId === task.project.id)}
                   />
                 ))}
               </GroupedKanbanColumn>
