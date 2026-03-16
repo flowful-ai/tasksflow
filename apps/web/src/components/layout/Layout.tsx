@@ -10,6 +10,8 @@ import {
   LogOut,
   Menu,
   X,
+  Lock,
+  ShieldAlert,
 } from 'lucide-react';
 import { useAuthStore } from '../../stores/auth';
 import { useWorkspaceStore } from '../../stores/workspace';
@@ -201,7 +203,17 @@ export function Layout({ children }: LayoutProps) {
                       style={{ animationDelay: `${(navigation.length + index) * 50}ms` }}
                     >
                       <span className={clsx('project-dot mr-3', isActive && 'active')} />
-                      <span className="truncate">{project.name}</span>
+                      <span className="truncate flex-1">{project.name}</span>
+                      {project.access === 'admin' && (
+                        <span title="Admin only">
+                          <ShieldAlert className="w-3.5 h-3.5 ml-1.5 flex-shrink-0 text-sidebar-text-muted" />
+                        </span>
+                      )}
+                      {project.access === 'members' && (
+                        <span title="Restricted access">
+                          <Lock className="w-3.5 h-3.5 ml-1.5 flex-shrink-0 text-sidebar-text-muted" />
+                        </span>
+                      )}
                     </Link>
                   );
                 })}

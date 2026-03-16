@@ -84,6 +84,7 @@ export const projects = pgTable(
     description: text('description'),
     icon: text('icon'),
     isArchived: boolean('is_archived').default(false).notNull(),
+    access: text('access').notNull().default('all'), // 'all', 'admin', 'members'
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -91,6 +92,25 @@ export const projects = pgTable(
   (table) => [
     index('project_workspace_idx').on(table.workspaceId),
     uniqueIndex('unique_project_identifier').on(table.workspaceId, table.identifier),
+  ]
+);
+
+export const projectMembers = pgTable(
+  'project_members',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    projectId: uuid('project_id')
+      .references(() => projects.id, { onDelete: 'cascade' })
+      .notNull(),
+    userId: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('unique_project_member').on(table.projectId, table.userId),
+    index('project_member_project_idx').on(table.projectId),
+    index('project_member_user_idx').on(table.userId),
   ]
 );
 
@@ -728,3 +748,6 @@ export type NewMcpOAuthRefreshToken = typeof mcpOAuthRefreshTokens.$inferInsert;
 
 export type GitHubInstallation = typeof githubInstallations.$inferSelect;
 export type NewGitHubInstallation = typeof githubInstallations.$inferInsert;
+
+export type ProjectMember = typeof projectMembers.$inferSelect;
+export type NewProjectMember = typeof projectMembers.$inferInsert;

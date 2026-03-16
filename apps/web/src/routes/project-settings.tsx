@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Settings2, Layers, Tag, AlertTriangle, ShieldX } from 'lucide-react';
+import { ArrowLeft, Settings2, Layers, Tag, AlertTriangle, ShieldX, Lock } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '../api/client';
 import { GeneralSettings } from '../components/project-settings/GeneralSettings';
 import { TaskStatesSettings } from '../components/project-settings/TaskStatesSettings';
 import { LabelsSettings } from '../components/project-settings/LabelsSettings';
+import { AccessSettings } from '../components/project-settings/AccessSettings';
 import { GitHubSettings } from '../components/project-settings/GitHubSettings';
 import { DangerZone } from '../components/project-settings/DangerZone';
 
@@ -19,7 +20,7 @@ function GithubIcon({ className }: { className?: string }) {
   );
 }
 
-type SettingsSection = 'general' | 'states' | 'labels' | 'github' | 'danger';
+type SettingsSection = 'general' | 'states' | 'labels' | 'access' | 'github' | 'danger';
 
 interface ProjectData {
   id: string;
@@ -29,6 +30,7 @@ interface ProjectData {
   description: string | null;
   icon: string | null;
   isArchived: boolean;
+  access: 'all' | 'admin' | 'members';
   taskStates: Array<{
     id: string;
     name: string;
@@ -76,6 +78,7 @@ export function ProjectSettingsPage() {
     { id: 'general' as const, name: 'General', icon: Settings2 },
     { id: 'states' as const, name: 'Task States', icon: Layers },
     { id: 'labels' as const, name: 'Labels', icon: Tag },
+    { id: 'access' as const, name: 'Access', icon: Lock },
     { id: 'github' as const, name: 'GitHub', icon: GithubIcon },
     { id: 'danger' as const, name: 'Danger Zone', icon: AlertTriangle },
   ];
@@ -143,6 +146,15 @@ export function ProjectSettingsPage() {
           <LabelsSettings
             projectId={project.id}
             labels={project.labels}
+            onUpdated={refetchProject}
+          />
+        );
+      case 'access':
+        return (
+          <AccessSettings
+            projectId={project.id}
+            workspaceId={project.workspaceId}
+            currentAccess={project.access || 'all'}
             onUpdated={refetchProject}
           />
         );

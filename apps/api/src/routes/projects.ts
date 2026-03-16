@@ -33,7 +33,7 @@ projects.get('/', async (c) => {
     return c.json({ success: false, error: { code: 'MISSING_PARAM', message: 'workspaceId is required' } }, 400);
   }
 
-  const { allowed } = await checkWorkspaceAccess(workspaceId, user.id, 'project:read');
+  const { allowed, role } = await checkWorkspaceAccess(workspaceId, user.id, 'project:read');
   if (!allowed) {
     return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
   }
@@ -43,6 +43,8 @@ projects.get('/', async (c) => {
       workspaceId,
       includeArchived: c.req.query('includeArchived') === 'true',
       search: c.req.query('search'),
+      userId: user.id,
+      workspaceRole: role as 'owner' | 'admin' | 'member',
     },
   });
 
@@ -93,9 +95,14 @@ projects.get('/:projectId', async (c) => {
     return c.json({ success: false, error: { code: 'NOT_FOUND', message: result.error.message } }, 404);
   }
 
-  const { allowed } = await checkWorkspaceAccess(result.value.workspaceId, user.id, 'project:read');
+  const { allowed, role } = await checkWorkspaceAccess(result.value.workspaceId, user.id, 'project:read');
   if (!allowed) {
     return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
+  }
+
+  const hasProjectAccess = await projectService.hasAccess(projectId, user.id, role as 'owner' | 'admin' | 'member');
+  if (!hasProjectAccess) {
+    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized to access this project' } }, 403);
   }
 
   return c.json({ success: true, data: result.value });
@@ -387,5 +394,64 @@ projects.delete('/:projectId/labels/:labelId', async (c) => {
 
   return c.json({ success: true, data: null });
 });
+
+// === Access Control ===
+
+// Get project members
+projects.get('/:projectId/members', async (c) => {
+  const user = getCurrentUser(c);
+  const projectId = c.req.param('projectId');
+
+  const projectResult = await projectService.getById(projectId);
+  if (!projectResult.ok) {
+    return c.json({ success: false, error: { code: 'NOT_FOUND', message: projectResult.error.message } }, 404);
+  }
+
+  const { allowed } = await checkWorkspaceAccess(projectResult.value.workspaceId, user.id, 'project:read');
+  if (!allowed) {
+    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
+  }
+
+  const result = await projectService.getMembers(projectId);
+  if (!result.ok) {
+    return c.json({ success: false, error: { code: 'FETCH_FAILED', message: result.error.message } }, 500);
+  }
+
+  return c.json({ success: true, data: result.value });
+});
+
+// Set project access mode and members
+projects.put(
+  '/:projectId/members',
+  zValidator(
+    'json',
+    z.object({
+      access: z.enum(['all', 'admin', 'members']),
+      userIds: z.array(z.string().uuid()).optional(),
+    })
+  ),
+  async (c) => {
+    const user = getCurrentUser(c);
+    const projectId = c.req.param('projectId');
+    const data = c.req.valid('json');
+
+    const projectResult = await projectService.getById(projectId);
+    if (!projectResult.ok) {
+      return c.json({ success: false, error: { code: 'NOT_FOUND', message: projectResult.error.message } }, 404);
+    }
+
+    const { allowed } = await checkWorkspaceAccess(projectResult.value.workspaceId, user.id, 'project:update');
+    if (!allowed) {
+      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
+    }
+
+    const result = await projectService.setAccess(projectId, data.access, data.userIds);
+    if (!result.ok) {
+      return c.json({ success: false, error: { code: 'UPDATE_FAILED', message: result.error.message } }, 400);
+    }
+
+    return c.json({ success: true, data: null });
+  }
+);
 
 export { projects as projectRoutes };

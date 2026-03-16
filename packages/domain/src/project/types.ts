@@ -39,6 +39,8 @@ export interface ProjectFilters {
   workspaceId?: string;
   includeArchived?: boolean;
   search?: string;
+  userId?: string;
+  workspaceRole?: 'owner' | 'admin' | 'member';
 }
 
 export interface ProjectListOptions {

@@ -28,6 +28,7 @@ import {
   sessions,
   accounts,
   githubInstallations,
+  projectMembers,
 } from './schema.js';
 
 // User relations
@@ -40,6 +41,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   sessions: many(sessions),
   accounts: many(accounts),
   githubInstallations: many(githubInstallations),
+  projectMembers: many(projectMembers),
   smartViews: many(smartViews),
   smartViewShares: many(smartViewShares),
   invitationsSent: many(workspaceInvitations),
@@ -102,6 +104,7 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   taskStates: many(taskStates),
   tasks: many(tasks),
   labels: many(labels),
+  members: many(projectMembers),
 }));
 
 // Workspace agent relations
@@ -383,6 +386,18 @@ export const accountsRelations = relations(accounts, ({ one }) => ({
 export const githubInstallationsRelations = relations(githubInstallations, ({ one }) => ({
   user: one(users, {
     fields: [githubInstallations.userId],
+    references: [users.id],
+  }),
+}));
+
+// Project member relations
+export const projectMembersRelations = relations(projectMembers, ({ one }) => ({
+  project: one(projects, {
+    fields: [projectMembers.projectId],
+    references: [projects.id],
+  }),
+  user: one(users, {
+    fields: [projectMembers.userId],
     references: [users.id],
   }),
 }));

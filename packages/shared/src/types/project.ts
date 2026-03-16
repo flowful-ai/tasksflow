@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { BaseEntitySchema } from './common.js';
 
+export const ProjectAccessSchema = z.enum(['all', 'admin', 'members']);
+export type ProjectAccess = z.infer<typeof ProjectAccessSchema>;
+
 export const ProjectSchema = BaseEntitySchema.extend({
   workspaceId: z.string().uuid(),
   name: z.string().min(1).max(100),
@@ -8,6 +11,7 @@ export const ProjectSchema = BaseEntitySchema.extend({
   description: z.string().nullable(),
   icon: z.string().nullable(),
   isArchived: z.boolean().default(false),
+  access: ProjectAccessSchema.default('all'),
   createdBy: z.string().uuid().nullable(),
 });
 

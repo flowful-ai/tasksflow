@@ -1,10 +1,10 @@
-import { eq, and, sql, desc, asc, like, SQL } from 'drizzle-orm';
+import { eq, and, sql, desc, asc, like, inArray, SQL } from 'drizzle-orm';
 
 function escapeLike(value: string): string {
   return value.replace(/[%_\\]/g, '\\$&');
 }
 import type { Database } from '@flowtask/database';
-import { projects, taskStates, labels, projectIntegrations, tasks } from '@flowtask/database';
+import { projects, taskStates, labels, projectIntegrations, tasks, projectMembers, users } from '@flowtask/database';
 import { generatePosition, positionAfter } from '@flowtask/shared';
 import { DEFAULT_TASK_STATES } from '@flowtask/shared';
 import type { Result } from '@flowtask/shared';
@@ -254,8 +254,38 @@ export class ProjectService {
         taskCountMap.set(tc.projectId, tc.count);
       }
 
+      // Filter by access control if userId and role are provided
+      let filteredRows = projectRows;
+      if (filters.userId && filters.workspaceRole === 'member') {
+        // Members need access checks; owners/admins see everything
+        const restrictedProjectIds = filteredRows
+          .filter((p) => p.access !== 'all')
+          .map((p) => p.id);
+
+        if (restrictedProjectIds.length > 0) {
+          // Get project_members entries for this user among restricted projects
+          const memberEntries = await this.db
+            .select({ projectId: projectMembers.projectId })
+            .from(projectMembers)
+            .where(
+              and(
+                inArray(projectMembers.projectId, restrictedProjectIds),
+                eq(projectMembers.userId, filters.userId)
+              )
+            );
+          const memberOfSet = new Set(memberEntries.map((m) => m.projectId));
+
+          filteredRows = filteredRows.filter((p) => {
+            if (p.access === 'all') return true;
+            if (p.access === 'admin') return false; // member role can't access admin-only
+            if (p.access === 'members') return memberOfSet.has(p.id);
+            return true;
+          });
+        }
+      }
+
       // Build result
-      const result: ProjectWithRelations[] = projectRows.map((project) => ({
+      const result: ProjectWithRelations[] = filteredRows.map((project) => ({
         ...project,
         taskStates: statesMap.get(project.id) || [],
         labels: labelsMap.get(project.id) || [],
@@ -406,6 +436,97 @@ export class ProjectService {
   async deleteLabel(labelId: string): Promise<Result<void, Error>> {
     try {
       await this.db.delete(labels).where(eq(labels.id, labelId));
+      return ok(undefined);
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error('Unknown error'));
+    }
+  }
+
+  // === Access Control ===
+
+  /**
+   * Check if a user has access to a project based on their workspace role.
+   * Owners/admins always have access.
+   */
+  async hasAccess(projectId: string, userId: string, workspaceRole: 'owner' | 'admin' | 'member'): Promise<boolean> {
+    if (workspaceRole === 'owner' || workspaceRole === 'admin') {
+      return true;
+    }
+
+    const [project] = await this.db
+      .select({ access: projects.access })
+      .from(projects)
+      .where(eq(projects.id, projectId));
+
+    if (!project) return false;
+    if (project.access === 'all') return true;
+    if (project.access === 'admin') return false;
+
+    // access === 'members' — check project_members table
+    const [member] = await this.db
+      .select({ id: projectMembers.id })
+      .from(projectMembers)
+      .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)))
+      .limit(1);
+
+    return !!member;
+  }
+
+  /**
+   * Get project members with user details.
+   */
+  async getMembers(projectId: string): Promise<Result<{ id: string; projectId: string; userId: string; createdAt: Date; user: { id: string; email: string; name: string | null; avatarUrl: string | null } }[], Error>> {
+    try {
+      const rows = await this.db
+        .select({
+          id: projectMembers.id,
+          projectId: projectMembers.projectId,
+          userId: projectMembers.userId,
+          createdAt: projectMembers.createdAt,
+          user: {
+            id: users.id,
+            email: users.email,
+            name: users.name,
+            avatarUrl: users.avatarUrl,
+          },
+        })
+        .from(projectMembers)
+        .innerJoin(users, eq(projectMembers.userId, users.id))
+        .where(eq(projectMembers.projectId, projectId));
+
+      return ok(rows);
+    } catch (error) {
+      return err(error instanceof Error ? error : new Error('Unknown error'));
+    }
+  }
+
+  /**
+   * Set the access mode and member list for a project.
+   * If access is not 'members', the members list is cleared.
+   */
+  async setAccess(projectId: string, access: 'all' | 'admin' | 'members', userIds?: string[]): Promise<Result<void, Error>> {
+    try {
+      await this.db.transaction(async (tx) => {
+        // Update access column
+        await tx
+          .update(projects)
+          .set({ access, updatedAt: new Date() })
+          .where(eq(projects.id, projectId));
+
+        // Clear existing members
+        await tx.delete(projectMembers).where(eq(projectMembers.projectId, projectId));
+
+        // Insert new members if access === 'members' and userIds provided
+        if (access === 'members' && userIds && userIds.length > 0) {
+          await tx.insert(projectMembers).values(
+            userIds.map((userId) => ({
+              projectId,
+              userId,
+            }))
+          );
+        }
+      });
+
       return ok(undefined);
     } catch (error) {
       return err(error instanceof Error ? error : new Error('Unknown error'));

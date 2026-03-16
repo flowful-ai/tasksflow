@@ -45,7 +45,7 @@ function triggerGitHubSync(
   });
 }
 
-// Helper to check task access via project -> workspace
+// Helper to check task access via project -> workspace + project access control
 async function checkTaskAccess(projectId: string, userId: string, permission: string) {
   const projectResult = await projectService.getById(projectId);
   if (!projectResult.ok) {
@@ -57,8 +57,15 @@ async function checkTaskAccess(projectId: string, userId: string, permission: st
     return { allowed: false, project: projectResult.value };
   }
 
+  const role = roleResult.value as 'owner' | 'admin' | 'member';
+  if (!hasPermission(role, permission as any)) {
+    return { allowed: false, project: projectResult.value };
+  }
+
+  // Check project-level access
+  const hasProjectAccess = await projectService.hasAccess(projectId, userId, role);
   return {
-    allowed: hasPermission(roleResult.value, permission as any),
+    allowed: hasProjectAccess,
     project: projectResult.value,
   };
 }
