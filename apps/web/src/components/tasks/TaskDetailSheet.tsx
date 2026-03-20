@@ -473,7 +473,7 @@ export function TaskDetailSheet({
                     value={task.stateId || ''}
                     onChange={(e) => handleStatusChange(e.target.value)}
                     disabled={updateMutation.isPending}
-                    className="w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors disabled:opacity-50"
+                    className="w-full px-3 py-2 text-base md:text-sm bg-white border border-gray-200 rounded-lg hover:border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors disabled:opacity-50"
                     style={{
                       borderLeftColor: task.state?.color || undefined,
                       borderLeftWidth: task.state?.color ? '4px' : undefined,
@@ -506,7 +506,7 @@ export function TaskDetailSheet({
                     onChange={(e) => handlePriorityChange(e.target.value)}
                     disabled={updateMutation.isPending}
                     className={clsx(
-                      'w-full px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg hover:border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors disabled:opacity-50',
+                      'w-full px-3 py-2 text-base md:text-sm bg-white border border-gray-200 rounded-lg hover:border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors disabled:opacity-50',
                       task.priority && 'font-medium'
                     )}
                   >
@@ -546,7 +546,7 @@ export function TaskDetailSheet({
                         setIsEditingDescription(false);
                       }
                     }}
-                    className="w-full min-h-[120px] px-3 py-2 text-sm border border-primary-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-y"
+                    className="w-full min-h-[120px] px-3 py-2 text-base md:text-sm border border-primary-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-y"
                     placeholder="Add a description..."
                     disabled={updateMutation.isPending}
                   />
@@ -812,7 +812,7 @@ export function TaskDetailSheet({
                         }}
                         placeholder="Add a comment..."
                         rows={2}
-                        className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none"
+                        className="flex-1 px-3 py-2 text-base md:text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none"
                         disabled={createCommentMutation.isPending}
                       />
                       <button

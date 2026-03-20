@@ -280,7 +280,7 @@ export function Layout({ children }: LayoutProps) {
         </header>
 
         {/* Page content */}
-        <main className="p-6 lg:p-10">{children}</main>
+        <main className="p-3 sm:p-6 lg:p-10">{children}</main>
       </div>
 
       {/* Mobile sidebar overlay */}

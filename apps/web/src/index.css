@@ -63,7 +63,7 @@ body {
 
 /* Input base */
 .input {
-  @apply w-full px-4 py-2.5 text-sm border border-neutral-200 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200;
+  @apply w-full px-4 py-2.5 text-base md:text-sm border border-neutral-200 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200;
 }
 
 /* Card */

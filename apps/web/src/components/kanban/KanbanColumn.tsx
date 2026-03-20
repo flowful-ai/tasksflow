@@ -18,7 +18,7 @@ export function KanbanColumn({ state, taskCount, children }: KanbanColumnProps) 
   });
 
   return (
-    <div className="flex-shrink-0 w-72">
+    <div className="flex-shrink-0 w-64 sm:w-72">
       {/* Column header */}
       <div className="flex items-center justify-between mb-3 px-1">
         <div className="flex items-center space-x-2">
