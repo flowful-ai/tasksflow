@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, githubApi } from '../../api/client';
+import { useAuthStore } from '../../stores/auth';
 
 interface TaskModalProps {
   taskId?: string;
@@ -27,8 +28,11 @@ export function TaskModal({
   const [description, setDescription] = useState('');
   const [stateId, setStateId] = useState('');
   const [priority, setPriority] = useState('');
+  const [assignToMe, setAssignToMe] = useState(false);
   const [createOnGitHub, setCreateOnGitHub] = useState(false);
   const [selectedRepo, setSelectedRepo] = useState<{ owner: string; repo: string } | null>(null);
+
+  const currentUserId = useAuthStore((state) => state.user?.id);
 
   // Fetch task if editing
   const { data: task } = useQuery({
@@ -76,6 +80,7 @@ export function TaskModal({
         description: description || undefined,
         stateId: stateId || undefined,
         priority: priority || undefined,
+        assigneeIds: assignToMe && currentUserId ? [currentUserId] : undefined,
         createOnGitHub: createOnGitHub && selectedRepo ? true : undefined,
         githubRepo: createOnGitHub && selectedRepo ? selectedRepo : undefined,
       });
@@ -200,6 +205,22 @@ export function TaskModal({
               </select>
             </div>
           </div>
+
+          {/* Assign to me - only show for new tasks */}
+          {!isEditing && (
+            <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+              <input
+                type="checkbox"
+                id="assignToMe"
+                checked={assignToMe}
+                onChange={(e) => setAssignToMe(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="assignToMe" className="text-sm text-gray-700">
+                Assign to me
+              </label>
+            </div>
+          )}
 
           {/* GitHub Integration - only show for new tasks when repos are linked */}
           {!isEditing && hasGitHub && (

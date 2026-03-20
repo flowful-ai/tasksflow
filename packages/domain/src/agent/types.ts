@@ -110,6 +110,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
         description: { type: 'string' },
         priority: TASK_PRIORITY_PARAMETER,
         stateId: { type: 'string' },
+        autoAssign: { type: 'boolean', description: 'Assign to the authenticated user' },
         return: RETURN_PARAMETER,
       },
       required: ['projectId', 'title'],

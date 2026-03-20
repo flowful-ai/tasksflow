@@ -101,6 +101,7 @@ export async function executeAgentTool(
         description: args.description as string | undefined,
         priority: args.priority as 'urgent' | 'high' | 'medium' | 'low' | 'none' | undefined,
         stateId: args.stateId as string | undefined,
+        assigneeIds: args.autoAssign ? [ctx.userId] : undefined,
         createdBy: ctx.userId,
         agentId: null,
         mcpClientId: ctx.mcpClientId,
