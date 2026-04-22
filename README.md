@@ -1,17 +1,19 @@
 # FlowTask
 
+[![CI](https://github.com/flowful-ai/tasksflow/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/flowful-ai/tasksflow/actions/workflows/ci.yml)
+
 A comprehensive task management platform with GitHub/Slack integrations, AI agent capabilities via MCP, and public shareable views. Built with Bun for blazing-fast performance.
 
 ## Features
 
-- **Kanban Board** - Drag-and-drop task management with customizable states
-- **Smart Views** - Create filtered views with complex query conditions
-- **Public Sharing** - Share views publicly with optional password protection
-- **GitHub Integration** - One-way sync from GitHub issues/PRs to FlowTask tasks
-- **Slack Integration** - Notifications sent to Slack channels on task updates
-- **AI Agents** - MCP server with tools for AI-powered task management
-- **Real-time Updates** - Native Bun WebSocket + Redis pub/sub for instant synchronization
-- **Multi-workspace** - Organize projects across multiple workspaces with RBAC
+- **Kanban Board**. Drag-and-drop task management with customizable states.
+- **Smart Views**. Create filtered views with complex query conditions.
+- **Public Sharing**. Share views publicly with optional password protection.
+- **GitHub Integration**. One-way sync from GitHub issues/PRs to FlowTask tasks.
+- **Slack Integration**. One-way notifications from FlowTask to Slack channels on task updates.
+- **AI Agents**. MCP server with tools for AI-powered task management.
+- **Real-time Updates**. Native Bun WebSocket + Redis pub/sub for instant synchronization.
+- **Multi-workspace**. Organize projects across multiple workspaces with RBAC.
 
 ## Tech Stack
 
@@ -44,8 +46,8 @@ A comprehensive task management platform with GitHub/Slack integrations, AI agen
 
 2. **Clone the repository**
    ```bash
-   git clone https://github.com/your-org/flowtask.git
-   cd flowtask
+   git clone https://github.com/flowful-ai/tasksflow.git
+   cd tasksflow
    ```
 
 3. **Install dependencies**
@@ -129,8 +131,8 @@ A comprehensive task management platform with GitHub/Slack integrations, AI agen
 
 3. **Clone and setup**
    ```powershell
-   git clone https://github.com/your-org/flowtask.git
-   cd flowtask
+   git clone https://github.com/flowful-ai/tasksflow.git
+   cd tasksflow
    bun install
    ```
 
@@ -252,8 +254,8 @@ docker exec -it flowtask-redis redis-cli MONITOR
 
 1. **Clone and configure**
    ```bash
-   git clone https://github.com/your-org/flowtask.git
-   cd flowtask
+   git clone https://github.com/flowful-ai/tasksflow.git
+   cd tasksflow
    cp .env.example .env
    ```
 
@@ -411,11 +413,11 @@ flowtask/
 
 FlowTask uses Bun as its primary runtime for several reasons:
 
-- **Speed**: Bun is significantly faster than Node.js for starting servers and running TypeScript
-- **Native TypeScript**: No transpilation step needed - Bun runs TypeScript directly
-- **Built-in WebSockets**: Native WebSocket support without additional packages
-- **All-in-one**: Package manager, bundler, test runner, and runtime in one tool
-- **Node.js Compatible**: Most npm packages work out of the box
+- **Speed**. Bun is significantly faster than Node.js for starting servers and running TypeScript.
+- **Native TypeScript**. No transpilation step needed. Bun runs TypeScript directly.
+- **Built-in WebSockets**. Native WebSocket support without additional packages.
+- **All-in-one**. Package manager, bundler, test runner, and runtime in one tool.
+- **Node.js Compatible**. Most npm packages work out of the box.
 
 ---
 
@@ -434,11 +436,13 @@ FlowTask uses Bun as its primary runtime for several reasons:
 
 ### Slack Integration
 
+FlowTask posts one-way notifications to Slack on task updates. It does not receive events or create tasks from Slack.
+
 1. Create a Slack App at https://api.slack.com/apps
-2. Enable Socket Mode
-3. Add Bot Token Scopes: `chat:write`, `channels:read`
-4. Install to workspace
-5. Add bot token and signing secret to `.env`
+2. Add the `chat:write` Bot Token Scope under **OAuth & Permissions**
+3. Install the app to your workspace and copy the Bot User OAuth Token
+4. Invite the bot to the target channel(s)
+5. Set `SLACK_BOT_TOKEN` and `SLACK_SIGNING_SECRET` in `.env`
 
 ### AI Agents (MCP)
 
@@ -471,4 +475,4 @@ FlowTask MCP now uses OAuth 2.1 (Authorization Code + PKCE) with dynamic client 
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License. See [LICENSE](LICENSE) for details.
