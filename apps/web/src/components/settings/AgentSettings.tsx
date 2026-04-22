@@ -2,23 +2,28 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bot, Copy, Check, Pencil, Trash2, Shield, Link2 } from 'lucide-react';
 import clsx from 'clsx';
+import { AgentToolSchema, type AgentTool } from '@flowtask/shared';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { mcpConnectionApi, type McpOAuthConnection } from '../../api/client';
 
-const AVAILABLE_PERMISSIONS = [
-  { id: 'create_task', label: 'Create tasks' },
-  { id: 'bulk_create_tasks', label: 'Bulk create tasks' },
-  { id: 'update_task', label: 'Update tasks' },
-  { id: 'delete_task', label: 'Delete tasks' },
-  { id: 'query_tasks', label: 'Query tasks' },
-  { id: 'move_task', label: 'Move tasks' },
-  { id: 'assign_task', label: 'Assign tasks' },
-  { id: 'add_comment', label: 'Add comments' },
-  { id: 'summarize_project', label: 'Summarize project' },
-  { id: 'create_smart_view', label: 'Create smart views' },
-  { id: 'search_tasks', label: 'Search tasks' },
-  { id: 'list_projects', label: 'List projects' },
-] as const;
+const AGENT_TOOL_LABELS: Record<AgentTool, string> = {
+  create_task: 'Create tasks',
+  bulk_create_tasks: 'Bulk create tasks',
+  update_task: 'Update tasks',
+  delete_task: 'Delete tasks',
+  query_tasks: 'Query tasks',
+  get_task: 'Get task details',
+  move_task: 'Move tasks',
+  assign_task: 'Assign tasks',
+  add_comment: 'Add comments',
+  summarize_project: 'Summarize project',
+  create_smart_view: 'Create smart views',
+  search_tasks: 'Search tasks',
+  list_projects: 'List projects',
+};
+
+const AVAILABLE_PERMISSIONS: ReadonlyArray<{ id: AgentTool; label: string }> =
+  AgentToolSchema.options.map((id) => ({ id, label: AGENT_TOOL_LABELS[id] }));
 
 function formatRelativeTime(dateStr: string | null): string {
   if (!dateStr) return 'Never';
