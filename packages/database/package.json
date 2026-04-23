@@ -30,7 +30,7 @@
   },
   "dependencies": {
     "@flowtask/shared": "workspace:*",
-    "drizzle-orm": "^0.38.2",
+    "drizzle-orm": "^0.45.0",
     "postgres": "^3.4.5"
   },
   "devDependencies": {
