@@ -1,7 +1,13 @@
 import { Redis } from 'ioredis';
+import { randomUUID } from 'crypto';
 
 // Type constraint for event payloads - must be an object (not primitive)
 type EventPayload = object;
+
+// Unique id for this process. Used to ignore Redis messages that this same
+// process published, since those events were already delivered locally by the
+// originating broadcast call (prevents double-delivery to local clients).
+const INSTANCE_ID = randomUUID();
 
 // Track SSE clients by workspace
 const workspaceClients = new Map<string, Set<ReadableStreamDefaultController>>();
@@ -24,7 +30,12 @@ export function initSSE() {
     subscriber.on('message', (channel, message) => {
       if (channel === 'sse:events') {
         try {
-          const { workspaceId, event, data } = JSON.parse(message);
+          const { workspaceId, event, data, origin } = JSON.parse(message);
+          // Skip messages we published ourselves — the originating
+          // broadcastToWorkspace call already delivered them to local clients.
+          if (origin === INSTANCE_ID) {
+            return;
+          }
           broadcastToWorkspace(workspaceId, event, data, false);
         } catch (error) {
           console.error('Failed to parse Redis message:', error);
@@ -88,9 +99,10 @@ function broadcastToWorkspace<T extends EventPayload>(
     }
   }
 
-  // Publish to Redis for other servers
+  // Publish to Redis for other servers. Tag with our INSTANCE_ID so we can
+  // ignore the echo of our own message (we already delivered locally above).
   if (publishToRedis && publisher) {
-    publisher.publish('sse:events', JSON.stringify({ workspaceId, event, data }));
+    publisher.publish('sse:events', JSON.stringify({ workspaceId, event, data, origin: INSTANCE_ID }));
   }
 }
 

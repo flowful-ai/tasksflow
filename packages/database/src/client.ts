@@ -9,7 +9,14 @@ export function createConnection(connectionString?: string) {
   if (!url) {
     throw new Error('DATABASE_URL environment variable is required');
   }
-  return postgres(url);
+  // Explicit pool limits so multiple processes don't exhaust Postgres
+  // connections, plus timeouts to fail fast on hung/dead connections.
+  return postgres(url, {
+    max: Number(process.env.DB_POOL_MAX ?? 10),
+    idle_timeout: 20, // seconds before an idle connection is closed
+    connect_timeout: 10, // seconds to wait for a new connection
+    max_lifetime: 60 * 30, // recycle connections after 30 minutes
+  });
 }
 
 // Create the drizzle database instance

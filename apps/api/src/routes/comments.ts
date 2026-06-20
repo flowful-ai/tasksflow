@@ -4,7 +4,7 @@ import { getDatabase } from '@flowtask/database';
 import { CommentService, TaskService, ProjectService, WorkspaceService } from '@flowtask/domain';
 import { getCurrentUser } from '@flowtask/auth';
 import { CreateCommentSchema, UpdateCommentSchema } from '@flowtask/shared';
-import { hasPermission } from '@flowtask/auth';
+import { hasPermission, type WorkspacePermission } from '@flowtask/auth';
 import { publishEvent } from '../sse/manager.js';
 import { GitHubReverseSyncService } from '@flowtask/integrations';
 
@@ -17,7 +17,7 @@ const workspaceService = new WorkspaceService(db);
 const githubReverseSync = new GitHubReverseSyncService(db);
 
 // Helper to check task access via project -> workspace
-async function checkTaskAccess(taskId: string, userId: string, permission: string) {
+async function checkTaskAccess(taskId: string, userId: string, permission: WorkspacePermission) {
   const taskResult = await taskService.getById(taskId);
   if (!taskResult.ok) {
     return { allowed: false, task: null, project: null };
@@ -34,7 +34,7 @@ async function checkTaskAccess(taskId: string, userId: string, permission: strin
   }
 
   return {
-    allowed: hasPermission(roleResult.value, permission as any),
+    allowed: hasPermission(roleResult.value, permission),
     task: taskResult.value,
     project: projectResult.value,
   };

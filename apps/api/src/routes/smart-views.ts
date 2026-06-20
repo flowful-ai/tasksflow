@@ -5,7 +5,7 @@ import { getDatabase } from '@flowtask/database';
 import { SmartViewService, WorkspaceService, TaskService, ProjectService } from '@flowtask/domain';
 import { getCurrentUser } from '@flowtask/auth';
 import { CreateSmartViewSchema, UpdateSmartViewSchema, CreatePublicShareSchema, type FilterGroup } from '@flowtask/shared';
-import { hasPermission } from '@flowtask/auth';
+import { hasPermission, type WorkspacePermission } from '@flowtask/auth';
 import {
   executeSmartViewTaskList,
   smartViewUsesCurrentUserTemplate,
@@ -21,13 +21,13 @@ const taskService = new TaskService(db);
 const projectService = new ProjectService(db);
 
 // Helper to check workspace access
-async function checkWorkspaceAccess(workspaceId: string, userId: string, permission: string) {
+async function checkWorkspaceAccess(workspaceId: string, userId: string, permission: WorkspacePermission) {
   const roleResult = await workspaceService.getMemberRole(workspaceId, userId);
   if (!roleResult.ok || !roleResult.value) {
     return { allowed: false, role: null };
   }
   return {
-    allowed: hasPermission(roleResult.value, permission as any),
+    allowed: hasPermission(roleResult.value, permission),
     role: roleResult.value,
   };
 }
@@ -349,7 +349,7 @@ smartViews.post('/:viewId/public/:shareId/disable', async (c) => {
     return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
   }
 
-  const result = await smartViewService.disablePublicShare(shareId);
+  const result = await smartViewService.disablePublicShare(viewId, shareId);
 
   if (!result.ok) {
     return c.json({ success: false, error: { code: 'DISABLE_FAILED', message: result.error.message } }, 400);
@@ -374,7 +374,7 @@ smartViews.delete('/:viewId/public/:shareId', async (c) => {
     return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
   }
 
-  const result = await smartViewService.deletePublicShare(shareId);
+  const result = await smartViewService.deletePublicShare(viewId, shareId);
 
   if (!result.ok) {
     return c.json({ success: false, error: { code: 'DELETE_FAILED', message: result.error.message } }, 400);

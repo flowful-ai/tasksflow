@@ -49,7 +49,6 @@ export const usersRelations = relations(users, ({ many }) => ({
   mcpOAuthAuthorizationCodes: many(mcpOAuthAuthorizationCodes),
   mcpOAuthAccessTokens: many(mcpOAuthAccessTokens),
   mcpOAuthRefreshTokens: many(mcpOAuthRefreshTokens),
-  apiKeys: many(workspaceApiKeys),
 }));
 
 // Workspace relations
@@ -64,6 +63,7 @@ export const workspacesRelations = relations(workspaces, ({ many }) => ({
   mcpOAuthAuthorizationCodes: many(mcpOAuthAuthorizationCodes),
   mcpOAuthAccessTokens: many(mcpOAuthAccessTokens),
   mcpOAuthRefreshTokens: many(mcpOAuthRefreshTokens),
+  apiKeys: many(workspaceApiKeys),
 }));
 
 // Workspace member relations

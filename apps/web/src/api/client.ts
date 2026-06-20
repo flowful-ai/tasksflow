@@ -31,35 +31,49 @@ async function request<T>(endpoint: string, options: ApiOptions = {}): Promise<T
     credentials: 'include',
   };
 
-  if (body) {
+  if (body !== undefined) {
     config.body = JSON.stringify(body);
   }
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-  const data = await response.json();
+  // Tolerate empty bodies (e.g. 204 No Content from DELETE) and non-JSON
+  // responses instead of throwing a confusing JSON parse error.
+  const text = await response.text();
+  let data: unknown;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      // Leave data undefined for non-JSON bodies.
+    }
+  }
 
   if (!response.ok) {
     // Handle different error formats from API and Better Auth
     let message = 'An error occurred';
     let code = 'UNKNOWN';
 
-    if (data.message) {
-      // Better Auth format: { code: "...", message: "..." }
-      message = data.message;
-      code = data.code || code;
-    } else if (data.error?.message) {
-      // Nested error format: { error: { message: "...", status: ... } }
-      message = data.error.message;
-      code = data.error.code || code;
-    } else if (data.error && typeof data.error === 'string') {
-      // Simple error format: { error: "..." }
-      message = data.error;
+    if (data && typeof data === 'object') {
+      const obj = data as { message?: unknown; code?: unknown; error?: unknown };
+      if (typeof obj.message === 'string') {
+        // Better Auth format: { code: "...", message: "..." }
+        message = obj.message;
+        if (typeof obj.code === 'string') code = obj.code;
+      } else if (obj.error && typeof obj.error === 'object') {
+        // Nested error format: { error: { message: "...", status: ... } }
+        const err = obj.error as { message?: unknown; code?: unknown };
+        if (typeof err.message === 'string') message = err.message;
+        if (typeof err.code === 'string') code = err.code;
+      } else if (typeof obj.error === 'string') {
+        // Simple error format: { error: "..." }
+        message = obj.error;
+      }
     }
 
     throw new ApiError(message, code, response.status);
   }
 
-  return data;
+  return data as T;
 }
 
 export const api = {
