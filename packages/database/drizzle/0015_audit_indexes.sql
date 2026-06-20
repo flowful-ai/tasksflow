@@ -11,3 +11,5 @@ CREATE INDEX IF NOT EXISTS "comment_user_idx" ON "comments" USING btree ("user_i
 CREATE INDEX IF NOT EXISTS "smart_view_share_user_idx" ON "smart_view_shares" USING btree ("shared_with_user_id");
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "public_share_smart_view_idx" ON "public_shares" USING btree ("smart_view_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "comment_external_comment_idx" ON "comments" USING btree ("external_comment_id");

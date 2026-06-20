@@ -74,19 +74,18 @@ export interface OpenRouterModel {
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1';
 
 // Abort outbound OpenRouter requests that hang, so a stuck upstream connection
-// can't block a request (or an agent loop) indefinitely.
-const REQUEST_TIMEOUT_MS = 60_000;
+// can't block a request (or an agent loop) indefinitely. Generous by default so
+// legitimately slow tool-use completions aren't cut off; override if needed.
+const REQUEST_TIMEOUT_MS = Number(process.env.OPENROUTER_TIMEOUT_MS ?? 120_000);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
 
 // Safely pull `{ error: { message } }` out of an unknown OpenRouter error body.
 function extractErrorMessage(body: unknown): string | undefined {
-  if (body && typeof body === 'object' && 'error' in body) {
-    const error = (body as { error: unknown }).error;
-    if (error && typeof error === 'object' && 'message' in error) {
-      const message = (error as { message: unknown }).message;
-      if (typeof message === 'string') {
-        return message;
-      }
-    }
+  if (isRecord(body) && isRecord(body.error) && typeof body.error.message === 'string') {
+    return body.error.message;
   }
   return undefined;
 }

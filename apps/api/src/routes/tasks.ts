@@ -97,12 +97,14 @@ tasks.get('/', async (c) => {
     return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
   }
 
+  // Map present-but-empty params ("?sortBy=") to undefined so the schema
+  // defaults apply instead of failing the enum/number validation.
   const parsedQuery = TaskListQuerySchema.safeParse({
-    priority: c.req.query('priority'),
-    sortBy: c.req.query('sortBy'),
-    sortOrder: c.req.query('sortOrder'),
-    page: c.req.query('page'),
-    limit: c.req.query('limit'),
+    priority: c.req.query('priority') || undefined,
+    sortBy: c.req.query('sortBy') || undefined,
+    sortOrder: c.req.query('sortOrder') || undefined,
+    page: c.req.query('page') || undefined,
+    limit: c.req.query('limit') || undefined,
   });
   if (!parsedQuery.success) {
     return c.json({ success: false, error: { code: 'INVALID_QUERY', message: 'Invalid query parameters' } }, 400);

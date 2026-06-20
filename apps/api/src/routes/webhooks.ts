@@ -241,7 +241,13 @@ webhooks.post('/github', async (c) => {
         // Idempotency: GitHub retries deliveries, so skip if we've already
         // synced this comment (avoids duplicate comments on redelivery).
         const existingComment = await commentService.findByExternalId(externalCommentId);
-        if (existingComment.ok && existingComment.value) {
+        if (!existingComment.ok) {
+          // Don't fall through to create on a lookup error — that would defeat
+          // the idempotency guard. Return 500 so GitHub retries the delivery.
+          console.error('Failed to check for existing synced comment:', existingComment.error);
+          return c.json({ error: 'Failed to sync comment' }, 500);
+        }
+        if (existingComment.value) {
           return c.json({
             status: 'ignored',
             reason: 'Comment already synced',

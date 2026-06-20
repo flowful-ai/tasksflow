@@ -105,10 +105,9 @@ export async function executeSmartViewTaskList({
   const projectsResult = await projectService.list({ filters: { workspaceId: view.workspaceId } });
   const projectIds = projectsResult.ok ? projectsResult.value.map((project) => project.id) : [];
 
-  // Guard against a cross-tenant leak: taskService.list only applies the
-  // projectIds constraint when the array is non-empty, so an empty list
-  // (workspace with no projects) combined with a null filterSql would match
-  // every task across all workspaces. Short-circuit to an empty result.
+  // A workspace with no projects has no tasks. Short-circuit to skip the count
+  // + select round-trips. (TaskService.list also treats an empty projectIds
+  // array as "match nothing", so this is an optimization, not the only guard.)
   if (projectIds.length === 0) {
     return ok({ tasks: [], total: 0 });
   }

@@ -19,6 +19,10 @@ class ApiError extends Error {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
 async function request<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
   const { method = 'GET', body, headers = {} } = options;
 
@@ -53,20 +57,18 @@ async function request<T>(endpoint: string, options: ApiOptions = {}): Promise<T
     let message = 'An error occurred';
     let code = 'UNKNOWN';
 
-    if (data && typeof data === 'object') {
-      const obj = data as { message?: unknown; code?: unknown; error?: unknown };
-      if (typeof obj.message === 'string') {
+    if (isRecord(data)) {
+      if (typeof data.message === 'string') {
         // Better Auth format: { code: "...", message: "..." }
-        message = obj.message;
-        if (typeof obj.code === 'string') code = obj.code;
-      } else if (obj.error && typeof obj.error === 'object') {
+        message = data.message;
+        if (typeof data.code === 'string') code = data.code;
+      } else if (isRecord(data.error)) {
         // Nested error format: { error: { message: "...", status: ... } }
-        const err = obj.error as { message?: unknown; code?: unknown };
-        if (typeof err.message === 'string') message = err.message;
-        if (typeof err.code === 'string') code = err.code;
-      } else if (typeof obj.error === 'string') {
+        if (typeof data.error.message === 'string') message = data.error.message;
+        if (typeof data.error.code === 'string') code = data.error.code;
+      } else if (typeof data.error === 'string') {
         // Simple error format: { error: "..." }
-        message = obj.error;
+        message = data.error;
       }
     }
 

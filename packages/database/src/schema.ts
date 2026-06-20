@@ -301,6 +301,9 @@ export const comments = pgTable(
     index('comment_task_idx').on(table.taskId),
     // Supports the set-null on user delete and "comments by user" lookups.
     index('comment_user_idx').on(table.userId),
+    // Synced-comment lookups (idempotency check, update/delete by external id)
+    // filter on external_comment_id.
+    index('comment_external_comment_idx').on(table.externalCommentId),
   ]
 );
 
