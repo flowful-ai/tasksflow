@@ -16,7 +16,7 @@ import {
   UpdateAgentSchema,
   getRequiredApiKeyProvidersForModel,
 } from '@flowtask/shared';
-import { hasPermission } from '@flowtask/auth';
+import { hasPermission, type WorkspacePermission } from '@flowtask/auth';
 import { buildAiSdkTools } from '../services/agent-tool-runtime.js';
 
 const ExecuteAgentMessageSchema = z.object({
@@ -44,13 +44,13 @@ const agentService = new AgentService(db);
 const workspaceService = new WorkspaceService(db);
 const projectService = new ProjectService(db);
 
-async function checkWorkspaceAccess(workspaceId: string, userId: string, permission: string) {
+async function checkWorkspaceAccess(workspaceId: string, userId: string, permission: WorkspacePermission) {
   const roleResult = await workspaceService.getMemberRole(workspaceId, userId);
   if (!roleResult.ok || !roleResult.value) {
     return { allowed: false, role: null };
   }
   return {
-    allowed: hasPermission(roleResult.value, permission as any),
+    allowed: hasPermission(roleResult.value, permission),
     role: roleResult.value,
   };
 }

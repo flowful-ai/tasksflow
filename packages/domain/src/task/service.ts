@@ -390,8 +390,11 @@ export class TaskService {
         conditions.push(eq(tasks.projectId, filters.projectId));
       }
 
-      if (filters.projectIds?.length) {
-        conditions.push(inArray(tasks.projectId, filters.projectIds));
+      if (filters.projectIds) {
+        // An explicitly-empty list means "match nothing" — without this, an
+        // empty array would drop the constraint entirely and (with no other
+        // filters) return every task across all workspaces.
+        conditions.push(filters.projectIds.length ? inArray(tasks.projectId, filters.projectIds) : sql`false`);
       }
 
       if (filters.stateId) {

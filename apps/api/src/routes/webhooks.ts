@@ -15,11 +15,21 @@ const commentService = new CommentService(db);
 const githubProvider = new GitHubProvider();
 const slackProvider = new SlackProvider();
 
+// Constant-time string comparison that tolerates differing lengths.
+// crypto.timingSafeEqual throws a RangeError when the buffers differ in
+// length, so guard the length first (the early return is for an
+// attacker-controlled value and reveals nothing beyond length).
+function safeEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  return bufA.length === bufB.length && crypto.timingSafeEqual(bufA, bufB);
+}
+
 // Verify GitHub webhook signature
 function verifyGitHubSignature(payload: string, signature: string, secret: string): boolean {
   const hmac = crypto.createHmac('sha256', secret);
   const digest = 'sha256=' + hmac.update(payload).digest('hex');
-  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest));
+  return safeEqual(signature, digest);
 }
 
 // Verify Slack request signature
@@ -32,7 +42,7 @@ function verifySlackSignature(
   const baseString = `v0:${timestamp}:${body}`;
   const hmac = crypto.createHmac('sha256', secret);
   const mySignature = 'v0=' + hmac.update(baseString).digest('hex');
-  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(mySignature));
+  return safeEqual(signature, mySignature);
 }
 
 // GitHub webhook endpoint
@@ -228,6 +238,23 @@ webhooks.post('/github', async (c) => {
       }
 
       if (result.action === 'sync_comment') {
+        // Idempotency: GitHub retries deliveries, so skip if we've already
+        // synced this comment (avoids duplicate comments on redelivery).
+        const existingComment = await commentService.findByExternalId(externalCommentId);
+        if (!existingComment.ok) {
+          // Don't fall through to create on a lookup error — that would defeat
+          // the idempotency guard. Return 500 so GitHub retries the delivery.
+          console.error('Failed to check for existing synced comment:', existingComment.error);
+          return c.json({ error: 'Failed to sync comment' }, 500);
+        }
+        if (existingComment.value) {
+          return c.json({
+            status: 'ignored',
+            reason: 'Comment already synced',
+            commentId: existingComment.value.id,
+          });
+        }
+
         // Try to match GitHub author to workspace member
         // The accounts table stores GitHub accountId (numeric as string) where providerId = 'github'
         const [matchedAccount] = await db

@@ -44,6 +44,12 @@ export class GitHubSyncService {
 
       for (const issue of issues) {
         try {
+          // GitHub's issues endpoint also returns pull requests; skip those so
+          // PRs aren't ingested as tasks (the PR webhook path handles them).
+          if (issue.pull_request) {
+            continue;
+          }
+
           // Check if we already have this issue linked
           const [existingLink] = await this.db
             .select()

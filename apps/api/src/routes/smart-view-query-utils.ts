@@ -1,13 +1,13 @@
 import { FilterEngine, type ProjectService, type TaskService } from '@flowtask/domain';
-import type { FilterCondition, FilterGroup } from '@flowtask/shared';
+import { ok, type FilterCondition, type FilterGroup } from '@flowtask/shared';
 
 export const CURRENT_USER_TEMPLATE = '{{current_user}}';
 export const UNSUPPORTED_PUBLIC_FILTER_CODE = 'UNSUPPORTED_PUBLIC_FILTER';
 export const UNSUPPORTED_PUBLIC_FILTER_MESSAGE =
   'This view uses "Current user (me)" filters, which are not supported for public shares.';
 
-const VALID_TASK_SORT_BY = ['position', 'created_at', 'updated_at', 'due_date', 'priority', 'sequence_number'] as const;
-const VALID_TASK_SORT_ORDER = ['asc', 'desc'] as const;
+export const VALID_TASK_SORT_BY = ['position', 'created_at', 'updated_at', 'due_date', 'priority', 'sequence_number'] as const;
+export const VALID_TASK_SORT_ORDER = ['asc', 'desc'] as const;
 
 type TaskSortBy = (typeof VALID_TASK_SORT_BY)[number];
 type TaskSortOrder = (typeof VALID_TASK_SORT_ORDER)[number];
@@ -104,6 +104,13 @@ export async function executeSmartViewTaskList({
 
   const projectsResult = await projectService.list({ filters: { workspaceId: view.workspaceId } });
   const projectIds = projectsResult.ok ? projectsResult.value.map((project) => project.id) : [];
+
+  // A workspace with no projects has no tasks. Short-circuit to skip the count
+  // + select round-trips. (TaskService.list also treats an empty projectIds
+  // array as "match nothing", so this is an optimization, not the only guard.)
+  if (projectIds.length === 0) {
+    return ok({ tasks: [], total: 0 });
+  }
 
   return taskService.list({
     filters: { projectIds },

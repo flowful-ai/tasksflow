@@ -73,6 +73,23 @@ export interface OpenRouterModel {
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1';
 
+// Abort outbound OpenRouter requests that hang, so a stuck upstream connection
+// can't block a request (or an agent loop) indefinitely. Generous by default so
+// legitimately slow tool-use completions aren't cut off; override if needed.
+const REQUEST_TIMEOUT_MS = Number(process.env.OPENROUTER_TIMEOUT_MS ?? 120_000);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+// Safely pull `{ error: { message } }` out of an unknown OpenRouter error body.
+function extractErrorMessage(body: unknown): string | undefined {
+  if (isRecord(body) && isRecord(body.error) && typeof body.error.message === 'string') {
+    return body.error.message;
+  }
+  return undefined;
+}
+
 /**
  * OpenRouter API client.
  */
@@ -100,11 +117,12 @@ export class OpenRouterClient {
         'X-Title': this.siteName,
       },
       body: JSON.stringify(request),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-      throw new Error(`OpenRouter API error: ${(error as any).error?.message || response.statusText}`);
+      const body: unknown = await response.json().catch(() => null);
+      throw new Error(`OpenRouter API error: ${extractErrorMessage(body) || response.statusText}`);
     }
 
     return response.json() as Promise<OpenRouterCompletionResponse>;
@@ -225,6 +243,7 @@ export class OpenRouterClient {
       headers: {
         'Authorization': `Bearer ${this.apiKey}`,
       },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
 
     if (!response.ok) {

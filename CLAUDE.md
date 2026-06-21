@@ -339,7 +339,7 @@ bun run dev
 | `packages/domain/src/smart-view/filter-engine.ts` | JSON filter → SQL conversion |
 | `apps/api/src/index.ts` | API server entry point (Bun.serve) |
 | `apps/api/src/websocket/handler.ts` | Bun WebSocket handling |
-| `apps/web/src/components/kanban/KanbanBoard.tsx` | Main kanban UI |
+| `apps/web/src/components/task-display/GroupedKanbanBoard.tsx` | Main kanban UI |
 | `apps/web/src/stores/workspace.ts` | Workspace/project state management |
 
 ## Performance Considerations

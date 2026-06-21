@@ -5,7 +5,7 @@ import { getDatabase } from '@flowtask/database';
 import { ProjectService, WorkspaceService } from '@flowtask/domain';
 import { getCurrentUser } from '@flowtask/auth';
 import { CreateProjectSchema, UpdateProjectSchema, CreateTaskStateSchema, CreateLabelSchema } from '@flowtask/shared';
-import { hasPermission } from '@flowtask/auth';
+import { hasPermission, type WorkspacePermission } from '@flowtask/auth';
 
 const projects = new Hono();
 const db = getDatabase();
@@ -13,13 +13,13 @@ const projectService = new ProjectService(db);
 const workspaceService = new WorkspaceService(db);
 
 // Helper to check workspace access
-async function checkWorkspaceAccess(workspaceId: string, userId: string, permission: string) {
+async function checkWorkspaceAccess(workspaceId: string, userId: string, permission: WorkspacePermission) {
   const roleResult = await workspaceService.getMemberRole(workspaceId, userId);
   if (!roleResult.ok || !roleResult.value) {
     return { allowed: false, role: null };
   }
   return {
-    allowed: hasPermission(roleResult.value, permission as any),
+    allowed: hasPermission(roleResult.value, permission),
     role: roleResult.value,
   };
 }

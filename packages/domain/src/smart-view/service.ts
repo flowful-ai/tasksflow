@@ -430,11 +430,15 @@ export class SmartViewService {
   }
 
   /**
-   * Disable a public share.
+   * Disable a public share. Scoped to smartViewId so a share can only be
+   * disabled through the view that owns it (prevents cross-view/tenant IDOR).
    */
-  async disablePublicShare(shareId: string): Promise<Result<void, Error>> {
+  async disablePublicShare(smartViewId: string, shareId: string): Promise<Result<void, Error>> {
     try {
-      await this.db.update(publicShares).set({ isActive: false }).where(eq(publicShares.id, shareId));
+      await this.db
+        .update(publicShares)
+        .set({ isActive: false })
+        .where(and(eq(publicShares.id, shareId), eq(publicShares.smartViewId, smartViewId)));
 
       return ok(undefined);
     } catch (error) {
@@ -443,11 +447,14 @@ export class SmartViewService {
   }
 
   /**
-   * Delete a public share.
+   * Delete a public share. Scoped to smartViewId so a share can only be
+   * deleted through the view that owns it (prevents cross-view/tenant IDOR).
    */
-  async deletePublicShare(shareId: string): Promise<Result<void, Error>> {
+  async deletePublicShare(smartViewId: string, shareId: string): Promise<Result<void, Error>> {
     try {
-      await this.db.delete(publicShares).where(eq(publicShares.id, shareId));
+      await this.db
+        .delete(publicShares)
+        .where(and(eq(publicShares.id, shareId), eq(publicShares.smartViewId, smartViewId)));
       return ok(undefined);
     } catch (error) {
       return err(error instanceof Error ? error : new Error('Unknown error'));

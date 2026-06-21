@@ -71,37 +71,19 @@ export const authApi = {
   },
 
   linkSocial: async (input: LinkSocialInput): Promise<LinkSocialResponse> => {
-    console.log('[authApi.linkSocial] Starting with input:', input);
-    try {
-      // Use fetchOptions to disable auto-redirect and get the URL manually
-      const result = await authClient.linkSocial(
-        {
-          provider: input.provider,
-          callbackURL: input.callbackURL,
-          scopes: input.scopes,
-        },
-        {
-          onSuccess: (ctx) => {
-            console.log('[authApi.linkSocial] onSuccess ctx:', ctx);
-          },
-          onError: (ctx) => {
-            console.error('[authApi.linkSocial] onError ctx:', ctx);
-          },
-        }
-      );
-      console.log('[authApi.linkSocial] Result:', result);
-      if (result.error) {
-        console.error('[authApi.linkSocial] Error:', result.error);
-        throw new Error(result.error.message || 'Failed to link social account');
-      }
-      return {
-        url: result.data?.url || '',
-        redirect: result.data?.redirect || false,
-      };
-    } catch (err) {
-      console.error('[authApi.linkSocial] Exception:', err);
-      throw err;
+    // Use fetchOptions to disable auto-redirect and get the URL manually
+    const result = await authClient.linkSocial({
+      provider: input.provider,
+      callbackURL: input.callbackURL,
+      scopes: input.scopes,
+    });
+    if (result.error) {
+      throw new Error(result.error.message || 'Failed to link social account');
     }
+    return {
+      url: result.data?.url || '',
+      redirect: result.data?.redirect || false,
+    };
   },
 
   unlinkAccount: async (input: UnlinkAccountInput): Promise<{ status: boolean }> => {

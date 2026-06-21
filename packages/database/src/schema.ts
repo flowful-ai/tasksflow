@@ -177,6 +177,9 @@ export const tasks = pgTable(
     index('task_project_idx').on(table.projectId),
     index('task_state_idx').on(table.stateId),
     index('task_assignee_idx').on(table.createdBy),
+    // Composite index for the primary board query: filter by project (+state)
+    // and order by position, avoiding an in-memory sort on every kanban load.
+    index('task_project_state_position_idx').on(table.projectId, table.stateId, table.position),
     uniqueIndex('unique_task_sequence').on(table.projectId, table.sequenceNumber),
   ]
 );
@@ -223,7 +226,12 @@ export const taskLabels = pgTable(
       .references(() => labels.id, { onDelete: 'cascade' })
       .notNull(),
   },
-  (table) => [uniqueIndex('unique_task_label').on(table.taskId, table.labelId)]
+  (table) => [
+    uniqueIndex('unique_task_label').on(table.taskId, table.labelId),
+    // Filtering tasks by label uses label_id, which the unique index can't serve
+    // (label_id is not its leading column).
+    index('task_label_label_idx').on(table.labelId),
+  ]
 );
 
 // One-way sync tracking (External → FlowTask only)
@@ -245,6 +253,7 @@ export const externalLinks = pgTable(
   },
   (table) => [
     index('external_link_task_idx').on(table.taskId),
+    index('external_link_integration_idx').on(table.integrationId),
     uniqueIndex('unique_external_link').on(table.integrationId, table.externalType, table.externalId),
   ]
 );
@@ -266,7 +275,11 @@ export const taskEvents = pgTable(
     newValue: jsonb('new_value'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
-  (table) => [index('task_event_task_idx').on(table.taskId)]
+  (table) => [
+    index('task_event_task_idx').on(table.taskId),
+    // Supports "activity by actor" lookups and the set-null on user delete.
+    index('task_event_actor_idx').on(table.actorId),
+  ]
 );
 
 export const comments = pgTable(
@@ -284,7 +297,14 @@ export const comments = pgTable(
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
     deletedAt: timestamp('deleted_at'), // Soft delete
   },
-  (table) => [index('comment_task_idx').on(table.taskId)]
+  (table) => [
+    index('comment_task_idx').on(table.taskId),
+    // Supports the set-null on user delete and "comments by user" lookups.
+    index('comment_user_idx').on(table.userId),
+    // Synced-comment lookups (idempotency check, update/delete by external id)
+    // filter on external_comment_id.
+    index('comment_external_comment_idx').on(table.externalCommentId),
+  ]
 );
 
 // ============ SMART VIEWS ============
@@ -342,7 +362,11 @@ export const smartViewShares = pgTable(
     permission: text('permission').default('view').notNull(), // 'view', 'edit'
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
-  (table) => [uniqueIndex('unique_smart_view_share').on(table.smartViewId, table.sharedWithUserId)]
+  (table) => [
+    uniqueIndex('unique_smart_view_share').on(table.smartViewId, table.sharedWithUserId),
+    // "Views shared with me" lookups query by the non-leading shared_with_user_id.
+    index('smart_view_share_user_idx').on(table.sharedWithUserId),
+  ]
 );
 
 export const publicShares = pgTable(
@@ -364,7 +388,11 @@ export const publicShares = pgTable(
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
-  (table) => [index('public_share_token_idx').on(table.token)]
+  (table) => [
+    index('public_share_token_idx').on(table.token),
+    // Listing shares for a view queries by smart_view_id.
+    index('public_share_smart_view_idx').on(table.smartViewId),
+  ]
 );
 
 // ============ AI AGENTS ============

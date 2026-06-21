@@ -19,6 +19,10 @@ class ApiError extends Error {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
 async function request<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
   const { method = 'GET', body, headers = {} } = options;
 
@@ -31,35 +35,47 @@ async function request<T>(endpoint: string, options: ApiOptions = {}): Promise<T
     credentials: 'include',
   };
 
-  if (body) {
+  if (body !== undefined) {
     config.body = JSON.stringify(body);
   }
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-  const data = await response.json();
+  // Tolerate empty bodies (e.g. 204 No Content from DELETE) and non-JSON
+  // responses instead of throwing a confusing JSON parse error.
+  const text = await response.text();
+  let data: unknown;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      // Leave data undefined for non-JSON bodies.
+    }
+  }
 
   if (!response.ok) {
     // Handle different error formats from API and Better Auth
     let message = 'An error occurred';
     let code = 'UNKNOWN';
 
-    if (data.message) {
-      // Better Auth format: { code: "...", message: "..." }
-      message = data.message;
-      code = data.code || code;
-    } else if (data.error?.message) {
-      // Nested error format: { error: { message: "...", status: ... } }
-      message = data.error.message;
-      code = data.error.code || code;
-    } else if (data.error && typeof data.error === 'string') {
-      // Simple error format: { error: "..." }
-      message = data.error;
+    if (isRecord(data)) {
+      if (typeof data.message === 'string') {
+        // Better Auth format: { code: "...", message: "..." }
+        message = data.message;
+        if (typeof data.code === 'string') code = data.code;
+      } else if (isRecord(data.error)) {
+        // Nested error format: { error: { message: "...", status: ... } }
+        if (typeof data.error.message === 'string') message = data.error.message;
+        if (typeof data.error.code === 'string') code = data.error.code;
+      } else if (typeof data.error === 'string') {
+        // Simple error format: { error: "..." }
+        message = data.error;
+      }
     }
 
     throw new ApiError(message, code, response.status);
   }
 
-  return data;
+  return data as T;
 }
 
 export const api = {

@@ -215,14 +215,17 @@ export class ProjectService {
         return ok([]);
       }
 
-      // Get states, labels, integrations, and task counts for all projects
+      // Get states, labels, integrations, and task counts — scoped to just the
+      // projects fetched above. Without these WHERE clauses every query scans
+      // and returns rows for every project across all workspaces.
       const [allStates, allLabels, allIntegrations, taskCounts] = await Promise.all([
-        this.db.select().from(taskStates).orderBy(asc(taskStates.position)),
-        this.db.select().from(labels).orderBy(asc(labels.name)),
-        this.db.select().from(projectIntegrations),
+        this.db.select().from(taskStates).where(inArray(taskStates.projectId, projectIds)).orderBy(asc(taskStates.position)),
+        this.db.select().from(labels).where(inArray(labels.projectId, projectIds)).orderBy(asc(labels.name)),
+        this.db.select().from(projectIntegrations).where(inArray(projectIntegrations.projectId, projectIds)),
         this.db
           .select({ projectId: tasks.projectId, count: sql<number>`COUNT(*)` })
           .from(tasks)
+          .where(inArray(tasks.projectId, projectIds))
           .groupBy(tasks.projectId),
       ]);
 

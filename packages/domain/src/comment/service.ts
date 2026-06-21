@@ -120,7 +120,7 @@ export class CommentService {
       // First verify the comment exists
       const currentResult = await this.getById(commentId);
       if (!currentResult.ok) {
-        return currentResult as unknown as Result<void, Error>;
+        return err(currentResult.error);
       }
       const current = currentResult.value;
 

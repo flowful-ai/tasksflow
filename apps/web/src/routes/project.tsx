@@ -272,8 +272,18 @@ export function ProjectPage() {
   };
 
   const handleTaskMove = async (taskId: string, stateId: string, position: string) => {
-    await api.post(`/api/tasks/${taskId}/move`, { stateId, position });
-    await refreshTaskData();
+    try {
+      await api.post(`/api/tasks/${taskId}/move`, { stateId, position });
+    } catch (error) {
+      // Surface the failure and refetch so the board reverts the optimistic
+      // position instead of silently desyncing from the server.
+      setBulkNotice({
+        type: 'error',
+        message: error instanceof Error ? `Failed to move task: ${error.message}` : 'Failed to move task.',
+      });
+    } finally {
+      await refreshTaskData();
+    }
   };
 
   const handleTaskClick = (taskId: string, event: MouseEvent<HTMLDivElement>) => {

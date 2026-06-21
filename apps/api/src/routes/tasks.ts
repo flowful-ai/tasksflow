@@ -10,12 +10,25 @@ import {
   MoveTaskSchema,
   CreateCommentSchema,
   LinkTaskGitHubPrSchema,
+  TaskPrioritySchema,
 } from '@flowtask/shared';
-import { hasPermission } from '@flowtask/auth';
+import { hasPermission, type WorkspacePermission } from '@flowtask/auth';
 import { publishEvent } from '../sse/manager.js';
 import { GitHubReverseSyncService, createGitHubClientForInstallation } from '@flowtask/integrations';
 import { and, eq } from 'drizzle-orm';
 import { TaskGitHubLinkError, TaskGitHubLinkService } from '../services/task-github-link-service.js';
+import { VALID_TASK_SORT_BY, VALID_TASK_SORT_ORDER } from './smart-view-query-utils.js';
+
+// Validates and coerces task-list query params. Keeps invalid values out of the
+// service layer and clamps `limit` so a client can't request an unbounded page.
+// Sort vocabularies are shared with smart-view query execution so they can't drift.
+const TaskListQuerySchema = z.object({
+  priority: TaskPrioritySchema.optional(),
+  sortBy: z.enum(VALID_TASK_SORT_BY).default('position'),
+  sortOrder: z.enum(VALID_TASK_SORT_ORDER).default('asc'),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
 
 const tasks = new Hono();
 const db = getDatabase();
@@ -46,7 +59,7 @@ function triggerGitHubSync(
 }
 
 // Helper to check task access via project -> workspace + project access control
-async function checkTaskAccess(projectId: string, userId: string, permission: string) {
+async function checkTaskAccess(projectId: string, userId: string, permission: WorkspacePermission) {
   const projectResult = await projectService.getById(projectId);
   if (!projectResult.ok) {
     return { allowed: false, project: null };
@@ -58,7 +71,7 @@ async function checkTaskAccess(projectId: string, userId: string, permission: st
   }
 
   const role = roleResult.value as 'owner' | 'admin' | 'member';
-  if (!hasPermission(role, permission as any)) {
+  if (!hasPermission(role, permission)) {
     return { allowed: false, project: projectResult.value };
   }
 
@@ -84,19 +97,33 @@ tasks.get('/', async (c) => {
     return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
   }
 
+  // Map present-but-empty params ("?sortBy=") to undefined so the schema
+  // defaults apply instead of failing the enum/number validation.
+  const parsedQuery = TaskListQuerySchema.safeParse({
+    priority: c.req.query('priority') || undefined,
+    sortBy: c.req.query('sortBy') || undefined,
+    sortOrder: c.req.query('sortOrder') || undefined,
+    page: c.req.query('page') || undefined,
+    limit: c.req.query('limit') || undefined,
+  });
+  if (!parsedQuery.success) {
+    return c.json({ success: false, error: { code: 'INVALID_QUERY', message: 'Invalid query parameters' } }, 400);
+  }
+  const { priority, sortBy, sortOrder, page, limit } = parsedQuery.data;
+
   const result = await taskService.list({
     filters: {
       projectId,
       stateId: c.req.query('stateId'),
       assigneeId: c.req.query('assigneeId'),
-      priority: c.req.query('priority') as any,
+      priority,
       search: c.req.query('search'),
       includeDeleted: c.req.query('includeDeleted') === 'true',
     },
-    sortBy: (c.req.query('sortBy') as any) || 'position',
-    sortOrder: (c.req.query('sortOrder') as any) || 'asc',
-    page: parseInt(c.req.query('page') || '1', 10),
-    limit: parseInt(c.req.query('limit') || '50', 10),
+    sortBy,
+    sortOrder,
+    page,
+    limit,
   });
 
   if (!result.ok) {
@@ -108,8 +135,8 @@ tasks.get('/', async (c) => {
     data: result.value.tasks,
     meta: {
       total: result.value.total,
-      page: parseInt(c.req.query('page') || '1', 10),
-      limit: parseInt(c.req.query('limit') || '50', 10),
+      page,
+      limit,
     },
   });
 });
@@ -368,8 +395,12 @@ tasks.delete('/:taskId', async (c) => {
     return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
   }
 
-  // Close linked GitHub issue before deleting (fire-and-forget)
-  await githubReverseSync.closeGitHubIssue(taskId).catch(() => {});
+  // Close linked GitHub issue (fire-and-forget — must not block or fail the
+  // delete response). The task is soft-deleted, so the external link remains
+  // resolvable for this background call.
+  githubReverseSync.closeGitHubIssue(taskId).catch((error: unknown) => {
+    console.error('GitHub issue close error:', error);
+  });
 
   const result = await taskService.delete(taskId, user.id);
 
