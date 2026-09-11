@@ -3,6 +3,35 @@ services:
   postgres:
     image: postgres:16-alpine
     restart: always
+    # Memory ceiling, with postgres told to stay inside it.
+    #
+    # The limit alone is not enough. shared_buffers is shared anonymous memory
+    # and work_mem is plain anonymous memory: neither is page cache, so
+    # neither is reclaimable, and the cgroup OOM killer fires when they exceed
+    # the cap. The defaults are sized for a dedicated host: autovacuum alone
+    # can take autovacuum_work_mem (64MB) x autovacuum_max_workers (3) without
+    # anyone running a query.
+    #
+    # Bounded here at ~464 MiB worst case: 128 shared_buffers + 30 backends x
+    # work_mem + 96 autovacuum. max_connections is 30 rather than the default
+    # 100 because the API pools at DB_POOL_MAX (10), so this leaves room for
+    # three API instances plus the migration and healthcheck connections.
+    #
+    # The 15 MiB reading taken on main 2026-09-11 is not the sizing case:
+    # docker stats subtracts inactive page cache, so it understates a cold or
+    # idle database. Steady state is several times that.
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+    command: >
+      postgres
+      -c shared_buffers=128MB
+      -c effective_cache_size=256MB
+      -c work_mem=4MB
+      -c maintenance_work_mem=32MB
+      -c autovacuum_work_mem=32MB
+      -c max_connections=30
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-flowtask}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
@@ -21,7 +50,33 @@ services:
   redis:
     image: redis:7-alpine
     restart: always
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    # Memory ceiling, with redis given a budget under it.
+    #
+    # maxmemory defaults to unlimited, so the cgroup limit on its own is a
+    # cliff rather than a policy: redis grows until the kernel kills it. The
+    # 160mb budget deliberately sits well below the 256m cap because two
+    # things are NOT counted against maxmemory and still count against the
+    # cgroup: the copy-on-write pages of the BGREWRITEAOF fork that appendonly
+    # implies, and per-client pub/sub output buffers.
+    #
+    # volatile-lru rather than allkeys-lru: every key today has a TTL (the
+    # rate-limit counters expire, the pub/sub payloads are transient), so the
+    # two behave identically now. volatile-lru fails loudly the day someone
+    # adds a key without a TTL, instead of silently evicting it.
+    #
+    # If issue #14 lands and Postgres takes over rate limiting and SSE
+    # fan-out, this whole service goes away with its volume.
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      --maxmemory 160mb
+      --maxmemory-policy volatile-lru
+      --maxmemory-clients 32mb
     volumes:
       - tasksflow_redis_data:/data
     healthcheck:
@@ -38,6 +93,12 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
     restart: always
+    # Memory ceiling. Measured on main 2026-09-11: 109 MiB. 512m is ~4x that,
+    # since this process also carries the websocket server on 3002.
+    deploy:
+      resources:
+        limits:
+          memory: 512m
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-flowtask}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-flowtask}
@@ -77,6 +138,17 @@ services:
       dockerfile: apps/api/Dockerfile
       target: builder
     command: bun --cwd packages/database db:migrate
+    # Memory ceiling. Runs from the builder stage, so it loads the full dev
+    # dependency tree plus the drizzle-kit bundle: measured at a ~240 MiB
+    # floor before a single migration is applied. Bun has no enforceable heap
+    # cap, so an overrun is a bare SIGKILL with nothing in the log, and
+    # service_completed_successfully then blocks the API from starting at all.
+    # 1g on a container that lives for seconds costs nothing and it does not
+    # overlap with steady state, since the API is not up yet when this runs.
+    deploy:
+      resources:
+        limits:
+          memory: 1g
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-flowtask}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-flowtask}
     depends_on:
@@ -96,6 +168,13 @@ services:
         VITE_GITHUB_APP_SLUG: ${VITE_GITHUB_APP_SLUG:-}
         VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
     restart: always
+    # Memory ceiling. Measured on main 2026-09-11: 7 MiB. The runner stage is
+    # nginx serving a built Vite bundle (Bun only appears in the builder), so
+    # this stays flat regardless of traffic.
+    deploy:
+      resources:
+        limits:
+          memory: 256m
     expose:
       - "3000"
     depends_on:
