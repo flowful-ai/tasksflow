@@ -3,6 +3,14 @@ services:
   postgres:
     image: postgres:16-alpine
     restart: always
+    # Memory ceiling. Measured on main 2026-09-11: 15 MiB.
+    # A cgroup limit also counts page cache, which postgres leans on, so this
+    # sits well above the resident figure. That cache is reclaimable: the
+    # limit throttles under pressure rather than OOM-killing the database.
+    deploy:
+      resources:
+        limits:
+          memory: 512m
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-flowtask}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
@@ -21,6 +29,12 @@ services:
   redis:
     image: redis:7-alpine
     restart: always
+    # Memory ceiling. Measured on main 2026-09-11: 2 MiB. Used as a cache and
+    # pub/sub bus, not a datastore, so the working set stays small.
+    deploy:
+      resources:
+        limits:
+          memory: 256m
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
     volumes:
       - tasksflow_redis_data:/data
@@ -38,6 +52,12 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
     restart: always
+    # Memory ceiling. Measured on main 2026-09-11: 109 MiB. 512m is ~4x that,
+    # since this process also carries the websocket server on 3002.
+    deploy:
+      resources:
+        limits:
+          memory: 512m
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-flowtask}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-flowtask}
@@ -77,6 +97,12 @@ services:
       dockerfile: apps/api/Dockerfile
       target: builder
     command: bun --cwd packages/database db:migrate
+    # Memory ceiling. One-shot migration job, but it runs from the builder
+    # stage, so it gets the same headroom as the API it migrates for.
+    deploy:
+      resources:
+        limits:
+          memory: 512m
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-flowtask}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-flowtask}
     depends_on:
@@ -96,6 +122,12 @@ services:
         VITE_GITHUB_APP_SLUG: ${VITE_GITHUB_APP_SLUG:-}
         VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
     restart: always
+    # Memory ceiling. Measured on main 2026-09-11: 7 MiB. This serves a built
+    # Vite bundle, so it stays flat regardless of traffic.
+    deploy:
+      resources:
+        limits:
+          memory: 256m
     expose:
       - "3000"
     depends_on:
