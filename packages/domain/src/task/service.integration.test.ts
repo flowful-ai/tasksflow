@@ -13,6 +13,7 @@ import { isTaskError } from './errors.js';
 import { TaskHistoryService } from './history.js';
 import { TaskRelationService } from './relations.js';
 import { TaskService } from './service.js';
+import { purgeTrash } from './trash.js';
 import { SearchService } from '../search/service.js';
 import {
   TEST_DATABASE_URL,
@@ -172,6 +173,15 @@ describe.skipIf(!TEST_DATABASE_URL)('TaskService (integration)', () => {
       expect((await service.restore(task.id, ws.owner.id)).ok).toBe(true);
     });
 
+    it('purges tasks deleted more than 30 days ago', async () => {
+      const task = unwrap(await service.create({ projectId: project.projectId, title: 'old', createdBy: ws.owner.id }));
+      await testDb()
+        .update(tasks)
+        .set({ deletedAt: new Date(Date.now() - 31 * 86_400_000) })
+        .where(eq(tasks.id, task.id));
+      expect(await purgeTrash(testDb())).toBeGreaterThanOrEqual(1);
+      expectCode(await service.getById(task.id, { includeDeleted: true }), 'TASK_NOT_FOUND');
+    });
   });
 
   describe('sub-tasks', () => {
