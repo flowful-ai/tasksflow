@@ -9,6 +9,7 @@ export * from './task/history.js';
 export * from './task/bulk.js';
 export * from './task/trash.js';
 export { placeTask, positionOrder } from './task/positions.js';
+export { rekeyTaskPositions, type RekeyOptions, type RekeyReport } from './task/rekey.js';
 
 // Domain events, notifications, search, jobs, outgoing webhooks
 export * from './events/index.js';
