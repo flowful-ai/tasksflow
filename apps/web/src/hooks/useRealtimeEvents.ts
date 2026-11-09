@@ -38,6 +38,8 @@ export function useRealtimeEvents() {
   const { currentWorkspace } = useWorkspaceStore();
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAttemptRef = useRef(0);
+  const hadErrorRef = useRef(false);
 
   // Handle incoming events by invalidating relevant queries
   const handleEvent = useCallback(
@@ -75,6 +77,18 @@ export function useRealtimeEvents() {
           queryClient.invalidateQueries({ queryKey: ['tasks', taskData.projectId] });
           queryClient.invalidateQueries({ queryKey: ['smart-view-execute'] });
           queryClient.invalidateQueries({ queryKey: ['workspace-activity'] });
+          break;
+        }
+
+        case REALTIME_EVENTS.TASKS_REKEYED: {
+          // Positions in a column were rewritten: refetch that project's tasks.
+          const rekeyed = data as TaskEventData;
+          queryClient.invalidateQueries({ queryKey: rekeyed.projectId ? ['tasks', rekeyed.projectId] : ['tasks'] });
+          break;
+        }
+
+        case REALTIME_EVENTS.NOTIFICATION_CREATED: {
+          queryClient.invalidateQueries({ queryKey: ['notifications'] });
           break;
         }
 
@@ -116,28 +130,34 @@ export function useRealtimeEvents() {
       eventSourceRef.current.close();
     }
 
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    // Same origin by default: in production the API serves the SPA.
+    const apiUrl = import.meta.env.VITE_API_URL || '';
     const url = `${apiUrl}/api/events/stream?workspaceId=${currentWorkspace.id}`;
 
     const eventSource = new EventSource(url, { withCredentials: true });
     eventSourceRef.current = eventSource;
 
     eventSource.onopen = () => {
-      console.log('SSE connected to workspace:', currentWorkspace.id);
+      reconnectAttemptRef.current = 0;
+      // Events published while we were disconnected are gone: resync everything.
+      if (hadErrorRef.current) {
+        hadErrorRef.current = false;
+        queryClient.invalidateQueries();
+      }
     };
 
-    eventSource.onerror = (error) => {
-      console.error('SSE error:', error);
-      eventSource.close();
-
-      // Reconnect after delay
+    eventSource.onerror = () => {
+      hadErrorRef.current = true;
+      // While CONNECTING the browser retries on its own (honouring the server's
+      // `retry:` hint). Only a CLOSED stream (e.g. auth failure) needs us to
+      // reconnect, with exponential backoff and jitter.
+      if (eventSource.readyState !== EventSource.CLOSED) return;
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
-      reconnectTimeoutRef.current = setTimeout(() => {
-        console.log('SSE reconnecting...');
-        connect();
-      }, 5000);
+      const attempt = reconnectAttemptRef.current++;
+      const delay = Math.min(30_000, 1000 * 2 ** attempt) * (0.5 + Math.random() / 2);
+      reconnectTimeoutRef.current = setTimeout(connect, delay);
     };
 
     // Listen for specific event types
@@ -153,11 +173,7 @@ export function useRealtimeEvents() {
       });
     }
 
-    // Handle connected event
-    eventSource.addEventListener('connected', (e: MessageEvent) => {
-      console.log('SSE connection confirmed:', e.data);
-    });
-  }, [currentWorkspace?.id, handleEvent]);
+  }, [currentWorkspace?.id, handleEvent, queryClient]);
 
   // Connect on mount and workspace change
   useEffect(() => {
@@ -179,7 +195,6 @@ export function useRealtimeEvents() {
   useEffect(() => {
     const handleFocus = () => {
       if (eventSourceRef.current?.readyState === EventSource.CLOSED) {
-        console.log('SSE reconnecting after focus...');
         connect();
       }
     };

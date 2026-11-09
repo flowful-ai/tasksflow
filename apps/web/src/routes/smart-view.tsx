@@ -652,7 +652,7 @@ export function SmartViewPage() {
       {primaryActiveShare && (
         <ActiveShareBanner
           shareUrl={`${window.location.origin}/share/${primaryActiveShare.token}`}
-          hasPassword={!!primaryActiveShare.passwordHash}
+          hasPassword={primaryActiveShare.hasPassword}
           expiresAt={primaryActiveShare.expiresAt}
           accessCount={primaryActiveShare.accessCount}
           maxAccessCount={primaryActiveShare.maxAccessCount}

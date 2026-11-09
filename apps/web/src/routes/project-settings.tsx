@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Settings2, Layers, Tag, AlertTriangle, ShieldX, Lock } from 'lucide-react';
+import { ArrowLeft, Settings2, Layers, Tag, AlertTriangle, ShieldX, Lock, MessageSquare } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '../api/client';
 import { GeneralSettings } from '../components/project-settings/GeneralSettings';
@@ -9,6 +9,7 @@ import { TaskStatesSettings } from '../components/project-settings/TaskStatesSet
 import { LabelsSettings } from '../components/project-settings/LabelsSettings';
 import { AccessSettings } from '../components/project-settings/AccessSettings';
 import { GitHubSettings } from '../components/project-settings/GitHubSettings';
+import { SlackSettings } from '../components/project-settings/SlackSettings';
 import { DangerZone } from '../components/project-settings/DangerZone';
 
 // GitHub icon component
@@ -20,7 +21,13 @@ function GithubIcon({ className }: { className?: string }) {
   );
 }
 
-type SettingsSection = 'general' | 'states' | 'labels' | 'access' | 'github' | 'danger';
+type SettingsSection = 'general' | 'states' | 'labels' | 'access' | 'github' | 'slack' | 'danger';
+
+const SETTINGS_SECTIONS: readonly SettingsSection[] = ['general', 'states', 'labels', 'access', 'github', 'slack', 'danger'];
+
+function isSettingsSection(value: string | null): value is SettingsSection {
+  return value !== null && (SETTINGS_SECTIONS as readonly string[]).includes(value);
+}
 
 interface ProjectData {
   id: string;
@@ -54,7 +61,12 @@ interface PermissionsData {
 export function ProjectSettingsPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const [activeSection, setActiveSection] = useState<SettingsSection>('general');
+  // ?section= deep-links a tab (the GitHub/Slack install callbacks land on theirs).
+  const [searchParams] = useSearchParams();
+  const requestedSection = searchParams.get('section');
+  const [activeSection, setActiveSection] = useState<SettingsSection>(
+    isSettingsSection(requestedSection) ? requestedSection : 'general'
+  );
 
   const { data: project, isLoading: projectLoading, refetch: refetchProject } = useQuery({
     queryKey: ['project', projectId],
@@ -80,6 +92,7 @@ export function ProjectSettingsPage() {
     { id: 'labels' as const, name: 'Labels', icon: Tag },
     { id: 'access' as const, name: 'Access', icon: Lock },
     { id: 'github' as const, name: 'GitHub', icon: GithubIcon },
+    { id: 'slack' as const, name: 'Slack', icon: MessageSquare },
     { id: 'danger' as const, name: 'Danger Zone', icon: AlertTriangle },
   ];
 
@@ -165,6 +178,8 @@ export function ProjectSettingsPage() {
             onUpdated={refetchProject}
           />
         );
+      case 'slack':
+        return <SlackSettings projectId={project.id} />;
       case 'danger':
         return permissions?.canDelete ? (
           <DangerZone

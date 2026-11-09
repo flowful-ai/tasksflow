@@ -6,7 +6,7 @@ import { AgentToolSchema, type AgentTool } from '@flowtask/shared';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { mcpConnectionApi, type McpOAuthConnection } from '../../api/client';
 
-const AGENT_TOOL_LABELS: Record<AgentTool, string> = {
+export const AGENT_TOOL_LABELS: Record<AgentTool, string> = {
   create_task: 'Create tasks',
   bulk_create_tasks: 'Bulk create tasks',
   update_task: 'Update tasks',
@@ -28,7 +28,8 @@ const AGENT_TOOL_LABELS: Record<AgentTool, string> = {
   run_smart_view: 'Run smart views',
 };
 
-const AVAILABLE_PERMISSIONS: ReadonlyArray<{ id: AgentTool; label: string }> =
+/** Every agent/MCP tool with its label, in AgentToolSchema order (single source for all settings UIs). */
+export const AVAILABLE_PERMISSIONS: ReadonlyArray<{ id: AgentTool; label: string }> =
   AgentToolSchema.options.map((id) => ({ id, label: AGENT_TOOL_LABELS[id] }));
 
 function formatRelativeTime(dateStr: string | null): string {

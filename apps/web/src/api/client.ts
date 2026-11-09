@@ -558,13 +558,4 @@ export const githubApi = {
       { owner, repo }
     );
   },
-
-  // Save installation ID after GitHub App installation
-  saveInstallation: async (projectId: string, installationId: number): Promise<GitHubIntegration> => {
-    const response = await api.post<{ success: boolean; data: GitHubIntegration }>(
-      `/api/projects/${projectId}/github/install`,
-      { installationId }
-    );
-    return response.data;
-  },
 };

@@ -4,7 +4,7 @@ import { User, Building2, Link2, Bot, Eye, Users, Shield, Plug } from 'lucide-re
 import clsx from 'clsx';
 import type { AppRole } from '@flowtask/shared';
 import { useWorkspaceStore } from '../stores/workspace';
-import { AgentSettings } from '../components/settings/AgentSettings';
+import { AVAILABLE_PERMISSIONS, AgentSettings } from '../components/settings/AgentSettings';
 import { SmartViewForm } from '../components/smart-views/SmartViewForm';
 import { MemberSettings } from '../components/settings/MemberSettings';
 import { AppOverviewSettings } from '../components/settings/AppOverviewSettings';
@@ -254,21 +254,7 @@ const EMPTY_PROVIDER_INPUTS: Record<ApiKeyProvider, string> = {
   openrouter: '',
 };
 
-const AGENT_TOOL_OPTIONS = [
-  { id: 'create_task', label: 'Create tasks' },
-  { id: 'bulk_create_tasks', label: 'Bulk create tasks' },
-  { id: 'update_task', label: 'Update tasks' },
-  { id: 'delete_task', label: 'Delete tasks' },
-  { id: 'query_tasks', label: 'Query tasks' },
-  { id: 'get_task', label: 'Get task details' },
-  { id: 'move_task', label: 'Move tasks' },
-  { id: 'assign_task', label: 'Assign tasks' },
-  { id: 'add_comment', label: 'Add comments' },
-  { id: 'summarize_project', label: 'Summarize project' },
-  { id: 'create_smart_view', label: 'Create smart views' },
-  { id: 'search_tasks', label: 'Search tasks' },
-  { id: 'list_projects', label: 'List projects' },
-] as const;
+const AGENT_TOOL_OPTIONS = AVAILABLE_PERMISSIONS;
 
 const DEFAULT_AGENT_TOOLS = ['query_tasks', 'get_task', 'list_projects'];
 

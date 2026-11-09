@@ -22,7 +22,7 @@ export interface PublicShare {
   token: string;
   displayTypeOverride: string | null;
   hideFields: string[] | null;
-  passwordHash: string | null;
+  hasPassword: boolean;
   expiresAt: string | null;
   maxAccessCount: number | null;
   accessCount: number;
@@ -280,7 +280,7 @@ export function ShareDialog({
                                 ? 'Access limit reached'
                                 : 'Public link'}
                           </span>
-                          {share.passwordHash && (
+                          {share.hasPassword && (
                             <span title="Password protected">
                               <Lock className="w-3.5 h-3.5 text-gray-500" />
                             </span>
