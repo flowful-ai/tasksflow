@@ -178,25 +178,10 @@ export async function recordTaskEvents(
 }
 
 /**
- * completed_at for a task landing in `stateId`: kept when it was already
- * completed and stays done (done → done keeps the original time), stamped
- * now when it enters done, cleared otherwise.
+ * completed_at for a task landing in a state of `category`: kept when it was
+ * already completed and stays done (done → done keeps the original time),
+ * stamped now when it enters done, cleared otherwise.
  */
-export async function completedAtFor(
-  db: DbExecutor,
-  stateId: string | null,
-  current: Date | null
-): Promise<Date | null> {
-  if (!stateId) return null;
-  const [state] = await db
-    .select({ category: taskStates.category })
-    .from(taskStates)
-    .where(eq(taskStates.id, stateId))
-    .limit(1);
-  return completedAtForCategory(state?.category ?? null, current);
-}
-
-/** completedAtFor when the target state's category is already known. */
 export function completedAtForCategory(category: string | null, current: Date | null): Date | null {
   if (category !== 'done') return null;
   return current ?? new Date();
@@ -325,16 +310,18 @@ export class TaskService {
         const project = await loadProjectScope(tx, input.projectId);
 
         let stateId = input.stateId ?? null;
+        let stateCategory: string | null = null;
         if (stateId) {
-          await assertStateInProject(tx, project.id, stateId);
+          stateCategory = await assertStateInProject(tx, project.id, stateId);
         } else {
           const [defaultState] = await tx
-            .select({ id: taskStates.id })
+            .select({ id: taskStates.id, category: taskStates.category })
             .from(taskStates)
             .where(and(eq(taskStates.projectId, project.id), eq(taskStates.category, 'backlog')))
             .orderBy(sql`${taskStates.position} COLLATE "C"`, asc(taskStates.id))
             .limit(1);
           stateId = defaultState?.id ?? null;
+          stateCategory = defaultState?.category ?? null;
         }
 
         if (input.labelIds?.length) await assertLabelsInProject(tx, project.id, input.labelIds);
@@ -355,7 +342,7 @@ export class TaskService {
             description: input.description || null,
             priority: input.priority || null,
             position: placement.position,
-            completedAt: await completedAtFor(tx, stateId, null),
+            completedAt: completedAtForCategory(stateCategory, null),
             parentId: input.parentId ?? null,
             dueDate: input.dueDate || null,
             startDate: input.startDate || null,
@@ -486,8 +473,10 @@ export class TaskService {
         const project = await loadProjectScope(tx, current.projectId);
 
         const stateChanged = input.stateId !== undefined && input.stateId !== current.stateId;
-        if (stateChanged && input.stateId)
-          await assertStateInProject(tx, project.id, input.stateId);
+        const targetCategory =
+          stateChanged && input.stateId
+            ? await assertStateInProject(tx, project.id, input.stateId)
+            : null;
         if (input.parentId) await assertValidParent(tx, project.id, input.parentId, taskId);
         if (input.labelIds) await assertLabelsInProject(tx, project.id, input.labelIds);
         if (input.assigneeIds) await assertAssigneesCanAccess(tx, project, input.assigneeIds);
@@ -530,7 +519,7 @@ export class TaskService {
         if (stateChanged) {
           track('stateId', current.stateId, input.stateId);
           set.stateId = input.stateId;
-          set.completedAt = await completedAtFor(tx, input.stateId ?? null, current.completedAt);
+          set.completedAt = completedAtForCategory(targetCategory, current.completedAt);
         }
 
         let rekeyed = false;

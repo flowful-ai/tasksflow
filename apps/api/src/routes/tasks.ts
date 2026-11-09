@@ -57,7 +57,7 @@ type RouteErrorOverrides = Partial<Record<string, { code: string; message: strin
  * TaskService validates foreign ids itself; these keep the codes and messages
  * the routes answered with when they ran the same checks first.
  */
-const CREATE_VALIDATION_ERRORS: RouteErrorOverrides = {
+const TASK_VALIDATION_ERRORS: RouteErrorOverrides = {
   INVALID_STATE: { code: 'INVALID_STATE', message: 'Invalid state for this project' },
   INVALID_LABEL: { code: 'INVALID_LABEL', message: 'Invalid labels for this project' },
   INVALID_ASSIGNEE: {
@@ -75,12 +75,6 @@ const MOVE_VALIDATION_ERRORS: RouteErrorOverrides = {
 function withRouteMessages(error: AppError, overrides: RouteErrorOverrides): AppError {
   const override = overrides[error.code];
   return override ? badRequest(override.message, override.code) : error;
-}
-
-async function assertStateInProject(stateId: string | undefined, projectId: string): Promise<void> {
-  if (stateId && !(await getAuthz().stateBelongsToProject(stateId, projectId))) {
-    throw badRequest('Invalid state for this project', 'INVALID_STATE');
-  }
 }
 
 // List tasks
@@ -185,7 +179,7 @@ tasks.post(
           code: 'CREATE_FAILED',
           message: 'Failed to create task',
         }),
-        CREATE_VALIDATION_ERRORS
+        TASK_VALIDATION_ERRORS
       );
     }
 
@@ -228,15 +222,21 @@ tasks.get('/:taskId', async (c) => {
 tasks.patch('/:taskId', zValidator('json', UpdateTaskSchema), async (c) => {
   const { task, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
   const data = c.req.valid('json');
-  await assertStateInProject(data.stateId, task.projectId);
 
-  const updated = fromResult(await taskService.update(task.id, { ...data, updatedBy: user.id }), {
-    status: 400,
-    code: 'UPDATE_FAILED',
-    message: 'Failed to update task',
-  });
+  // TaskService.update validates the state, parent, labels and assignees.
+  const result = await taskService.update(task.id, { ...data, updatedBy: user.id });
+  if (!result.ok) {
+    throw withRouteMessages(
+      toAppError(result.error, {
+        status: 400,
+        code: 'UPDATE_FAILED',
+        message: 'Failed to update task',
+      }),
+      TASK_VALIDATION_ERRORS
+    );
+  }
 
-  return c.json({ success: true, data: updated });
+  return c.json({ success: true, data: result.value });
 });
 
 // Move task (change state and/or position)

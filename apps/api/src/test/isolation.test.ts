@@ -308,7 +308,6 @@ describe.skipIf(!integrationEnabled)('cross-workspace isolation', () => {
     const results = [
       await h.request('ownerB', 'POST', `/api/tasks/${own}/move`, {
         stateId: foreign.stateId,
-        position: 'a1',
       }),
       await h.request('ownerB', 'PATCH', `/api/tasks/${own}`, { stateId: foreign.stateId }),
       await h.request('ownerB', 'POST', `/api/tasks/${own}/labels`, { labelId: foreign.labelId }),
@@ -322,6 +321,9 @@ describe.skipIf(!integrationEnabled)('cross-workspace isolation', () => {
       }),
     ];
     expect(results.map((r) => r.status)).toEqual([400, 400, 400, 400, 400]);
+    expect(results[0]?.body.error?.code).toBe('CROSS_PROJECT_MOVE');
+    expect(results[1]?.body.error?.code).toBe('INVALID_STATE');
+    expect(results[1]?.body.error?.message).toBe('Invalid state for this project');
     expect(results.map((r) => r.text).join('')).not.toContain(h.seed.users.memberA.email);
   });
 

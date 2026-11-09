@@ -5,7 +5,6 @@ import {
   projectMembers,
   tasks,
   workspaceMembers,
-  taskStates,
   labels,
   sessions,
 } from '../../db/index.js';
@@ -222,15 +221,6 @@ export class AuthorizationService<P extends string> {
   ): Promise<string[]> {
     const accessible = new Set(await this.listAccessibleProjectIds(workspaceId, userId, role));
     return candidateIds.filter((id) => accessible.has(id));
-  }
-
-  async stateBelongsToProject(stateId: string, projectId: string): Promise<boolean> {
-    if (!isUuid(stateId)) return false;
-    const [state] = await this.db
-      .select({ id: taskStates.id })
-      .from(taskStates)
-      .where(and(eq(taskStates.id, stateId), eq(taskStates.projectId, projectId)));
-    return Boolean(state);
   }
 
   async labelsBelongToProject(labelIds: readonly string[], projectId: string): Promise<boolean> {
