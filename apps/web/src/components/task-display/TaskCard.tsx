@@ -3,6 +3,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import clsx from 'clsx';
 import { CircleDot, GitPullRequest } from 'lucide-react';
+import { githubLinkLabel } from '@flowtask/shared/utils';
 import { TaskContextMenu, type ContextMenuState } from '../tasks/TaskContextMenu';
 import { ColorDot } from '../ui/ColorDot';
 import { PriorityIcon, priorityLabel } from '../board/PriorityIcon';
@@ -176,10 +177,17 @@ function GitHubChip({ links }: { links: NonNullable<TaskCardTask['externalLinks'
   if (!link) return null;
   const isPr = link.externalType === 'github_pr';
   const Icon = isPr ? GitPullRequest : CircleDot;
+  const label = githubLinkLabel(link);
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-1.5 text-[11.5px] text-neutral-600">
+    <span
+      title={label.full}
+      className="inline-flex items-center gap-1 rounded-full border border-neutral-200 px-1.5 text-[11.5px] text-neutral-600"
+    >
       <Icon aria-hidden className="h-3 w-3" />
-      <span className="sr-only">{isPr ? 'Pull request' : 'Issue'}</span>#{link.externalId}
+      <span className="sr-only">
+        {isPr ? 'Pull request' : 'Issue'} {label.full}
+      </span>
+      <span aria-hidden>{label.short}</span>
     </span>
   );
 }

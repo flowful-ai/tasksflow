@@ -2,13 +2,15 @@ import { describe, expect, test } from 'bun:test';
 import {
   findInstallationForRepo,
   findLinkedRepository,
-  formatGitHubExternalId,
   parseGitHubConfig,
+  parseTaskReferences,
+} from './integration.js';
+import {
+  formatGitHubExternalId,
   parseGitHubExternalId,
   parseGitHubItemUrl,
-  parseTaskReferences,
   resolveGitHubLinkRef,
-} from './integration.js';
+} from '../utils/github-ref.js';
 
 describe('parseGitHubConfig', () => {
   test('parses the canonical shape', () => {
