@@ -113,6 +113,12 @@ export function Dialog({
             if (initialFocus?.current) {
               event.preventDefault();
               initialFocus.current.focus();
+            } else if (variant === 'sheet' && event.currentTarget instanceof HTMLElement) {
+              // A sheet is a reading surface: focus the panel, not its first toolbar
+              // button. Focusing a button opens its tooltip, which then swallows the
+              // first Escape and leaves the sheet open.
+              event.preventDefault();
+              event.currentTarget.focus();
             }
           }}
           onEscapeKeyDown={(event) => {
