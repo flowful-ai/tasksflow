@@ -3,7 +3,7 @@
 #   docker build -f apps/api/Dockerfile -t flowtask .
 
 # ---- builder: install, build the web app and bundle the API ----
-FROM oven/bun:1.3.11 AS builder
+FROM oven/bun:1.4.4 AS builder
 WORKDIR /app
 
 COPY package.json bun.lock tsconfig.json ./
@@ -35,7 +35,7 @@ RUN cd apps/web && bun run build
 RUN cd apps/api && bun run build
 
 # ---- runner: the bundle, the SPA and the migrations, nothing else ----
-FROM oven/bun:1.3.11-slim AS runner
+FROM oven/bun:1.4.4-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production \
