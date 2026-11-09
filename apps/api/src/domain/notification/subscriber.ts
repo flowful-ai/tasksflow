@@ -10,7 +10,7 @@
  */
 import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
-import { comments, projects, taskAssignees, taskStates, tasks } from '../../db/index.js';
+import { comments, taskAssignees, taskStates } from '../../db/index.js';
 import {
   extractMentionedUserIds,
   newlyMentionedUserIds,
@@ -145,21 +145,12 @@ export function registerNotificationSubscribers(
     }),
 
     bus.on('comment.created', async (e) => {
-      const [task] = await db
-        .select({
-          id: tasks.id,
-          projectId: tasks.projectId,
-          createdBy: tasks.createdBy,
-          workspaceId: projects.workspaceId,
-        })
-        .from(tasks)
-        .innerJoin(projects, eq(tasks.projectId, projects.id))
-        .where(and(eq(tasks.id, e.taskId), isNull(tasks.deletedAt)));
-      if (!task) return;
+      if (e.taskDeleted) return;
+      const task = { id: e.taskId, createdBy: e.taskCreatedBy };
       const ctx: TaskContext = {
-        workspaceId: task.workspaceId,
-        projectId: task.projectId,
-        taskId: task.id,
+        workspaceId: e.workspaceId,
+        projectId: e.projectId,
+        taskId: e.taskId,
       };
 
       const [assigneeRows, commenterRows] = await Promise.all([

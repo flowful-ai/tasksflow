@@ -81,6 +81,10 @@ export interface CommentCreatedEvent extends CommentEventBase {
   /** e.g. "FLOW-123" */
   taskKey: string;
   taskTitle: string;
+  /** The task's creator, for notifications. */
+  taskCreatedBy: string | null;
+  /** The task was in the trash when the comment was written. */
+  taskDeleted: boolean;
   /** Display label when the author isn't a FlowTask user (e.g. "@octocat on GitHub"). */
   actorLabel?: string;
 }

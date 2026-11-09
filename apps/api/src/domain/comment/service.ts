@@ -18,6 +18,8 @@ interface CommentTaskScope {
   projectId: string;
   taskKey: string;
   taskTitle: string;
+  taskCreatedBy: string | null;
+  taskDeleted: boolean;
 }
 
 export class CommentService {
@@ -32,6 +34,8 @@ export class CommentService {
         identifier: projects.identifier,
         sequenceNumber: tasks.sequenceNumber,
         title: tasks.title,
+        createdBy: tasks.createdBy,
+        deletedAt: tasks.deletedAt,
       })
       .from(tasks)
       .innerJoin(projects, eq(tasks.projectId, projects.id))
@@ -42,6 +46,8 @@ export class CommentService {
       projectId: row.projectId,
       taskKey: `${row.identifier}-${row.sequenceNumber}`,
       taskTitle: row.title,
+      taskCreatedBy: row.createdBy,
+      taskDeleted: row.deletedAt !== null,
     };
   }
 

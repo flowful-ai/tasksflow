@@ -100,12 +100,34 @@ export class NotificationService {
 
   /** Store notifications for recipients (actor excluded, access-checked, deduped). */
   async createMany(inputs: readonly NotificationInput[]): Promise<NotificationRecord[]> {
+    const recipientsOf = inputs.map((input) =>
+      [...new Set(input.userIds)].filter((id) => id && id !== input.actorId)
+    );
+    // One access query per project, over the union of that project's recipients.
+    const candidatesByProject = new Map<string, Set<string>>();
+    inputs.forEach((input, i) => {
+      if (!input.projectId) return;
+      const recipients = recipientsOf[i] ?? [];
+      if (recipients.length === 0) return;
+      const set = candidatesByProject.get(input.projectId) ?? new Set<string>();
+      for (const id of recipients) set.add(id);
+      candidatesByProject.set(input.projectId, set);
+    });
+    const allowedByProject = new Map<string, Set<string>>();
+    await Promise.all(
+      [...candidatesByProject].map(async ([projectId, candidates]) => {
+        const allowed = await filterUsersWithProjectAccess(this.db, projectId, [...candidates]);
+        allowedByProject.set(projectId, new Set(allowed));
+      })
+    );
+
     const values: (typeof notifications.$inferInsert)[] = [];
-    for (const input of inputs) {
-      let recipients = [...new Set(input.userIds)].filter((id) => id && id !== input.actorId);
-      if (recipients.length === 0) continue;
+    inputs.forEach((input, i) => {
+      let recipients = recipientsOf[i] ?? [];
+      if (recipients.length === 0) return;
       if (input.projectId) {
-        recipients = await filterUsersWithProjectAccess(this.db, input.projectId, recipients);
+        const allowed = allowedByProject.get(input.projectId);
+        recipients = recipients.filter((id) => allowed?.has(id) ?? false);
       }
       for (const userId of recipients) {
         values.push({
@@ -118,7 +140,7 @@ export class NotificationService {
           dedupeKey: input.dedupeKey ?? null,
         });
       }
-    }
+    });
     if (values.length === 0) return [];
     const rows = await this.db
       .insert(notifications)
