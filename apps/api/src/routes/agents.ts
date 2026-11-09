@@ -1,32 +1,28 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { convertToModelMessages, stepCountIs, streamText, type UIMessage } from 'ai';
+import { convertToModelMessages, stepCountIs, streamText, validateUIMessages } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { getDatabase } from '@flowtask/database';
-import { AgentService, WorkspaceService, ProjectService } from '@flowtask/domain';
+import { AgentService, WorkspaceService } from '@flowtask/domain';
 import { getCurrentUser } from '@flowtask/auth';
 import {
-  type AgentTool,
+  AgentToolSchema,
   AIModelSchema,
   CreateAgentSchema,
   UpdateAgentSchema,
   getRequiredApiKeyProvidersForModel,
 } from '@flowtask/shared';
 import { hasPermission, type WorkspacePermission } from '@flowtask/auth';
-import { buildAiSdkTools } from '../services/agent-tool-runtime.js';
-
-const ExecuteAgentMessageSchema = z.object({
-  role: z.enum(['system', 'user', 'assistant']),
-  parts: z.array(z.unknown()).min(1, { message: 'Message parts are required' }),
-  metadata: z.unknown().optional(),
-});
+import { buildAiSdkTools, MCP_SERVER_INSTRUCTIONS } from '../services/agent-tool-runtime.js';
+import { buildToolContext } from '../lib/mcp/tool-context.js';
 
 const ExecuteAgentSchema = z.object({
-  messages: z.array(ExecuteAgentMessageSchema).min(1, {
+  // UI messages are validated structurally by validateUIMessages below.
+  messages: z.array(z.unknown()).min(1, {
     message: 'At least one message is required',
   }),
   context: z
@@ -42,7 +38,6 @@ const agents = new Hono();
 const db = getDatabase();
 const agentService = new AgentService(db);
 const workspaceService = new WorkspaceService(db);
-const projectService = new ProjectService(db);
 
 async function checkWorkspaceAccess(workspaceId: string, userId: string, permission: WorkspacePermission) {
   const roleResult = await workspaceService.getMemberRole(workspaceId, userId);
@@ -56,9 +51,11 @@ async function checkWorkspaceAccess(workspaceId: string, userId: string, permiss
 }
 
 type ModelProvider = 'openai' | 'anthropic' | 'google' | 'openrouter';
-const TOOL_EXECUTION_STEP_LIMIT = 25;
+// Each step is one model call; 8 is plenty for read-then-act flows and bounds
+// what an injected instruction could chain together.
+const TOOL_EXECUTION_STEP_LIMIT = 8;
 const TOOL_COMPLETION_INSTRUCTION =
-  'When you use one or more tools, you must always finish with a plain-language assistant response that directly answers the user. Never end with only tool calls.';
+  'When you use one or more tools, you must always finish with a plain-language assistant response that directly answers the user. Never end with only tool calls. Tools that change data ask the user for approval first; if the user denies a call, do not retry it.';
 
 function resolveProviderModelId(model: string, provider: ModelProvider): string {
   if (provider === 'openrouter') {
@@ -274,8 +271,8 @@ agents.post(
       return c.json({ success: false, error: { code: 'NOT_FOUND', message: agentResult.error.message } }, 404);
     }
 
-    const { allowed } = await checkWorkspaceAccess(agentResult.value.workspaceId, user.id, 'agent:execute');
-    if (!allowed) {
+    const access = await checkWorkspaceAccess(agentResult.value.workspaceId, user.id, 'agent:execute');
+    if (!access.allowed || !access.role) {
       return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
     }
 
@@ -315,27 +312,39 @@ agents.post(
       }, 400);
     }
 
-    const allowedTools = (agentResult.value.tools as AgentTool[]) || [];
-    const tools = buildAiSdkTools(allowedTools, {
+    const agentTools = AgentToolSchema.array().safeParse(agentResult.value.tools ?? []);
+    // One tenant-scoped context: workspace, role permissions and project ACL
+    // are enforced exactly as for MCP clients.
+    const toolContext = buildToolContext({
       workspaceId: agentResult.value.workspaceId,
       userId: user.id,
+      role: access.role,
+      grantedTools: agentTools.success ? agentTools.data : [],
       mcpClientId: null,
-      allowedToolNames: new Set(allowedTools),
-      canAccessProject: async (projectId: string) => {
-        const projectResult = await projectService.getById(projectId);
-        return projectResult.ok && projectResult.value.workspaceId === agentResult.value.workspaceId;
-      },
     });
+    const tools = buildAiSdkTools(toolContext);
+
+    let uiMessages: Awaited<ReturnType<typeof validateUIMessages>>;
+    try {
+      uiMessages = await validateUIMessages({ messages: data.messages });
+    } catch (error) {
+      return c.json(
+        {
+          success: false,
+          error: { code: 'INVALID_MESSAGES', message: error instanceof Error ? error.message : 'Invalid messages' },
+        },
+        400
+      );
+    }
 
     try {
       const model = resolveLanguageModel(selectedProvider, apiKey, effectiveModel);
-      const modelMessages = convertToModelMessages(
-        data.messages as Array<Omit<UIMessage, 'id'>>
-      );
+      const modelMessages = await convertToModelMessages(uiMessages, { tools, ignoreIncompleteToolCalls: true });
 
       const systemPrompt = [
         agentResult.value.systemPrompt || 'You are a helpful FlowTask workspace assistant.',
         TOOL_COMPLETION_INSTRUCTION,
+        MCP_SERVER_INSTRUCTIONS,
         `Current user: ${user.name} (mail: ${user.email}, ID: ${user.id})`,
         data.context?.projectId ? `Current project ID: ${data.context.projectId}` : '',
         data.context?.taskId ? `Current task ID: ${data.context.taskId}` : '',
@@ -347,17 +356,17 @@ agents.post(
         model,
         system: systemPrompt,
         messages: modelMessages,
-        tools: tools as any,
+        tools,
         stopWhen: stepCountIs(TOOL_EXECUTION_STEP_LIMIT),
-        onFinish: async ({ usage }) => {
-          const totalTokens = usage.totalTokens ?? 0;
+        onFinish: async ({ totalUsage }) => {
+          const totalTokens = totalUsage.totalTokens ?? 0;
           if (totalTokens > 0) {
             await agentService.recordTokenUsage(agentId, totalTokens);
           }
         },
       });
 
-      return result.toUIMessageStreamResponse({ sendReasoning: false });
+      return result.toUIMessageStreamResponse({ sendReasoning: false, originalMessages: uiMessages });
     } catch (error) {
       return c.json({
         success: false,

@@ -531,8 +531,12 @@ export const mcpOAuthAuthorizationCodes = pgTable(
     scope: text('scope').notNull(),
     codeChallenge: text('code_challenge').notNull(),
     codeChallengeMethod: text('code_challenge_method').notNull(),
+    // RFC 8707 resource indicator the code was issued for (canonical MCP URL when absent).
+    resource: text('resource'),
     expiresAt: timestamp('expires_at').notNull(),
     usedAt: timestamp('used_at'),
+    // Token family created when the code was redeemed; revoked if the code is replayed.
+    tokenFamilyId: uuid('token_family_id'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [
@@ -557,6 +561,10 @@ export const mcpOAuthAccessTokens = pgTable(
       .notNull(),
     tokenHash: text('token_hash').notNull().unique(),
     scope: text('scope').notNull(),
+    // RFC 8707 audience; null on tokens issued before resource binding (treated as the canonical MCP URL).
+    resource: text('resource'),
+    // Refresh-token family this access token belongs to (null on legacy tokens).
+    familyId: uuid('family_id'),
     expiresAt: timestamp('expires_at').notNull(),
     revokedAt: timestamp('revoked_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -565,6 +573,7 @@ export const mcpOAuthAccessTokens = pgTable(
     index('mcp_oauth_access_token_client_idx').on(table.clientId),
     index('mcp_oauth_access_token_user_idx').on(table.userId),
     index('mcp_oauth_access_token_expires_idx').on(table.expiresAt),
+    index('mcp_oauth_access_token_family_idx').on(table.familyId),
   ]
 );
 
@@ -584,15 +593,23 @@ export const mcpOAuthRefreshTokens = pgTable(
       .notNull(),
     tokenHash: text('token_hash').notNull().unique(),
     scope: text('scope').notNull(),
+    resource: text('resource'),
+    // Rotation family: reuse of a rotated token outside the grace window revokes the whole family.
+    familyId: uuid('family_id'),
     expiresAt: timestamp('expires_at').notNull(),
     revokedAt: timestamp('revoked_at'),
     replacedByTokenId: uuid('replaced_by_token_id'),
+    rotatedAt: timestamp('rotated_at'),
+    // Successor token pair encrypted with a key derived from this (presented) refresh token,
+    // so a concurrent refresh inside the grace window gets the same successor back.
+    rotationGracePayload: text('rotation_grace_payload'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [
     index('mcp_oauth_refresh_token_client_idx').on(table.clientId),
     index('mcp_oauth_refresh_token_user_idx').on(table.userId),
     index('mcp_oauth_refresh_token_expires_idx').on(table.expiresAt),
+    index('mcp_oauth_refresh_token_family_idx').on(table.familyId),
   ]
 );
 

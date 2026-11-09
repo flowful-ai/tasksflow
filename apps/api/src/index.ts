@@ -24,7 +24,8 @@ import { eventRoutes } from './routes/events.js';
 import { githubRoutes, githubPublicRoutes } from './routes/github.js';
 import { invitationRoutes, publicInvitationRoutes, acceptInvitationRoutes } from './routes/invitations.js';
 import { appAdminRoutes } from './routes/app-admin.js';
-import { McpOAuthService } from './services/mcp-oauth-service.js';
+import { MCP_CANONICAL_PATH, MCP_LEGACY_PATH, McpOAuthService } from './services/mcp-oauth-service.js';
+import { getBaseUrl } from './lib/base-url.js';
 
 // Import SSE manager
 import { initSSE } from './sse/manager.js';
@@ -74,26 +75,22 @@ app.get('/', (c) => {
   });
 });
 
-app.get('/.well-known/oauth-protected-resource/api/mcp/sse', (c) => {
-  const url = new URL(c.req.url);
-  const forwardedProto = c.req.header('x-forwarded-proto');
-  const forwardedHost = c.req.header('x-forwarded-host');
-  const protocol = forwardedProto || url.protocol.replace(':', '');
-  const host = forwardedHost || url.host;
-  const baseUrl = `${protocol}://${host}`;
+// RFC 9728 protected resource metadata: one document per MCP path, each
+// naming the resource it was derived from (canonical /api/mcp, legacy /api/mcp/sse).
+app.get('/.well-known/oauth-protected-resource/api/mcp', (c) => {
+  return c.json(mcpOAuthService.getProtectedResourceMetadata(getBaseUrl(c.req.raw), MCP_CANONICAL_PATH));
+});
 
-  return c.json(mcpOAuthService.getProtectedResourceMetadata(baseUrl));
+app.get('/.well-known/oauth-protected-resource/api/mcp/sse', (c) => {
+  return c.json(mcpOAuthService.getProtectedResourceMetadata(getBaseUrl(c.req.raw), MCP_LEGACY_PATH));
+});
+
+app.get('/.well-known/oauth-protected-resource', (c) => {
+  return c.json(mcpOAuthService.getProtectedResourceMetadata(getBaseUrl(c.req.raw), MCP_CANONICAL_PATH));
 });
 
 app.get('/.well-known/oauth-authorization-server', (c) => {
-  const url = new URL(c.req.url);
-  const forwardedProto = c.req.header('x-forwarded-proto');
-  const forwardedHost = c.req.header('x-forwarded-host');
-  const protocol = forwardedProto || url.protocol.replace(':', '');
-  const host = forwardedHost || url.host;
-  const baseUrl = `${protocol}://${host}`;
-
-  return c.json(mcpOAuthService.getAuthorizationServerMetadata(baseUrl));
+  return c.json(mcpOAuthService.getAuthorizationServerMetadata(getBaseUrl(c.req.raw)));
 });
 
 // Auth routes (public, handled by Better Auth)

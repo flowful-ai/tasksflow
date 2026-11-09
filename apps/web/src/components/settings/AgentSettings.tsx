@@ -209,8 +209,8 @@ function ConnectGuide() {
 
   const values = useMemo(
     () => ({
-      mcpUrl: `${origin}/api/mcp/sse`,
-      protectedResource: `${origin}/.well-known/oauth-protected-resource/api/mcp/sse`,
+      mcpUrl: `${origin}/api/mcp`,
+      protectedResource: `${origin}/.well-known/oauth-protected-resource/api/mcp`,
       authServer: `${origin}/api/mcp/.well-known/oauth-authorization-server`,
     }),
     [origin]

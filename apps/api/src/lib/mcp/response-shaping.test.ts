@@ -4,7 +4,7 @@ import {
   projectTask,
   projectTaskList,
   resolveTaskProjectionArgs,
-} from './mcp-response-shaping.js';
+} from './response-shaping.js';
 
 function createTaskFixture(): TaskWithRelations {
   return {
@@ -36,8 +36,19 @@ function createTaskFixture(): TaskWithRelations {
       identifier: 'TASK',
       name: 'tasksflow',
     },
-    assignees: [{ id: 'u1' }] as any[],
-    labels: [{ id: 'l1' }] as any[],
+    assignees: [
+      {
+        id: 'u1',
+        email: 'u1@example.com',
+        emailVerified: true,
+        name: 'User One',
+        avatarUrl: null,
+        appRole: 'app_manager',
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      },
+    ],
+    labels: [{ id: 'l1', projectId: 'project-1', name: 'bug', color: '#f00' }],
     agent: null,
     externalLinks: [{ id: 'e1', externalType: 'github_issue', externalId: '1', externalUrl: 'https://x' }],
   };
@@ -50,7 +61,7 @@ describe('resolveTaskProjectionArgs', () => {
         view: 'custom',
         fields: ['id', 'unknownField'],
       })
-    ).toThrow('Unknown fields: unknownField');
+    ).toThrow('Unknown fields: unknownField.');
   });
 
   it('requires include flag for heavy relation fields in custom view', () => {
@@ -72,6 +83,7 @@ describe('projectTask', () => {
     expect(Object.keys(output).sort()).toEqual([
       'dueDate',
       'id',
+      'key',
       'priority',
       'projectId',
       'stateId',
@@ -101,9 +113,19 @@ describe('projectTask', () => {
 
     expect(output).toEqual({
       id: 'task-1',
-      title: 'Ship MCP optimization',
-      state: task.state,
+      title: { untrusted_text: 'Ship MCP optimization' },
+      state: { id: 'state-1', name: 'Todo', category: 'backlog' },
     });
+  });
+
+  it('wraps user-authored text and strips sensitive user fields', () => {
+    const task = createTaskFixture();
+    const output = projectTask(task, resolveTaskProjectionArgs({ view: 'full', includeAssignees: true }));
+
+    expect(output.title).toEqual({ untrusted_text: 'Ship MCP optimization' });
+    expect(output.description).toEqual({ untrusted_text: 'desc' });
+    expect(output.key).toBe('TASK-12');
+    expect(output.assignees).toEqual([{ id: 'u1', name: 'User One', email: 'u1@example.com' }]);
   });
 });
 
