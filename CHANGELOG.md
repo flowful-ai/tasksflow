@@ -46,6 +46,7 @@ v2 is a rewrite of the backend's security model and infrastructure, plus a redes
 - Outgoing webhooks signed with HMAC-SHA256, with delivery logs and test sends.
 - Keyboard shortcuts with a `?` sheet; redesigned board, task card, task detail, sidebar, project top bar, filters and settings (including a webhooks tab and ownership transfer).
 - Inbox, My tasks and Trash pages.
+- Settings: the Profile tab edits your display name and lists active sessions (sign out one or all others); the Workspace tab renames the workspace (owners and admins), and its danger zone lets members leave and the owner delete the workspace.
 - The Done column orders tasks by completion time (`completed_at`).
 - Six new agent tools: `list_members`, `list_labels`, `list_comments`, `bulk_update_tasks`, `list_smart_views`, `run_smart_view`; task keys (`ENG-123`), `me` and email user references, state names for `move_task`, cursor pagination.
 - GitHub sync is two-way: task edits and comments on linked issues are pushed back to GitHub; closed or reopened issues move tasks; merged PRs move linked tasks to done; `FLOW-123` references resolve to tasks.

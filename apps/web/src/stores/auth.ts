@@ -33,6 +33,8 @@ function getAuthErrorMessage(error: Error): string {
 export type SessionUser = Omit<User, 'createdAt' | 'updatedAt'> & {
   createdAt?: string;
   updatedAt?: string;
+  /** Provider avatar: Better Auth's name for users.avatar_url (read it with avatarUrlOf). */
+  image?: string | null;
 };
 
 interface AuthState {

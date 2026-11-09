@@ -2,7 +2,8 @@ import { useEffect } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../api/queryKeys';
 import { memberApi, workspacesApi } from '../../api/workspaces';
-import type { WorkspaceDetailDto, WorkspaceDto } from '../../api/types';
+import type { ProjectDto, WorkspaceDetailDto, WorkspaceDto } from '../../api/types';
+import { nextWorkspaceId } from '../../lib/account';
 import { useWorkspaceStore } from '../../stores/workspace';
 
 /** Cursor of the first page of a cursor-paginated list. */
@@ -139,5 +140,76 @@ export function useTransferOwnership(workspaceId: string) {
     mutationFn: (userId: string) => workspacesApi.transferOwnership(workspaceId, userId),
     onSettled: invalidate,
     meta: { errorMessage: 'Could not transfer ownership' },
+  });
+}
+
+/** Owner or admin: rename the workspace. */
+export function useUpdateWorkspace(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { name: string }) => workspacesApi.update(workspaceId, input),
+    onSuccess: (workspace) => {
+      queryClient.setQueryData<WorkspaceDetailDto[]>(queryKeys.workspaces.list(), (list) =>
+        list?.map((w) => (w.id === workspace.id ? { ...w, ...workspace } : w))
+      );
+      queryClient.setQueryData(queryKeys.workspaces.detail(workspaceId), workspace);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.list() }),
+    // The form shows the error inline.
+    meta: { silentError: true },
+  });
+}
+
+/**
+ * After leaving or deleting a workspace: drop it from the list, select another
+ * one (or none) and forget every cached query of the workspace and its
+ * projects. Resolves to the workspace now selected.
+ */
+function useForgetWorkspace() {
+  const queryClient = useQueryClient();
+  const setWorkspaceId = useWorkspaceStore((s) => s.setCurrentWorkspaceId);
+  return async (workspaceId: string): Promise<string | null> => {
+    const list = queryClient.getQueryData<WorkspaceDetailDto[]>(queryKeys.workspaces.list()) ?? [];
+    const next = nextWorkspaceId(list, workspaceId);
+    const projectIds = (
+      queryClient.getQueryData<ProjectDto[]>(queryKeys.projects.list(workspaceId)) ?? []
+    ).map((p) => p.id);
+    const gone = new Set<string>([workspaceId, ...projectIds]);
+
+    queryClient.setQueryData<WorkspaceDetailDto[]>(queryKeys.workspaces.list(), (current) =>
+      current?.filter((w) => w.id !== workspaceId)
+    );
+    setWorkspaceId(next);
+    queryClient.removeQueries({
+      predicate: (query) =>
+        query.queryKey.some((part) => typeof part === 'string' && gone.has(part)),
+    });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.list() });
+    return next;
+  };
+}
+
+/** Owner only. Resolves to the workspace selected afterwards (null when none is left). */
+export function useDeleteWorkspace() {
+  const forget = useForgetWorkspace();
+  return useMutation({
+    mutationFn: async (workspaceId: string) => {
+      await workspacesApi.delete(workspaceId);
+      return forget(workspaceId);
+    },
+    // The confirm dialog shows the error inline.
+    meta: { silentError: true },
+  });
+}
+
+/** Leave the workspace (remove yourself). The last owner gets a 409. */
+export function useLeaveWorkspace() {
+  const forget = useForgetWorkspace();
+  return useMutation({
+    mutationFn: async ({ workspaceId, userId }: { workspaceId: string; userId: string }) => {
+      await memberApi.remove(workspaceId, userId);
+      return forget(workspaceId);
+    },
+    meta: { silentError: true },
   });
 }

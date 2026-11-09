@@ -25,6 +25,7 @@ import { useUiStore } from '../../stores/ui';
 import { useCurrentWorkspace, useProjects, useUnreadNotificationCount } from '../../hooks/queries';
 import { useRealtimeEvents } from '../../hooks/useRealtimeEvents';
 import { modKeyLabel } from '../../lib/hotkeys';
+import { avatarUrlOf, initials } from '../../lib/account';
 import { AgentChatLauncher } from '../chat/AgentChatLauncher';
 import { ReconnectingBanner } from '../realtime/ConnectionStatus';
 import { GlobalLayers } from '../command/GlobalLayers';
@@ -116,6 +117,7 @@ function SidebarLink({
 export function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
+  const avatarUrl = avatarUrlOf(user);
   const logout = useAuthStore((s) => s.logout);
   const setPaletteOpen = useUiStore((s) => s.setPaletteOpen);
   const setShortcutsOpen = useUiStore((s) => s.setShortcutsOpen);
@@ -360,9 +362,9 @@ export function Layout({ children }: LayoutProps) {
         {/* User menu */}
         <div className="border-t border-sidebar-border p-3">
           <div className="flex items-center gap-1 px-1 py-1">
-            {user?.avatarUrl ? (
+            {avatarUrl ? (
               <img
-                src={user.avatarUrl}
+                src={avatarUrl}
                 alt=""
                 className="avatar-ring h-8 w-8 rounded-full object-cover"
               />
@@ -372,7 +374,7 @@ export function Layout({ children }: LayoutProps) {
                 className="avatar-ring flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary-500 to-primary-600"
               >
                 <span className="text-sm font-semibold text-white">
-                  {user?.name?.[0] || user?.email?.[0]?.toUpperCase() || '?'}
+                  {initials(user?.name, user?.email)}
                 </span>
               </div>
             )}

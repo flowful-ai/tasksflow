@@ -18,6 +18,7 @@ import {
   type WorkspaceAiSettings,
 } from '../../api/workspaces';
 import { authApi } from '../../api/auth';
+import { useAuthStore } from '../../stores/auth';
 
 // ============ App admin ============
 
@@ -243,5 +244,55 @@ export function useUnlinkAccount() {
     mutationFn: (input: { providerId: string; accountId?: string }) => authApi.unlinkAccount(input),
     onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.auth.linkedAccounts() }),
     meta: { errorMessage: 'Could not disconnect the account' },
+  });
+}
+
+// ============ Profile and sessions ============
+
+/** Rename yourself. Names appear everywhere (sidebar, members, assignees), so refetch it all. */
+export function useUpdateProfileName() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (name: string) => {
+      await authApi.updateName(name);
+      return name;
+    },
+    onSuccess: async (name) => {
+      useAuthStore.setState((state) => (state.user ? { user: { ...state.user, name } } : state));
+      await Promise.all([useAuthStore.getState().checkAuth(), queryClient.invalidateQueries()]);
+    },
+    meta: { errorMessage: 'Could not save your name' },
+  });
+}
+
+/** The caller's active sessions, plus which one is this browser. */
+export function useSessions() {
+  return useQuery({
+    queryKey: queryKeys.auth.sessions(),
+    queryFn: async () => {
+      const [sessions, currentId] = await Promise.all([
+        authApi.listSessions(),
+        authApi.currentSessionId(),
+      ]);
+      return { sessions, currentId };
+    },
+  });
+}
+
+export function useRevokeSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (token: string) => authApi.revokeSession(token),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.auth.sessions() }),
+    meta: { errorMessage: 'Could not sign out that session' },
+  });
+}
+
+export function useRevokeOtherSessions() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => authApi.revokeOtherSessions(),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.auth.sessions() }),
+    meta: { silentError: true },
   });
 }

@@ -52,7 +52,43 @@ export interface AccountInfoResponse {
   data: Record<string, unknown>;
 }
 
+/** A Better Auth session row as returned by GET /api/auth/list-sessions. */
+export interface AuthSession {
+  id: string;
+  token: string;
+  userAgent?: string | null;
+  ipAddress?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+}
+
 export const authApi = {
+  /** Change the display name (Better Auth update-user; the email cannot change). */
+  updateName: (name: string): Promise<{ status: boolean }> =>
+    api.post('/api/auth/update-user', { name }),
+
+  /** The caller's current session id (to tell "this device" apart in the list). */
+  currentSessionId: async (): Promise<string | null> => {
+    const result = await api.get<{ session?: { id: string } } | null>('/api/auth/get-session');
+    return result?.session?.id ?? null;
+  },
+
+  /**
+   * Active sessions, newest activity first. Better Auth answers 403
+   * SESSION_NOT_FRESH when the current session is more than a day old.
+   */
+  listSessions: async (): Promise<AuthSession[]> => {
+    const sessions = await api.get<AuthSession[]>('/api/auth/list-sessions');
+    return [...sessions].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  },
+
+  revokeSession: (token: string): Promise<{ status: boolean }> =>
+    api.post('/api/auth/revoke-session', { token }),
+
+  revokeOtherSessions: (): Promise<{ status: boolean }> =>
+    api.post('/api/auth/revoke-other-sessions', {}),
+
   listAccounts: async (): Promise<LinkedAccount[]> => {
     const result = await authClient.listAccounts();
     if (result.error) {

@@ -30,6 +30,7 @@ export const queryKeys = {
   auth: {
     session: () => ['auth', 'session'] as const,
     linkedAccounts: () => ['auth', 'linked-accounts'] as const,
+    sessions: () => ['auth', 'sessions'] as const,
   },
 
   app: {

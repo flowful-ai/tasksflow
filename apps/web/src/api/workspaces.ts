@@ -16,6 +16,11 @@ export const workspacesApi = {
     http.get(`/api/workspaces/${workspaceId}`),
   create: (input: { name: string; slug: string }): Promise<WorkspaceDto> =>
     http.post('/api/workspaces', input),
+  /** Owner or admin. */
+  update: (workspaceId: string, input: { name: string }): Promise<WorkspaceDetailDto> =>
+    http.patch(`/api/workspaces/${workspaceId}`, input),
+  /** Owner only: deletes the workspace and everything in it. */
+  delete: (workspaceId: string): Promise<null> => http.delete(`/api/workspaces/${workspaceId}`),
   /** The caller's role in the workspace. */
   me: (workspaceId: string): Promise<{ role: WorkspaceRole }> =>
     http.get(`/api/workspaces/${workspaceId}/me`),
