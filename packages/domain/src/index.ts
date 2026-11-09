@@ -1,6 +1,21 @@
 // Task domain
 export * from './task/service.js';
 export * from './task/types.js';
+export * from './task/errors.js';
+export * from './task/access.js';
+export * from './task/relations.js';
+export * from './task/history.js';
+export * from './task/bulk.js';
+export * from './task/trash.js';
+export { placeTask, positionOrder } from './task/positions.js';
+
+// Domain events, notifications, search, jobs, outgoing webhooks
+export * from './events/index.js';
+export * from './notification/index.js';
+export * from './search/index.js';
+export * from './jobs/index.js';
+export * from './jobs/background.js';
+export * from './webhook-out/index.js';
 
 // Project domain
 export * from './project/service.js';
