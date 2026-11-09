@@ -2,7 +2,7 @@
  * Route-level webhook tests. The database-backed ones are skipped unless
  * TEST_DATABASE_URL is set.
  */
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, spyOn, test } from 'bun:test';
 import { createHmac, randomUUID } from 'crypto';
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -72,5 +72,26 @@ describeDb('POST /api/webhooks/github', () => {
     const second = await routes.request(issuesDelivery(deliveryId, body));
     expect(second.status).toBe(200);
     expect(await second.json()).toMatchObject({ status: 'ignored', reason: 'Duplicate delivery' });
+  });
+
+  test('releases the delivery id when the target lookup throws', async () => {
+    const routes = await loadRoutes();
+    const integrations = await import('../integrations/index.js');
+    const deliveryId = randomUUID();
+
+    const lookup = spyOn(integrations, 'findGitHubTargetsForRepo').mockRejectedValueOnce(
+      new Error('connection reset')
+    );
+    try {
+      const first = await routes.request(issuesDelivery(deliveryId, body));
+      expect(first.status).toBe(500);
+    } finally {
+      lookup.mockRestore();
+    }
+
+    // GitHub's retry is processed, not dropped as a duplicate.
+    const retry = await routes.request(issuesDelivery(deliveryId, body));
+    expect(retry.status).toBe(200);
+    expect(await retry.json()).toMatchObject({ reason: 'No matching integration found' });
   });
 });

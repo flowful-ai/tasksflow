@@ -105,44 +105,73 @@ webhooks.post('/github', async (c) => {
     void pruneDeliveries();
   }
 
-  const repository = envelope.data.repository;
-  const targets = await findGitHubTargetsForRepo(db, repository.owner.login, repository.name);
-  if (targets.length === 0) {
-    return c.json({ status: 'ignored', reason: 'No matching integration found' });
-  }
-
-  // Deliver to every project that links this repository.
-  const results: WebhookTargetResult[] = [];
-  let failures = 0;
-  for (const target of targets) {
+  // Release the delivery id on any failure, so GitHub's retry or a manual
+  // redelivery is processed instead of being treated as a duplicate.
+  // Successful targets are idempotent (link claims, comment external ids, sync hashes).
+  const releaseDelivery = async (): Promise<void> => {
+    if (!deliveryId) return;
     try {
-      results.push(await processor.process(target, action));
+      await db.delete(webhookDeliveries).where(eq(webhookDeliveries.deliveryId, deliveryId));
     } catch (error) {
-      failures++;
       console.error(
         JSON.stringify({
           level: 'error',
-          msg: 'github_webhook_target_failed',
+          msg: 'github_webhook_release_failed',
           deliveryId,
-          event,
-          integrationId: target.integrationId,
           error: error instanceof Error ? error.message : String(error),
         })
       );
     }
-  }
+  };
 
-  if (failures > 0) {
-    // Release the delivery id so GitHub's retry or a manual redelivery is processed.
-    // Successful targets are idempotent (link claims, comment external ids, sync hashes).
-    if (deliveryId) {
-      await db.delete(webhookDeliveries).where(eq(webhookDeliveries.deliveryId, deliveryId));
+  try {
+    const repository = envelope.data.repository;
+    const targets = await findGitHubTargetsForRepo(db, repository.owner.login, repository.name);
+    if (targets.length === 0) {
+      return c.json({ status: 'ignored', reason: 'No matching integration found' });
     }
-    return c.json({ error: 'Webhook processing failed', results }, 500);
-  }
 
-  const processed = results.some((r) => r.status === 'processed');
-  return c.json({ status: processed ? 'processed' : 'ignored', results });
+    // Deliver to every project that links this repository.
+    const results: WebhookTargetResult[] = [];
+    let failures = 0;
+    for (const target of targets) {
+      try {
+        results.push(await processor.process(target, action));
+      } catch (error) {
+        failures++;
+        console.error(
+          JSON.stringify({
+            level: 'error',
+            msg: 'github_webhook_target_failed',
+            deliveryId,
+            event,
+            integrationId: target.integrationId,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        );
+      }
+    }
+
+    if (failures > 0) {
+      await releaseDelivery();
+      return c.json({ error: 'Webhook processing failed', results }, 500);
+    }
+
+    const processed = results.some((r) => r.status === 'processed');
+    return c.json({ status: processed ? 'processed' : 'ignored', results });
+  } catch (error) {
+    await releaseDelivery();
+    console.error(
+      JSON.stringify({
+        level: 'error',
+        msg: 'github_webhook_failed',
+        deliveryId,
+        event,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    );
+    return c.json({ error: 'Webhook processing failed' }, 500);
+  }
 });
 
 /** Escape text for Slack mrkdwn. */
