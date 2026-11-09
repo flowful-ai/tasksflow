@@ -1,7 +1,7 @@
 services:
   # PostgreSQL Database
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.15-alpine
     restart: always
     # Memory ceiling, with postgres told to stay inside it.
     #
@@ -14,8 +14,10 @@ services:
     #
     # Bounded here at ~464 MiB worst case: 128 shared_buffers + 30 backends x
     # work_mem + 96 autovacuum. max_connections is 30 rather than the default
-    # 100 because the API pools at DB_POOL_MAX (10), so this leaves room for
-    # three API instances plus the migration and healthcheck connections.
+    # 100: each API instance holds its pool (DB_POOL_MAX, 10) plus one LISTEN
+    # connection for realtime and, briefly at boot, one migration connection.
+    # That leaves room for two API instances, the backup sidecar's pg_dump and
+    # the healthchecks.
     #
     # The 15 MiB reading taken on main 2026-09-11 is not the sizing case:
     # docker stats subtracts inactive page cache, so it understates a cold or
@@ -46,145 +48,111 @@ services:
     networks:
       - flowtask-network
 
-  # Redis Cache & Pub/Sub
-  redis:
-    image: redis:7-alpine
-    restart: always
-    # Memory ceiling, with redis given a budget under it.
-    #
-    # maxmemory defaults to unlimited, so the cgroup limit on its own is a
-    # cliff rather than a policy: redis grows until the kernel kills it. The
-    # 160mb budget deliberately sits well below the 256m cap because two
-    # things are NOT counted against maxmemory and still count against the
-    # cgroup: the copy-on-write pages of the BGREWRITEAOF fork that appendonly
-    # implies, and per-client pub/sub output buffers.
-    #
-    # volatile-lru rather than allkeys-lru: every key today has a TTL (the
-    # rate-limit counters expire, the pub/sub payloads are transient), so the
-    # two behave identically now. volatile-lru fails loudly the day someone
-    # adds a key without a TTL, instead of silently evicting it.
-    #
-    # If issue #14 lands and Postgres takes over rate limiting and SSE
-    # fan-out, this whole service goes away with its volume.
-    deploy:
-      resources:
-        limits:
-          memory: 256m
-    command: >
-      redis-server
-      --appendonly yes
-      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
-      --maxmemory 160mb
-      --maxmemory-policy volatile-lru
-      --maxmemory-clients 32mb
-    volumes:
-      - tasksflow_redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - flowtask-network
-
-  # API Server
+  # API server. Also serves the built SPA and applies migrations on boot (under
+  # an advisory lock), so this is the only app container. Route the domain to
+  # this service on port 3001.
   tasksflow-api:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+      args:
+        # Build-time flags for the SPA: they only switch the OAuth buttons and
+        # the GitHub App install link on, so they default to the server values.
+        VITE_GITHUB_CLIENT_ID: ${VITE_GITHUB_CLIENT_ID:-${GITHUB_CLIENT_ID:-}}
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-${GOOGLE_CLIENT_ID:-}}
+        VITE_GITHUB_APP_SLUG: ${VITE_GITHUB_APP_SLUG:-}
     restart: always
     # Memory ceiling. Measured on main 2026-09-11: 109 MiB. 512m is ~4x that,
-    # since this process also carries the websocket server on 3002.
+    # which covers SSE fan-out to many open streams and the in-memory gzip
+    # copies of the SPA assets (about 1 MB).
     deploy:
       resources:
         limits:
           memory: 512m
+    # SIGTERM drains requests, ends SSE streams and closes the pool
+    # (SHUTDOWN_TIMEOUT_MS, 10s per phase); give it time before SIGKILL.
+    stop_grace_period: 30s
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://${POSTGRES_USER:-flowtask}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-flowtask}
-      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
-      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
-      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-https://flowtask.example.com}
       API_PORT: 3001
-      WEB_URL: ${WEB_URL:-https://flowtask.example.com}
+      # The API builds the connection URL from these (URL-encoded), so any
+      # characters are safe in the password.
+      POSTGRES_HOST: postgres
+      POSTGRES_USER: ${POSTGRES_USER:-flowtask}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-flowtask}
+      DB_POOL_MAX: ${DB_POOL_MAX:-10}
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-true}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?BETTER_AUTH_URL is required (public https URL)}
+      WEB_URL: ${WEB_URL:-${BETTER_AUTH_URL}}
+      # Proxies in front of the API that append to X-Forwarded-For (Traefik).
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
+      APP_MANAGER_EMAILS: ${APP_MANAGER_EMAILS:-}
+      API_KEY_ENCRYPTION_KEY: ${API_KEY_ENCRYPTION_KEY:?API_KEY_ENCRYPTION_KEY is required}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
       GITHUB_APP_ID: ${GITHUB_APP_ID:-}
       GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY:-}
       GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
       SLACK_SIGNING_SECRET: ${SLACK_SIGNING_SECRET:-}
-      SLACK_APP_TOKEN: ${SLACK_APP_TOKEN:-}`
-      API_KEY_ENCRYPTION_KEY: ${API_KEY_ENCRYPTION_KEY:?API_KEY_ENCRYPTION_KEY is required}
-      WS_PORT: 3002
+      SLACK_APP_TOKEN: ${SLACK_APP_TOKEN:-}
+      OPENROUTER_TIMEOUT_MS: ${OPENROUTER_TIMEOUT_MS:-}
     expose:
       - "3001"
-      - "3002"
-    depends_on:
-      tasksflow-migrate:
-        condition: service_completed_successfully
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - flowtask-network
-  # Database migrations (run once at deploy)
-  tasksflow-migrate:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-      target: builder
-    command: bun --cwd packages/database db:migrate
-    # Memory ceiling. Runs from the builder stage, so it loads the full dev
-    # dependency tree plus the drizzle-kit bundle: measured at a ~240 MiB
-    # floor before a single migration is applied. Bun has no enforceable heap
-    # cap, so an overrun is a bare SIGKILL with nothing in the log, and
-    # service_completed_successfully then blocks the API from starting at all.
-    # 1g on a container that lives for seconds costs nothing and it does not
-    # overlap with steady state, since the API is not up yet when this runs.
-    deploy:
-      resources:
-        limits:
-          memory: 1g
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-flowtask}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-flowtask}
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - "fetch('http://127.0.0.1:3001/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
     depends_on:
       postgres:
         condition: service_healthy
-    restart: "no"
     networks:
       - flowtask-network
-  tasksflow-web:
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
-      args:
-        VITE_API_URL: ${VITE_API_URL:-}
-        VITE_WS_URL: ${VITE_WS_URL:-}
-        VITE_GITHUB_CLIENT_ID: ${VITE_GITHUB_CLIENT_ID:-}
-        VITE_GITHUB_APP_SLUG: ${VITE_GITHUB_APP_SLUG:-}
-        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+
+  # Daily pg_dump to the tasksflow_backups volume, keeping 7 daily, 4 weekly
+  # and 6 monthly dumps. The volume is on the same host: copy it off-host
+  # (Dokploy volume backups, rsync, restic) for real disaster recovery.
+  # Restore: gunzip -c <dump>.sql.gz | docker compose exec -T postgres psql -U <user> <db>
+  tasksflow-backup:
+    image: prodrigestivill/postgres-backup-local:16-alpine-d257e5d
     restart: always
-    # Memory ceiling. Measured on main 2026-09-11: 7 MiB. The runner stage is
-    # nginx serving a built Vite bundle (Bun only appears in the builder), so
-    # this stays flat regardless of traffic.
     deploy:
       resources:
         limits:
           memory: 256m
-    expose:
-      - "3000"
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-flowtask}
+      POSTGRES_USER: ${POSTGRES_USER:-flowtask}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_EXTRA_OPTS: --clean --if-exists --no-owner
+      SCHEDULE: "@daily"
+      BACKUP_KEEP_DAYS: 7
+      BACKUP_KEEP_WEEKS: 4
+      BACKUP_KEEP_MONTHS: 6
+      HEALTHCHECK_PORT: 8080
+    volumes:
+      - tasksflow_backups:/backups
     depends_on:
-      - tasksflow-api
+      postgres:
+        condition: service_healthy
     networks:
       - flowtask-network
 
 volumes:
   tasksflow_postgres_data:
-  tasksflow_redis_data:
+  tasksflow_backups:
 
 networks:
   flowtask-network:
