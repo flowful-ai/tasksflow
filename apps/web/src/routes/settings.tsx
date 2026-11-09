@@ -12,7 +12,6 @@ import {
   Webhook,
   type LucideIcon,
 } from 'lucide-react';
-import clsx from 'clsx';
 import { AgentSettings } from '../components/settings/AgentSettings';
 import { AiSettings } from '../components/settings/AiSettings';
 import { AppOverviewSettings } from '../components/settings/AppOverviewSettings';
@@ -26,7 +25,7 @@ import { ViewsSettings } from '../components/settings/ViewsSettings';
 import { WebhookSettings } from '../components/settings/WebhookSettings';
 import { WorkspaceGeneralSettings } from '../components/settings/WorkspaceGeneralSettings';
 import { SmartViewForm } from '../components/smart-views/SmartViewForm';
-import { Banner } from '../components/ui';
+import { Banner, NavItem, PageHeader, Panel } from '../components/ui';
 import { useAppContext, useCurrentWorkspace, useWorkspaceRole } from '../hooks/queries';
 
 type NavigationItem = {
@@ -107,12 +106,10 @@ export function SettingsPage() {
 
   return (
     <div className="max-w-5xl mx-auto">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold text-neutral-900 mb-2">Settings</h1>
-        <p className="text-sm text-neutral-600">
-          Settings are separated by scope: user, workspace, and app.
-        </p>
-      </header>
+      <PageHeader
+        title="Settings"
+        description="Settings are separated by scope: user, workspace, and app."
+      />
 
       {appContext.error && (
         <Banner variant="warning" className="mb-4">
@@ -127,12 +124,16 @@ export function SettingsPage() {
           aria-busy={isLoadingPermissions}
         >
           {navigationSections.map((section) => (
-            <section
+            <Panel
               key={section.title}
+              role="region"
               aria-labelledby={`settings-${section.title}`}
-              className="border border-neutral-200 rounded-lg p-3"
+              padding="sm"
             >
-              <h2 id={`settings-${section.title}`} className="text-sm font-semibold text-neutral-900">
+              <h2
+                id={`settings-${section.title}`}
+                className="text-sm font-semibold text-neutral-900"
+              >
                 {section.title}
               </h2>
               <p className="text-xs text-neutral-500 mt-1 mb-2">{section.description}</p>
@@ -144,24 +145,14 @@ export function SettingsPage() {
                     location.pathname.startsWith(`${item.href}/`);
                   return (
                     <li key={item.name}>
-                      <Link
-                        to={item.href}
-                        aria-current={isActive ? 'page' : undefined}
-                        className={clsx(
-                          'flex items-center px-3 py-2 text-sm font-medium rounded-lg',
-                          isActive
-                            ? 'bg-primary-50 text-primary-700'
-                            : 'text-neutral-700 hover:bg-neutral-100'
-                        )}
-                      >
-                        <Icon aria-hidden className="w-5 h-5 mr-3" />
-                        {item.name}
-                      </Link>
+                      <NavItem asChild active={isActive} icon={<Icon />}>
+                        <Link to={item.href}>{item.name}</Link>
+                      </NavItem>
                     </li>
                   );
                 })}
               </ul>
-            </section>
+            </Panel>
           ))}
         </nav>
 

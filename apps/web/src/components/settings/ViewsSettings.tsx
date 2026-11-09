@@ -1,22 +1,14 @@
 import { Link, useNavigate } from 'react-router-dom';
+import { Button, Card } from '../ui';
 
 export function ViewsSettings() {
   const navigate = useNavigate();
   return (
-    <div className="card p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-lg font-semibold text-neutral-900">Views</h2>
-          <p className="text-sm text-neutral-600 mt-1">Manage your saved filtered views.</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => navigate('/settings/workspace/views/new')}
-          className="btn btn-primary"
-        >
-          New View
-        </button>
-      </div>
+    <Card
+      title="Views"
+      description="Manage your saved filtered views."
+      actions={<Button onClick={() => navigate('/settings/workspace/views/new')}>New View</Button>}
+    >
       <p className="text-neutral-600">
         Go to the{' '}
         <Link to="/views" className="text-primary-600 hover:underline">
@@ -24,6 +16,6 @@ export function ViewsSettings() {
         </Link>{' '}
         to see all your views, or create a new one above.
       </p>
-    </div>
+    </Card>
   );
 }

@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react';
-import clsx from 'clsx';
 import type { AppRole } from '@flowtask/shared';
 import type { AppManagedUser } from '../../api/agents';
 import { useAppUsers, useUpdateAppUserRole } from '../../hooks/queries';
-import { ErrorState, toast } from '../ui';
+import { Badge, Button, Card, ErrorState, Input, toast } from '../ui';
 
 interface AppUserManagementSettingsProps {
   isAppManager: boolean;
@@ -44,27 +43,24 @@ export function AppUserManagementSettings({ isAppManager }: AppUserManagementSet
 
   if (!isAppManager) {
     return (
-      <div className="card p-6">
-        <h2 className="text-lg font-semibold text-neutral-900 mb-2">User Management</h2>
+      <Card title="User Management">
         <p className="text-sm text-neutral-600">
           Only app managers can manage users at the application level.
         </p>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="card p-6">
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-4">
-        <div>
-          <h2 className="text-lg font-semibold text-neutral-900">App Users</h2>
-          <p className="text-sm text-neutral-600 mt-1">Manage app-wide access roles for all users.</p>
-        </div>
-        <div className="text-sm text-neutral-500">
+    <Card
+      title="App Users"
+      description="Manage app-wide access roles for all users."
+      actions={
+        <span className="text-sm text-neutral-500">
           {total} total user{total === 1 ? '' : 's'}
-        </div>
-      </div>
-
+        </span>
+      }
+    >
       <form
         role="search"
         className="flex flex-col sm:flex-row gap-2 mb-4"
@@ -76,19 +72,18 @@ export function AppUserManagementSettings({ isAppManager }: AppUserManagementSet
         <label htmlFor="app-user-search" className="sr-only">
           Search users
         </label>
-        <input
+        <Input
           id="app-user-search"
-          className="input flex-1"
+          className="flex-1"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
           placeholder="Search by email or name"
         />
-        <button type="submit" className="btn btn-secondary">
+        <Button type="submit" variant="secondary">
           Search
-        </button>
-        <button
-          type="button"
-          className="btn btn-secondary"
+        </Button>
+        <Button
+          variant="secondary"
           onClick={() => {
             setSearchInput('');
             setAppliedSearch('');
@@ -96,7 +91,7 @@ export function AppUserManagementSettings({ isAppManager }: AppUserManagementSet
           disabled={!searchInput && !appliedSearch}
         >
           Clear
-        </button>
+        </Button>
       </form>
 
       {error ? (
@@ -126,17 +121,11 @@ export function AppUserManagementSettings({ isAppManager }: AppUserManagementSet
                   <p className="text-sm text-neutral-500 truncate">{managedUser.email}</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span
-                    className={clsx(
-                      'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium',
-                      isAppManagerRole ? 'bg-blue-100 text-blue-700' : 'bg-neutral-100 text-neutral-700'
-                    )}
-                  >
+                  <Badge shape="pill" tone={isAppManagerRole ? 'info' : 'neutral'}>
                     {roleLabel(managedUser.appRole)}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-secondary text-sm"
+                  </Badge>
+                  <Button
+                    variant="secondary"
                     disabled={isUpdating}
                     onClick={() => handleRoleToggle(managedUser)}
                   >
@@ -145,13 +134,13 @@ export function AppUserManagementSettings({ isAppManager }: AppUserManagementSet
                       : isAppManagerRole
                         ? 'Revoke App Manager'
                         : 'Make App Manager'}
-                  </button>
+                  </Button>
                 </div>
               </li>
             );
           })}
         </ul>
       )}
-    </div>
+    </Card>
   );
 }

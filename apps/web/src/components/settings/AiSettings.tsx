@@ -1,6 +1,5 @@
 /** Workspace settings → AI & Agents: provider keys, agents, chat defaults (owner/admin). */
 import { useState } from 'react';
-import clsx from 'clsx';
 import { ApiError } from '../../api/http';
 import { agentApi, type AgentSummary } from '../../api/agents';
 import type { ApiKeyProvider, WorkspaceAiSettings } from '../../api/workspaces';
@@ -13,7 +12,21 @@ import {
   useCurrentWorkspace,
   useUpdateAiSettings,
 } from '../../hooks/queries';
-import { ConfirmDialog, ErrorState, Spinner, toast } from '../ui';
+import {
+  Badge,
+  Button,
+  Card,
+  Checkbox,
+  ConfirmDialog,
+  ErrorState,
+  Field,
+  Input,
+  Panel,
+  Select,
+  Spinner,
+  Textarea,
+  toast,
+} from '../ui';
 import { AVAILABLE_PERMISSIONS } from './AgentSettings';
 
 const API_KEY_PROVIDERS: {
@@ -118,31 +131,29 @@ export function AiSettings() {
 
   if (!workspace) {
     return (
-      <div className="card p-6">
-        <h2 className="text-lg font-semibold text-neutral-900 mb-2">AI & Agents</h2>
+      <Card title="AI & Agents">
         <p className="text-neutral-600">Select a workspace to manage AI settings.</p>
-      </div>
+      </Card>
     );
   }
 
   if (forbidden) {
     return (
-      <div className="card p-6">
-        <h2 className="text-lg font-semibold text-neutral-900 mb-2">AI & Agents</h2>
+      <Card title="AI & Agents">
         <p className="text-neutral-600">Only workspace owners and admins can manage AI settings.</p>
-      </div>
+      </Card>
     );
   }
 
   if (keyStatus.error) {
     return (
-      <div className="card p-6">
+      <Card>
         <ErrorState
           error={keyStatus.error}
           resource="AI configuration"
           onRetry={() => void keyStatus.refetch()}
         />
-      </div>
+      </Card>
     );
   }
 
@@ -247,11 +258,10 @@ export function AiSettings() {
     setAgentForm((previous) => ({ ...previous, [key]: value }));
 
   return (
-    <div className="card p-6">
-      <h2 className="text-lg font-semibold text-neutral-900 mb-4">AI & Agents</h2>
-      <p className="text-neutral-600 mb-6">
-        Set up provider keys, create agents, and choose the default chat agent for your workspace.
-      </p>
+    <Card
+      title="AI & Agents"
+      description="Set up provider keys, create agents, and choose the default chat agent for your workspace."
+    >
       <div className="mb-4 text-sm text-neutral-600">
         Workspace: <span className="font-medium text-neutral-900">{workspace.name}</span>
       </div>
@@ -273,7 +283,7 @@ export function AiSettings() {
           const keyValue = apiKeys[config.provider];
           const inputId = `api-key-${config.provider}`;
           return (
-            <div key={config.provider} className="rounded-lg border border-neutral-200 p-4">
+            <Panel key={config.provider}>
               <div className="mb-4">
                 <h3 className="text-base font-medium text-neutral-900">{config.label}</h3>
                 <div className="text-sm text-neutral-600">
@@ -285,58 +295,54 @@ export function AiSettings() {
                   </span>
                 </div>
               </div>
-              <label htmlFor={inputId} className="mb-1 block text-sm font-medium text-neutral-700">
-                {config.label} API Key
-              </label>
-              <input
+              <Field
                 id={inputId}
-                type="password"
-                autoComplete="off"
-                className="input"
-                placeholder={config.placeholder}
-                value={keyValue}
-                onChange={(e) =>
-                  setApiKeys((prev) => ({ ...prev, [config.provider]: e.target.value }))
+                label={`${config.label} API Key`}
+                hint={
+                  <>
+                    Get your API key from{' '}
+                    <a
+                      href={config.docsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary-600 hover:underline"
+                    >
+                      {config.docsLabel}
+                    </a>
+                  </>
                 }
-              />
-              <p className="mt-1 text-sm text-neutral-500">
-                Get your API key from{' '}
-                <a
-                  href={config.docsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary-600 hover:underline"
-                >
-                  {config.docsLabel}
-                </a>
-              </p>
+              >
+                <Input
+                  type="password"
+                  autoComplete="off"
+                  placeholder={config.placeholder}
+                  value={keyValue}
+                  onChange={(e) =>
+                    setApiKeys((prev) => ({ ...prev, [config.provider]: e.target.value }))
+                  }
+                />
+              </Field>
               <div className="mt-4 flex items-center gap-3">
-                <button
-                  type="button"
-                  className="btn btn-primary"
+                <Button
                   onClick={() => saveKey(config.provider)}
                   disabled={isSaving || !keyValue.trim()}
                 >
                   {isSaving ? 'Saving...' : hasKey ? 'Update API Key' : 'Save API Key'}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
+                </Button>
+                <Button
+                  variant="secondary"
                   onClick={() => setDeletingKey(config.provider)}
                   disabled={!hasKey}
                 >
                   Delete
-                </button>
+                </Button>
               </div>
-            </div>
+            </Panel>
           );
         })}
       </section>
 
-      <section
-        aria-labelledby="agents-heading"
-        className="mt-8 rounded-lg border border-neutral-200 p-4"
-      >
+      <Panel role="region" aria-labelledby="agents-heading" className="mt-8">
         <h3 id="agents-heading" className="text-base font-medium text-neutral-900">
           Agents
         </h3>
@@ -363,43 +369,34 @@ export function AiSettings() {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-neutral-900">{agent.name}</span>
-                        <span
-                          className={clsx(
-                            'rounded px-2 py-0.5 text-xs font-medium',
-                            agent.isActive
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-neutral-100 text-neutral-600'
-                          )}
-                        >
+                        <Badge tone={agent.isActive ? 'success' : 'neutral'}>
                           {agent.isActive ? 'Active' : 'Inactive'}
-                        </span>
+                        </Badge>
                         {aiSettings?.defaultAgentId === agent.id && (
-                          <span className="rounded bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700">
-                            Default chat agent
-                          </span>
+                          <Badge tone="primary">Default chat agent</Badge>
                         )}
                       </div>
                       <div className="mt-1 text-xs font-mono text-neutral-600">{agent.model}</div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        className="btn btn-secondary !px-2 !py-1 text-xs"
+                      <Button
+                        variant="secondary"
+                        size="xs"
                         onClick={() => void beginEditAgent(agent)}
                       >
                         Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-secondary !px-2 !py-1 text-xs"
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="xs"
                         onClick={() => void toggleAgentStatus(agent).catch(() => undefined)}
                         disabled={isSavingAgent}
                       >
                         {agent.isActive ? 'Deactivate' : 'Activate'}
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-secondary !px-2 !py-1 text-xs"
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="xs"
                         onClick={() =>
                           void saveDefaultAgent(agent.id)
                             .then(() => toast.success('Chat defaults saved'))
@@ -412,14 +409,10 @@ export function AiSettings() {
                         }
                       >
                         Set default
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-secondary !px-2 !py-1 text-xs"
-                        onClick={() => setDeletingAgent(agent)}
-                      >
+                      </Button>
+                      <Button variant="secondary" size="xs" onClick={() => setDeletingAgent(agent)}>
                         Delete
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </li>
@@ -439,69 +432,42 @@ export function AiSettings() {
             {editingAgentId ? 'Edit Agent' : 'Create Agent'}
           </h4>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
-            <div>
-              <label htmlFor="agent-name" className="mb-1 block text-sm font-medium text-neutral-700">
-                Name
-              </label>
-              <input
-                id="agent-name"
-                className="input"
+            <Field label="Name" id="agent-name">
+              <Input
                 value={agentForm.name}
                 onChange={(e) => setField('name', e.target.value)}
                 placeholder="Support assistant"
               />
-            </div>
-            <div>
-              <label htmlFor="agent-model" className="mb-1 block text-sm font-medium text-neutral-700">
-                Model
-              </label>
-              <input
-                id="agent-model"
-                className="input"
+            </Field>
+            <Field label="Model" id="agent-model">
+              <Input
                 value={agentForm.model}
                 onChange={(e) => setField('model', e.target.value)}
                 placeholder="openai/gpt-4.1"
               />
-            </div>
-            <div className="md:col-span-2">
-              <label
-                htmlFor="agent-prompt"
-                className="mb-1 block text-sm font-medium text-neutral-700"
-              >
-                System Prompt (optional)
-              </label>
-              <textarea
-                id="agent-prompt"
-                className="input min-h-[96px]"
+            </Field>
+            <Field label="System Prompt (optional)" id="agent-prompt" className="md:col-span-2">
+              <Textarea
+                className="min-h-[96px]"
                 value={agentForm.systemPrompt}
                 onChange={(e) => setField('systemPrompt', e.target.value)}
                 placeholder="You are a concise project assistant..."
               />
-            </div>
-            <div>
-              <label htmlFor="agent-rpm" className="mb-1 block text-sm font-medium text-neutral-700">
-                Requests / minute
-              </label>
-              <input
-                id="agent-rpm"
+            </Field>
+            <Field label="Requests / minute" id="agent-rpm">
+              <Input
                 inputMode="numeric"
-                className="input"
                 value={agentForm.requestsPerMinute}
                 onChange={(e) => setField('requestsPerMinute', e.target.value)}
               />
-            </div>
-            <div>
-              <label htmlFor="agent-tpd" className="mb-1 block text-sm font-medium text-neutral-700">
-                Tokens / day
-              </label>
-              <input
-                id="agent-tpd"
+            </Field>
+            <Field label="Tokens / day" id="agent-tpd">
+              <Input
                 inputMode="numeric"
-                className="input"
                 value={agentForm.tokensPerDay}
                 onChange={(e) => setField('tokensPerDay', e.target.value)}
               />
-            </div>
+            </Field>
           </div>
           <fieldset className="mt-4">
             <legend className="mb-2 block text-sm font-medium text-neutral-700">Tools</legend>
@@ -511,8 +477,7 @@ export function AiSettings() {
                   key={tool.id}
                   className="flex items-center gap-2 rounded border border-neutral-200 px-2 py-1.5 text-sm text-neutral-700"
                 >
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={agentForm.tools.includes(tool.id)}
                     onChange={() =>
                       setField(
@@ -529,14 +494,12 @@ export function AiSettings() {
             </div>
           </fieldset>
           {editingAgentId && (
-            <label className="mt-3 flex items-center gap-2 text-sm text-neutral-700">
-              <input
-                type="checkbox"
-                checked={agentForm.isActive}
-                onChange={(e) => setField('isActive', e.target.checked)}
-              />
-              Agent is active
-            </label>
+            <Checkbox
+              labelClassName="mt-3"
+              label="Agent is active"
+              checked={agentForm.isActive}
+              onChange={(e) => setField('isActive', e.target.checked)}
+            />
           )}
           {agentFormError && (
             <p role="alert" className="mt-3 text-sm text-red-600">
@@ -544,26 +507,19 @@ export function AiSettings() {
             </p>
           )}
           <div className="mt-4 flex items-center gap-2">
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={isSavingAgent || !hasProviderKey}
-            >
+            <Button type="submit" disabled={isSavingAgent || !hasProviderKey}>
               {isSavingAgent ? 'Saving...' : editingAgentId ? 'Save Agent' : 'Create Agent'}
-            </button>
+            </Button>
             {editingAgentId && (
-              <button type="button" className="btn btn-secondary" onClick={resetAgentForm}>
+              <Button variant="secondary" onClick={resetAgentForm}>
                 Cancel
-              </button>
+              </Button>
             )}
           </div>
         </form>
-      </section>
+      </Panel>
 
-      <section
-        aria-labelledby="chat-defaults-heading"
-        className="mt-8 rounded-lg border border-neutral-200 p-4"
-      >
+      <Panel role="region" aria-labelledby="chat-defaults-heading" className="mt-8">
         <h3 id="chat-defaults-heading" className="text-base font-medium text-neutral-900">
           Chat Defaults
         </h3>
@@ -579,13 +535,8 @@ export function AiSettings() {
         ) : !aiSettings ? (
           <Spinner label="Loading chat defaults" className="mt-3" />
         ) : (
-          <div className="mt-4">
-            <label htmlFor="default-agent" className="mb-1 block text-sm font-medium text-neutral-700">
-              Default Agent
-            </label>
-            <select
-              id="default-agent"
-              className="input"
+          <Field label="Default Agent" id="default-agent" className="mt-4">
+            <Select
               value={aiSettings.defaultAgentId ?? ''}
               onChange={(e) =>
                 void saveDefaultAgent(e.target.value || null)
@@ -600,10 +551,10 @@ export function AiSettings() {
                   {agent.name}
                 </option>
               ))}
-            </select>
-          </div>
+            </Select>
+          </Field>
         )}
-      </section>
+      </Panel>
 
       <ConfirmDialog
         open={deletingAgent !== null}
@@ -633,6 +584,6 @@ export function AiSettings() {
           toast.success(`${deletingKey.toUpperCase()} API key deleted`);
         }}
       />
-    </div>
+    </Card>
   );
 }

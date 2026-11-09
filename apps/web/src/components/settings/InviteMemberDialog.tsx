@@ -3,7 +3,7 @@ import { Mail, Shield, User, Copy, Check, Link as LinkIcon, Users } from 'lucide
 import clsx from 'clsx';
 import type { WorkspaceInvitation } from '../../api/workspaces';
 import { useInvitationMutations } from '../../hooks/queries';
-import { Dialog, toast } from '../ui';
+import { Button, Dialog, Field, Input, Select, SegmentedControl, toast } from '../ui';
 
 interface InviteMemberDialogProps {
   workspaceId: string;
@@ -110,66 +110,34 @@ export function InviteMemberDialog({
               </p>
             )}
 
-            {/* Invite Type Toggle */}
             <div>
-              <span id="invite-type-label" className="block text-sm font-medium text-neutral-700 mb-2">
+              <span aria-hidden className="block text-sm font-medium text-neutral-700 mb-2">
                 Invite Type
               </span>
-              <div
-                role="group"
-                aria-labelledby="invite-type-label"
-                className="flex rounded-lg border border-neutral-200 p-1"
-              >
-                <button
-                  type="button"
-                  onClick={() => setInviteType('email')}
-                  aria-pressed={inviteType === 'email'}
-                  className={clsx(
-                    'flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-colors',
-                    inviteType === 'email'
-                      ? 'bg-primary-100 text-primary-700'
-                      : 'text-neutral-600 hover:bg-neutral-100'
-                  )}
-                >
-                  <Mail className="w-4 h-4" />
-                  Email Invite
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setInviteType('generic')}
-                  aria-pressed={inviteType === 'generic'}
-                  className={clsx(
-                    'flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-colors',
-                    inviteType === 'generic'
-                      ? 'bg-purple-100 text-purple-700'
-                      : 'text-neutral-600 hover:bg-neutral-100'
-                  )}
-                >
-                  <LinkIcon className="w-4 h-4" />
-                  Generic Link
-                </button>
-              </div>
+              <SegmentedControl
+                label="Invite Type"
+                variant="soft"
+                block
+                value={inviteType}
+                onChange={setInviteType}
+                options={[
+                  { value: 'email', label: 'Email Invite', icon: <Mail /> },
+                  { value: 'generic', label: 'Generic Link', icon: <LinkIcon /> },
+                ]}
+              />
             </div>
 
             {inviteType === 'email' ? (
-              <div>
-                <label
-                  htmlFor="invite-email"
-                  className="block text-sm font-medium text-neutral-700 mb-1"
-                >
-                  Email Address
-                </label>
-                <input
-                  id="invite-email"
+              <Field label="Email Address" id="invite-email">
+                <Input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="input"
                   placeholder="colleague@company.com"
                   required
                   autoFocus
                 />
-              </div>
+              </Field>
             ) : (
               <div className="bg-purple-50 rounded-lg p-4 space-y-3">
                 <div className="flex items-start gap-3">
@@ -182,21 +150,13 @@ export function InviteMemberDialog({
                     </p>
                   </div>
                 </div>
-                <div>
-                  <label
-                    htmlFor="invite-max-uses"
-                    className="block text-sm font-medium text-purple-900 mb-1"
-                  >
-                    Usage Limit
-                  </label>
-                  <select
-                    id="invite-max-uses"
+                <Field label="Usage Limit" id="invite-max-uses" labelClassName="!text-purple-900">
+                  <Select
                     value={maxUses === null ? 'unlimited' : maxUses}
                     onChange={(e) => {
                       const val = e.target.value;
                       setMaxUses(val === 'unlimited' ? null : Number(val));
                     }}
-                    className="input bg-white"
                   >
                     {MAX_USES_OPTIONS.map((opt) => (
                       <option
@@ -206,13 +166,16 @@ export function InviteMemberDialog({
                         {opt.label}
                       </option>
                     ))}
-                  </select>
-                </div>
+                  </Select>
+                </Field>
               </div>
             )}
 
             <div>
-              <span id="invite-role-label" className="block text-sm font-medium text-neutral-700 mb-2">
+              <span
+                id="invite-role-label"
+                className="block text-sm font-medium text-neutral-700 mb-2"
+              >
                 Role
               </span>
               <div
@@ -253,22 +216,23 @@ export function InviteMemberDialog({
                     <Shield className="w-4 h-4 text-blue-600" />
                     <span className="font-medium text-neutral-900">Admin</span>
                   </div>
-                  <p className="text-xs text-neutral-500">Full access including member management</p>
+                  <p className="text-xs text-neutral-500">
+                    Full access including member management
+                  </p>
                 </button>
               </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={onClose} className="btn btn-secondary">
+              <Button variant="secondary" onClick={onClose}>
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
                 disabled={isSubmitting || (inviteType === 'email' && !email.trim())}
-                className="btn btn-primary"
               >
                 {isSubmitting ? 'Creating...' : 'Create Invitation'}
-              </button>
+              </Button>
             </div>
           </form>
         ) : (
@@ -329,26 +293,14 @@ export function InviteMemberDialog({
                   />
                   <span className="truncate">{createdInvitation?.inviteUrl}</span>
                 </div>
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
                   onClick={() => void handleCopyLink()}
-                  className={clsx(
-                    'btn',
-                    copied ? 'bg-green-100 text-green-700 border-green-200' : 'btn-secondary'
-                  )}
+                  leadingIcon={copied ? <Check /> : <Copy />}
+                  className={clsx(copied && 'bg-green-100 text-green-700 border-green-200')}
                 >
-                  {copied ? (
-                    <>
-                      <Check className="w-4 h-4 mr-1" />
-                      Copied
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-4 h-4 mr-1" />
-                      Copy
-                    </>
-                  )}
-                </button>
+                  {copied ? 'Copied' : 'Copy'}
+                </Button>
               </div>
               <p
                 className={clsx(
@@ -370,21 +322,17 @@ export function InviteMemberDialog({
             </div>
 
             <div className="flex justify-between items-center pt-2">
-              <button
-                onClick={handleInviteAnother}
-                className="text-sm text-primary-600 hover:text-primary-700"
-              >
+              <Button variant="link" onClick={handleInviteAnother}>
                 + Create another invite
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   onInvited();
                   onClose();
                 }}
-                className="btn btn-primary"
               >
                 Done
-              </button>
+              </Button>
             </div>
           </div>
         )}
