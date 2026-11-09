@@ -2,9 +2,21 @@ import type { JsonValue, WorkspaceRole } from '@flowtask/shared';
 import type { TaskWithRelations } from '../task/types.js';
 import type { CommentWithUser } from '../comment/types.js';
 
-/** A tracked scalar field change on a task (values are JSON: dates as ISO strings). */
+/**
+ * A tracked change on a task (values are JSON: dates as ISO strings). Scalar
+ * fields carry the old and new value; `externalLinks` is a new GitHub link,
+ * with `from: null` and `to: { type, externalId, url }`.
+ */
 export interface TaskFieldChange {
-  field: 'title' | 'description' | 'stateId' | 'priority' | 'dueDate' | 'startDate' | 'parentId';
+  field:
+    | 'title'
+    | 'description'
+    | 'stateId'
+    | 'priority'
+    | 'dueDate'
+    | 'startDate'
+    | 'parentId'
+    | 'externalLinks';
   from: JsonValue;
   to: JsonValue;
 }

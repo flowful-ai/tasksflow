@@ -4,7 +4,13 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { and, asc, eq, sql } from 'drizzle-orm';
-import { createDatabase, taskEvents, taskStates, tasks } from '../../db/index.js';
+import {
+  createDatabase,
+  projectIntegrations,
+  taskEvents,
+  taskStates,
+  tasks,
+} from '../../db/index.js';
 import {
   arePositionsHealthy,
   comparePositions,
@@ -704,6 +710,73 @@ describe.skipIf(!TEST_DATABASE_URL)('TaskService (integration)', () => {
         'task.deleted',
         'task.restored',
       ]);
+    });
+  });
+
+  describe('linkExternal', () => {
+    let integrationId: string;
+
+    beforeAll(async () => {
+      const [row] = await testDb()
+        .insert(projectIntegrations)
+        .values({ projectId: project.projectId, integrationType: 'github', config: {} })
+        .returning({ id: projectIntegrations.id });
+      integrationId = row!.id;
+    });
+
+    it('emits task.updated with an externalLinks change describing the link', async () => {
+      const task = unwrap(
+        await service.create({ projectId: project.projectId, title: 'lnk', createdBy: ws.owner.id })
+      );
+      const seen: DomainEventMap['task.updated'][] = [];
+      const off = domainEvents.on('task.updated', (e) => {
+        if (e.task.id === task.id) seen.push(e);
+      });
+      const input = {
+        taskId: task.id,
+        integrationId,
+        externalType: 'github_pr' as const,
+        externalId: 'acme/api#7',
+        externalUrl: 'https://github.com/acme/api/pull/7',
+        actorId: null,
+        origin: 'github' as const,
+      };
+      expect(unwrap(await service.linkExternal(input))).toEqual({ linked: true });
+      expect(unwrap(await service.linkExternal(input))).toEqual({ linked: false });
+      await domainEvents.idle();
+      off();
+      expect(seen).toHaveLength(1);
+      expect(seen[0]?.changes).toEqual([
+        {
+          field: 'externalLinks',
+          from: null,
+          to: {
+            type: 'github_pr',
+            externalId: 'acme/api#7',
+            url: 'https://github.com/acme/api/pull/7',
+          },
+        },
+      ]);
+    });
+
+    it('returns TASK_NOT_FOUND for a trashed task', async () => {
+      const task = unwrap(
+        await service.create({
+          projectId: project.projectId,
+          title: 'gone',
+          createdBy: ws.owner.id,
+        })
+      );
+      unwrap(await service.delete(task.id, ws.owner.id));
+      const result = await service.linkExternal({
+        taskId: task.id,
+        integrationId,
+        externalType: 'github_issue',
+        externalId: 'acme/api#8',
+        externalUrl: 'https://github.com/acme/api/issues/8',
+        actorId: null,
+      });
+      expectCode(result, 'TASK_NOT_FOUND');
     });
   });
 

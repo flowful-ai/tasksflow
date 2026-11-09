@@ -805,8 +805,9 @@ export class TaskService {
 
   /**
    * Link a task to an external item (GitHub issue or pull request), record it
-   * in the task history and emit `task.updated` with the full task. Returns
-   * `linked: false` (and emits nothing) when that item is already linked.
+   * in the task history and emit `task.updated` with the full task and an
+   * `externalLinks` change. Returns `linked: false` (and emits nothing) when
+   * that item is already linked; a missing or trashed task is TASK_NOT_FOUND.
    */
   async linkExternal(input: ExternalLinkInput): Promise<Result<{ linked: boolean }, Error>> {
     try {
@@ -855,7 +856,17 @@ export class TaskService {
           actorId: input.actorId,
           mcpClientId: input.mcpClientId ?? null,
           ...(input.origin ? { origin: input.origin } : {}),
-          changes: [],
+          changes: [
+            {
+              field: 'externalLinks',
+              from: null,
+              to: {
+                type: input.externalType,
+                externalId: input.externalId,
+                url: input.externalUrl,
+              },
+            },
+          ],
           addedAssigneeIds: [],
           removedAssigneeIds: [],
           addedLabelIds: [],
