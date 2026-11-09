@@ -8,6 +8,8 @@
  * optional key hint. Its Undo action is reachable with Tab and fires once.
  */
 import { Toaster as SonnerToaster, toast } from 'sonner';
+// Loaded as a file because the runtime <style> injection is stripped for CSP (see vite.config.ts).
+import 'sonner/dist/styles.css';
 import { Kbd } from './Kbd';
 
 export { toast };

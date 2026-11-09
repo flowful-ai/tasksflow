@@ -19,7 +19,15 @@
  * zero-size trigger placed at the pointer (see TaskContextMenu).
  */
 import * as Radix from '@radix-ui/react-dropdown-menu';
-import { forwardRef, type ComponentPropsWithoutRef, type ElementRef, type ReactNode } from 'react';
+import {
+  cloneElement,
+  forwardRef,
+  isValidElement,
+  type ComponentPropsWithoutRef,
+  type ElementRef,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import clsx from 'clsx';
 import { Check, ChevronRight } from 'lucide-react';
 
@@ -77,12 +85,28 @@ export interface DropdownMenuItemProps extends ComponentPropsWithoutRef<typeof R
 }
 
 export const DropdownMenuItem = forwardRef<ElementRef<typeof Radix.Item>, DropdownMenuItemProps>(function DropdownMenuItem(
-  { className, icon, shortcut, destructive, tone = 'light', children, ...props },
+  { className, icon, shortcut, destructive, tone = 'light', children, asChild, ...props },
   ref
 ) {
+  const content = (label: ReactNode) => (
+    <>
+      {icon && (
+        <span aria-hidden className="flex h-4 w-4 items-center justify-center [&_svg]:h-4 [&_svg]:w-4">
+          {icon}
+        </span>
+      )}
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {shortcut && <span className="ml-4 font-mono text-[11px] text-neutral-400">{shortcut}</span>}
+    </>
+  );
+  // asChild (e.g. a <Link>): Slot needs one element, so put icon/label/shortcut inside it.
+  const child: ReactElement<{ children?: ReactNode }> | null =
+    asChild && isValidElement<{ children?: ReactNode }>(children) ? children : null;
+
   return (
     <Radix.Item
       ref={ref}
+      asChild={Boolean(child)}
       className={clsx(
         ITEM_BASE,
         ITEM_TONES[tone],
@@ -91,13 +115,7 @@ export const DropdownMenuItem = forwardRef<ElementRef<typeof Radix.Item>, Dropdo
       )}
       {...props}
     >
-      {icon && (
-        <span aria-hidden className="flex h-4 w-4 items-center justify-center [&_svg]:h-4 [&_svg]:w-4">
-          {icon}
-        </span>
-      )}
-      <span className="min-w-0 flex-1 truncate">{children}</span>
-      {shortcut && <span className="ml-4 font-mono text-[11px] text-neutral-400">{shortcut}</span>}
+      {child ? cloneElement(child, undefined, content(child.props.children)) : content(children)}
     </Radix.Item>
   );
 });

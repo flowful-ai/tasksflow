@@ -237,7 +237,7 @@ export default function GlobalAgentChat({ workspaceId, open: isOpen, onOpenChang
       onOpenChange={setIsOpen}
       title="Workspace chat"
       bare
-      className="!left-auto !top-auto !bottom-4 !right-4 !translate-x-0 !translate-y-0 h-[70vh] !max-w-md overflow-hidden border border-gray-200"
+      className="!left-auto !top-auto !bottom-4 !right-4 !m-0 !h-[70vh] !max-w-md overflow-hidden border border-gray-200"
     >
             <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
               <div className="flex items-center gap-2">

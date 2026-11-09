@@ -18,7 +18,25 @@
 import * as RadixDialog from '@radix-ui/react-dialog';
 import clsx from 'clsx';
 import { X } from 'lucide-react';
-import type { ReactNode, RefObject } from 'react';
+import { useLayoutEffect, type ReactNode, type RefObject } from 'react';
+
+/**
+ * Focus restore that also covers dialogs unmounted while open (the common
+ * `{open && <Dialog open … />}` pattern), where Radix can leave focus on
+ * <body>: remember the focused element on open and return to it on close.
+ */
+function useReturnFocus(open: boolean): void {
+  useLayoutEffect(() => {
+    if (!open) return;
+    const previous = document.activeElement;
+    return () => {
+      window.setTimeout(() => {
+        const focusLost = document.activeElement === document.body || document.activeElement === null;
+        if (focusLost && previous instanceof HTMLElement && previous.isConnected) previous.focus();
+      }, 0);
+    };
+  }, [open]);
+}
 
 export type DialogSize = 'sm' | 'md' | 'lg' | 'xl' | 'full';
 
@@ -83,12 +101,14 @@ export function Dialog({
   const preventIfLocked = (event: Event) => {
     if (!dismissible) event.preventDefault();
   };
+  useReturnFocus(open);
 
   return (
     <RadixDialog.Root open={open} onOpenChange={onOpenChange}>
       <RadixDialog.Portal>
         <RadixDialog.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[1px] animate-fade-in [animation-duration:150ms]" />
         <RadixDialog.Content
+          aria-modal="true"
           onOpenAutoFocus={(event) => {
             if (initialFocus?.current) {
               event.preventDefault();
@@ -101,7 +121,8 @@ export function Dialog({
           className={clsx(
             'fixed z-50 flex flex-col bg-white shadow-xl focus:outline-none',
             variant === 'center' && [
-              'left-1/2 top-1/2 w-[calc(100%-2rem)] max-h-[90vh] -translate-x-1/2 -translate-y-1/2 rounded-2xl animate-scale-in [animation-duration:150ms]',
+              // Centred with inset-0 + m-auto, not translate: the scale-in animation owns transform.
+              'inset-0 m-auto h-fit w-[calc(100%-2rem)] max-h-[90vh] rounded-2xl animate-scale-in [animation-duration:150ms]',
               SIZE_CLASSES[size],
             ],
             variant === 'sheet' && ['inset-y-0 right-0 w-full', SHEET_SIZE_CLASSES[size]],
