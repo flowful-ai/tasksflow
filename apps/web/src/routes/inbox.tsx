@@ -195,7 +195,7 @@ export function InboxPage() {
 
   const showList = isDesktop || !opened;
   const showPreview = isDesktop || Boolean(opened);
-  const empty = EMPTY[filter] ?? EMPTY.inbox!;
+  const empty = EMPTY[filter] ?? EMPTY.inbox;
 
   return (
     <div className="flex flex-col lg:-m-10 lg:h-screen lg:flex-row">

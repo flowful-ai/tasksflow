@@ -50,7 +50,7 @@ export function TaskModal({ taskId, projectId, states, defaultStateId, onClose, 
   // Set default state for new tasks
   useEffect(() => {
     if (!isEditing && states.length > 0 && !stateId) {
-      setStateId(states[0]!.id);
+      setStateId(states[0].id);
     }
   }, [isEditing, states, stateId]);
 
@@ -204,8 +204,8 @@ export function TaskModal({ taskId, projectId, states, defaultStateId, onClose, 
                     setCreateOnGitHub(e.target.checked);
                     if (e.target.checked && linkedRepos.length === 1) {
                       setSelectedRepo({
-                        owner: linkedRepos[0]!.owner,
-                        repo: linkedRepos[0]!.repo,
+                        owner: linkedRepos[0].owner,
+                        repo: linkedRepos[0].repo,
                       });
                     }
                     if (!e.target.checked) {

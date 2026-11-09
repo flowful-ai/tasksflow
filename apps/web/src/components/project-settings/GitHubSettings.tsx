@@ -218,7 +218,7 @@ export function GitHubSettings({ projectId }: GitHubSettingsProps) {
                 {userInstallations.length === 1 ? (
                   <button
                     type="button"
-                    onClick={() => chooseInstallation(userInstallations[0]!.installationId)}
+                    onClick={() => chooseInstallation(userInstallations[0].installationId)}
                     className="btn btn-primary inline-flex items-center"
                   >
                     <Link2 aria-hidden className="w-4 h-4 mr-2" />
@@ -375,7 +375,7 @@ export function GitHubSettings({ projectId }: GitHubSettingsProps) {
               userInstallations.length === 1 ? (
                 <button
                   type="button"
-                  onClick={() => chooseInstallation(userInstallations[0]!.installationId)}
+                  onClick={() => chooseInstallation(userInstallations[0].installationId)}
                   className="text-sm text-primary-600 hover:underline flex items-center gap-1"
                 >
                   <Link2 aria-hidden className="w-3 h-3" />

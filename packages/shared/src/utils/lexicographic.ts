@@ -101,7 +101,7 @@ export function positionAfter(lastPosition?: string | null): string {
   if (isValidPosition(lastPosition)) return generateKeyBetween(lastPosition, null);
   const above = validKeyAbove(lastPosition);
   if (!above) {
-    throw new InvalidPositionError(`No valid position sorts after "${lastPosition}"`, [lastPosition, null]);
+    throw new InvalidPositionError(`No valid position sorts after ${JSON.stringify(lastPosition)}`, [lastPosition, null]);
   }
   return above;
 }
@@ -115,7 +115,7 @@ export function positionBefore(firstPosition?: string | null): string {
   if (isValidPosition(firstPosition)) return generateKeyBetween(null, firstPosition);
   const below = validKeyBelow(firstPosition);
   if (!below) {
-    throw new InvalidPositionError(`No valid position sorts before "${firstPosition}"`, [null, firstPosition]);
+    throw new InvalidPositionError(`No valid position sorts before ${JSON.stringify(firstPosition)}`, [null, firstPosition]);
   }
   return below;
 }

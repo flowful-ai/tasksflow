@@ -255,7 +255,7 @@ export class WorkspaceService {
         .select()
         .from(workspaces)
         .where(whereClause)
-        .orderBy(orderFn(sortColumn!));
+        .orderBy(orderFn(sortColumn));
 
       // Get all members and project counts
       const wsIds = workspaceRows.map((w) => w.id);

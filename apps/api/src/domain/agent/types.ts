@@ -1,5 +1,5 @@
 import type { Agent } from '../../db/index.js';
-import type { CreateAgent, UpdateAgent, AgentTool, AIModel, AgentExecution, RunAgent, ApiKeyProvider } from '@flowtask/shared';
+import type { CreateAgent, UpdateAgent, AIModel, AgentExecution, RunAgent, ApiKeyProvider } from '@flowtask/shared';
 
 export interface AgentWithRelations extends Agent {
   // Additional computed fields

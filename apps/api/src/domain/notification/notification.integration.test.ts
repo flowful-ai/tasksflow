@@ -59,7 +59,7 @@ describe.skipIf(!TEST_DATABASE_URL)('notifications (integration)', () => {
     const item = memberInbox.find((n) => n.task?.id === task.id && n.type === 'assigned');
     expect(item).toBeDefined();
     expect(item!.actor?.name).toBe('Owner');
-    expect(item!.task?.key).toBe(task.key!);
+    expect(item!.task?.key).toBe(task.key);
     expect((await inboxOf(ws.owner.id)).some((n) => n.task?.id === task.id)).toBe(false);
     await new Promise((r) => setTimeout(r, 10));
     unsubscribe();

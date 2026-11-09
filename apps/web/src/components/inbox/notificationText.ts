@@ -4,13 +4,13 @@ import type { NotificationDto } from '../../api/types';
 export function shortName(name: string | null | undefined): string {
   const parts = (name ?? '').trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return 'Someone';
-  if (parts.length === 1) return parts[0]!;
-  return `${parts[0]} ${parts[parts.length - 1]![0]?.toUpperCase()}.`;
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]} ${parts[parts.length - 1][0]?.toUpperCase()}.`;
 }
 
 export function initials(name: string | null | undefined): string {
   const parts = (name ?? '').trim().split(/\s+/).filter(Boolean);
-  return ((parts[0]?.[0] ?? '?') + (parts.length > 1 ? parts[parts.length - 1]![0] ?? '' : '')).toUpperCase();
+  return ((parts[0]?.[0] ?? '?') + (parts.length > 1 ? parts[parts.length - 1][0] ?? '' : '')).toUpperCase();
 }
 
 function dataString(n: NotificationDto, key: string): string | null {

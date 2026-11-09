@@ -80,8 +80,10 @@ export function useSlackMutations(projectId: string) {
     }),
     disconnect: useMutation({
       mutationFn: () => slackApi.disconnect(projectId),
-      onSettled: () =>
-        Promise.all([onSettled(), queryClient.removeQueries({ queryKey: queryKeys.projects.slackChannels(projectId) })]),
+      onSettled: () => {
+        queryClient.removeQueries({ queryKey: queryKeys.projects.slackChannels(projectId) });
+        return onSettled();
+      },
       meta: { errorMessage: 'Could not disconnect Slack' },
     }),
   };

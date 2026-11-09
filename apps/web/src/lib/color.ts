@@ -96,5 +96,5 @@ export function projectColor(projectId: string): string {
     hash ^= projectId.charCodeAt(i);
     hash = Math.imul(hash, 0x01000193) >>> 0;
   }
-  return PROJECT_COLORS[hash % PROJECT_COLORS.length] ?? PROJECT_COLORS[0]!;
+  return PROJECT_COLORS[hash % PROJECT_COLORS.length] ?? PROJECT_COLORS[0];
 }

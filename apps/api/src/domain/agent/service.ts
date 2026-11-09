@@ -174,7 +174,7 @@ export class AgentService {
         .select()
         .from(agents)
         .where(whereClause)
-        .orderBy(orderFn(sortColumn!));
+        .orderBy(orderFn(sortColumn));
 
       // Add computed fields
       const result: AgentWithRelations[] = agentRows.map((agent) => ({

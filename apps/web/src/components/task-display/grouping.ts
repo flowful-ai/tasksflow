@@ -191,13 +191,14 @@ function getGroupInfo(
     case 'project':
       return [{ id: task.project.id, name: task.project.name, color: null }];
 
-    case 'priority':
+    case 'priority': {
       const priority = task.priority || 'none';
       return [{
         id: priority,
         name: priorityLabels[priority] || priority,
         color: priorityColors[priority] || '#6b7280',
       }];
+    }
 
     case 'label':
       if (task.labels.length === 0) {

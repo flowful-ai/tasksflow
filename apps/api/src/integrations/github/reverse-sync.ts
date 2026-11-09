@@ -1,6 +1,6 @@
 import type { Database } from '../../db/index.js';
 import { comments, externalLinks, labels, projectIntegrations, users } from '../../db/index.js';
-import { findInstallationForRepo, parseGitHubConfig, resolveGitHubLinkRef, type GitHubItemRef } from '@flowtask/shared';
+import { findInstallationForRepo, isJsonValue, parseGitHubConfig, resolveGitHubLinkRef, type GitHubItemRef } from '@flowtask/shared';
 import { and, eq, inArray } from 'drizzle-orm';
 import { NonRetryableError, registerBackgroundJob, scheduleBackgroundJob, type BackgroundJobPayload } from '../background.js';
 import { createGitHubClientForInstallation, type GitHubClient } from './client.js';
@@ -79,7 +79,7 @@ function commentFromPayload(value: BackgroundJobPayload[string] | undefined): Co
 function toPayload(value: TaskChangesForGitHub | CommentForGitHub): BackgroundJobPayload {
   const payload: BackgroundJobPayload = {};
   for (const [key, entry] of Object.entries(value)) {
-    if (entry !== undefined) payload[key] = entry;
+    if (isJsonValue(entry)) payload[key] = entry;
   }
   return payload;
 }

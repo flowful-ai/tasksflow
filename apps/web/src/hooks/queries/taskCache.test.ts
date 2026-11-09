@@ -54,7 +54,7 @@ describe('moveTaskInList', () => {
   test('moves between neighbours in another column and computes a position between them', () => {
     const result = moveTaskInList([a, b, c, d], { taskId: 'a', stateId: doing.id, afterTaskId: 'c', beforeTaskId: 'd' }, doing);
     expect(result.map((t) => t.id)).toEqual(['b', 'c', 'a', 'd']);
-    const moved = result[2]!;
+    const moved = result[2];
     expect(moved.stateId).toBe(doing.id);
     expect(moved.state).toEqual(doing);
     expect(moved.position > 'a0' && moved.position < 'a1').toBe(true);
@@ -63,13 +63,13 @@ describe('moveTaskInList', () => {
   test('beforeTaskId alone inserts at the top of a column', () => {
     const result = moveTaskInList([a, b, c, d], { taskId: 'b', stateId: doing.id, beforeTaskId: 'c' }, doing);
     expect(result.map((t) => t.id)).toEqual(['a', 'b', 'c', 'd']);
-    expect(result[1]!.position < 'a0').toBe(true);
+    expect(result[1].position < 'a0').toBe(true);
   });
 
   test('no neighbours appends to the end of the target column', () => {
     const result = moveTaskInList([a, b, c, d], { taskId: 'a', stateId: doing.id }, doing);
     expect(result.map((t) => t.id)).toEqual(['b', 'c', 'd', 'a']);
-    expect(result[3]!.position > 'a1').toBe(true);
+    expect(result[3].position > 'a1').toBe(true);
   });
 
   test('the key goes between the named neighbours even when the cached order differs', () => {
@@ -100,14 +100,14 @@ describe('page helpers', () => {
     const next = moveTaskInPages(data, taskListAdapter, { taskId: 'd', stateId: todo.id, afterTaskId: 'a' }, todo)!;
     expect(next.pages.map((p) => p.data.length)).toEqual([2, 2]);
     expect(flattenPages(next, taskListAdapter).map((t) => t.id)).toEqual(['a', 'd', 'b', 'c']);
-    expect(next.pages[0]!.meta!.total).toBe(4);
+    expect(next.pages[0].meta!.total).toBe(4);
   });
 
   test('upsertTask merges an existing task in place', () => {
     const data = pages([a, b]);
     const next = upsertTask(data, taskListAdapter, { ...b, title: 'renamed' })!;
-    expect(next.pages[0]!.data[1]!.title).toBe('renamed');
-    expect(next.pages[0]!.meta!.total).toBe(2);
+    expect(next.pages[0].data[1].title).toBe('renamed');
+    expect(next.pages[0].meta!.total).toBe(2);
   });
 
   test('upsertTask appends only when asked', () => {
@@ -115,7 +115,7 @@ describe('page helpers', () => {
     expect(upsertTask(data, taskListAdapter, c)).toBe(data);
     const next = upsertTask(data, taskListAdapter, c, { appendIfMissing: true })!;
     expect(flattenPages(next, taskListAdapter).map((t) => t.id)).toEqual(['a', 'c']);
-    expect(next.pages[0]!.meta!.total).toBe(2);
+    expect(next.pages[0].meta!.total).toBe(2);
   });
 
   test('removeTask drops the task and decrements the total', () => {

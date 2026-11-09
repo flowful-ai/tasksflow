@@ -221,7 +221,7 @@ export class ProjectService {
         .select()
         .from(projects)
         .where(whereClause)
-        .orderBy(orderFn(sortColumn!));
+        .orderBy(orderFn(sortColumn));
 
       // Get all related data
       const projectIds = projectRows.map((p) => p.id);

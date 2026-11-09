@@ -24,7 +24,7 @@ export function NewWorkspaceSettings() {
       {
         onSuccess: (workspace) => {
           toast.success(`Workspace ${workspace.name} created`);
-          navigate('/dashboard');
+          void navigate('/dashboard');
         },
       }
     );

@@ -78,7 +78,7 @@ function isApiBody(value: unknown): value is ApiBody {
 describe.skipIf(!TEST_DATABASE_URL)('workstream-B routes (integration)', () => {
   let app: Hono<{ Variables: { auth: AuthContext } }>;
   let fx: Fixture;
-  let taskIds: string[] = [];
+  const taskIds: string[] = [];
 
   beforeAll(async () => {
     process.env.DATABASE_URL = TEST_DATABASE_URL;

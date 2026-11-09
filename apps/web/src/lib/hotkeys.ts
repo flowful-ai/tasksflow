@@ -177,7 +177,7 @@ function onKeyDown(event: KeyboardEvent): void {
   pending = null;
   if (previous && Date.now() - previous.at <= SEQUENCE_TIMEOUT_MS) {
     const completed = candidates.find(
-      (r) => r.strokes.length === 2 && matchesStroke(r.strokes[0]!, previous.event) && matchesStroke(r.strokes[1]!, event)
+      (r) => r.strokes.length === 2 && matchesStroke(r.strokes[0], previous.event) && matchesStroke(r.strokes[1], event)
     );
     if (completed) {
       fire(completed, event);
@@ -185,11 +185,11 @@ function onKeyDown(event: KeyboardEvent): void {
     }
   }
 
-  if (candidates.some((r) => r.strokes.length === 2 && matchesStroke(r.strokes[0]!, event))) {
+  if (candidates.some((r) => r.strokes.length === 2 && matchesStroke(r.strokes[0], event))) {
     pending = { event: snapshot(event), at: Date.now() };
   }
 
-  const single = candidates.find((r) => r.strokes.length === 1 && matchesStroke(r.strokes[0]!, event));
+  const single = candidates.find((r) => r.strokes.length === 1 && matchesStroke(r.strokes[0], event));
   if (single) fire(single, event);
 }
 

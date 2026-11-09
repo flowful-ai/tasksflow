@@ -68,7 +68,7 @@ export function neighboursAt(
   if (index < 0) return { afterTaskId: null, beforeTaskId: null, index: -1, count: orderedIds.length };
   let afterTaskId: string | null = null;
   for (let i = index - 1; i >= 0; i--) {
-    const id = orderedIds[i]!;
+    const id = orderedIds[i];
     if (isSameColumn(id)) {
       afterTaskId = id;
       break;
@@ -76,7 +76,7 @@ export function neighboursAt(
   }
   let beforeTaskId: string | null = null;
   for (let i = index + 1; i < orderedIds.length; i++) {
-    const id = orderedIds[i]!;
+    const id = orderedIds[i];
     if (isSameColumn(id)) {
       beforeTaskId = id;
       break;

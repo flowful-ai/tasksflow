@@ -205,8 +205,8 @@ export class OpenRouterClient {
       if (choice.finish_reason === 'tool_calls' && choice.message.tool_calls) {
         for (const toolCall of choice.message.tool_calls) {
           try {
-            const args = JSON.parse(toolCall.function.arguments);
-            const result = await toolExecutor(toolCall.function.name, args);
+            const parsed: unknown = JSON.parse(toolCall.function.arguments);
+            const result = await toolExecutor(toolCall.function.name, isRecord(parsed) ? parsed : {});
 
             messages.push({
               role: 'tool',
@@ -250,8 +250,8 @@ export class OpenRouterClient {
       throw new Error(`Failed to fetch models: ${response.statusText}`);
     }
 
-    const data = await response.json();
-    return (data as { data: OpenRouterModel[] }).data;
+    const data = (await response.json()) as { data: OpenRouterModel[] };
+    return data.data;
   }
 
   /**

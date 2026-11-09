@@ -25,7 +25,7 @@ export const REALTIME_EVENT_NAMES: readonly string[] = Object.values(REALTIME_EV
 
 export function parseEventData(raw: string): JsonObject | null {
   try {
-    const parsed: JsonValue = JSON.parse(raw);
+    const parsed = JSON.parse(raw) as JsonValue;
     return isJsonObject(parsed) ? parsed : null;
   } catch {
     return null;

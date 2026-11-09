@@ -501,7 +501,8 @@ export class TaskService {
             .where(eq(tasks.id, taskId));
         }
 
-        const snapshots = stateChanged ? await stateSnapshots(tx, [current.stateId, input.stateId ?? null]) : new Map();
+        const snapshots = stateChanged ? await stateSnapshots(tx, [current.stateId, input.stateId ?? null])
+          : new Map<string, { id: string; name: string; category: string }>();
         const events: TaskEventInput[] = changes.map((change) =>
           change.field === 'stateId'
             ? {

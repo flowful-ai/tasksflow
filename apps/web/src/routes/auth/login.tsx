@@ -29,7 +29,7 @@ export function LoginPage() {
       }
       return;
     }
-    navigate(target, { replace });
+    void navigate(target, { replace });
   };
 
   useEffect(() => {

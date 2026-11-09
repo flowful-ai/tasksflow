@@ -115,7 +115,7 @@ export function SmartViewForm() {
 
   const onSaved = (view: SmartViewDto) => {
     toast.success(isEditing ? 'View saved' : 'View created');
-    navigate(`/view/${view.id}`);
+    void navigate(`/view/${view.id}`);
   };
 
   const handleSubmit = (e: React.FormEvent) => {

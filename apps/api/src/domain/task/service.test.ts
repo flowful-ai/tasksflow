@@ -19,7 +19,7 @@ type Joins = Set<'task_states' | 'task_assignees' | 'task_labels'>;
 
 describe('task list assignee/label filtering helpers', () => {
   it('only joins task_assignees for legacy filterSql that needs it', () => {
-    expect(taskListNeedsAssigneeJoin({ assigneeId: 'user-1' }, new Set() as Joins)).toBe(false);
+    expect(taskListNeedsAssigneeJoin({ assigneeId: 'user-1' }, new Set())).toBe(false);
     expect(taskListNeedsAssigneeJoin({}, new Set(['task_assignees']) as Joins)).toBe(true);
   });
 

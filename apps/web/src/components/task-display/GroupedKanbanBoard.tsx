@@ -67,7 +67,7 @@ const CELL_SEPARATOR = '::';
 
 function findContainer(items: Items, id: string): string | undefined {
   if (id in items) return id;
-  return Object.keys(items).find((key) => items[key]!.includes(id));
+  return Object.keys(items).find((key) => items[key].includes(id));
 }
 
 function sameOrder(a: readonly string[] | undefined, b: readonly string[]): boolean {
@@ -238,7 +238,7 @@ export function GroupedKanbanBoard({
       if (!from || !to || from === to) return previous;
       const target = containerById.get(to);
       if (!target || 'error' in resolveTarget(target, dragged)) return previous;
-      const toItems = previous[to]!.filter((id) => id !== activeKey);
+      const toItems = previous[to].filter((id) => id !== activeKey);
       let index: number;
       if (isDoneCategory(target.category)) {
         index = 0; // lands as the most recently completed
@@ -251,7 +251,7 @@ export function GroupedKanbanBoard({
         index = overIndex < 0 ? toItems.length : overIndex + (isBelow ? 1 : 0);
       }
       toItems.splice(index, 0, activeKey);
-      return { ...previous, [from]: previous[from]!.filter((id) => id !== activeKey), [to]: toItems };
+      return { ...previous, [from]: previous[from].filter((id) => id !== activeKey), [to]: toItems };
     });
   };
 
@@ -275,7 +275,7 @@ export function GroupedKanbanBoard({
     if (!dragged || !containerId || !container) return;
 
     const isDone = isDoneCategory(container.category);
-    let list = current[containerId]!;
+    let list = current[containerId];
     if (!isDone && overKey !== taskId && overKey !== containerId && list.includes(overKey)) {
       list = moveItem(list, list.indexOf(taskId), list.indexOf(overKey));
     }
@@ -309,7 +309,7 @@ export function GroupedKanbanBoard({
     const containerId = findContainer(snapshot, String(overKey));
     const container = containerId ? containerById.get(containerId) : undefined;
     if (!containerId || !container) return `${label} is over an unknown area`;
-    const list = snapshot[containerId]!;
+    const list = snapshot[containerId];
     const index = list.indexOf(String(overKey));
     const position = index >= 0 ? index + 1 : list.length + 1;
     const count = list.includes(String(activeKey)) ? list.length : list.length + 1;

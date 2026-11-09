@@ -53,7 +53,7 @@ export function InvitePage() {
   };
 
   const handleGoToWorkspace = () => {
-    navigate('/dashboard');
+    void navigate('/dashboard');
   };
 
   if (isLoading) {

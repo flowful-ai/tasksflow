@@ -116,11 +116,11 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
   const openProject = (project: { id: string; identifier: string; name: string }) => {
     recordRecent(workspaceId, { kind: 'project', id: project.id, key: project.identifier, title: project.name });
     onClose();
-    navigate(`/project/${project.id}`);
+    void navigate(`/project/${project.id}`);
   };
   const go = (href: string) => () => {
     onClose();
-    navigate(href);
+    void navigate(href);
   };
 
   const actions: PaletteAction[] = [

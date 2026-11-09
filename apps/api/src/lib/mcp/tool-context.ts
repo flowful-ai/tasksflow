@@ -242,7 +242,7 @@ export function buildToolContext(input: ToolContextInput, deps: ToolScopeDeps = 
         member = all.find((candidate) => candidate.id === ref);
       } else {
         throw new ToolExecutionError(
-          `"${ref}" is not a user reference; use "me", an email or a user id from list_members`,
+          `${JSON.stringify(ref)} is not a user reference; use "me", an email or a user id from list_members`,
           'VALIDATION_ERROR'
         );
       }

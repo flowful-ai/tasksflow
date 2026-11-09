@@ -29,9 +29,10 @@ function isRecentItem(value: object | null): value is RecentItem {
 export function parseRecents(raw: string | null): RecentItem[] {
   if (!raw) return [];
   try {
-    const parsed: object | null = JSON.parse(raw);
+    const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((item): item is RecentItem => typeof item === 'object' && isRecentItem(item)).slice(0, MAX_RECENTS);
+    const items: unknown[] = parsed;
+    return items.filter((item): item is RecentItem => typeof item === 'object' && isRecentItem(item)).slice(0, MAX_RECENTS);
   } catch {
     return [];
   }

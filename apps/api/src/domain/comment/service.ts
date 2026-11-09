@@ -9,7 +9,6 @@ import type {
   CommentCreateInput,
   CommentUpdateInput,
   CommentListOptions,
-  CommentAgent,
 } from './types.js';
 import { DomainError } from '../workspace/errors.js';
 import { isUuid } from '../workspace/authorization.js';

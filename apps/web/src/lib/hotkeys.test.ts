@@ -16,7 +16,7 @@ describe('parseCombo', () => {
     expect(parseCombo('mod+k')[0]).toMatchObject({ key: 'k', mod: true });
     expect(parseCombo('g then i').map((s) => s.key)).toEqual(['g', 'i']);
     expect(parseCombo('Shift+I')[0]).toMatchObject({ key: 'i', shift: true });
-    expect(parseCombo('esc')[0]!.key).toBe('escape');
+    expect(parseCombo('esc')[0].key).toBe('escape');
   });
   test('rejects a combo without a key', () => {
     expect(() => parseCombo('mod+')).toThrow();
@@ -30,19 +30,19 @@ describe('matchesStroke', () => {
   const [question] = parseCombo('?');
 
   test('mod accepts ⌘ or Ctrl', () => {
-    expect(matchesStroke(modK!, key('k', { metaKey: true }))).toBe(true);
-    expect(matchesStroke(modK!, key('k', { ctrlKey: true }))).toBe(true);
-    expect(matchesStroke(modK!, key('k'))).toBe(false);
+    expect(matchesStroke(modK, key('k', { metaKey: true }))).toBe(true);
+    expect(matchesStroke(modK, key('k', { ctrlKey: true }))).toBe(true);
+    expect(matchesStroke(modK, key('k'))).toBe(false);
   });
   test('plain letters ignore modified presses', () => {
-    expect(matchesStroke(c!, key('c'))).toBe(true);
-    expect(matchesStroke(c!, key('C', { shiftKey: true }))).toBe(false);
-    expect(matchesStroke(c!, key('c', { metaKey: true }))).toBe(false);
+    expect(matchesStroke(c, key('c'))).toBe(true);
+    expect(matchesStroke(c, key('C', { shiftKey: true }))).toBe(false);
+    expect(matchesStroke(c, key('c', { metaKey: true }))).toBe(false);
   });
   test('shift is explicit for letters and implicit for symbols', () => {
-    expect(matchesStroke(shiftI!, key('I', { shiftKey: true }))).toBe(true);
-    expect(matchesStroke(shiftI!, key('i'))).toBe(false);
-    expect(matchesStroke(question!, key('?', { shiftKey: true }))).toBe(true);
+    expect(matchesStroke(shiftI, key('I', { shiftKey: true }))).toBe(true);
+    expect(matchesStroke(shiftI, key('i'))).toBe(false);
+    expect(matchesStroke(question, key('?', { shiftKey: true }))).toBe(true);
   });
 });
 

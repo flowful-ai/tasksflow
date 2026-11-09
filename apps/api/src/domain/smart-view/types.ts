@@ -4,11 +4,6 @@ import type {
   UpdateSmartView,
   CreatePublicShare,
   FilterGroup,
-  DisplayType,
-  GroupBy,
-  SortBy,
-  SortOrder,
-  VisibleField,
 } from '@flowtask/shared';
 
 export interface SmartViewWithRelations extends SmartView {

@@ -87,13 +87,13 @@ function avatarColor(id: string): string {
     hash ^= id.charCodeAt(i);
     hash = Math.imul(hash, 16777619);
   }
-  return AVATAR_COLORS[(hash >>> 0) % AVATAR_COLORS.length]!;
+  return AVATAR_COLORS[(hash >>> 0) % AVATAR_COLORS.length];
 }
 
 function initials(name: string | null, email: string): string {
   const source = (name || email).trim();
   const parts = source.split(/[\s._@-]+/).filter(Boolean);
-  const letters = parts.length >= 2 ? `${parts[0]![0]}${parts[1]![0]}` : source.slice(0, 2);
+  const letters = parts.length >= 2 ? `${parts[0][0]}${parts[1][0]}` : source.slice(0, 2);
   return letters.toUpperCase();
 }
 

@@ -83,6 +83,8 @@ export function createApp(): CreatedApp {
   // GitHub webhook payloads (large pushes, PR bodies) can exceed 1MB.
   const webhookBodyLimit = bodyLimit({ maxSize: 5 * MB, onError: payloadTooLarge });
   app.use('*', (c, next) =>
+    // Hono's Context carries an `any` input generic; the handlers accept any Context.
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     c.req.path.startsWith('/api/webhooks/') ? webhookBodyLimit(c, next) : defaultBodyLimit(c, next)
   );
 

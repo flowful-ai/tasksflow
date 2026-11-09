@@ -108,7 +108,7 @@ describe.skipIf(!TEST_DB)('outgoing webhooks (integration)', () => {
   });
 
   afterAll(async () => {
-    server?.stop(true);
+    await server?.stop(true);
     const hooks = await service().list(workspaceId);
     if (hooks.ok && hooks.value.length) {
       const deliveries = await db

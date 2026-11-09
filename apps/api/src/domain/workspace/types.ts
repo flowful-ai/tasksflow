@@ -1,4 +1,4 @@
-import type { Workspace, WorkspaceMember, User, Project } from '../../db/index.js';
+import type { Workspace, WorkspaceMember, User } from '../../db/index.js';
 import type { CreateWorkspace, UpdateWorkspace, WorkspaceRole } from '@flowtask/shared';
 
 export interface WorkspaceWithRelations extends Workspace {

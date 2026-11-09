@@ -19,7 +19,9 @@ const TaskDetailSheet = lazy(async () => ({ default: (await import('../tasks/Tas
 
 function NavShortcut({ combo, href }: { combo: string; href: string }) {
   const navigate = useNavigate();
-  useHotkey(combo, () => navigate(href));
+  useHotkey(combo, () => {
+    void navigate(href);
+  });
   return null;
 }
 

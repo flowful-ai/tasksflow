@@ -22,7 +22,8 @@ export type HistoryDisplayValue =
 
 export interface TaskHistoryItem {
   id: string;
-  type: TaskEventType | string;
+  // `string & {}` keeps editor completion for the known event types.
+  type: TaskEventType | (string & {});
   /** Changed field for 'updated'/'moved' (title, description, stateId, priority, dueDate, startDate, parentId). */
   field: string | null;
   createdAt: Date;

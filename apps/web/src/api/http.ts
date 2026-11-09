@@ -140,7 +140,7 @@ export async function request<T>(endpoint: string, options: RequestOptions = {})
   let data: JsonValue | undefined;
   if (text) {
     try {
-      data = JSON.parse(text);
+      data = JSON.parse(text) as JsonValue;
     } catch {
       data = undefined;
     }

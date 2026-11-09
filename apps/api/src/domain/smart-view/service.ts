@@ -7,7 +7,7 @@ import {
   publicSharePasswordAttempts,
   type NewPublicShare,
 } from '../../db/index.js';
-import type { Result, FilterGroup } from '@flowtask/shared';
+import type { Result } from '@flowtask/shared';
 import { ok, err } from '@flowtask/shared';
 import type {
   SmartViewWithRelations,
@@ -265,7 +265,7 @@ export class SmartViewService {
         .select()
         .from(smartViews)
         .where(whereClause)
-        .orderBy(orderFn(sortColumn!));
+        .orderBy(orderFn(sortColumn));
 
       // Get all shares and public shares
       const viewIds = viewRows.map((v) => v.id);

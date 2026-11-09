@@ -66,7 +66,7 @@ export function findNeighbourCard(
   const columns = Array.from(container.querySelectorAll('[data-column]'));
   const step = direction === 'right' ? 1 : -1;
   for (let i = columns.indexOf(column) + step; i >= 0 && i < columns.length; i += step) {
-    const cards = cardsIn(columns[i]!);
+    const cards = cardsIn(columns[i]);
     if (cards.length > 0) return cards[Math.min(index, cards.length - 1)];
   }
   return undefined;
@@ -214,7 +214,7 @@ export function useBoardKeyboard({ containerRef, visibleIds, onOpen, onDeleteOne
         if (targets.length === 0) return null;
         return () => {
           if (targets.length === 1) {
-            onDeleteOneRef.current(targets[0]!);
+            onDeleteOneRef.current(targets[0]);
             if (hasSelection) clearSelection();
           } else {
             setPicker('delete');

@@ -33,7 +33,7 @@ export function GitHubLinkSection({ taskId, projectId, externalLinks, onUpdated 
     mutationFn: (repo: { owner: string; repo: string }) => tasksApi.createGitHubIssue(taskId, repo),
     meta: { silentError: true },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(taskId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(taskId) });
       setShowIssueRepoSelector(false);
       onUpdated?.();
     },
@@ -43,7 +43,7 @@ export function GitHubLinkSection({ taskId, projectId, externalLinks, onUpdated 
     mutationFn: (payload: { owner: string; repo: string; prNumber: number }) => tasksApi.linkGitHubPr(taskId, payload),
     meta: { silentError: true },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(taskId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(taskId) });
       setShowPrLinker(false);
       setSelectedPrRepo('');
       setPrNumber('');

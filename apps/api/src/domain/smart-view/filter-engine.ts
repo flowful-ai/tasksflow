@@ -628,7 +628,7 @@ export class FilterEngine {
 
     function checkConditions(group: FilterGroup, path: string = '') {
       if (group.operator !== 'AND' && group.operator !== 'OR') {
-        errors.push(`${path}: Invalid operator "${group.operator}"`);
+        errors.push(`${path}: Invalid operator ${JSON.stringify(group.operator)}`);
       }
 
       if (!Array.isArray(group.conditions)) {

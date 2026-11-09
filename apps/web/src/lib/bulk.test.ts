@@ -12,7 +12,7 @@ describe('bulk helpers', () => {
     expect(resolveDoneStateId(states)).toBe('d');
     expect(resolveDoneStateId([{ id: 'x', name: 'Shipped', category: 'done' }])).toBe('x');
     expect(resolveCancelStateId(states)).toBe('c');
-    expect(resolveDoneStateId([states[0]!])).toBeNull();
+    expect(resolveDoneStateId([states[0]])).toBeNull();
   });
 
   test('assign: add vs replace', () => {

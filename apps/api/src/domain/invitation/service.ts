@@ -187,7 +187,7 @@ export class InvitationService {
 
       // Get all inviters
       const inviterIds = [...new Set(invitations.map((i) => i.invitedBy).filter(Boolean))];
-      let invitersMap = new Map<string, typeof users.$inferSelect>();
+      const invitersMap = new Map<string, typeof users.$inferSelect>();
 
       if (inviterIds.length > 0) {
         const inviters = await Promise.all(

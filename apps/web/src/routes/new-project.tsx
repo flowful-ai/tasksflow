@@ -26,7 +26,7 @@ export function NewProjectPage() {
       {
         onSuccess: (project) => {
           toast.success(`Project ${project.name} created`);
-          navigate(`/project/${project.id}`);
+          void navigate(`/project/${project.id}`);
         },
       }
     );

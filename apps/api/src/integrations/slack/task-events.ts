@@ -1,7 +1,7 @@
 import { webApi } from '@slack/bolt';
 import { getDatabase, type Database } from '../../db/index.js';
 import { comments, projectIntegrations, projects, taskStates, tasks, users } from '../../db/index.js';
-import { parseSlackConfig, type SlackConfig } from '@flowtask/shared';
+import { isJsonValue, parseSlackConfig, type SlackConfig } from '@flowtask/shared';
 import { and, eq } from 'drizzle-orm';
 import { NonRetryableError, registerBackgroundJob, scheduleBackgroundJob, type BackgroundJobPayload } from '../background.js';
 import { decryptSecret } from '../crypto.js';
@@ -185,7 +185,7 @@ registerBackgroundJob(SLACK_NOTIFY_JOB, async (payload) => {
 export function notifySlackForTaskEvent(event: SlackTaskEvent): void {
   const payload: BackgroundJobPayload = {};
   for (const [key, value] of Object.entries(event)) {
-    if (value !== undefined) payload[key] = value;
+    if (isJsonValue(value)) payload[key] = value;
   }
   scheduleBackgroundJob(SLACK_NOTIFY_JOB, payload, { context: { eventType: event.type, taskId: event.taskId } });
 }
