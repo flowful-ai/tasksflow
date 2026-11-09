@@ -1,17 +1,23 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Plus, MoreHorizontal, LayoutGrid, List, User, Settings, FolderKanban } from 'lucide-react';
-import clsx from 'clsx';
-import {
-  BulkTaskToolbar,
-  type BulkAssigneeOption,
-  type BulkLabelOption,
-  TaskDisplayContainer,
-  type TaskOpenEvent,
-} from '../components/task-display';
+import { FolderKanban, MoreHorizontal, Plus, Settings, SearchX } from 'lucide-react';
+import { TaskDisplayContainer } from '../components/task-display';
+import { taskKeyOf } from '../components/task-display/TaskCard';
 import { TaskModal } from '../components/tasks/TaskModal';
 import { TaskDetailSheet } from '../components/tasks/TaskDetailSheet';
-import { LiveIndicator } from '../components/realtime/ConnectionStatus';
+import { BoardTopBar, type FilterOption } from '../components/board/BoardTopBar';
+import { BoardSkeleton } from '../components/board/BoardSkeleton';
+import { BulkActionBar } from '../components/board/BulkActionBar';
+import { useBoardKeyboard } from '../components/board/useBoardKeyboard';
+import { useIsMobile } from '../components/board/useMediaQuery';
+import {
+  EMPTY_FILTERS,
+  applyBoardFilters,
+  describeFilters,
+  hasActiveBoardFilters,
+  toApiFilters,
+  type BoardFilters,
+} from '../components/board/filters';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,72 +26,106 @@ import {
   EmptyState,
   ErrorState,
   IconButton,
-  PageSpinner,
-  Spinner,
-  Tooltip,
+  Kbd,
 } from '../components/ui';
-import { useMoveTask, useProject, useProjectTasks, useWorkspace } from '../hooks/queries';
-import { useBulkTaskActions } from '../hooks/useBulkTaskActions';
+import type { MoveTaskInput } from '../api/types';
+import { useCreateTask, useDeleteTask, useMoveTask, useProject, useProjectTasks, useWorkspace } from '../hooks/queries';
 import { useAuthStore } from '../stores/auth';
 import { useWorkspaceStore, type ProjectViewMode } from '../stores/workspace';
 
 export function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const currentUserId = useAuthStore((s) => s.user?.id ?? null);
-  const displayType = useWorkspaceStore((s): ProjectViewMode => (projectId && s.projectViewModes[projectId]) || 'kanban');
+  const storedMode = useWorkspaceStore((s): ProjectViewMode | undefined => (projectId ? s.projectViewModes[projectId] : undefined));
   const setProjectViewMode = useWorkspaceStore((s) => s.setProjectViewMode);
   const setCurrentProjectId = useWorkspaceStore((s) => s.setCurrentProjectId);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
-  const [isAssignedToMeOnly, setIsAssignedToMeOnly] = useState(false);
+  const isMobile = useIsMobile();
+  const [mobileMode, setMobileMode] = useState<ProjectViewMode | null>(null);
+  const [filters, setFilters] = useState<BoardFilters>(EMPTY_FILTERS);
+  const [createInState, setCreateInState] = useState<{ stateId?: string } | null>(null);
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (projectId) setCurrentProjectId(projectId);
+    setFilters(EMPTY_FILTERS);
+    setMobileMode(null);
   }, [projectId, setCurrentProjectId]);
+
+  // Phones default to the list (mockup section 7); the stored choice is the desktop one.
+  const viewMode: ProjectViewMode = isMobile ? mobileMode ?? 'list' : storedMode ?? 'kanban';
 
   const projectQuery = useProject(projectId);
   const project = projectQuery.data;
   const { data: workspaceDetail } = useWorkspace(project?.workspaceId);
-  const filters = isAssignedToMeOnly && currentUserId ? { assigneeId: currentUserId } : {};
-  const tasksQuery = useProjectTasks(projectId, filters);
-  const { tasks, total } = tasksQuery;
-  const moveTask = useMoveTask();
+  const apiFilters = useMemo(() => toApiFilters(filters), [filters]);
+  const tasksQuery = useProjectTasks(projectId, apiFilters);
+  const { tasks: loadedTasks, isComplete } = tasksQuery;
+  const tasks = useMemo(() => applyBoardFilters(loadedTasks, filters), [loadedTasks, filters]);
+  const isFiltered = hasActiveBoardFilters(filters);
+  // The server total, or the client-filtered count once every page is in.
+  const total = isFiltered && isComplete ? tasks.length : tasksQuery.total;
 
   const taskStates = useMemo(() => project?.taskStates ?? [], [project?.taskStates]);
-  const selectedTasks = useMemo(() => tasks.filter((t) => selectedTaskIds.has(t.id)), [tasks, selectedTaskIds]);
-  const bulk = useBulkTaskActions(selectedTasks, taskStates, () => setSelectedTaskIds(new Set()));
+  const visibleIds = useMemo(() => tasks.map((t) => t.id), [tasks]);
+  const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
 
-  const assigneeOptions = useMemo<BulkAssigneeOption[]>(
-    () =>
-      (workspaceDetail?.members ?? []).map((m) => ({
-        id: m.user.id,
-        name: m.user.name,
-        email: m.user.email,
-        avatarUrl: m.user.avatarUrl,
-      })),
-    [workspaceDetail?.members]
+  const deleteTask = useDeleteTask();
+  const deleteMutate = deleteTask.mutate;
+  const deleteOne = useCallback(
+    (taskId: string) => {
+      const task = taskById.get(taskId);
+      if (task) deleteMutate({ taskId, projectId: task.projectId, label: taskKeyOf(task) });
+    },
+    [taskById, deleteMutate]
   );
-  const labelOptions = useMemo<BulkLabelOption[]>(
+
+  const keyboard = useBoardKeyboard({
+    containerRef: boardRef,
+    visibleIds,
+    onOpen: setOpenTaskId,
+    onDeleteOne: deleteOne,
+    enabled: !openTaskId && !createInState,
+  });
+  const selectedTasks = useMemo(
+    () => (keyboard.selectedIds.size === 0 ? [] : tasks.filter((t) => keyboard.selectedIds.has(t.id))),
+    [tasks, keyboard.selectedIds]
+  );
+
+  const moveAsync = useMoveTask().mutateAsync;
+  const onTaskMove = useCallback(
+    (move: MoveTaskInput) => moveAsync(move).then(
+      () => undefined,
+      () => undefined
+    ),
+    [moveAsync]
+  );
+  const createAsync = useCreateTask().mutateAsync;
+  const onQuickAdd = useCallback(
+    async (stateId: string, title: string) => {
+      if (!projectId) return;
+      await createAsync({ projectId, title, stateId });
+    },
+    [createAsync, projectId]
+  );
+  const onAddTask = useCallback((stateId: string) => setCreateInState({ stateId }), []);
+
+  const members = useMemo(() => workspaceDetail?.members ?? [], [workspaceDetail?.members]);
+  const memberOptions = useMemo<FilterOption[]>(
+    () => members.map((m) => ({ id: m.user.id, name: m.user.name || m.user.email })),
+    [members]
+  );
+  const labelOptions = useMemo<FilterOption[]>(
     () => (project?.labels ?? []).map((l) => ({ id: l.id, name: l.name, color: l.color })),
     [project?.labels]
   );
-
-  // Drop selections that are no longer visible (deleted, filtered out).
-  useEffect(() => {
-    setSelectedTaskIds((previous) => {
-      if (previous.size === 0) return previous;
-      const visible = new Set(tasks.map((t) => t.id));
-      const next = new Set([...previous].filter((id) => visible.has(id)));
-      return next.size === previous.size ? previous : next;
-    });
-  }, [tasks]);
-
-  if (projectQuery.isLoading || (tasksQuery.isLoading && !tasksQuery.data)) {
-    return <PageSpinner label="Loading project" />;
-  }
+  const labelsByProject = useMemo(
+    () => new Map(project ? [[project.id, project.labels]] : []),
+    [project]
+  );
 
   if (!project) {
+    if (projectQuery.isLoading) return <BoardSkeleton variant={isMobile ? 'list' : 'kanban'} />;
     return (
       <ErrorState
         error={projectQuery.error}
@@ -100,71 +140,84 @@ export function ProjectPage() {
     );
   }
 
-  const handleTaskClick = (taskId: string, event: TaskOpenEvent) => {
-    if (event.ctrlKey || event.metaKey) {
-      setSelectedTaskIds((previous) => {
-        const next = new Set(previous);
-        if (next.has(taskId)) next.delete(taskId);
-        else next.add(taskId);
-        return next;
-      });
-      return;
-    }
-    setSelectedTaskIds(new Set());
-    setSelectedTaskId(taskId);
-  };
+  const setViewMode = (mode: ProjectViewMode) => (isMobile ? setMobileMode(mode) : setProjectViewMode(project.id, mode));
+  const openCreate = () => setCreateInState({});
+  const chips = describeFilters(filters, {
+    currentUserId,
+    members: new Map(memberOptions.map((m) => [m.id, m.name])),
+    labels: new Map(labelOptions.map((l) => [l.id, l.name])),
+  });
+  const createHint = (
+    <>
+      Press <Kbd>C</Kbd> or use <b className="font-semibold">New</b> to create one.
+    </>
+  );
 
-  const setDisplayType = (mode: ProjectViewMode) => setProjectViewMode(project.id, mode);
+  let content: JSX.Element;
+  if (tasksQuery.isLoading && loadedTasks.length === 0) {
+    content = <BoardSkeleton variant={viewMode} />;
+  } else if (tasksQuery.isError && loadedTasks.length === 0) {
+    content = <ErrorState error={tasksQuery.error} resource="task list" onRetry={() => void tasksQuery.refetch()} />;
+  } else if (tasks.length === 0 && isComplete && !tasksQuery.isPlaceholderData) {
+    content = isFiltered ? (
+      <EmptyState
+        icon={<SearchX />}
+        title={`No tasks match ${chips.map((c) => `"${c.label}"`).join(' + ')}`}
+        body={<>Clear the filter, or press <Kbd>C</Kbd> to create one.</>}
+        action={
+          <button type="button" className="btn btn-secondary" onClick={() => setFilters(EMPTY_FILTERS)}>
+            Clear filter
+          </button>
+        }
+      />
+    ) : (
+      <EmptyState
+        icon={<FolderKanban />}
+        title="No tasks yet"
+        body={createHint}
+        action={
+          <button type="button" className="btn btn-primary" onClick={openCreate}>
+            New task
+          </button>
+        }
+      />
+    );
+  } else {
+    content = (
+      <TaskDisplayContainer
+        tasks={tasks}
+        displayType={viewMode}
+        groupBy="state"
+        onTaskClick={keyboard.onTaskClick}
+        onTaskMove={onTaskMove}
+        showProject={false}
+        allowDragDrop={viewMode === 'kanban'}
+        availableStates={taskStates}
+        selectedTaskIds={keyboard.selectedIds}
+        onAddTask={onAddTask}
+        onQuickAdd={onQuickAdd}
+      />
+    );
+  }
 
   return (
-    <div className="h-full flex flex-col">
-      <header className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <div>
-          <span className="text-sm font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{project.identifier}</span>
-          <h1 className="text-2xl font-bold text-gray-900 mt-1">{project.name}</h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <LiveIndicator suffix={`${total} task${total === 1 ? '' : 's'}`} />
-          {tasksQuery.isFetching && !tasksQuery.isLoading && <Spinner size="sm" label="Refreshing tasks" />}
-          <div role="group" aria-label="View" className="flex items-center border border-gray-200 rounded-lg p-0.5">
-            <IconButton
-              label="Board view"
-              icon={<LayoutGrid />}
-              aria-pressed={displayType === 'kanban'}
-              onClick={() => setDisplayType('kanban')}
-              className={clsx(displayType === 'kanban' && 'bg-gray-100 text-gray-900')}
-            />
-            <IconButton
-              label="List view"
-              icon={<List />}
-              aria-pressed={displayType === 'list'}
-              onClick={() => setDisplayType('list')}
-              className={clsx(displayType === 'list' && 'bg-gray-100 text-gray-900')}
-            />
-          </div>
-          <Tooltip content="Show only tasks assigned to me">
-            <button
-              type="button"
-              onClick={() => setIsAssignedToMeOnly((previous) => !previous)}
-              className={clsx(
-                'inline-flex items-center gap-1.5 border rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
-                isAssignedToMeOnly
-                  ? 'border-primary-200 bg-primary-50 text-primary-700'
-                  : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-              )}
-              aria-pressed={isAssignedToMeOnly}
-            >
-              <User aria-hidden className="w-4 h-4" />
-              My tasks
-            </button>
-          </Tooltip>
-          <button type="button" onClick={() => setIsCreateModalOpen(true)} className="btn btn-primary">
-            <Plus aria-hidden className="w-4 h-4 mr-2" />
-            Add Task
-          </button>
+    <div className="flex h-full min-w-0 flex-col">
+      <BoardTopBar
+        projectName={project.name}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        filters={filters}
+        onFiltersChange={setFilters}
+        currentUserId={currentUserId}
+        members={memberOptions}
+        labels={labelOptions}
+        total={total}
+        isRefreshing={tasksQuery.isFetching && !tasksQuery.isLoading}
+        onNewTask={openCreate}
+        actions={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <IconButton label="Project actions" size="md" icon={<MoreHorizontal />} />
+              <IconButton label="Project actions" icon={<MoreHorizontal />} />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem icon={<Settings />} asChild>
@@ -172,80 +225,48 @@ export function ProjectPage() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
-      </header>
-
-      <BulkTaskToolbar
-        selectedCount={selectedTaskIds.size}
-        members={assigneeOptions}
-        labels={labelOptions}
-        isLoading={bulk.isPending}
-        onClearSelection={() => setSelectedTaskIds(new Set())}
-        onAssign={bulk.assign}
-        onSetLabels={bulk.setLabels}
-        onMoveToDone={bulk.moveToDone}
-        onCancel={bulk.cancel}
-        onDelete={bulk.remove}
+        }
       />
 
-      <div className="flex-1 min-h-0">
-        {tasks.length === 0 && !tasksQuery.isFetching ? (
-          isAssignedToMeOnly ? (
-            <EmptyState
-              icon={<FolderKanban />}
-              title='No tasks match "Assignee: me"'
-              body="Clear the filter or create a task."
-              action={
-                <button type="button" className="btn btn-secondary" onClick={() => setIsAssignedToMeOnly(false)}>
-                  Clear filter
-                </button>
-              }
-            />
-          ) : (
-            <EmptyState
-              icon={<FolderKanban />}
-              title="No tasks yet"
-              body="Create the first task of this project."
-              action={
-                <button type="button" className="btn btn-primary" onClick={() => setIsCreateModalOpen(true)}>
-                  Add Task
-                </button>
-              }
-            />
-          )
-        ) : tasksQuery.isError && tasks.length === 0 ? (
-          <ErrorState error={tasksQuery.error} resource="task list" onRetry={() => void tasksQuery.refetch()} />
-        ) : (
-          <TaskDisplayContainer
-            tasks={tasks}
-            displayType={displayType}
-            groupBy="state"
-            onTaskClick={handleTaskClick}
-            onTaskMove={(move) => moveTask.mutateAsync(move).then(() => undefined, () => undefined)}
-            showProject={false}
-            allowDragDrop={displayType === 'kanban'}
-            availableStates={taskStates}
-            selectedTaskIds={selectedTaskIds}
-          />
-        )}
+      <div ref={boardRef} className="min-h-0 min-w-0 flex-1 pb-24 md:pb-16">
+        {content}
       </div>
 
-      {isCreateModalOpen && (
+      <BulkActionBar
+        tasks={selectedTasks}
+        picker={keyboard.picker}
+        onPickerChange={keyboard.setPicker}
+        onClear={keyboard.clearSelection}
+        states={taskStates}
+        members={members}
+        labelsByProject={labelsByProject}
+        currentUserId={currentUserId ?? undefined}
+        onDeleteOne={deleteOne}
+      />
+
+      {selectedTasks.length === 0 && (
+        <button
+          type="button"
+          onClick={openCreate}
+          aria-label="New task"
+          className="fixed bottom-5 right-5 z-30 grid h-14 w-14 place-items-center rounded-full bg-primary-500 text-white shadow-lg hover:bg-primary-600 md:hidden"
+        >
+          <Plus aria-hidden className="h-6 w-6" />
+        </button>
+      )}
+
+      {createInState && (
         <TaskModal
           projectId={project.id}
           states={taskStates}
-          onClose={() => setIsCreateModalOpen(false)}
-          onCreated={() => setIsCreateModalOpen(false)}
+          defaultStateId={createInState.stateId}
+          onClose={() => setCreateInState(null)}
+          onCreated={() => setCreateInState(null)}
         />
       )}
 
-      {selectedTaskId && (
-        <TaskDetailSheet
-          taskId={selectedTaskId}
-          projectId={project.id}
-          states={taskStates}
-          onClose={() => setSelectedTaskId(null)}
-        />
+      {openTaskId && (
+        <TaskDetailSheet taskId={openTaskId} projectId={project.id} states={taskStates} onClose={() => setOpenTaskId(null)} />
       )}
     </div>
   );

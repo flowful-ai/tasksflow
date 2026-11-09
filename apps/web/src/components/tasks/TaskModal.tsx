@@ -14,18 +14,20 @@ interface TaskModalProps {
   taskId?: string;
   projectId: string;
   states: { id: string; name: string }[];
+  /** Pre-selected status for a new task (column "+"). */
+  defaultStateId?: string;
   onClose: () => void;
   onCreated?: () => void;
   onUpdated?: () => void;
 }
 
 /** Create (or edit) a task. Render it while open; closing unmounts it. */
-export function TaskModal({ taskId, projectId, states, onClose, onCreated, onUpdated }: TaskModalProps) {
+export function TaskModal({ taskId, projectId, states, defaultStateId, onClose, onCreated, onUpdated }: TaskModalProps) {
   const isEditing = !!taskId;
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [stateId, setStateId] = useState('');
+  const [stateId, setStateId] = useState(defaultStateId ?? '');
   const [priority, setPriority] = useState('');
   const [assignToMe, setAssignToMe] = useState(false);
   const [createOnGitHub, setCreateOnGitHub] = useState(false);
@@ -99,7 +101,7 @@ export function TaskModal({ taskId, projectId, states, onClose, onCreated, onUpd
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
-      title={isEditing ? 'Edit Task' : 'Create Task'}
+      title={isEditing ? 'Edit task' : 'New task'}
       size="lg"
       dismissible={!isLoading}
       bodyClassName="!p-0"

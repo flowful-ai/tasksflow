@@ -1,27 +1,24 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Pencil, LayoutGrid, List, Table, Calendar, Filter } from 'lucide-react';
-import {
-  BulkTaskToolbar,
-  type BulkAssigneeOption,
-  type BulkLabelOption,
-  TaskDisplayContainer,
-  type DisplayType,
-  type TaskOpenEvent,
-} from '../components/task-display';
-import type { TaskStateDto } from '../api/types';
+import { TaskDisplayContainer, taskKeyOf, type DisplayType } from '../components/task-display';
+import type { MoveTaskInput, TaskStateDto } from '../api/types';
 import { TaskDetailSheet } from '../components/tasks/TaskDetailSheet';
 import { ShareButton, ShareDialog, ActiveShareBanner } from '../components/smart-views/ShareDialog';
 import { LiveIndicator } from '../components/realtime/ConnectionStatus';
-import { EmptyState, ErrorState, PageSpinner, Spinner, toast } from '../components/ui';
+import { BoardSkeleton } from '../components/board/BoardSkeleton';
+import { BulkActionBar, type BulkBarLabel } from '../components/board/BulkActionBar';
+import { useBoardKeyboard } from '../components/board/useBoardKeyboard';
+import { EmptyState, ErrorState, Spinner, toast } from '../components/ui';
 import {
+  useDeleteTask,
   useMoveTask,
   useProjectsById,
   usePublicShareMutations,
   useSmartViewTasks,
   useWorkspace,
 } from '../hooks/queries';
-import { useBulkTaskActions } from '../hooks/useBulkTaskActions';
+import { useAuthStore } from '../stores/auth';
 
 const displayTypeIcons: Record<DisplayType, React.ComponentType<{ className?: string }>> = {
   kanban: LayoutGrid,
@@ -30,28 +27,18 @@ const displayTypeIcons: Record<DisplayType, React.ComponentType<{ className?: st
   calendar: Calendar,
 };
 
-/** Label option ids in a multi-project view are "projectId:labelId". */
-function parseCompositeLabelIds(ids: string[]): Map<string, string[]> {
-  const byProject = new Map<string, string[]>();
-  for (const compositeId of ids) {
-    const [projectId, labelId] = compositeId.split(':');
-    if (!projectId || !labelId) continue;
-    byProject.set(projectId, [...(byProject.get(projectId) ?? []), labelId]);
-  }
-  return byProject;
-}
-
 export function SmartViewPage() {
   const { viewId } = useParams<{ viewId: string }>();
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const currentUserId = useAuthStore((s) => s.user?.id);
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [showShareDialog, setShowShareDialog] = useState(false);
+  const boardRef = useRef<HTMLDivElement>(null);
 
   const viewQuery = useSmartViewTasks(viewId);
   const { view, tasks, total } = viewQuery;
   const { data: workspaceDetail } = useWorkspace(view?.workspaceId);
   const shares = usePublicShareMutations(viewId ?? '');
-  const moveTask = useMoveTask();
+  const moveAsync = useMoveTask().mutateAsync;
 
   const projectIds = useMemo(() => [...new Set(tasks.map((task) => task.project.id))], [tasks]);
   const { projects } = useProjectsById(projectIds);
@@ -60,78 +47,55 @@ export function SmartViewPage() {
     () => projects.flatMap((project) => project.taskStates),
     [projects]
   );
+  const labelsByProject = useMemo(
+    () => new Map<string, BulkBarLabel[]>(projects.map((project) => [project.id, project.labels])),
+    [projects]
+  );
+  const members = useMemo(() => workspaceDetail?.members ?? [], [workspaceDetail?.members]);
 
+  const visibleIds = useMemo(() => tasks.map((t) => t.id), [tasks]);
+  const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
+  const deleteMutate = useDeleteTask().mutate;
+  const deleteOne = useCallback(
+    (taskId: string) => {
+      const task = taskById.get(taskId);
+      if (task) deleteMutate({ taskId, projectId: task.projectId, label: taskKeyOf(task) });
+    },
+    [taskById, deleteMutate]
+  );
+
+  const keyboard = useBoardKeyboard({
+    containerRef: boardRef,
+    visibleIds,
+    onOpen: setOpenTaskId,
+    onDeleteOne: deleteOne,
+    enabled: !openTaskId && !showShareDialog,
+  });
   const selectedTasks = useMemo(
-    () => (selectedTaskIds.size === 0 ? [] : tasks.filter((task) => selectedTaskIds.has(task.id))),
-    [tasks, selectedTaskIds]
-  );
-  const bulk = useBulkTaskActions(selectedTasks, allProjectStates, () => setSelectedTaskIds(new Set()));
-
-  const selectedProjectIds = useMemo(() => [...new Set(selectedTasks.map((task) => task.project.id))], [selectedTasks]);
-
-  const assigneeOptions = useMemo<BulkAssigneeOption[]>(
-    () =>
-      (workspaceDetail?.members || []).map((member) => ({
-        id: member.user.id,
-        name: member.user.name,
-        email: member.user.email,
-        avatarUrl: member.user.avatarUrl,
-      })),
-    [workspaceDetail?.members]
+    () => (keyboard.selectedIds.size === 0 ? [] : tasks.filter((task) => keyboard.selectedIds.has(task.id))),
+    [tasks, keyboard.selectedIds]
   );
 
-  const labelOptions = useMemo<BulkLabelOption[]>(() => {
-    const isMultiProject = selectedProjectIds.length > 1;
-    const visible = new Set(selectedProjectIds);
-    return projects
-      .filter((project) => visible.has(project.id))
-      .flatMap((project) =>
-        project.labels.map((label) => ({
-          id: `${project.id}:${label.id}`,
-          name: isMultiProject ? `${project.identifier} · ${label.name}` : label.name,
-          color: label.color,
-        }))
-      );
-  }, [projects, selectedProjectIds]);
-
-  const selectedTask = useMemo(
-    () => (selectedTaskId ? tasks.find((task) => task.id === selectedTaskId) ?? null : null),
-    [selectedTaskId, tasks]
+  const onTaskMove = useCallback(
+    (move: MoveTaskInput) => moveAsync(move).then(
+      () => undefined,
+      () => undefined
+    ),
+    [moveAsync]
   );
-  const selectedTaskStates = useMemo(
-    () => projects.find((project) => project.id === selectedTask?.project.id)?.taskStates ?? [],
-    [projects, selectedTask?.project.id]
+  const onInvalidDrop = useCallback((message: string) => toast.warning(message), []);
+
+  const openTask = openTaskId ? taskById.get(openTaskId) ?? null : null;
+  const openTaskStates = useMemo(
+    () => projects.find((project) => project.id === openTask?.project.id)?.taskStates ?? [],
+    [projects, openTask?.project.id]
   );
 
   const activePublicShares = useMemo(() => view?.publicShares?.filter((share) => share.isActive) ?? [], [view?.publicShares]);
   const primaryActiveShare = activePublicShares[0];
 
-  // Drop selections for tasks that left the view.
-  useEffect(() => {
-    setSelectedTaskIds((previous) => {
-      if (previous.size === 0) return previous;
-      const available = new Set(tasks.map((task) => task.id));
-      const next = new Set([...previous].filter((taskId) => available.has(taskId)));
-      return next.size === previous.size ? previous : next;
-    });
-  }, [tasks]);
-
-  const handleTaskClick = (taskId: string, event: TaskOpenEvent) => {
-    if (event.ctrlKey || event.metaKey) {
-      setSelectedTaskIds((previous) => {
-        const next = new Set(previous);
-        if (next.has(taskId)) next.delete(taskId);
-        else next.add(taskId);
-        return next;
-      });
-      return;
-    }
-    setSelectedTaskIds(new Set());
-    setSelectedTaskId(taskId);
-  };
-
   if (viewQuery.isLoading) {
-    return <PageSpinner label="Loading view" />;
+    return <BoardSkeleton />;
   }
 
   if (!view) {
@@ -192,20 +156,8 @@ export function SmartViewPage() {
         />
       )}
 
-      <BulkTaskToolbar
-        selectedCount={selectedTaskIds.size}
-        members={assigneeOptions}
-        labels={labelOptions}
-        isLoading={bulk.isPending}
-        onClearSelection={() => setSelectedTaskIds(new Set())}
-        onAssign={bulk.assign}
-        onSetLabels={(ids) => bulk.setLabelsByProject(parseCompositeLabelIds(ids))}
-        onMoveToDone={bulk.moveToDone}
-        onCancel={bulk.cancel}
-        onDelete={bulk.remove}
-      />
 
-      <div className="flex-1 min-h-0">
+      <div ref={boardRef} className="min-h-0 min-w-0 flex-1 pb-20">
         {tasks.length === 0 && viewQuery.isComplete ? (
           <EmptyState
             icon={<Filter />}
@@ -223,24 +175,36 @@ export function SmartViewPage() {
             displayType={displayType}
             groupBy={groupBy}
             secondaryGroupBy={secondaryGroupBy}
-            onTaskClick={handleTaskClick}
-            onTaskMove={isStateGrouping ? (move) => moveTask.mutateAsync(move).then(() => undefined, () => undefined) : undefined}
-            onInvalidDrop={(message) => toast.warning(message)}
+            onTaskClick={keyboard.onTaskClick}
+            onTaskMove={isStateGrouping ? onTaskMove : undefined}
+            onInvalidDrop={onInvalidDrop}
             showProject={true}
             allowDragDrop={displayType === 'kanban' && isStateGrouping}
             availableStates={allProjectStates}
             mergeStatesByCategory={true}
-            selectedTaskIds={selectedTaskIds}
+            selectedTaskIds={keyboard.selectedIds}
           />
         )}
       </div>
 
-      {selectedTaskId && selectedTask && (
+      <BulkActionBar
+        tasks={selectedTasks}
+        picker={keyboard.picker}
+        onPickerChange={keyboard.setPicker}
+        onClear={keyboard.clearSelection}
+        states={allProjectStates}
+        members={members}
+        labelsByProject={labelsByProject}
+        currentUserId={currentUserId}
+        onDeleteOne={deleteOne}
+      />
+
+      {openTaskId && openTask && (
         <TaskDetailSheet
-          taskId={selectedTaskId}
-          projectId={selectedTask.project.id}
-          states={selectedTaskStates}
-          onClose={() => setSelectedTaskId(null)}
+          taskId={openTaskId}
+          projectId={openTask.project.id}
+          states={openTaskStates}
+          onClose={() => setOpenTaskId(null)}
         />
       )}
 
