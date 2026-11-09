@@ -25,6 +25,9 @@ const TaskListQuerySchema = z.object({
   priority: TaskPrioritySchema.optional(),
   stateId: z.string().uuid().optional(),
   assigneeId: z.string().uuid().optional(),
+  labelId: z.string().uuid().optional(),
+  /** A task id lists its sub-tasks; "none" lists top-level tasks only. */
+  parentId: z.union([z.string().uuid(), z.literal('none')]).optional(),
   search: z.string().max(200).optional(),
   sortBy: z.enum(VALID_TASK_SORT_BY).default('position'),
   sortOrder: z.enum(VALID_TASK_SORT_ORDER).default('asc'),
@@ -55,6 +58,8 @@ tasks.get('/', async (c) => {
     priority: c.req.query('priority') || undefined,
     stateId: c.req.query('stateId') || undefined,
     assigneeId: c.req.query('assigneeId') || undefined,
+    labelId: c.req.query('labelId') || undefined,
+    parentId: c.req.query('parentId') || undefined,
     search: c.req.query('search') || undefined,
     sortBy: c.req.query('sortBy') || undefined,
     sortOrder: c.req.query('sortOrder') || undefined,
@@ -64,7 +69,7 @@ tasks.get('/', async (c) => {
   if (!parsedQuery.success) {
     throw badRequest('Invalid query parameters', 'INVALID_QUERY');
   }
-  const { priority, stateId, assigneeId, search, sortBy, sortOrder, page, limit } = parsedQuery.data;
+  const { priority, stateId, assigneeId, labelId, parentId, search, sortBy, sortOrder, page, limit } = parsedQuery.data;
 
   const result = fromResult(
     await taskService.list({
@@ -72,6 +77,8 @@ tasks.get('/', async (c) => {
         projectId: project.id,
         stateId,
         assigneeId,
+        labelId,
+        ...(parentId ? { parentId: parentId === 'none' ? null : parentId } : {}),
         priority,
         search,
         includeDeleted: c.req.query('includeDeleted') === 'true',
@@ -88,7 +95,7 @@ tasks.get('/', async (c) => {
     success: true,
     data: result.tasks,
     meta: {
-      total: Number(result.total),
+      total: result.total,
       page,
       limit,
     },

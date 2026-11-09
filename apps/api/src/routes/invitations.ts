@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { getDatabase } from '@flowtask/database';
-import { InvitationService, WorkspaceService } from '@flowtask/domain';
+import { InvitationService, WorkspaceService, isDomainError } from '@flowtask/domain';
 import { getCurrentUser, hasPermission } from '@flowtask/auth';
 import { CreateInvitationSchema } from '@flowtask/shared';
 
@@ -203,7 +203,13 @@ acceptInvitations.post('/invitations/:token/accept', async (c) => {
   });
 
   if (!result.ok) {
-    return c.json({ success: false, error: { code: 'ACCEPT_FAILED', message: result.error.message } }, 400);
+    // Business failures (expired, exhausted, wrong email, already a member) are
+    // DomainErrors with a client-safe message; anything else is logged.
+    if (isDomainError(result.error)) {
+      return c.json({ success: false, error: { code: 'ACCEPT_FAILED', message: result.error.message } }, 400);
+    }
+    console.error('[invitations] accept failed:', result.error);
+    return c.json({ success: false, error: { code: 'ACCEPT_FAILED', message: 'Failed to accept invitation' } }, 500);
   }
 
   // Get the invitation to return workspace info

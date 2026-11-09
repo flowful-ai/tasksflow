@@ -1,4 +1,4 @@
-import { FilterEngine, type TaskFilters, type TaskWithRelations } from '@flowtask/domain';
+import type { TaskFilters, TaskWithRelations } from '@flowtask/domain';
 import type { Result } from '@flowtask/shared';
 import { ToolExecutionError, fromDomainError, toToolErrorPayload } from '../../lib/mcp/errors.js';
 import type { ToolContext } from '../../lib/mcp/tool-context.js';
@@ -363,11 +363,6 @@ async function listScopedTasks(
   }
 
   const assigneeRef = optionalString(args, 'assigneeId');
-  const labelId = optionalString(args, 'labelId');
-  const labelFilter = labelId
-    ? { operator: 'AND' as const, conditions: [{ field: 'label_id', op: 'eq' as const, value: labelId }] }
-    : null;
-
   const result = unwrap(
     await services.tasks.list({
       filters: {
@@ -376,10 +371,9 @@ async function listScopedTasks(
         priority: optionalPriority(args),
         assigneeId: assigneeRef ? (await ctx.resolveUser(assigneeRef)).id : undefined,
         search: optionalString(args, 'search'),
+        labelId: optionalString(args, 'labelId'),
         ...extra,
       },
-      filterSql: labelFilter ? FilterEngine.buildWhereClause(labelFilter, FilterEngine.createContext(ctx.userId)) : null,
-      requiredJoins: labelFilter ? FilterEngine.getRequiredJoins(labelFilter) : undefined,
       sortBy: 'updated_at',
       sortOrder: 'desc',
       page: pageNumber(window),

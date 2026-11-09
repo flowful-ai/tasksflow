@@ -19,10 +19,18 @@ import {
   SMART_VIEW_MAX_LIMIT,
   UNSUPPORTED_PUBLIC_FILTER_CODE,
   UNSUPPORTED_PUBLIC_FILTER_MESSAGE,
+  readTimezoneHeader,
 } from './smart-view-query-utils.js';
 import { getAuthz } from '../lib/authorize.js';
 import { getClientIp } from '../lib/client-ip.js';
-import { AppError, badRequest, fromResult, handleRouteError, notFound, tooManyRequests } from '../lib/responses.js';
+import {
+  AppError,
+  badRequest,
+  fromResult,
+  handleRouteError,
+  notFound,
+  tooManyRequests,
+} from '../lib/responses.js';
 
 const publicRoutes = new Hono();
 publicRoutes.onError(handleRouteError);
@@ -31,7 +39,10 @@ const db = getDatabase();
 const smartViewService = new SmartViewService(db);
 const taskService = new TaskService(db);
 
-const PublicPageQuerySchema = createPaginationQuerySchema({ defaultLimit: 50, maxLimit: SMART_VIEW_MAX_LIMIT });
+const PublicPageQuerySchema = createPaginationQuerySchema({
+  defaultLimit: 50,
+  maxLimit: SMART_VIEW_MAX_LIMIT,
+});
 
 interface PublicSharePayload {
   view: {
@@ -76,7 +87,8 @@ async function buildPublicSharePayload(
   view: SmartViewWithRelations,
   share: PublicShare,
   page: number,
-  limit: number
+  limit: number,
+  timezone: string | undefined
 ): Promise<PublicSharePayload> {
   const filters = isFilterGroupValue(view.filters) ? view.filters : undefined;
   if (smartViewUsesCurrentUserTemplate(filters)) {
@@ -87,9 +99,14 @@ async function buildPublicSharePayload(
   const authz = getAuthz();
   const creatorRole = await authz.getRole(view.workspaceId, share.createdBy);
   if (!creatorRole || !hasPermission(creatorRole, 'smart_view:share')) throw shareNotFound();
-  const projectIds = await authz.listAccessibleProjectIds(view.workspaceId, share.createdBy, creatorRole, {
-    excludeArchived: true,
-  });
+  const projectIds = await authz.listAccessibleProjectIds(
+    view.workspaceId,
+    share.createdBy,
+    creatorRole,
+    {
+      excludeArchived: true,
+    }
+  );
 
   const result = fromResult(
     await executeSmartViewTaskList({
@@ -99,6 +116,7 @@ async function buildPublicSharePayload(
       filterContextUserId: 'public-share',
       page,
       limit,
+      timezone,
     }),
     { code: 'FETCH_FAILED', message: 'Failed to load shared tasks' }
   );
@@ -132,7 +150,10 @@ async function buildPublicSharePayload(
 }
 
 function pageOf(c: Context): { page: number; limit: number } {
-  const parsed = PublicPageQuerySchema.safeParse({ page: c.req.query('page'), limit: c.req.query('limit') });
+  const parsed = PublicPageQuerySchema.safeParse({
+    page: c.req.query('page'),
+    limit: c.req.query('limit'),
+  });
   return parsed.success ? parsed.data : { page: 1, limit: 50 };
 }
 
@@ -146,43 +167,47 @@ publicRoutes.get('/share/:token', async (c) => {
 
   const view = await loadSharedView(share);
   const { page, limit } = pageOf(c);
-  const payload = await buildPublicSharePayload(view, share, page, limit);
+  const payload = await buildPublicSharePayload(view, share, page, limit, readTimezoneHeader(c));
   await smartViewService.recordPublicShareAccess(share.token);
 
   return c.json({ success: true, data: payload });
 });
 
 // Verify password for protected share
-publicRoutes.post('/share/:token/verify', zValidator('json', z.object({ password: z.string().max(1024) })), async (c) => {
-  const share = await loadActiveShare(c.req.param('token'));
-  const ip = getClientIp(c);
+publicRoutes.post(
+  '/share/:token/verify',
+  zValidator('json', z.object({ password: z.string().max(1024) })),
+  async (c) => {
+    const share = await loadActiveShare(c.req.param('token'));
+    const ip = getClientIp(c);
 
-  // Count the attempt *before* verifying: per (ip, token) and per token
-  // regardless of IP, so neither parallel guesses nor rotating IPs get around it.
-  const attempt = fromResult(await smartViewService.beginPasswordAttempt(share.token, ip), {
-    code: 'RATE_LIMIT_FAILED',
-    message: 'Unable to verify password right now',
-  });
-  if (!attempt.allowed) {
-    c.header('Retry-After', String(attempt.retryAfterSeconds));
-    throw tooManyRequests('Too many attempts. Try again later.');
+    // Count the attempt *before* verifying: per (ip, token) and per token
+    // regardless of IP, so neither parallel guesses nor rotating IPs get around it.
+    const attempt = fromResult(await smartViewService.beginPasswordAttempt(share.token, ip), {
+      code: 'RATE_LIMIT_FAILED',
+      message: 'Unable to verify password right now',
+    });
+    if (!attempt.allowed) {
+      c.header('Retry-After', String(attempt.retryAfterSeconds));
+      throw tooManyRequests('Too many attempts. Try again later.');
+    }
+
+    const { password } = c.req.valid('json');
+    const verified = await smartViewService.verifyPublicSharePassword(share.token, password);
+    const success = verified.ok && verified.value;
+    await smartViewService.settlePasswordAttempt(share.token, ip, success);
+
+    if (!success) {
+      throw new AppError(401, 'INVALID_PASSWORD', 'Invalid password');
+    }
+
+    const view = await loadSharedView(share);
+    const { page, limit } = pageOf(c);
+    const payload = await buildPublicSharePayload(view, share, page, limit, readTimezoneHeader(c));
+    await smartViewService.recordPublicShareAccess(share.token);
+
+    return c.json({ success: true, data: payload });
   }
-
-  const { password } = c.req.valid('json');
-  const verified = await smartViewService.verifyPublicSharePassword(share.token, password);
-  const success = verified.ok && verified.value;
-  await smartViewService.settlePasswordAttempt(share.token, ip, success);
-
-  if (!success) {
-    throw new AppError(401, 'INVALID_PASSWORD', 'Invalid password');
-  }
-
-  const view = await loadSharedView(share);
-  const { page, limit } = pageOf(c);
-  const payload = await buildPublicSharePayload(view, share, page, limit);
-  await smartViewService.recordPublicShareAccess(share.token);
-
-  return c.json({ success: true, data: payload });
-});
+);
 
 export { publicRoutes };

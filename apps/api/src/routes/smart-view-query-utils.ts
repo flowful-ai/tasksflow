@@ -1,4 +1,5 @@
-import { FilterEngine, type TaskService } from '@flowtask/domain';
+import type { Context } from 'hono';
+import { FilterEngine, isValidTimeZone, type TaskService } from '@flowtask/domain';
 import { ok, FilterGroupSchema, type FilterCondition, type FilterGroup } from '@flowtask/shared';
 
 export const CURRENT_USER_TEMPLATE = '{{current_user}}';
@@ -6,7 +7,14 @@ export const UNSUPPORTED_PUBLIC_FILTER_CODE = 'UNSUPPORTED_PUBLIC_FILTER';
 export const UNSUPPORTED_PUBLIC_FILTER_MESSAGE =
   'This view uses "Current user (me)" filters, which are not supported for public shares.';
 
-export const VALID_TASK_SORT_BY = ['position', 'created_at', 'updated_at', 'due_date', 'priority', 'sequence_number'] as const;
+export const VALID_TASK_SORT_BY = [
+  'position',
+  'created_at',
+  'updated_at',
+  'due_date',
+  'priority',
+  'sequence_number',
+] as const;
 export const VALID_TASK_SORT_ORDER = ['asc', 'desc'] as const;
 
 type TaskSortBy = (typeof VALID_TASK_SORT_BY)[number];
@@ -75,7 +83,19 @@ function resolveTaskSortOrder(value: string | null): TaskSortOrder {
 /** Smart-view execution pages are capped at this many tasks. */
 export const SMART_VIEW_MAX_LIMIT = 100;
 
+/**
+ * The viewer's IANA timezone from the `X-Timezone` request header, used for
+ * day/week/month boundaries and `{{now ± N}}` in filters. Invalid or missing
+ * values fall back to UTC.
+ */
+export function readTimezoneHeader(c: Context): string | undefined {
+  const raw = c.req.header('x-timezone')?.trim();
+  return raw && raw.length <= 64 && isValidTimeZone(raw) ? raw : undefined;
+}
+
 interface ExecuteSmartViewTaskListOptions {
+  /** IANA timezone for date templates (see readTimezoneHeader). Defaults to UTC. */
+  timezone?: string;
   view: {
     workspaceId: string;
     filters: unknown;
@@ -105,10 +125,13 @@ export async function executeSmartViewTaskList({
   filterContextUserId,
   page,
   limit,
+  timezone,
 }: ExecuteSmartViewTaskListOptions) {
   const viewFilters = isFilterGroupValue(view.filters) ? view.filters : undefined;
-  const filterContext = FilterEngine.createContext(filterContextUserId);
-  const filterSql = viewFilters?.conditions?.length ? FilterEngine.buildWhereClause(viewFilters, filterContext) : null;
+  const filterContext = FilterEngine.createContext(filterContextUserId, { timezone });
+  const filterSql = viewFilters?.conditions?.length
+    ? FilterEngine.buildWhereClause(viewFilters, filterContext)
+    : null;
 
   const requiredJoins = viewFilters?.conditions?.length
     ? FilterEngine.getRequiredJoins(viewFilters)

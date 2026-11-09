@@ -3,6 +3,7 @@ import type { Database } from '@flowtask/database';
 import { workspaceInvitations, workspaceMembers, workspaces, users } from '@flowtask/database';
 import type { Result, WorkspaceRole } from '@flowtask/shared';
 import { ok, err } from '@flowtask/shared';
+import { DomainError } from '../workspace/errors.js';
 import type {
   InvitationWithInviter,
   CreateInvitationInput,
@@ -220,102 +221,69 @@ export class InvitationService {
    */
   async accept(input: AcceptInvitationInput): Promise<Result<void, Error>> {
     try {
-      // Get the invitation
-      const [invitation] = await this.db
-        .select()
-        .from(workspaceInvitations)
-        .where(eq(workspaceInvitations.token, input.token));
+      // One transaction with the invitation row locked (FOR UPDATE): concurrent
+      // accepts of a multi-use link serialize here, so usesCount can never pass
+      // maxUses and a single-use link admits exactly one member.
+      await this.db.transaction(async (tx) => {
+        const [invitation] = await tx
+          .select()
+          .from(workspaceInvitations)
+          .where(eq(workspaceInvitations.token, input.token))
+          .for('update');
 
-      if (!invitation) {
-        return err(new Error('Invitation not found'));
-      }
+        if (!invitation) throw new DomainError('NOT_FOUND', 'Invitation not found');
 
-      // Check status - 'pending' is valid, 'exhausted' means usage limit reached
-      if (invitation.status !== 'pending') {
-        if (invitation.status === 'exhausted') {
-          return err(new Error('This invitation link has reached its usage limit'));
+        // 'pending' is valid; 'exhausted' means the usage limit was reached.
+        if (invitation.status !== 'pending') {
+          if (invitation.status === 'exhausted') {
+            throw new DomainError('CONFLICT', 'This invitation link has reached its usage limit');
+          }
+          throw new DomainError('CONFLICT', `Invitation is already ${invitation.status}`);
         }
-        return err(new Error(`Invitation is already ${invitation.status}`));
-      }
-
-      if (new Date() > new Date(invitation.expiresAt)) {
-        return err(new Error('Invitation has expired'));
-      }
-
-      // Check usage limit for multi-use invitations
-      const currentUsesCount = invitation.usesCount ?? 0;
-      if (invitation.maxUses !== null && currentUsesCount >= invitation.maxUses) {
-        return err(new Error('This invitation link has reached its usage limit'));
-      }
-
-      // Get the user accepting
-      const [user] = await this.db
-        .select()
-        .from(users)
-        .where(eq(users.id, input.userId));
-
-      if (!user) {
-        return err(new Error('User not found'));
-      }
-
-      // For email-specific invitations, check if the email matches
-      // Generic invitations (email = null) can be accepted by anyone
-      if (invitation.email !== null) {
-        if (user.email.toLowerCase() !== invitation.email.toLowerCase()) {
-          return err(new Error('This invitation was sent to a different email address'));
+        if (new Date() > new Date(invitation.expiresAt)) {
+          throw new DomainError('BAD_REQUEST', 'Invitation has expired');
         }
-      }
 
-      // Check if user is already a member
-      const [existingMember] = await this.db
-        .select()
-        .from(workspaceMembers)
-        .where(
-          and(
-            eq(workspaceMembers.workspaceId, invitation.workspaceId),
-            eq(workspaceMembers.userId, input.userId)
-          )
-        );
+        const currentUsesCount = invitation.usesCount ?? 0;
+        if (invitation.maxUses !== null && currentUsesCount >= invitation.maxUses) {
+          throw new DomainError('CONFLICT', 'This invitation link has reached its usage limit');
+        }
 
-      if (existingMember) {
-        // User is already a member
-        return err(new Error('You are already a member of this workspace'));
-      }
+        const [user] = await tx.select().from(users).where(eq(users.id, input.userId));
+        if (!user) throw new DomainError('NOT_FOUND', 'User not found');
 
-      // Add user as member
-      await this.db.insert(workspaceMembers).values({
-        workspaceId: invitation.workspaceId,
-        userId: input.userId,
-        role: invitation.role as WorkspaceRole,
+        // Email-specific invitations must match; generic ones (email = null) are open.
+        if (invitation.email !== null && user.email.toLowerCase() !== invitation.email.toLowerCase()) {
+          throw new DomainError('FORBIDDEN', 'This invitation was sent to a different email address');
+        }
+
+        const [added] = await tx
+          .insert(workspaceMembers)
+          .values({
+            workspaceId: invitation.workspaceId,
+            userId: input.userId,
+            role: invitation.role as WorkspaceRole,
+          })
+          .onConflictDoNothing()
+          .returning({ id: workspaceMembers.id });
+        if (!added) throw new DomainError('CONFLICT', 'You are already a member of this workspace');
+
+        const newUsesCount = currentUsesCount + 1;
+        const isExhausted = invitation.maxUses !== null && newUsesCount >= invitation.maxUses;
+        // Single-use (maxUses=1 or email-specific) becomes accepted; multi-use
+        // links become exhausted at the limit and stay pending otherwise.
+        const isSingleUse = invitation.email !== null || invitation.maxUses === 1;
+        const newStatus = isSingleUse ? 'accepted' : isExhausted ? 'exhausted' : 'pending';
+
+        await tx
+          .update(workspaceInvitations)
+          .set({
+            status: newStatus,
+            usesCount: newUsesCount,
+            acceptedAt: isSingleUse ? new Date() : invitation.acceptedAt,
+          })
+          .where(eq(workspaceInvitations.id, invitation.id));
       });
-
-      // Update invitation status and usage count
-      const newUsesCount = currentUsesCount + 1;
-      const isExhausted = invitation.maxUses !== null && newUsesCount >= invitation.maxUses;
-
-      // For single-use invitations (maxUses=1 or email-specific), mark as accepted
-      // For multi-use, either mark as exhausted or keep pending
-      const isEmailSpecific = invitation.email !== null;
-      const isSingleUse = invitation.maxUses === 1;
-
-      let newStatus: string;
-      if (isEmailSpecific || isSingleUse) {
-        newStatus = 'accepted';
-      } else if (isExhausted) {
-        newStatus = 'exhausted';
-      } else {
-        newStatus = 'pending'; // Multi-use link still has remaining uses
-      }
-
-      await this.db
-        .update(workspaceInvitations)
-        .set({
-          status: newStatus,
-          usesCount: newUsesCount,
-          acceptedAt: (isEmailSpecific || isSingleUse) ? new Date() : invitation.acceptedAt,
-        })
-        .where(eq(workspaceInvitations.id, invitation.id));
-
       return ok(undefined);
     } catch (error) {
       return err(error instanceof Error ? error : new Error('Unknown error'));
