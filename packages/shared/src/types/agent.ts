@@ -58,6 +58,12 @@ export const AgentToolSchema = z.enum([
   'create_smart_view',
   'search_tasks',
   'list_projects',
+  'list_members',
+  'list_labels',
+  'list_comments',
+  'bulk_update_tasks',
+  'list_smart_views',
+  'run_smart_view',
 ]);
 export type AgentTool = z.infer<typeof AgentToolSchema>;
 

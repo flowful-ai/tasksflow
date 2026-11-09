@@ -20,6 +20,12 @@ const AGENT_TOOL_LABELS: Record<AgentTool, string> = {
   create_smart_view: 'Create smart views',
   search_tasks: 'Search tasks',
   list_projects: 'List projects',
+  list_members: 'List members',
+  list_labels: 'List labels',
+  list_comments: 'List comments',
+  bulk_update_tasks: 'Bulk update tasks',
+  list_smart_views: 'List smart views',
+  run_smart_view: 'Run smart views',
 };
 
 const AVAILABLE_PERMISSIONS: ReadonlyArray<{ id: AgentTool; label: string }> =
@@ -203,8 +209,8 @@ function ConnectGuide() {
 
   const values = useMemo(
     () => ({
-      mcpUrl: `${origin}/api/mcp/sse`,
-      protectedResource: `${origin}/.well-known/oauth-protected-resource/api/mcp/sse`,
+      mcpUrl: `${origin}/api/mcp`,
+      protectedResource: `${origin}/.well-known/oauth-protected-resource/api/mcp`,
       authServer: `${origin}/api/mcp/.well-known/oauth-authorization-server`,
     }),
     [origin]

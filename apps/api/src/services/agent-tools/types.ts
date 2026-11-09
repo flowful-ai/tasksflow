@@ -1,0 +1,37 @@
+import { getDatabase } from '@flowtask/database';
+import { CommentService, SmartViewService, TaskService } from '@flowtask/domain';
+import { publishEvent } from '../../sse/manager.js';
+import { TaskGitHubLinkService } from '../task-github-link-service.js';
+import type { ToolContext } from '../../lib/mcp/tool-context.js';
+import type { JsonRecord } from '../../lib/mcp/json-schema-zod.js';
+import type { ToolOutput } from '../../lib/mcp/response-shaping.js';
+
+/** Services the tool handlers use, narrowed so tests can pass fakes. */
+export interface ToolServices {
+  tasks: Pick<
+    TaskService,
+    'create' | 'getById' | 'update' | 'move' | 'delete' | 'list' | 'addAssignee' | 'removeAssignee' | 'addLabel' | 'removeLabel'
+  >;
+  comments: Pick<CommentService, 'create' | 'list'>;
+  smartViews: Pick<SmartViewService, 'create' | 'getById' | 'list'>;
+  githubLinks: Pick<TaskGitHubLinkService, 'linkPullRequestToTask'>;
+  publish: (workspaceId: string, event: string, payload: object) => void;
+}
+
+export type ToolHandler = (args: JsonRecord, ctx: ToolContext, services: ToolServices) => Promise<ToolOutput>;
+
+let defaultServices: ToolServices | null = null;
+
+export function getDefaultToolServices(): ToolServices {
+  if (!defaultServices) {
+    const db = getDatabase();
+    defaultServices = {
+      tasks: new TaskService(db),
+      comments: new CommentService(db),
+      smartViews: new SmartViewService(db),
+      githubLinks: new TaskGitHubLinkService(db),
+      publish: (workspaceId, event, payload) => publishEvent(workspaceId, event, payload),
+    };
+  }
+  return defaultServices;
+}

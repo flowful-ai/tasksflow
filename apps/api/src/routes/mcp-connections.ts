@@ -31,7 +31,7 @@ mcpConnectionsRoutes.get('/:workspaceId/mcp-connections', async (c) => {
     return c.json({ success: true, data: { connections } });
   } catch (error) {
     if (error instanceof OAuthError) {
-      return c.json({ success: false, error: { code: error.oauthError.toUpperCase(), message: error.message } }, error.statusCode as 403 | 404);
+      return c.json({ success: false, error: { code: error.oauthError.toUpperCase(), message: error.message } }, error.statusCode);
     }
 
     return c.json({ success: false, error: { code: 'LIST_FAILED', message: 'Failed to list MCP OAuth connections' } }, 500);
@@ -65,7 +65,7 @@ mcpConnectionsRoutes.patch(
       return c.json({ success: true, data: connection });
     } catch (error) {
       if (error instanceof OAuthError) {
-        return c.json({ success: false, error: { code: error.oauthError.toUpperCase(), message: error.message } }, error.statusCode as 400 | 403 | 404);
+        return c.json({ success: false, error: { code: error.oauthError.toUpperCase(), message: error.message } }, error.statusCode);
       }
 
       return c.json({ success: false, error: { code: 'UPDATE_FAILED', message: 'Failed to update MCP OAuth scopes' } }, 500);
@@ -85,7 +85,7 @@ mcpConnectionsRoutes.delete('/:workspaceId/mcp-connections/:consentId', async (c
     return c.json({ success: true, data: null });
   } catch (error) {
     if (error instanceof OAuthError) {
-      return c.json({ success: false, error: { code: error.oauthError.toUpperCase(), message: error.message } }, error.statusCode as 403 | 404);
+      return c.json({ success: false, error: { code: error.oauthError.toUpperCase(), message: error.message } }, error.statusCode);
     }
 
     return c.json({ success: false, error: { code: 'DELETE_FAILED', message: 'Failed to delete MCP OAuth connection' } }, 500);
