@@ -9,6 +9,7 @@ export * from './taskExtras';
 export * from './notifications';
 export * from './smartViews';
 export * from './integrations';
+export * from './settings';
 export {
   flattenPages,
   moveTaskInList,

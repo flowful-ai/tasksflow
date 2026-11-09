@@ -1,974 +1,27 @@
-import { useEffect, useMemo, useState, type ComponentType } from 'react';
-import { Routes, Route, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
-import { User, Building2, Link2, Bot, Eye, Users, Shield, Plug } from 'lucide-react';
+import { useMemo } from 'react';
+import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
+import { User, Building2, Link2, Bot, Eye, Users, Shield, Plug, Webhook, type LucideIcon } from 'lucide-react';
 import clsx from 'clsx';
-import type { AppRole } from '@flowtask/shared';
-import { AVAILABLE_PERMISSIONS, AgentSettings } from '../components/settings/AgentSettings';
-import { SmartViewForm } from '../components/smart-views/SmartViewForm';
-import { MemberSettings } from '../components/settings/MemberSettings';
+import { AgentSettings } from '../components/settings/AgentSettings';
+import { AiSettings } from '../components/settings/AiSettings';
 import { AppOverviewSettings } from '../components/settings/AppOverviewSettings';
+import { AppScopeForbidden } from '../components/settings/AppScopeForbidden';
 import { AppUserManagementSettings } from '../components/settings/AppUserManagementSettings';
-import { authApi, type LinkedAccount } from '../api/auth';
-import {
-  ApiError,
-  appAdminApi,
-  workspacesApi as workspaceApi,
-  workspaceApiKeyApi,
-  workspaceAiSettingsApi,
-  agentApi,
-  type ApiKeyProvider,
-  type AgentSummary,
-  type WorkspaceAiSettings,
-} from '../api/client';
-import { useCreateWorkspace, useCurrentWorkspace } from '../hooks/queries';
-
-function ProfileSettings() {
-  return (
-    <div className="card p-6">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">Profile Settings</h2>
-      <p className="text-gray-600">Profile settings coming soon...</p>
-    </div>
-  );
-}
-
-function WorkspaceSettings() {
-  return (
-    <div className="card p-6">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">Workspace Settings</h2>
-      <p className="text-gray-600">Workspace settings coming soon...</p>
-    </div>
-  );
-}
-
-function AppScopeForbidden() {
-  return (
-    <div className="card p-6">
-      <h2 className="text-lg font-semibold text-gray-900 mb-2">App Settings</h2>
-      <p className="text-sm text-gray-600">
-        App settings are available only to app managers.
-      </p>
-    </div>
-  );
-}
-
-function IntegrationSettings() {
-  const [accounts, setAccounts] = useState<LinkedAccount[] | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isMutating, setIsMutating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const githubEnabled = Boolean(import.meta.env.VITE_GITHUB_CLIENT_ID);
-
-  const githubAccount = useMemo(
-    () => accounts?.find((account) => account.providerId === 'github'),
-    [accounts]
-  );
-
-  const loadAccounts = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const data = await authApi.listAccounts();
-      setAccounts(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load integrations');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadAccounts();
-  }, []);
-
-  const handleConnectGithub = async () => {
-    if (!githubEnabled) {
-      setError('GitHub integration is not configured.');
-      return;
-    }
-
-    setIsMutating(true);
-    setError(null);
-
-    try {
-      const callbackURL = `${window.location.origin}/settings/user/integrations`;
-      const response = await authApi.linkSocial({
-        provider: 'github',
-        callbackURL,
-        scopes: ['repo', 'read:user', 'user:email'],
-      });
-
-      if (response.redirect && response.url) {
-        window.location.href = response.url;
-        return;
-      }
-
-      await loadAccounts();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to connect GitHub');
-    } finally {
-      setIsMutating(false);
-    }
-  };
-
-  const handleDisconnectGithub = async () => {
-    if (!githubAccount) return;
-
-    setIsMutating(true);
-    setError(null);
-
-    try {
-      await authApi.unlinkAccount({
-        providerId: 'github',
-        accountId: githubAccount.accountId,
-      });
-      await loadAccounts();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to disconnect GitHub');
-    } finally {
-      setIsMutating(false);
-    }
-  };
-
-  return (
-    <div className="card p-6">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">Integrations</h2>
-      <p className="text-gray-600">
-        Connect TasksFlow with GitHub, Slack, and other tools.
-      </p>
-
-      {error && (
-        <div className="mt-4 p-3 text-sm text-red-600 bg-red-50 rounded-lg">
-          {error}
-        </div>
-      )}
-
-      <div className="mt-6 space-y-4">
-        <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gray-900 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-              </svg>
-            </div>
-            <div>
-              <h3 className="font-medium text-gray-900">GitHub</h3>
-              <p className="text-sm text-gray-500">Sync issues and pull requests</p>
-              {isLoading ? (
-                <p className="text-xs text-gray-400 mt-1">Checking connection…</p>
-              ) : githubAccount ? (
-                <p className="text-xs text-green-600 mt-1">Connected</p>
-              ) : githubEnabled ? (
-                <p className="text-xs text-gray-400 mt-1">Not connected</p>
-              ) : (
-                <p className="text-xs text-amber-600 mt-1">Not configured</p>
-              )}
-            </div>
-          </div>
-          {githubAccount ? (
-            <button
-              className="btn btn-secondary"
-              onClick={handleDisconnectGithub}
-              disabled={isMutating}
-            >
-              {isMutating ? 'Disconnecting...' : 'Disconnect'}
-            </button>
-          ) : (
-            <button
-              className="btn btn-secondary"
-              onClick={handleConnectGithub}
-              disabled={isMutating || !githubEnabled}
-              title={!githubEnabled ? 'GitHub OAuth not configured' : undefined}
-            >
-              {isMutating ? 'Connecting...' : 'Connect'}
-            </button>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" />
-              </svg>
-            </div>
-            <div>
-              <h3 className="font-medium text-gray-900">Slack</h3>
-              <p className="text-sm text-gray-500">Get notifications in Slack</p>
-            </div>
-          </div>
-          <button className="btn btn-secondary">Connect</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const API_KEY_PROVIDERS: {
-  provider: ApiKeyProvider;
-  label: string;
-  placeholder: string;
-  docsUrl: string;
-  docsLabel: string;
-}[] = [
-  {
-    provider: 'openai',
-    label: 'OpenAI',
-    placeholder: 'sk-...',
-    docsUrl: 'https://platform.openai.com/api-keys',
-    docsLabel: 'platform.openai.com',
-  },
-  {
-    provider: 'anthropic',
-    label: 'Anthropic',
-    placeholder: 'sk-ant-...',
-    docsUrl: 'https://console.anthropic.com/settings/keys',
-    docsLabel: 'console.anthropic.com',
-  },
-  {
-    provider: 'google',
-    label: 'Google AI',
-    placeholder: 'AIza...',
-    docsUrl: 'https://aistudio.google.com/app/apikey',
-    docsLabel: 'aistudio.google.com',
-  },
-  {
-    provider: 'openrouter',
-    label: 'OpenRouter',
-    placeholder: 'sk-or-...',
-    docsUrl: 'https://openrouter.ai/keys',
-    docsLabel: 'openrouter.ai',
-  },
-];
-
-const EMPTY_PROVIDER_STATUS: Record<ApiKeyProvider, boolean> = {
-  openai: false,
-  anthropic: false,
-  google: false,
-  openrouter: false,
-};
-
-const EMPTY_PROVIDER_INPUTS: Record<ApiKeyProvider, string> = {
-  openai: '',
-  anthropic: '',
-  google: '',
-  openrouter: '',
-};
-
-const AGENT_TOOL_OPTIONS = AVAILABLE_PERMISSIONS;
-
-const DEFAULT_AGENT_TOOLS = ['query_tasks', 'get_task', 'list_projects'];
-
-interface AgentFormState {
-  name: string;
-  model: string;
-  systemPrompt: string;
-  tools: string[];
-  requestsPerMinute: string;
-  tokensPerDay: string;
-  isActive: boolean;
-}
-
-const EMPTY_AGENT_FORM: AgentFormState = {
-  name: '',
-  model: '',
-  systemPrompt: '',
-  tools: [...DEFAULT_AGENT_TOOLS],
-  requestsPerMinute: '10',
-  tokensPerDay: '100000',
-  isActive: true,
-};
-
-function ApiKeySettings() {
-  const { workspace: currentWorkspace } = useCurrentWorkspace();
-  const workspaceId = currentWorkspace?.id;
-  const [apiKeys, setApiKeys] = useState<Record<ApiKeyProvider, string>>(EMPTY_PROVIDER_INPUTS);
-  const [statusByProvider, setStatusByProvider] = useState<Record<ApiKeyProvider, boolean>>(EMPTY_PROVIDER_STATUS);
-  const [isLoadingStatus, setIsLoadingStatus] = useState(false);
-  const [savingProvider, setSavingProvider] = useState<ApiKeyProvider | null>(null);
-  const [deletingProvider, setDeletingProvider] = useState<ApiKeyProvider | null>(null);
-  const [isForbidden, setIsForbidden] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [aiSettings, setAiSettings] = useState<WorkspaceAiSettings | null>(null);
-  const [agents, setAgents] = useState<AgentSummary[]>([]);
-  const [isLoadingAiConfig, setIsLoadingAiConfig] = useState(false);
-  const [isSavingAiSettings, setIsSavingAiSettings] = useState(false);
-  const [agentForm, setAgentForm] = useState<AgentFormState>(EMPTY_AGENT_FORM);
-  const [agentFormError, setAgentFormError] = useState<string | null>(null);
-  const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
-  const [isSavingAgent, setIsSavingAgent] = useState(false);
-  const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null);
-
-  const loadStatus = async (id: string) => {
-    setIsLoadingStatus(true);
-    setError(null);
-    setSuccess(null);
-    setIsForbidden(false);
-
-    try {
-      const response = await workspaceApiKeyApi.listStatuses(id);
-      const nextStatus = { ...EMPTY_PROVIDER_STATUS };
-      for (const entry of response.providers) {
-        nextStatus[entry.provider] = entry.hasKey;
-      }
-      setStatusByProvider(nextStatus);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 403) {
-        setIsForbidden(true);
-        return;
-      }
-      setError(err instanceof Error ? err.message : 'Failed to load API key status');
-    } finally {
-      setIsLoadingStatus(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!workspaceId) return;
-    loadStatus(workspaceId);
-  }, [workspaceId]);
-
-  useEffect(() => {
-    if (!workspaceId || isForbidden) return;
-
-    const loadAiConfig = async () => {
-      setIsLoadingAiConfig(true);
-      try {
-        const [settingsResponse, agentsResponse] = await Promise.all([
-          workspaceAiSettingsApi.get(workspaceId),
-          agentApi.list(workspaceId, 'all'),
-        ]);
-
-        setAiSettings(settingsResponse);
-        setAgents(agentsResponse);
-      } catch (err) {
-        if (err instanceof ApiError && err.status === 403) {
-          return;
-        }
-        setError(err instanceof Error ? err.message : 'Failed to load AI settings');
-      } finally {
-        setIsLoadingAiConfig(false);
-      }
-    };
-
-    loadAiConfig();
-  }, [workspaceId, isForbidden]);
-
-  const handleSave = async (provider: ApiKeyProvider) => {
-    if (!workspaceId || !apiKeys[provider].trim()) return;
-
-    setSavingProvider(provider);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      await workspaceApiKeyApi.upsert(workspaceId, { provider, apiKey: apiKeys[provider].trim() });
-      setApiKeys((prev) => ({ ...prev, [provider]: '' }));
-      setSuccess(`${provider.toUpperCase()} API key saved.`);
-      await loadStatus(workspaceId);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 403) {
-        setIsForbidden(true);
-        return;
-      }
-      setError(err instanceof Error ? err.message : 'Failed to save API key');
-    } finally {
-      setSavingProvider(null);
-    }
-  };
-
-  const handleDelete = async (provider: ApiKeyProvider) => {
-    if (!workspaceId) return;
-
-    setDeletingProvider(provider);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      await workspaceApiKeyApi.delete(workspaceId, provider);
-      setSuccess(`${provider.toUpperCase()} API key deleted.`);
-      await loadStatus(workspaceId);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 403) {
-        setIsForbidden(true);
-        return;
-      }
-      setError(err instanceof Error ? err.message : 'Failed to delete API key');
-    } finally {
-      setDeletingProvider(null);
-    }
-  };
-
-  const resetAgentForm = () => {
-    setAgentForm(EMPTY_AGENT_FORM);
-    setEditingAgentId(null);
-    setAgentFormError(null);
-  };
-
-  const beginEditAgent = async (agent: AgentSummary) => {
-    setError(null);
-    setAgentFormError(null);
-    try {
-      const response = await agentApi.get(agent.id);
-      const detail = response;
-      setEditingAgentId(detail.id);
-      setAgentForm({
-        name: detail.name,
-        model: detail.model,
-        systemPrompt: detail.systemPrompt ?? '',
-        tools: detail.tools.length > 0 ? detail.tools : [...DEFAULT_AGENT_TOOLS],
-        requestsPerMinute: String(detail.requestsPerMinute),
-        tokensPerDay: String(detail.tokensPerDay),
-        isActive: detail.isActive,
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load agent details');
-    }
-  };
-
-  const toggleTool = (toolId: string) => {
-    setAgentForm((previous) => ({
-      ...previous,
-      tools: previous.tools.includes(toolId)
-        ? previous.tools.filter((id) => id !== toolId)
-        : [...previous.tools, toolId],
-    }));
-  };
-
-  const parsePositiveInt = (value: string, fieldName: string): number | null => {
-    const parsed = Number(value);
-    if (!Number.isInteger(parsed) || parsed <= 0) {
-      setAgentFormError(`${fieldName} must be a positive whole number.`);
-      return null;
-    }
-    return parsed;
-  };
-
-  const saveAgent = async () => {
-    if (!workspaceId) return;
-
-    const name = agentForm.name.trim();
-    const model = agentForm.model.trim();
-    if (!name) {
-      setAgentFormError('Agent name is required.');
-      return;
-    }
-    if (!model || !model.includes('/')) {
-      setAgentFormError('Model must follow "provider/model" format.');
-      return;
-    }
-    if (agentForm.tools.length === 0) {
-      setAgentFormError('Select at least one tool.');
-      return;
-    }
-
-    const requestsPerMinute = parsePositiveInt(agentForm.requestsPerMinute, 'Requests per minute');
-    if (!requestsPerMinute) return;
-    const tokensPerDay = parsePositiveInt(agentForm.tokensPerDay, 'Daily token limit');
-    if (!tokensPerDay) return;
-
-    setIsSavingAgent(true);
-    setError(null);
-    setSuccess(null);
-    setAgentFormError(null);
-
-    try {
-      if (editingAgentId) {
-        await agentApi.update(editingAgentId, {
-          name,
-          model,
-          systemPrompt: agentForm.systemPrompt.trim() || undefined,
-          tools: agentForm.tools,
-          requestsPerMinute,
-          tokensPerDay,
-          isActive: agentForm.isActive,
-        });
-      } else {
-        await agentApi.create({
-          workspaceId,
-          name,
-          model,
-          systemPrompt: agentForm.systemPrompt.trim() || undefined,
-          tools: agentForm.tools,
-          requestsPerMinute,
-          tokensPerDay,
-        });
-      }
-
-      const refreshedAgents = await agentApi.list(workspaceId, 'all');
-      setAgents(refreshedAgents);
-      resetAgentForm();
-      setSuccess(editingAgentId ? 'Agent updated.' : 'Agent created.');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save agent');
-    } finally {
-      setIsSavingAgent(false);
-    }
-  };
-
-  const saveDefaultAgent = async (agentId: string | null) => {
-    if (!workspaceId || !aiSettings) return;
-    setIsSavingAiSettings(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      const response = await workspaceAiSettingsApi.update(workspaceId, {
-        ...aiSettings,
-        defaultAgentId: agentId,
-      });
-      setAiSettings(response);
-      setSuccess('Chat defaults saved.');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save chat defaults');
-    } finally {
-      setIsSavingAiSettings(false);
-    }
-  };
-
-  const toggleAgentStatus = async (agent: AgentSummary) => {
-    setIsSavingAgent(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      await agentApi.update(agent.id, { isActive: !agent.isActive });
-      const refreshedAgents = await agentApi.list(workspaceId!, 'all');
-      setAgents(refreshedAgents);
-
-      if (agent.isActive && aiSettings?.defaultAgentId === agent.id) {
-        await saveDefaultAgent(null);
-      } else {
-        setSuccess(agent.isActive ? 'Agent deactivated.' : 'Agent activated.');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update agent status');
-    } finally {
-      setIsSavingAgent(false);
-    }
-  };
-
-  const deleteAgent = async (agent: AgentSummary) => {
-    if (!workspaceId) return;
-    const confirmed = window.confirm(`Delete agent "${agent.name}"? This action cannot be undone.`);
-    if (!confirmed) return;
-
-    setDeletingAgentId(agent.id);
-    setError(null);
-    setSuccess(null);
-    try {
-      await agentApi.delete(agent.id);
-      const refreshedAgents = await agentApi.list(workspaceId, 'all');
-      setAgents(refreshedAgents);
-      if (aiSettings?.defaultAgentId === agent.id) {
-        await saveDefaultAgent(null);
-      } else {
-        setSuccess('Agent deleted.');
-      }
-      if (editingAgentId === agent.id) {
-        resetAgentForm();
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete agent');
-    } finally {
-      setDeletingAgentId(null);
-    }
-  };
-
-  const activeAgents = agents.filter((agent) => agent.isActive);
-  const hasProviderKey = Object.values(statusByProvider).some(Boolean);
-
-  if (!workspaceId) {
-    return (
-      <div className="card p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">AI & Agents</h2>
-        <p className="text-gray-600">Select a workspace to manage AI settings.</p>
-      </div>
-    );
-  }
-
-  if (isForbidden) {
-    return (
-      <div className="card p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">AI & Agents</h2>
-        <p className="text-gray-600">Only workspace owners and admins can manage AI settings.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="card p-6">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">AI & Agents</h2>
-      <p className="text-gray-600 mb-6">
-        Set up provider keys, create agents, and choose the default chat agent for your workspace.
-      </p>
-
-      <div className="mb-4 text-sm text-gray-600">
-        Workspace: <span className="font-medium text-gray-900">{currentWorkspace?.name}</span>
-      </div>
-      <div className="mb-6 rounded-lg border border-primary-100 bg-primary-50 p-4 text-sm text-primary-900">
-        <div className="font-medium">Recommended flow</div>
-        <div className="mt-1">1. Add at least one provider key. 2. Create agents. 3. Pick a default chat agent.</div>
-      </div>
-
-      {isLoadingStatus && <div className="mb-4 text-sm text-gray-500">Loading key status...</div>}
-
-      {error && <div className="mb-4 p-3 text-sm text-red-600 bg-red-50 rounded-lg">{error}</div>}
-      {success && <div className="mb-4 p-3 text-sm text-green-700 bg-green-50 rounded-lg">{success}</div>}
-
-      <div className="space-y-5">
-        {API_KEY_PROVIDERS.map((config) => {
-          const hasKey = statusByProvider[config.provider];
-          const isSaving = savingProvider === config.provider;
-          const isDeleting = deletingProvider === config.provider;
-          const keyValue = apiKeys[config.provider];
-
-          return (
-            <div key={config.provider} className="rounded-lg border border-gray-200 p-4">
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-medium text-gray-900">{config.label}</h3>
-                  <div className="text-sm text-gray-600">
-                    Status:{' '}
-                    <span className={hasKey ? 'text-green-700 font-medium' : 'text-amber-700 font-medium'}>
-                      {hasKey ? 'Configured' : 'Not configured'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">
-                {config.label} API Key
-              </label>
-              <input
-                type="password"
-                className="input"
-                placeholder={config.placeholder}
-                value={keyValue}
-                onChange={(e) => setApiKeys((prev) => ({ ...prev, [config.provider]: e.target.value }))}
-              />
-              <p className="mt-1 text-sm text-gray-500">
-                Get your API key from{' '}
-                <a
-                  href={config.docsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary-600 hover:underline"
-                >
-                  {config.docsLabel}
-                </a>
-              </p>
-              <div className="mt-4 flex items-center gap-3">
-                <button
-                  className="btn btn-primary"
-                  onClick={() => handleSave(config.provider)}
-                  disabled={isSaving || !keyValue.trim()}
-                >
-                  {isSaving ? 'Saving...' : hasKey ? 'Update API Key' : 'Save API Key'}
-                </button>
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => handleDelete(config.provider)}
-                  disabled={isDeleting || !hasKey}
-                >
-                  {isDeleting ? 'Deleting...' : 'Delete'}
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="mt-8 rounded-lg border border-gray-200 p-4">
-        <h3 className="text-base font-medium text-gray-900">Agents</h3>
-        <p className="mt-1 text-sm text-gray-600">
-          Create and manage reusable assistant profiles for workspace chat.
-        </p>
-        {!hasProviderKey && (
-          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            Configure at least one provider key before creating agents.
-          </div>
-        )}
-        {isLoadingAiConfig ? (
-          <div className="mt-3 text-sm text-gray-500">Loading agents...</div>
-        ) : (
-          <div className="mt-4 space-y-2">
-            {agents.length === 0 ? (
-              <p className="text-sm text-gray-500">No agents yet. Create your first agent below.</p>
-            ) : (
-              agents.map((agent) => (
-                <div key={agent.id} className="rounded-md border border-gray-200 px-3 py-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-900">{agent.name}</span>
-                        <span className={clsx(
-                          'rounded px-2 py-0.5 text-xs font-medium',
-                          agent.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                        )}>
-                          {agent.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                        {aiSettings?.defaultAgentId === agent.id && (
-                          <span className="rounded bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700">Default chat agent</span>
-                        )}
-                      </div>
-                      <div className="mt-1 text-xs font-mono text-gray-600">{agent.model}</div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button className="btn btn-secondary !px-2 !py-1 text-xs" onClick={() => beginEditAgent(agent)}>
-                        Edit
-                      </button>
-                      <button className="btn btn-secondary !px-2 !py-1 text-xs" onClick={() => toggleAgentStatus(agent)} disabled={isSavingAgent}>
-                        {agent.isActive ? 'Deactivate' : 'Activate'}
-                      </button>
-                      <button
-                        className="btn btn-secondary !px-2 !py-1 text-xs"
-                        onClick={() => saveDefaultAgent(agent.id)}
-                        disabled={!agent.isActive || aiSettings?.defaultAgentId === agent.id || isSavingAiSettings}
-                      >
-                        Set default
-                      </button>
-                      <button
-                        className="btn btn-secondary !px-2 !py-1 text-xs"
-                        onClick={() => deleteAgent(agent)}
-                        disabled={deletingAgentId === agent.id}
-                      >
-                        {deletingAgentId === agent.id ? 'Deleting...' : 'Delete'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-
-        <div className="mt-5 rounded-lg border border-gray-200 p-4">
-          <h4 className="text-sm font-semibold text-gray-900">{editingAgentId ? 'Edit Agent' : 'Create Agent'}</h4>
-          <div className="mt-3 grid gap-3 md:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Name</label>
-              <input className="input" value={agentForm.name} onChange={(event) => setAgentForm((previous) => ({ ...previous, name: event.target.value }))} placeholder="Support assistant" />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Model</label>
-              <input className="input" value={agentForm.model} onChange={(event) => setAgentForm((previous) => ({ ...previous, model: event.target.value }))} placeholder="openai/gpt-4.1" />
-            </div>
-            <div className="md:col-span-2">
-              <label className="mb-1 block text-sm font-medium text-gray-700">System Prompt (optional)</label>
-              <textarea className="input min-h-[96px]" value={agentForm.systemPrompt} onChange={(event) => setAgentForm((previous) => ({ ...previous, systemPrompt: event.target.value }))} placeholder="You are a concise project assistant..." />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Requests / minute</label>
-              <input className="input" value={agentForm.requestsPerMinute} onChange={(event) => setAgentForm((previous) => ({ ...previous, requestsPerMinute: event.target.value }))} />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Tokens / day</label>
-              <input className="input" value={agentForm.tokensPerDay} onChange={(event) => setAgentForm((previous) => ({ ...previous, tokensPerDay: event.target.value }))} />
-            </div>
-          </div>
-          <div className="mt-4">
-            <label className="mb-2 block text-sm font-medium text-gray-700">Tools</label>
-            <div className="grid gap-2 md:grid-cols-2">
-              {AGENT_TOOL_OPTIONS.map((tool) => (
-                <label key={tool.id} className="flex items-center gap-2 rounded border border-gray-200 px-2 py-1.5 text-sm text-gray-700">
-                  <input type="checkbox" checked={agentForm.tools.includes(tool.id)} onChange={() => toggleTool(tool.id)} />
-                  <span>{tool.label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-          {editingAgentId && (
-            <div className="mt-3">
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={agentForm.isActive}
-                  onChange={(event) =>
-                    setAgentForm((previous) => ({ ...previous, isActive: event.target.checked }))
-                  }
-                />
-                Agent is active
-              </label>
-            </div>
-          )}
-          {agentFormError && <div className="mt-3 text-sm text-red-600">{agentFormError}</div>}
-          <div className="mt-4 flex items-center gap-2">
-            <button className="btn btn-primary" onClick={saveAgent} disabled={isSavingAgent || !hasProviderKey}>
-              {isSavingAgent ? 'Saving...' : editingAgentId ? 'Save Agent' : 'Create Agent'}
-            </button>
-            {editingAgentId && (
-              <button className="btn btn-secondary" onClick={resetAgentForm}>
-                Cancel
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-8 rounded-lg border border-gray-200 p-4">
-        <h3 className="text-base font-medium text-gray-900">Chat Defaults</h3>
-        <p className="mt-1 text-sm text-gray-600">Choose the default agent used by in-app workspace chat.</p>
-        {!aiSettings ? (
-          <div className="mt-3 text-sm text-gray-500">Loading chat defaults...</div>
-        ) : (
-          <div className="mt-4">
-            <label className="mb-1 block text-sm font-medium text-gray-700">Default Agent</label>
-            <select
-              className="input"
-              value={aiSettings.defaultAgentId ?? ''}
-              onChange={(event) => saveDefaultAgent(event.target.value || null)}
-              disabled={isSavingAiSettings}
-            >
-              <option value="">No default agent</option>
-              {activeAgents.map((agent) => (
-                <option key={agent.id} value={agent.id}>
-                  {agent.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ViewsSettings() {
-  const navigate = useNavigate();
-
-  return (
-    <div className="card p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">Views</h2>
-          <p className="text-sm text-gray-600 mt-1">
-            Manage your saved filtered views.
-          </p>
-        </div>
-        <button
-          onClick={() => navigate('/settings/workspace/views/new')}
-          className="btn btn-primary"
-        >
-          New View
-        </button>
-      </div>
-      <p className="text-gray-600">
-        Go to the <Link to="/views" className="text-primary-600 hover:underline">Views page</Link> to see all your views, or create a new one above.
-      </p>
-    </div>
-  );
-}
-
-function NewWorkspaceSettings() {
-  const navigate = useNavigate();
-  const createWorkspaceMutation = useCreateWorkspace();
-  const [name, setName] = useState('');
-  const [slug, setSlug] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const generateSlug = (name: string) => {
-    return name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '');
-  };
-
-  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newName = e.target.value;
-    setName(newName);
-    setSlug(generateSlug(newName));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim() || !slug.trim()) return;
-
-    setIsSubmitting(true);
-    setError(null);
-
-    try {
-      await createWorkspaceMutation.mutateAsync({ name: name.trim(), slug: slug.trim() });
-      navigate('/dashboard');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create workspace');
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="card p-6">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">Create Workspace</h2>
-      <p className="text-gray-600 mb-6">
-        Create a new workspace to organize your projects and tasks.
-      </p>
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {error && (
-          <div className="p-3 text-sm text-red-600 bg-red-50 rounded-lg">
-            {error}
-          </div>
-        )}
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Workspace Name
-          </label>
-          <input
-            type="text"
-            className="input"
-            placeholder="My Workspace"
-            value={name}
-            onChange={handleNameChange}
-            required
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Workspace URL
-          </label>
-          <div className="flex items-center">
-            <span className="text-gray-500 text-sm mr-1">tasksflow.app/</span>
-            <input
-              type="text"
-              className="input flex-1"
-              placeholder="my-workspace"
-              value={slug}
-              onChange={(e) => setSlug(e.target.value)}
-              required
-            />
-          </div>
-          <p className="mt-1 text-sm text-gray-500">
-            This will be your workspace&apos;s unique identifier.
-          </p>
-        </div>
-
-        <div className="flex gap-3 pt-2">
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={isSubmitting || !name.trim() || !slug.trim()}
-          >
-            {isSubmitting ? 'Creating...' : 'Create Workspace'}
-          </button>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => navigate(-1)}
-          >
-            Cancel
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
+import { IntegrationSettings } from '../components/settings/IntegrationSettings';
+import { MemberSettings } from '../components/settings/MemberSettings';
+import { NewWorkspaceSettings } from '../components/settings/NewWorkspaceSettings';
+import { ProfileSettings } from '../components/settings/ProfileSettings';
+import { ViewsSettings } from '../components/settings/ViewsSettings';
+import { WebhookSettings } from '../components/settings/WebhookSettings';
+import { WorkspaceGeneralSettings } from '../components/settings/WorkspaceGeneralSettings';
+import { SmartViewForm } from '../components/smart-views/SmartViewForm';
+import { Banner } from '../components/ui';
+import { useAppContext, useCurrentWorkspace, useWorkspaceRole } from '../hooks/queries';
 
 type NavigationItem = {
   name: string;
   href: string;
-  icon: ComponentType<{ className?: string }>;
+  icon: LucideIcon;
 };
 
 type NavigationSection = {
@@ -977,58 +30,19 @@ type NavigationSection = {
   items: NavigationItem[];
 };
 
+/** Settings shell: scoped navigation (user / workspace / app) and the nested tab routes. */
 export function SettingsPage() {
   const location = useLocation();
-  const { workspace: currentWorkspace } = useCurrentWorkspace();
-  const [isLoadingAppContext, setIsLoadingAppContext] = useState(true);
-  const [isLoadingWorkspaceRole, setIsLoadingWorkspaceRole] = useState(false);
-  const [appRole, setAppRole] = useState<AppRole | null>(null);
-  const [workspaceRole, setWorkspaceRole] = useState<'owner' | 'admin' | 'member' | null>(null);
-  const [appContextError, setAppContextError] = useState<string | null>(null);
+  const { workspace, isLoading: isLoadingWorkspace } = useCurrentWorkspace();
+  const appContext = useAppContext();
+  const workspaceRole = useWorkspaceRole(workspace?.id);
 
-  useEffect(() => {
-    const loadAppContext = async () => {
-      setIsLoadingAppContext(true);
-      setAppContextError(null);
-
-      try {
-        const response = await appAdminApi.me();
-        setAppRole(response.appRole);
-      } catch (err) {
-        setAppRole(null);
-        setAppContextError(err instanceof Error ? err.message : 'Failed to load app context');
-      } finally {
-        setIsLoadingAppContext(false);
-      }
-    };
-
-    loadAppContext();
-  }, []);
-
-  useEffect(() => {
-    const workspaceId = currentWorkspace?.id;
-    if (!workspaceId) {
-      setWorkspaceRole(null);
-      return;
-    }
-
-    const loadWorkspaceRole = async () => {
-      setIsLoadingWorkspaceRole(true);
-      try {
-        const response = await workspaceApi.me(workspaceId);
-        setWorkspaceRole(response.role);
-      } catch {
-        setWorkspaceRole(null);
-      } finally {
-        setIsLoadingWorkspaceRole(false);
-      }
-    };
-
-    loadWorkspaceRole();
-  }, [currentWorkspace?.id]);
-
+  const appRole = appContext.data?.appRole ?? null;
   const isAppManager = appRole === 'app_manager';
-  const canManageWorkspaceAi = workspaceRole === 'owner' || workspaceRole === 'admin';
+  const canManageWorkspace = workspaceRole.data === 'owner' || workspaceRole.data === 'admin';
+  // The role query is disabled (not "loading") until the workspace list arrives.
+  const isRolePending = isLoadingWorkspace || (Boolean(workspace) && workspaceRole.isPending);
+  const isLoadingPermissions = appContext.isLoading || isRolePending;
 
   const navigationSections = useMemo<NavigationSection[]>(() => {
     const workspaceItems: NavigationItem[] = [
@@ -1036,11 +50,11 @@ export function SettingsPage() {
       { name: 'Members', href: '/settings/workspace/members', icon: Users },
       { name: 'Views', href: '/settings/workspace/views', icon: Eye },
     ];
-
-    if (canManageWorkspaceAi) {
+    if (canManageWorkspace) {
       workspaceItems.push(
         { name: 'AI & Agents', href: '/settings/workspace/api-keys', icon: Bot },
-        { name: 'MCP Connections', href: '/settings/workspace/mcp-connections', icon: Plug }
+        { name: 'MCP Connections', href: '/settings/workspace/mcp-connections', icon: Plug },
+        { name: 'Outgoing Webhooks', href: '/settings/workspace/webhooks', icon: Webhook }
       );
     }
 
@@ -1053,13 +67,8 @@ export function SettingsPage() {
           { name: 'Integrations', href: '/settings/user/integrations', icon: Link2 },
         ],
       },
-      {
-        title: 'Workspace Settings',
-        description: 'Settings for the selected workspace.',
-        items: workspaceItems,
-      },
+      { title: 'Workspace Settings', description: 'Settings for the selected workspace.', items: workspaceItems },
     ];
-
     if (isAppManager) {
       sections.push({
         title: 'App Settings',
@@ -1070,57 +79,60 @@ export function SettingsPage() {
         ],
       });
     }
-
     return sections;
-  }, [canManageWorkspaceAi, isAppManager]);
+  }, [canManageWorkspace, isAppManager]);
+
+  /** Admin-only tabs: wait for the role instead of redirecting while it loads. */
+  const adminOnly = (element: JSX.Element) =>
+    canManageWorkspace || isRolePending ? element : <Navigate to="/settings/workspace/general" replace />;
 
   return (
     <div className="max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">Settings</h1>
-      <p className="text-sm text-gray-600 mb-6">
-        Settings are separated by scope: user, workspace, and app.
-      </p>
+      <header className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Settings</h1>
+        <p className="text-sm text-gray-600">Settings are separated by scope: user, workspace, and app.</p>
+      </header>
 
-      {appContextError && (
-        <div className="mb-4 p-3 text-sm text-amber-700 bg-amber-50 rounded-lg">
-          {appContextError}
-        </div>
+      {appContext.error && (
+        <Banner variant="warning" className="mb-4">
+          Could not load your app permissions: {appContext.error.message}
+        </Banner>
       )}
 
       <div className="flex flex-col md:flex-row gap-6">
-        <nav className="w-full md:w-64 space-y-4">
+        <nav aria-label="Settings" className="w-full md:w-64 space-y-4" aria-busy={isLoadingPermissions}>
           {navigationSections.map((section) => (
-            <div key={section.title} className="border border-gray-200 rounded-lg p-3">
-              <h2 className="text-sm font-semibold text-gray-900">{section.title}</h2>
+            <section key={section.title} aria-labelledby={`settings-${section.title}`} className="border border-gray-200 rounded-lg p-3">
+              <h2 id={`settings-${section.title}`} className="text-sm font-semibold text-gray-900">
+                {section.title}
+              </h2>
               <p className="text-xs text-gray-500 mt-1 mb-2">{section.description}</p>
-              <div className="space-y-1">
+              <ul className="space-y-1">
                 {section.items.map((item) => {
                   const Icon = item.icon;
-                  const isActive =
-                    location.pathname === item.href || location.pathname.startsWith(`${item.href}/`);
-
+                  const isActive = location.pathname === item.href || location.pathname.startsWith(`${item.href}/`);
                   return (
-                    <Link
-                      key={item.name}
-                      to={item.href}
-                      className={clsx(
-                        'flex items-center px-3 py-2 text-sm font-medium rounded-lg',
-                        isActive
-                          ? 'bg-primary-50 text-primary-600'
-                          : 'text-gray-700 hover:bg-gray-100'
-                      )}
-                    >
-                      <Icon className="w-5 h-5 mr-3" />
-                      {item.name}
-                    </Link>
+                    <li key={item.name}>
+                      <Link
+                        to={item.href}
+                        aria-current={isActive ? 'page' : undefined}
+                        className={clsx(
+                          'flex items-center px-3 py-2 text-sm font-medium rounded-lg',
+                          isActive ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:bg-gray-100'
+                        )}
+                      >
+                        <Icon aria-hidden className="w-5 h-5 mr-3" />
+                        {item.name}
+                      </Link>
+                    </li>
                   );
                 })}
-              </div>
-            </div>
+              </ul>
+            </section>
           ))}
         </nav>
 
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <Routes>
             <Route index element={<Navigate to="user/profile" replace />} />
 
@@ -1128,20 +140,15 @@ export function SettingsPage() {
             <Route path="user/integrations" element={<IntegrationSettings />} />
             <Route path="user/api-keys" element={<Navigate to="/settings/workspace/api-keys" replace />} />
 
-            <Route path="workspace/general" element={<WorkspaceSettings />} />
+            <Route path="workspace/general" element={<WorkspaceGeneralSettings />} />
             <Route path="workspace/new" element={<NewWorkspaceSettings />} />
             <Route path="workspace/members" element={<MemberSettings />} />
             <Route path="workspace/views" element={<ViewsSettings />} />
             <Route path="workspace/views/new" element={<SmartViewForm />} />
             <Route path="workspace/views/:viewId/edit" element={<SmartViewForm />} />
-            <Route
-              path="workspace/api-keys"
-              element={canManageWorkspaceAi ? <ApiKeySettings /> : <Navigate to="/settings/workspace/general" replace />}
-            />
-            <Route
-              path="workspace/mcp-connections"
-              element={canManageWorkspaceAi ? <AgentSettings /> : <Navigate to="/settings/workspace/general" replace />}
-            />
+            <Route path="workspace/api-keys" element={adminOnly(<AiSettings />)} />
+            <Route path="workspace/mcp-connections" element={adminOnly(<AgentSettings />)} />
+            <Route path="workspace/webhooks" element={adminOnly(<WebhookSettings />)} />
             <Route path="workspace/agents" element={<Navigate to="/settings/workspace/mcp-connections" replace />} />
 
             <Route
@@ -1164,13 +171,10 @@ export function SettingsPage() {
             <Route path="views/new" element={<Navigate to="/settings/workspace/views/new" replace />} />
             <Route path="views/:viewId/edit" element={<SmartViewForm />} />
             <Route path="agents" element={<Navigate to="/settings/workspace/mcp-connections" replace />} />
+            <Route path="webhooks" element={<Navigate to="/settings/workspace/webhooks" replace />} />
           </Routes>
         </div>
       </div>
-
-      {(isLoadingAppContext || isLoadingWorkspaceRole) && (
-        <div className="mt-4 text-xs text-gray-500">Loading settings permissions...</div>
-      )}
     </div>
   );
 }

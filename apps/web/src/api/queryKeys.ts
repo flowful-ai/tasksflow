@@ -51,6 +51,8 @@ export const queryKeys = {
     apiKeys: (workspaceId: string) => ['workspaces', 'api-keys', workspaceId] as const,
     aiSettings: (workspaceId: string) => ['workspaces', 'ai-settings', workspaceId] as const,
     mcpConnections: (workspaceId: string) => ['workspaces', 'mcp-connections', workspaceId] as const,
+    /** Every `active` variant of a workspace's agent list. */
+    agentLists: (workspaceId: string) => ['workspaces', 'agents', workspaceId] as const,
     agents: (workspaceId: string, active: boolean | 'all' = 'all') => ['workspaces', 'agents', workspaceId, active] as const,
     agentAvailability: (workspaceId: string) => ['workspaces', 'agent-availability', workspaceId] as const,
     webhooks: (workspaceId: string) => ['workspaces', 'webhooks', workspaceId] as const,

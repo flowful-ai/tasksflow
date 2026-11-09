@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { X, Mail, Shield, User, Copy, Check, Link as LinkIcon, Users } from 'lucide-react';
+import { Mail, Shield, User, Copy, Check, Link as LinkIcon, Users } from 'lucide-react';
 import clsx from 'clsx';
-import { invitationApi, type WorkspaceInvitation } from '../../api/client';
+import type { WorkspaceInvitation } from '../../api/workspaces';
+import { useInvitationMutations } from '../../hooks/queries';
+import { Dialog, toast } from '../ui';
 
 interface InviteMemberDialogProps {
   workspaceId: string;
@@ -31,7 +33,8 @@ export function InviteMemberDialog({
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<'member' | 'admin'>('member');
   const [maxUses, setMaxUses] = useState<number | null>(5);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { create } = useInvitationMutations(workspaceId);
+  const isSubmitting = create.isPending;
   const [error, setError] = useState<string | null>(null);
   const [createdInvitation, setCreatedInvitation] = useState<WorkspaceInvitation | null>(null);
   const [copied, setCopied] = useState(false);
@@ -42,11 +45,10 @@ export function InviteMemberDialog({
     // For email invites, email is required
     if (inviteType === 'email' && !email.trim()) return;
 
-    setIsSubmitting(true);
     setError(null);
 
     try {
-      const response = await invitationApi.create(workspaceId, {
+      const response = await create.mutateAsync({
         email: inviteType === 'email' ? email.trim() : null,
         role,
         maxUses: inviteType === 'generic' ? maxUses : 1,
@@ -54,15 +56,19 @@ export function InviteMemberDialog({
       setCreatedInvitation(response);
       setStep('success');
     } catch (err) {
+      // The mutation is silent: the error is shown inline in the form.
       setError(err instanceof Error ? err.message : 'Failed to create invitation');
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
   const handleCopyLink = async () => {
     if (!createdInvitation) return;
-    await navigator.clipboard.writeText(createdInvitation.inviteUrl);
+    try {
+      await navigator.clipboard.writeText(createdInvitation.inviteUrl);
+    } catch {
+      toast.error('Could not copy the link');
+      return;
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -78,24 +84,19 @@ export function InviteMemberDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-white rounded-lg shadow-xl">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            <Mail className="w-5 h-5 text-gray-600" />
-            <h2 className="text-lg font-semibold text-gray-900">
-              {step === 'form' ? 'Invite to Workspace' : 'Invitation Created'}
-            </h2>
-          </div>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="p-4">
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      title={
+        <span className="flex items-center gap-2">
+          <Mail aria-hidden className="w-5 h-5 text-gray-600" />
+          {step === 'form' ? 'Invite to Workspace' : 'Invitation Created'}
+        </span>
+      }
+    >
+        <div>
           {step === 'form' ? (
             <form onSubmit={handleSubmit} className="space-y-4">
               <p className="text-sm text-gray-600">
@@ -104,16 +105,17 @@ export function InviteMemberDialog({
               </p>
 
               {error && (
-                <div className="p-3 text-sm text-red-600 bg-red-50 rounded-lg">{error}</div>
+                <p role="alert" className="p-3 text-sm text-red-600 bg-red-50 rounded-lg">{error}</p>
               )}
 
               {/* Invite Type Toggle */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Invite Type</label>
-                <div className="flex rounded-lg border border-gray-200 p-1">
+                <span id="invite-type-label" className="block text-sm font-medium text-gray-700 mb-2">Invite Type</span>
+                <div role="group" aria-labelledby="invite-type-label" className="flex rounded-lg border border-gray-200 p-1">
                   <button
                     type="button"
                     onClick={() => setInviteType('email')}
+                    aria-pressed={inviteType === 'email'}
                     className={clsx(
                       'flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-colors',
                       inviteType === 'email'
@@ -127,6 +129,7 @@ export function InviteMemberDialog({
                   <button
                     type="button"
                     onClick={() => setInviteType('generic')}
+                    aria-pressed={inviteType === 'generic'}
                     className={clsx(
                       'flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-colors',
                       inviteType === 'generic'
@@ -142,10 +145,11 @@ export function InviteMemberDialog({
 
               {inviteType === 'email' ? (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="invite-email" className="block text-sm font-medium text-gray-700 mb-1">
                     Email Address
                   </label>
                   <input
+                    id="invite-email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -167,10 +171,11 @@ export function InviteMemberDialog({
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-purple-900 mb-1">
+                    <label htmlFor="invite-max-uses" className="block text-sm font-medium text-purple-900 mb-1">
                       Usage Limit
                     </label>
                     <select
+                      id="invite-max-uses"
                       value={maxUses === null ? 'unlimited' : maxUses}
                       onChange={(e) => {
                         const val = e.target.value;
@@ -192,11 +197,12 @@ export function InviteMemberDialog({
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
-                <div className="grid grid-cols-2 gap-3">
+                <span id="invite-role-label" className="block text-sm font-medium text-gray-700 mb-2">Role</span>
+                <div role="group" aria-labelledby="invite-role-label" className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => setRole('member')}
+                    aria-pressed={role === 'member'}
                     className={clsx(
                       'p-3 rounded-lg border-2 text-left transition-colors',
                       role === 'member'
@@ -216,6 +222,7 @@ export function InviteMemberDialog({
                   <button
                     type="button"
                     onClick={() => setRole('admin')}
+                    aria-pressed={role === 'admin'}
                     className={clsx(
                       'p-3 rounded-lg border-2 text-left transition-colors',
                       role === 'admin'
@@ -273,12 +280,12 @@ export function InviteMemberDialog({
                 'rounded-lg p-4',
                 createdInvitation?.isGeneric ? 'bg-purple-50' : 'bg-gray-50'
               )}>
-                <label className={clsx(
+                <p className={clsx(
                   'block text-sm font-medium mb-2',
                   createdInvitation?.isGeneric ? 'text-purple-900' : 'text-gray-700'
                 )}>
                   Invite Link
-                </label>
+                </p>
                 <div className="flex items-center gap-2">
                   <div className={clsx(
                     'flex-1 flex items-center gap-2 px-3 py-2 border rounded-lg text-sm overflow-hidden',
@@ -293,7 +300,8 @@ export function InviteMemberDialog({
                     <span className="truncate">{createdInvitation?.inviteUrl}</span>
                   </div>
                   <button
-                    onClick={handleCopyLink}
+                    type="button"
+                    onClick={() => void handleCopyLink()}
                     className={clsx(
                       'btn',
                       copied
@@ -351,7 +359,6 @@ export function InviteMemberDialog({
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </Dialog>
   );
 }

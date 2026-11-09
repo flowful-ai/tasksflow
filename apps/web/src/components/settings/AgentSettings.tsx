@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bot, Copy, Check, Pencil, Trash2, Shield, Link2 } from 'lucide-react';
 import clsx from 'clsx';
 import { AgentToolSchema, type AgentTool } from '@flowtask/shared';
-import { mcpConnectionApi, type McpOAuthConnection } from '../../api/client';
-import { useCurrentWorkspace } from '../../hooks/queries';
+import type { McpOAuthConnection } from '../../api/workspaces';
+import { useCurrentWorkspace, useMcpConnectionMutations, useMcpConnections } from '../../hooks/queries';
+import { ConfirmDialog, Dialog, EmptyState, ErrorState, IconButton, toast } from '../ui';
 
 export const AGENT_TOOL_LABELS: Record<AgentTool, string> = {
   create_task: 'Create tasks',
@@ -76,55 +76,58 @@ function ScopeEditorDialog({ connection, onClose, onSave, isSaving }: ScopeEdito
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative w-full max-w-lg bg-white rounded-lg shadow-xl p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">Edit MCP Tool Scopes</h3>
-        <p className="text-sm text-gray-600 mb-4">
-          {connection.clientName} ({connection.clientId})
-        </p>
-
-        {error && <div className="mb-3 p-2 text-sm text-red-600 bg-red-50 rounded">{error}</div>}
-
-        <div className="max-h-72 overflow-y-auto space-y-2">
-          {AVAILABLE_PERMISSIONS.map((permission) => (
-            <label
-              key={permission.id}
-              className={clsx(
-                'flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors',
-                toolScopes.includes(permission.id)
-                  ? 'border-primary-500 bg-primary-50'
-                  : 'border-gray-200 hover:bg-gray-50'
-              )}
-            >
-              <input
-                type="checkbox"
-                checked={toolScopes.includes(permission.id)}
-                onChange={() => toggleScope(permission.id)}
-                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-              />
-              <span className="text-sm text-gray-900">{permission.label}</span>
-            </label>
-          ))}
-        </div>
-
-        <div className="mt-6 flex justify-end gap-3">
-          <button className="btn btn-secondary" onClick={onClose}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      title="Edit MCP tool scopes"
+      description={`${connection.clientName} (${connection.clientId})`}
+      size="lg"
+      footer={
+        <>
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={isSaving}>
+          <button type="button" className="btn btn-primary" onClick={handleSave} disabled={isSaving}>
             {isSaving ? 'Saving...' : 'Save Scopes'}
           </button>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+    >
+      {error && (
+        <p role="alert" className="mb-3 p-2 text-sm text-red-600 bg-red-50 rounded">
+          {error}
+        </p>
+      )}
+      <fieldset className="space-y-2">
+        <legend className="sr-only">Tool scopes</legend>
+        {AVAILABLE_PERMISSIONS.map((permission) => (
+          <label
+            key={permission.id}
+            className={clsx(
+              'flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors',
+              toolScopes.includes(permission.id) ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:bg-gray-50'
+            )}
+          >
+            <input
+              type="checkbox"
+              checked={toolScopes.includes(permission.id)}
+              onChange={() => toggleScope(permission.id)}
+              className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            />
+            <span className="text-sm text-gray-900">{permission.label}</span>
+          </label>
+        ))}
+      </fieldset>
+    </Dialog>
   );
 }
 
 interface ConnectionCardProps {
   connection: McpOAuthConnection;
   onEditScopes: () => void;
-  onDelete: () => void;
+  onDelete: () => Promise<void>;
 }
 
 function ConnectionCard({ connection, onEditScopes, onDelete }: ConnectionCardProps) {
@@ -175,31 +178,15 @@ function ConnectionCard({ connection, onEditScopes, onDelete }: ConnectionCardPr
         </button>
       </div>
 
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowDeleteConfirm(false)} />
-          <div className="relative bg-white rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete OAuth Connection</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Permanently delete {connection.clientName}? All OAuth tokens will be revoked and the connection record will be removed.
-            </p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setShowDeleteConfirm(false)} className="btn btn-secondary">
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  setShowDeleteConfirm(false);
-                  onDelete();
-                }}
-                className="btn bg-red-600 text-white hover:bg-red-700"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        title="Delete OAuth connection"
+        description={`Permanently delete ${connection.clientName}? All OAuth tokens will be revoked and the connection record will be removed.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={onDelete}
+      />
     </div>
   );
 }
@@ -222,7 +209,12 @@ function ConnectGuide() {
   );
 
   const copy = async (key: string, value: string) => {
-    await navigator.clipboard.writeText(value);
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      toast.error('Could not copy to the clipboard');
+      return;
+    }
     setCopied(key);
     setTimeout(() => setCopied(null), 1500);
   };
@@ -246,13 +238,11 @@ function ConnectGuide() {
         <div className="text-xs text-gray-600 mb-1">Claude Code command</div>
         <div className="flex items-center gap-2">
           <code className="flex-1 text-xs font-mono text-gray-800 break-all">{claudeCodeCommand}</code>
-          <button
-            onClick={() => copy('claude-cli', claudeCodeCommand)}
-            className="p-1.5 rounded hover:bg-gray-200"
-            title="Copy"
-          >
-            {copied === 'claude-cli' ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-gray-500" />}
-          </button>
+          <IconButton
+            label={copied === 'claude-cli' ? 'Copied' : 'Copy command'}
+            onClick={() => void copy('claude-cli', claudeCodeCommand)}
+            icon={copied === 'claude-cli' ? <Check className="text-green-600" /> : <Copy />}
+          />
         </div>
       </div>
 
@@ -265,13 +255,11 @@ function ConnectGuide() {
           <div key={item.key} className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-200">
             <div className="min-w-44 text-xs text-gray-600">{item.label}</div>
             <code className="flex-1 text-xs font-mono text-gray-800 break-all">{item.value}</code>
-            <button
-              onClick={() => copy(item.key, item.value)}
-              className="p-1.5 rounded hover:bg-gray-200"
-              title="Copy"
-            >
-              {copied === item.key ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-gray-500" />}
-            </button>
+            <IconButton
+              label={copied === item.key ? 'Copied' : `Copy ${item.label}`}
+              onClick={() => void copy(item.key, item.value)}
+              icon={copied === item.key ? <Check className="text-green-600" /> : <Copy />}
+            />
           </div>
         ))}
       </div>
@@ -281,31 +269,11 @@ function ConnectGuide() {
 
 export function AgentSettings() {
   const { workspace: currentWorkspace } = useCurrentWorkspace();
-  const queryClient = useQueryClient();
   const [editingConnection, setEditingConnection] = useState<McpOAuthConnection | null>(null);
   const workspaceId = currentWorkspace?.id;
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['mcp-connections', workspaceId],
-    queryFn: () => mcpConnectionApi.list(workspaceId!),
-    enabled: !!workspaceId,
-  });
-
-  const updateScopesMutation = useMutation({
-    mutationFn: ({ consentId, toolScopes }: { consentId: string; toolScopes: string[] }) =>
-      mcpConnectionApi.updateScopes(workspaceId!, consentId, toolScopes),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['mcp-connections', workspaceId] });
-      setEditingConnection(null);
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (consentId: string) => mcpConnectionApi.delete(workspaceId!, consentId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['mcp-connections', workspaceId] });
-    },
-  });
+  const { data, isLoading, error, refetch } = useMcpConnections(workspaceId);
+  const { updateScopes: updateScopesMutation, remove: deleteMutation } = useMcpConnectionMutations(workspaceId ?? '');
 
   if (!workspaceId) {
     return (
@@ -330,7 +298,7 @@ export function AgentSettings() {
   if (error) {
     return (
       <div className="card p-6">
-        <div className="text-red-600">Failed to load OAuth connections: {(error as Error).message}</div>
+        <ErrorState error={error} resource="list of connections" onRetry={() => void refetch()} />
       </div>
     );
   }
@@ -350,13 +318,11 @@ export function AgentSettings() {
         </div>
 
         {connections.length === 0 ? (
-          <div className="text-center py-10">
-            <div className="w-14 h-14 mx-auto bg-gray-100 rounded-full flex items-center justify-center mb-3">
-              <Bot className="w-7 h-7 text-gray-400" />
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-1">No OAuth connections yet</h3>
-            <p className="text-gray-500">Authorize the MCP server from ChatGPT or Claude to create the first connection.</p>
-          </div>
+          <EmptyState
+            icon={<Bot />}
+            title="No OAuth connections yet"
+            body="Authorize the MCP server from ChatGPT or Claude to create the first connection."
+          />
         ) : (
           <div className="space-y-4">
             {connections.map((connection) => (
@@ -364,7 +330,10 @@ export function AgentSettings() {
                 key={connection.consentId}
                 connection={connection}
                 onEditScopes={() => setEditingConnection(connection)}
-                onDelete={() => deleteMutation.mutate(connection.consentId)}
+                onDelete={async () => {
+                  await deleteMutation.mutateAsync(connection.consentId);
+                  toast.success('Connection deleted');
+                }}
               />
             ))}
           </div>
@@ -376,10 +345,15 @@ export function AgentSettings() {
           connection={editingConnection}
           onClose={() => setEditingConnection(null)}
           onSave={(toolScopes) =>
-            updateScopesMutation.mutate({
-              consentId: editingConnection.consentId,
-              toolScopes,
-            })
+            updateScopesMutation.mutate(
+              { consentId: editingConnection.consentId, toolScopes },
+              {
+                onSuccess: () => {
+                  setEditingConnection(null);
+                  toast.success('Scopes updated');
+                },
+              }
+            )
           }
           isSaving={updateScopesMutation.isPending}
         />
