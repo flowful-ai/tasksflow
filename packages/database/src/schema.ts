@@ -234,7 +234,8 @@ export const taskLabels = pgTable(
   ]
 );
 
-// One-way sync tracking (External → FlowTask only)
+// Links between tasks and external items (GitHub issues/PRs).
+// external_id is `owner/repo#N` (lower-cased) for GitHub items, so it is unique per repo.
 export const externalLinks = pgTable(
   'external_links',
   {
@@ -249,6 +250,9 @@ export const externalLinks = pgTable(
     externalId: text('external_id').notNull(),
     externalUrl: text('external_url').notNull(),
     lastSyncedAt: timestamp('last_synced_at'),
+    // Hash of the title/body/state/labels last exchanged with GitHub (either direction).
+    // Incoming webhooks whose content matches it are echoes and get skipped.
+    syncHash: text('sync_hash'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [
@@ -630,6 +634,39 @@ export const githubInstallations = pgTable(
     uniqueIndex('unique_user_installation').on(table.userId, table.installationId),
     index('github_installation_user_idx').on(table.userId),
   ]
+);
+
+// ============ INTEGRATION PLUMBING ============
+
+// GitHub webhook deliveries already processed (X-GitHub-Delivery), for dedupe.
+// Rows older than 7 days are pruned by the webhook handler.
+export const webhookDeliveries = pgTable(
+  'webhook_deliveries',
+  {
+    deliveryId: text('delivery_id').primaryKey(),
+    receivedAt: timestamp('received_at').defaultNow().notNull(),
+  },
+  (table) => [index('webhook_delivery_received_idx').on(table.receivedAt)]
+);
+
+// Short-lived OAuth `state` nonces for the GitHub App and Slack install flows,
+// bound to the user session that started the flow.
+export const integrationOauthStates = pgTable(
+  'integration_oauth_states',
+  {
+    state: text('state').primaryKey(),
+    provider: text('provider').notNull(), // 'github' | 'slack'
+    userId: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    sessionId: text('session_id').notNull(),
+    projectId: uuid('project_id')
+      .references(() => projects.id, { onDelete: 'cascade' })
+      .notNull(),
+    expiresAt: timestamp('expires_at').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [index('integration_oauth_state_expires_idx').on(table.expiresAt)]
 );
 
 // ============ SESSIONS (for Better Auth) ============
