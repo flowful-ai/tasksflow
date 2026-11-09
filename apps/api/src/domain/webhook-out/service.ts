@@ -355,29 +355,34 @@ export class OutgoingWebhookService {
   /**
    * Fan an event out to every enabled webhook of the workspace subscribed to
    * it: one delivery row + one `webhooks.deliver` job each, in one transaction.
-   * Returns the number of deliveries queued.
+   * The subscribed hooks are looked up first, outside any transaction, so a
+   * workspace without webhooks costs one query; `data` may be a builder that
+   * only runs when someone is subscribed. Returns the number of deliveries
+   * queued.
    */
   async dispatchEvent(
     workspaceId: string,
     event: OutgoingWebhookEvent,
-    data: JsonObject
+    data: JsonObject | (() => Promise<JsonObject>)
   ): Promise<Result<number, OutgoingWebhookError>> {
     try {
+      const hooks = await this.db
+        .select({ id: outgoingWebhooks.id })
+        .from(outgoingWebhooks)
+        .where(
+          and(
+            eq(outgoingWebhooks.workspaceId, workspaceId),
+            eq(outgoingWebhooks.enabled, true),
+            sql`(${event} = ANY(${outgoingWebhooks.events}) OR '*' = ANY(${outgoingWebhooks.events}))`
+          )
+        );
+      if (hooks.length === 0) return ok(0);
+      const payload = typeof data === 'function' ? await data() : data;
+
       const count = await this.db.transaction(async (tx) => {
-        const hooks = await tx
-          .select({ id: outgoingWebhooks.id })
-          .from(outgoingWebhooks)
-          .where(
-            and(
-              eq(outgoingWebhooks.workspaceId, workspaceId),
-              eq(outgoingWebhooks.enabled, true),
-              sql`(${event} = ANY(${outgoingWebhooks.events}) OR '*' = ANY(${outgoingWebhooks.events}))`
-            )
-          );
-        if (hooks.length === 0) return 0;
         const deliveries = await tx
           .insert(outgoingWebhookDeliveries)
-          .values(hooks.map((hook) => ({ webhookId: hook.id, event, payload: data })))
+          .values(hooks.map((hook) => ({ webhookId: hook.id, event, payload })))
           .returning({ id: outgoingWebhookDeliveries.id });
         for (const delivery of deliveries) {
           await enqueueJob(

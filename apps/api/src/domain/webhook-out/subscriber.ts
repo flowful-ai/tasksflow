@@ -43,7 +43,12 @@ export function registerOutgoingWebhookSubscribers(
   bus: DomainEventBus = domainEvents,
   service: OutgoingWebhookService = new OutgoingWebhookService(db)
 ): () => void {
-  const dispatch = async (workspaceId: string, event: OutgoingWebhookEvent, data: JsonObject) => {
+  /** `data` may be a builder: it runs only when a webhook is subscribed to the event. */
+  const dispatch = async (
+    workspaceId: string,
+    event: OutgoingWebhookEvent,
+    data: JsonObject | (() => Promise<JsonObject>)
+  ) => {
     const result = await service.dispatchEvent(workspaceId, event, data);
     if (!result.ok) console.error(`[outgoing-webhooks] dispatch of ${event} failed:`, result.error);
   };
@@ -75,21 +80,23 @@ export function registerOutgoingWebhookSubscribers(
     bus.on('task.restored', (e) =>
       dispatch(e.workspaceId, 'task.restored', { task: toWebhookTask(e.task), actorId: e.actorId })
     ),
-    bus.on('task.deleted', async (e) => {
-      const [project] = await db
-        .select({ identifier: projects.identifier })
-        .from(projects)
-        .where(eq(projects.id, e.projectId));
-      await dispatch(e.workspaceId, 'task.deleted', {
-        task: {
-          id: e.taskId,
-          key: project ? `${project.identifier}-${e.sequenceNumber}` : null,
-          projectId: e.projectId,
-          title: e.title,
-        },
-        actorId: e.actorId,
-      });
-    }),
+    bus.on('task.deleted', (e) =>
+      dispatch(e.workspaceId, 'task.deleted', async () => {
+        const [project] = await db
+          .select({ identifier: projects.identifier })
+          .from(projects)
+          .where(eq(projects.id, e.projectId));
+        return {
+          task: {
+            id: e.taskId,
+            key: project ? `${project.identifier}-${e.sequenceNumber}` : null,
+            projectId: e.projectId,
+            title: e.title,
+          },
+          actorId: e.actorId,
+        };
+      })
+    ),
     bus.on('comment.created', async (e) => {
       await dispatch(e.workspaceId, 'comment.created', {
         comment: { id: e.commentId, content: e.content },
