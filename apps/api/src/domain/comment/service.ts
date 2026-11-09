@@ -12,6 +12,7 @@ import type {
 } from './types.js';
 import { DomainError, toError } from '../workspace/errors.js';
 import { isUuid } from '../workspace/authorization.js';
+import type { DbExecutor } from '../task/db.js';
 
 interface CommentTaskScope {
   workspaceId: string;
@@ -26,8 +27,11 @@ export class CommentService {
   constructor(private db: Database) {}
 
   /** Workspace, project and key of a comment's task (for domain events). */
-  private async taskScope(taskId: string): Promise<CommentTaskScope | null> {
-    const [row] = await this.db
+  private async taskScope(
+    taskId: string,
+    db: DbExecutor = this.db
+  ): Promise<CommentTaskScope | null> {
+    const [row] = await db
       .select({
         workspaceId: projects.workspaceId,
         projectId: tasks.projectId,
@@ -87,11 +91,15 @@ export class CommentService {
   }
 
   /**
-   * Create a new comment on a task.
+   * Create a new comment on a task. The comment (with its author) and the
+   * task scope for the domain event are read inside the transaction, so once
+   * the write commits nothing can turn it into an error: a client retry
+   * would otherwise post the comment twice.
    */
   async create(input: CommentCreateInput): Promise<Result<CommentWithUser, Error>> {
+    let created: { full: CommentWithUser; scope: CommentTaskScope };
     try {
-      const comment = await this.db.transaction(async (tx) => {
+      created = await this.db.transaction(async (tx) => {
         const [comment] = await tx
           .insert(comments)
           .values({
@@ -115,29 +123,36 @@ export class CommentService {
           eventType: 'commented',
           newValue: { commentId: comment.id },
         });
-        return comment;
-      });
 
-      const full = await this.getById(comment.id);
-      const scope = await this.taskScope(input.taskId);
-      // After commit: drives realtime, mentions/notifications, Slack, GitHub comment sync.
-      if (full.ok && scope) {
-        domainEvents.emit('comment.created', {
-          ...scope,
-          commentId: comment.id,
-          taskId: input.taskId,
-          actorId: input.userId,
-          content: input.content,
-          comment: full.value,
-          mcpClientId: input.mcpClientId ?? null,
-          ...(input.externalCommentId ? { origin: 'github' as const } : {}),
-          ...(input.actorLabel ? { actorLabel: input.actorLabel } : {}),
-        });
-      }
-      return full;
+        const [full, scope] = await Promise.all([
+          this.loadComment(tx, comment.id),
+          this.taskScope(input.taskId, tx),
+        ]);
+        if (!full) throw new Error('Failed to load the created comment');
+        if (!scope) throw new DomainError('NOT_FOUND', 'Task not found');
+        return { full, scope };
+      });
     } catch (error) {
       return err(toError(error));
     }
+
+    // Committed. Drives realtime, mentions/notifications, Slack, GitHub comment sync.
+    try {
+      domainEvents.emit('comment.created', {
+        ...created.scope,
+        commentId: created.full.id,
+        taskId: input.taskId,
+        actorId: input.userId,
+        content: input.content,
+        comment: created.full,
+        mcpClientId: input.mcpClientId ?? null,
+        ...(input.externalCommentId ? { origin: 'github' as const } : {}),
+        ...(input.actorLabel ? { actorLabel: input.actorLabel } : {}),
+      });
+    } catch (error) {
+      console.error('[comments] comment.created emit failed:', error);
+    }
+    return ok(created.full);
   }
 
   /**
@@ -148,32 +163,36 @@ export class CommentService {
       if (!isUuid(commentId)) {
         return err(new DomainError('NOT_FOUND', 'Comment not found'));
       }
-      const [result] = await this.db
-        .select({
-          comment: comments,
-          user: users,
-          agent: {
-            id: workspaceAgents.id,
-            name: workspaceAgents.name,
-          },
-        })
-        .from(comments)
-        .leftJoin(users, eq(comments.userId, users.id))
-        .leftJoin(workspaceAgents, eq(comments.agentId, workspaceAgents.id))
-        .where(eq(comments.id, commentId));
-
-      if (!result) {
+      const comment = await this.loadComment(this.db, commentId);
+      if (!comment) {
         return err(new DomainError('NOT_FOUND', 'Comment not found'));
       }
-
-      return ok({
-        ...result.comment,
-        user: result.user,
-        agent: result.agent?.id ? result.agent : null,
-      });
+      return ok(comment);
     } catch (error) {
       return err(toError(error));
     }
+  }
+
+  private async loadComment(db: DbExecutor, commentId: string): Promise<CommentWithUser | null> {
+    const [result] = await db
+      .select({
+        comment: comments,
+        user: users,
+        agent: {
+          id: workspaceAgents.id,
+          name: workspaceAgents.name,
+        },
+      })
+      .from(comments)
+      .leftJoin(users, eq(comments.userId, users.id))
+      .leftJoin(workspaceAgents, eq(comments.agentId, workspaceAgents.id))
+      .where(eq(comments.id, commentId));
+    if (!result) return null;
+    return {
+      ...result.comment,
+      user: result.user,
+      agent: result.agent?.id ? result.agent : null,
+    };
   }
 
   /**
