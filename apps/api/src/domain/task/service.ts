@@ -937,7 +937,7 @@ export class TaskService {
         );
       }
       if (filters.search?.trim()) {
-        conditions.push(await this.searchCondition(filters.search));
+        conditions.push(this.searchCondition(filters.search));
       }
       if (filterSql) conditions.push(filterSql);
 
@@ -1026,22 +1026,17 @@ export class TaskService {
   }
 
   /**
-   * Search condition: a task key ("TF-12") resolves to that task when it
-   * exists; otherwise full-text (tsvector) + prefix match.
+   * Search condition: full-text (tsvector) + prefix match, OR the task key
+   * ("TF-12") when the query is one. Both are ANDed with the caller's
+   * project/workspace scope by list(), so the key never reaches outside it
+   * and whether a key exists elsewhere cannot change the result.
    */
-  private async searchCondition(search: string): Promise<SQL> {
+  private searchCondition(search: string): SQL {
     const query = search.trim();
+    const text = buildTextSearchCondition(query);
     const key = parseTaskKey(query);
-    if (key) {
-      const [hit] = await this.db
-        .select({ id: tasks.id })
-        .from(tasks)
-        .innerJoin(projects, eq(tasks.projectId, projects.id))
-        .where(buildTaskKeyCondition(key.identifier, key.sequenceNumber))
-        .limit(1);
-      if (hit) return buildTaskKeyCondition(key.identifier, key.sequenceNumber);
-    }
-    return buildTextSearchCondition(query);
+    if (!key) return text;
+    return or(buildTaskKeyCondition(key.identifier, key.sequenceNumber), text) ?? text;
   }
 
   /** Soft-deleted tasks of a project, newest deletion first. */

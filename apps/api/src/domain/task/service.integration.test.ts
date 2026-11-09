@@ -14,6 +14,8 @@ import { TaskHistoryService } from './history.js';
 import { TaskRelationService } from './relations.js';
 import { TaskService } from './service.js';
 import { purgeTrash } from './trash.js';
+import { rekeyTaskPositions } from './rekey.js';
+import { ProjectService } from '../project/service.js';
 import { SearchService } from '../search/service.js';
 import {
   TEST_DATABASE_URL,
@@ -371,6 +373,77 @@ describe.skipIf(!TEST_DATABASE_URL)('TaskService (integration)', () => {
       expect(rekeyed).toHaveLength(1);
     });
 
+    it('emits tasks.rekeyed when a bulk state change re-keys the target column', async () => {
+      const p = await createProject(testDb(), ws.workspaceId);
+      const inProgress = [];
+      for (const title of ['P1', 'P2']) {
+        inProgress.push(
+          unwrap(
+            await service.create({
+              projectId: p.projectId,
+              title,
+              stateId: p.states.progress,
+              createdBy: ws.owner.id,
+            })
+          )
+        );
+      }
+      // Legacy (invalid) keys in the target column force a re-key on placement.
+      const legacyKeys = ['b0', 'bU'];
+      for (const [i, task] of inProgress.entries()) {
+        await testDb()
+          .update(tasks)
+          .set({ position: legacyKeys[i] ?? 'bU' })
+          .where(eq(tasks.id, task.id));
+      }
+      const mover = unwrap(
+        await service.create({ projectId: p.projectId, title: 'mover', createdBy: ws.owner.id })
+      );
+      const rekeyed: DomainEventMap['tasks.rekeyed'][] = [];
+      const off = domainEvents.on('tasks.rekeyed', (e) => {
+        if (e.projectId === p.projectId) rekeyed.push(e);
+      });
+      unwrap(
+        await new TaskBulkService(testDb()).apply({
+          taskIds: [mover.id],
+          op: { stateId: p.states.progress },
+          actorId: ws.owner.id,
+          allowedProjectIds: new Set([p.projectId]),
+        })
+      );
+      await domainEvents.idle();
+      off();
+      expect(rekeyed).toEqual([
+        { workspaceId: ws.workspaceId, projectId: p.projectId, stateId: p.states.progress },
+      ]);
+    });
+
+    it('rekeyTaskPositions repairs an invalid column in one pass, keeping order', async () => {
+      const p = await createProject(testDb(), ws.workspaceId);
+      const created = [];
+      for (const title of ['R1', 'R2', 'R3']) {
+        created.push(
+          unwrap(await service.create({ projectId: p.projectId, title, createdBy: ws.owner.id }))
+        );
+      }
+      const legacyKeys = ['az', 'b0', 'bU'];
+      for (const [i, task] of created.entries()) {
+        await testDb()
+          .update(tasks)
+          .set({ position: legacyKeys[i] ?? 'bU' })
+          .where(eq(tasks.id, task.id));
+      }
+      const report = await rekeyTaskPositions(testDb(), { onlyInvalid: true });
+      expect(report.columnsRekeyed).toBeGreaterThanOrEqual(1);
+      const rows = await testDb()
+        .select({ title: tasks.title, position: tasks.position })
+        .from(tasks)
+        .where(eq(tasks.projectId, p.projectId))
+        .orderBy(sql`${tasks.position} COLLATE "C"`, asc(tasks.id));
+      expect(rows.map((r) => r.title)).toEqual(['R1', 'R2', 'R3']);
+      expect(arePositionsHealthy(rows.map((r) => r.position))).toBe(true);
+    });
+
     it('accepts a legacy client position and normalises an invalid one', async () => {
       const p = await createProject(testDb(), ws.workspaceId);
       const a = unwrap(
@@ -654,6 +727,34 @@ describe.skipIf(!TEST_DATABASE_URL)('TaskService (integration)', () => {
       expect(projectsHit.projects.map((x) => x.id)).toEqual([p.projectId]);
       expect(unwrap(await search.search({ projectIds: [], q: 'lexico' })).tasks).toEqual([]);
     });
+
+    it('scopes the task-key match to the caller and ORs it with the text search', async () => {
+      const p = await createProject(testDb(), ws.workspaceId);
+      // A task whose key exists only in another workspace.
+      const foreign = unwrap(
+        await service.create({ projectId: other.projectId, title: 'foreign', createdBy: null })
+      );
+      const local = unwrap(
+        await service.create({
+          projectId: p.projectId,
+          title: `${foreign.key} regression`,
+          createdBy: ws.owner.id,
+        })
+      );
+      const hits = unwrap(
+        await service.list({ filters: { workspaceId: ws.workspaceId, search: foreign.key ?? '' } })
+      );
+      // The foreign key neither leaks the foreign task nor hides the local text match.
+      expect(hits.tasks.map((t) => t.id)).toEqual([local.id]);
+
+      const own = unwrap(
+        await service.create({ projectId: p.projectId, title: 'by key', createdBy: ws.owner.id })
+      );
+      const byKey = unwrap(
+        await service.list({ filters: { projectId: p.projectId, search: own.key ?? '' } })
+      );
+      expect(byKey.tasks.map((t) => t.id)).toContain(own.id);
+    });
   });
 
   describe('completedAt', () => {
@@ -717,6 +818,29 @@ describe.skipIf(!TEST_DATABASE_URL)('TaskService (integration)', () => {
         })
       );
       expect(await completedAtOf(createdDone.id)).toBeInstanceOf(Date);
+    });
+
+    it('deleting a state clears completedAt of its tasks', async () => {
+      const db = testDb();
+      const p = await createProject(db, ws.workspaceId);
+      const task = unwrap(
+        await service.create({
+          projectId: p.projectId,
+          title: 'done then state deleted',
+          stateId: p.states.done,
+          createdBy: ws.owner.id,
+        })
+      );
+      expect(await completedAtOf(task.id)).toBeInstanceOf(Date);
+      unwrap(await new ProjectService(db).deleteTaskState(p.projectId, p.states.done));
+      const [row] = await db
+        .select({ stateId: tasks.stateId, completedAt: tasks.completedAt })
+        .from(tasks)
+        .where(eq(tasks.id, task.id));
+      expect(row).toEqual({ stateId: null, completedAt: null });
+      // A state of another project is not found (and nothing is touched).
+      const result = await new ProjectService(db).deleteTaskState(p.projectId, other.states.done);
+      expect(result.ok).toBe(false);
     });
   });
 

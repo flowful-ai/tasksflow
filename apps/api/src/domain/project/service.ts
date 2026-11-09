@@ -420,18 +420,22 @@ export class ProjectService {
         return err(new DomainError('NOT_FOUND', 'Task state not found'));
       }
       return await this.db.transaction(async (tx) => {
-        const [deleted] = await tx
-          .delete(taskStates)
-          .where(and(eq(taskStates.id, stateId), eq(taskStates.projectId, projectId)))
-          .returning({ id: taskStates.id });
-        if (!deleted) {
+        const scope = and(eq(taskStates.id, stateId), eq(taskStates.projectId, projectId));
+        const [state] = await tx
+          .select({ id: taskStates.id })
+          .from(taskStates)
+          .where(scope)
+          .for('update');
+        if (!state) {
           return err(new DomainError('NOT_FOUND', 'Task state not found'));
         }
-        // FK is ON DELETE SET NULL; keep the explicit update scoped for clarity.
+        // Before the delete: the FK's ON DELETE SET NULL would leave nothing
+        // matching `state_id = stateId` afterwards, and completedAt stale.
         await tx
           .update(tasks)
           .set({ stateId: null, completedAt: null })
-          .where(and(eq(tasks.stateId, stateId), eq(tasks.projectId, projectId)));
+          .where(eq(tasks.stateId, stateId));
+        await tx.delete(taskStates).where(scope);
         return ok(undefined);
       });
     } catch (error) {

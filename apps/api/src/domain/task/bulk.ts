@@ -58,6 +58,8 @@ interface TaskOutcome {
   fromStateId: string | null;
   deleted: boolean;
   restored: boolean;
+  /** The target column was re-keyed to place this task. */
+  rekeyed: boolean;
   title: string;
   sequenceNumber: number;
 }
@@ -137,6 +139,7 @@ export class TaskBulkService {
               const base = { taskId, actorId: input.actorId, mcpClientId: input.mcpClientId };
               let deleted = false;
               let restored = false;
+              let rekeyed = false;
 
               if (op.delete) {
                 if (!row.deletedAt) {
@@ -145,7 +148,7 @@ export class TaskBulkService {
                   deleted = true;
                 }
                 await recordTaskEvents(sp, events);
-                return { changes, diff: emptyDiff(), deleted, restored };
+                return { changes, diff: emptyDiff(), deleted, restored, rekeyed };
               }
 
               if (op.restore && row.deletedAt) {
@@ -164,6 +167,7 @@ export class TaskBulkService {
                 });
                 set.stateId = op.stateId;
                 set.position = placement.position;
+                rekeyed = placement.rekeyed;
                 set.completedAt = await completedAtFor(sp, op.stateId, row.completedAt);
                 changes.push({ field: 'stateId', from: row.stateId, to: op.stateId });
                 const snapshots = await stateSnapshots(sp, [row.stateId, op.stateId]);
@@ -216,7 +220,7 @@ export class TaskBulkService {
                   .where(eq(tasks.id, taskId));
                 await recordTaskEvents(sp, events);
               }
-              return { changes, diff, deleted, restored };
+              return { changes, diff, deleted, restored, rekeyed };
             });
 
             const changed =
@@ -304,6 +308,19 @@ export class TaskBulkService {
         domainEvents.emit('task.updated', { ...common, task, changes: o.changes, ...o.diff });
       }
     }
+
+    // A re-key rewrote other tasks' positions: clients refetch the column (once per column).
+    const rekeyed = new Map<string, { workspaceId: string; projectId: string; stateId: string }>();
+    for (const o of outcomes) {
+      const stateId = o.changes.find((change) => change.field === 'stateId')?.to;
+      if (!o.rekeyed || typeof stateId !== 'string') continue;
+      rekeyed.set(`${o.project.id}:${stateId}`, {
+        workspaceId: o.project.workspaceId,
+        projectId: o.project.id,
+        stateId,
+      });
+    }
+    for (const column of rekeyed.values()) domainEvents.emit('tasks.rekeyed', column);
   }
 }
 

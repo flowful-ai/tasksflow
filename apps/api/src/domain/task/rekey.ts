@@ -8,11 +8,10 @@
  * The API runs it with `onlyInvalid` after migrations, which repairs keys
  * written by the pre-v2 generator and is a read-only scan otherwise.
  */
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
 import { tasks } from '../../db/index.js';
 import { arePositionsHealthy, generatePositions } from '@flowtask/shared';
-import { lockColumn } from './positions.js';
+import { loadColumn, lockColumn, writePositions } from './positions.js';
 
 export interface RekeyOptions {
   /** Skip columns whose keys are already valid and strictly ascending. */
@@ -44,16 +43,7 @@ export async function rekeyTaskPositions(
   for (const column of columns) {
     await db.transaction(async (tx) => {
       await lockColumn(tx, column.projectId, column.stateId);
-      const rows = await tx
-        .select({ id: tasks.id, position: tasks.position })
-        .from(tasks)
-        .where(
-          and(
-            eq(tasks.projectId, column.projectId),
-            column.stateId === null ? isNull(tasks.stateId) : eq(tasks.stateId, column.stateId)
-          )
-        )
-        .orderBy(sql`${tasks.position} COLLATE "C"`, asc(tasks.id));
+      const rows = await loadColumn(tx, column.projectId, column.stateId);
       if (rows.length === 0) return;
       if (options.onlyInvalid && arePositionsHealthy(rows.map((r) => r.position))) return;
 
@@ -65,9 +55,7 @@ export async function rekeyTaskPositions(
       report.columnsRekeyed++;
       report.tasksUpdated += changes.length;
       if (options.dryRun) return;
-      for (const change of changes) {
-        await tx.update(tasks).set({ position: change.position }).where(eq(tasks.id, change.id));
-      }
+      await writePositions(tx, changes);
     });
   }
   return report;
