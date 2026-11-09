@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { getAuth } from '@flowtask/auth';
+import { getAuth } from '../auth/index.js';
 
 const auth = new Hono();
 

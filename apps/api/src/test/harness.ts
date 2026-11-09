@@ -3,7 +3,7 @@
  * and real Better Auth sessions.
  *
  * Enabled only when TEST_DATABASE_URL is set. The database is migrated with
- * packages/database/drizzle (the production migrations) once per process and
+ * apps/api/drizzle (the production migrations) once per process and
  * truncated + re-seeded by every `setupHarness()` call. DO NOT point
  * TEST_DATABASE_URL at a database whose data you care about.
  *
@@ -15,7 +15,7 @@
 import type { Hono } from 'hono';
 import { join } from 'path';
 import { sql } from 'drizzle-orm';
-import type { Database } from '@flowtask/database';
+import type { Database } from '../db/index.js';
 
 export const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 export const integrationEnabled = Boolean(TEST_DATABASE_URL);
@@ -87,15 +87,15 @@ function configureEnv(): void {
 /** Apply the real migrations (same SQL as production, incl. data steps and collations). */
 async function migrateSchema(): Promise<void> {
   if (schemaPushed) return;
-  const { runMigrations } = await import('@flowtask/database');
-  await runMigrations(join(import.meta.dir, '..', '..', '..', '..', 'packages', 'database', 'drizzle'), TEST_DATABASE_URL);
+  const { runMigrations } = await import('../db/index.js');
+  await runMigrations(join(import.meta.dir, '..', '..', 'drizzle'), TEST_DATABASE_URL);
   schemaPushed = true;
 }
 
 /** The production app (src/app.ts), so tests exercise the real mounting and middleware. */
 async function buildApp(): Promise<Hono> {
   const { createApp } = await import('../app.js');
-  const { getDatabase } = await import('@flowtask/database');
+  const { getDatabase } = await import('../db/index.js');
   const { registerDomainEventBridges } = await import('../background/domain-bridges.js');
   // As in index.ts: realtime (and Slack/GitHub side effects) follow domain events.
   registerDomainEventBridges(getDatabase());
@@ -128,8 +128,8 @@ function must<T>(value: T | undefined | null, what: string): T {
 }
 
 async function seedFixtures(db: Database): Promise<Seed> {
-  const schema = await import('@flowtask/database');
-  const domain = await import('@flowtask/domain');
+  const schema = await import('../db/index.js');
+  const domain = await import('../domain/index.js');
   const suffix = crypto.randomUUID().slice(0, 8);
 
   async function makeUser(key: SeedUserKey): Promise<Seed['users'][SeedUserKey]> {
@@ -260,7 +260,7 @@ export async function setupHarness(): Promise<Harness> {
   configureEnv();
   await migrateSchema();
 
-  const database = await import('@flowtask/database');
+  const database = await import('../db/index.js');
   const db = database.getDatabase();
   appPromise ??= buildApp();
   const app = await appPromise;

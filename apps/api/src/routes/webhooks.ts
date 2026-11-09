@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { and, eq, lt, sql } from 'drizzle-orm';
-import { getDatabase, projectIntegrations, projects, webhookDeliveries } from '@flowtask/database';
-import { authMiddleware, getCurrentSession, getOptionalUser } from '@flowtask/auth';
-import { CommentService, TaskService } from '@flowtask/domain';
+import { getDatabase, projectIntegrations, projects, webhookDeliveries } from '../db/index.js';
+import { authMiddleware, getCurrentSession, getOptionalUser } from '../auth/index.js';
+import { CommentService, TaskService } from '../domain/index.js';
 import { GitHubWebhookEnvelopeSchema, type SlackConfig } from '@flowtask/shared';
 import {
   GitHubWebhookProcessor,
@@ -18,7 +18,7 @@ import {
   verifyGitHubSignature,
   verifySlackRequest,
   type WebhookTargetResult,
-} from '@flowtask/integrations';
+} from '../integrations/index.js';
 import { publishEvent } from '../sse/manager.js';
 import { authorizeProjectIntegration } from '../services/integration-access.js';
 import { getSlackRedirectUri } from './slack.js';

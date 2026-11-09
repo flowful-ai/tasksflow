@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, isNull, max } from 'drizzle-orm';
-import type { Database } from '@flowtask/database';
+import type { Database } from '../../db/index.js';
 import {
   mcpOAuthAccessTokens,
   mcpOAuthClients,
@@ -9,7 +9,7 @@ import {
   workspaceMembers,
   workspaces,
   type NewMcpOAuthConsent,
-} from '@flowtask/database/schema';
+} from '../../db/schema.js';
 import { OAuthError } from './errors.js';
 import {
   TOOL_SCOPE_PREFIX,

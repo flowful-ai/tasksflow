@@ -1,4 +1,4 @@
-import { FilterEngine, type SmartViewWithRelations, type TaskListOptions } from '@flowtask/domain';
+import { FilterEngine, type SmartViewWithRelations, type TaskListOptions } from '../../domain/index.js';
 import { FilterGroupSchema, REALTIME_EVENTS, SortOrderSchema, type FilterGroup } from '@flowtask/shared';
 import { ToolExecutionError } from '../../lib/mcp/errors.js';
 import { formatZodIssues } from '../../lib/mcp/json-schema-zod.js';

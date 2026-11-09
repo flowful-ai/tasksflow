@@ -1,6 +1,6 @@
 import { Hono, type Context } from 'hono';
-import { getAuth } from '@flowtask/auth';
-import { AGENT_TOOLS } from '@flowtask/domain';
+import { getAuth } from '../auth/index.js';
+import { AGENT_TOOLS } from '../domain/index.js';
 import {
   McpOAuthService,
   McpScope,

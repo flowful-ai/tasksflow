@@ -5,7 +5,7 @@
  */
 import { beforeAll, describe, expect, it } from 'bun:test';
 import { Hono } from 'hono';
-import type { AuthContext } from '@flowtask/auth';
+import type { AuthContext } from '../auth/index.js';
 import {
   createDatabase,
   labels,
@@ -15,7 +15,7 @@ import {
   workspaceMembers,
   workspaces,
   type Database,
-} from '@flowtask/database';
+} from '../db/index.js';
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 
@@ -91,7 +91,7 @@ describe.skipIf(!TEST_DATABASE_URL)('workstream-B routes (integration)', () => {
         import('./notifications.js'),
         import('./search.js'),
         import('./tasks.js'),
-        import('@flowtask/domain'),
+        import('../domain/index.js'),
       ]);
     const db = createDatabase(TEST_DATABASE_URL);
     const ws = await createWorkspace(db);

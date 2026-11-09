@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT } from '@flowtask/domain';
+import { DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT } from '../../domain/index.js';
 import { ToolExecutionError } from './errors.js';
 
 /**

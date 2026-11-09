@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { getDatabase } from '@flowtask/database';
-import { InvitationService, WorkspaceService, isDomainError } from '@flowtask/domain';
-import { getCurrentUser, hasPermission } from '@flowtask/auth';
+import { getDatabase } from '../db/index.js';
+import { InvitationService, WorkspaceService, isDomainError } from '../domain/index.js';
+import { getCurrentUser, hasPermission } from '../auth/index.js';
 import { CreateInvitationSchema } from '@flowtask/shared';
 
 const invitations = new Hono();

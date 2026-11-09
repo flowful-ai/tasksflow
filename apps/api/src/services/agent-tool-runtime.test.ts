@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { AGENT_TOOLS, type ToolParameterSchema } from '@flowtask/domain';
+import { AGENT_TOOLS, type ToolParameterSchema } from '../domain/index.js';
 import { AgentToolSchema, type AgentTool, type WorkspaceRole } from '@flowtask/shared';
 import { buildToolContext } from '../lib/mcp/tool-context.js';
 import { ToolExecutionError, type ToolErrorCode } from '../lib/mcp/errors.js';

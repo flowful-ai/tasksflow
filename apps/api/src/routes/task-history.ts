@@ -8,8 +8,8 @@
 import { Hono, type Context } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { getDatabase } from '@flowtask/database';
-import { TaskHistoryService } from '@flowtask/domain';
+import { getDatabase } from '../db/index.js';
+import { TaskHistoryService } from '../domain/index.js';
 import { requireTask } from '../lib/authorize.js';
 import { handleRouteError } from '../lib/responses.js';
 import { TaskHistoryQuerySchema } from '@flowtask/shared';

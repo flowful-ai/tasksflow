@@ -5,20 +5,20 @@
  * realtime, Slack and GitHub reverse sync consistent across all of them;
  * callers no longer publish or notify by hand.
  */
-import { externalLinks, type Database } from '@flowtask/database';
+import { externalLinks, type Database } from '../db/index.js';
 import {
   domainEvents,
   onNotificationCreated,
   type TaskFieldChange,
   type TaskUpdatedEvent,
   type TaskWithRelations,
-} from '@flowtask/domain';
+} from '../domain/index.js';
 import {
   GitHubReverseSyncService,
   notifySlackForTaskEvent,
   type SlackTaskEvent,
   type TaskChangesForGitHub,
-} from '@flowtask/integrations';
+} from '../integrations/index.js';
 import { REALTIME_EVENTS } from '@flowtask/shared';
 import { and, eq } from 'drizzle-orm';
 import { publishEvent, publishUserEvent } from '../sse/manager.js';

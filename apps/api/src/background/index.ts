@@ -4,9 +4,9 @@
  * Postgres job runner. Integration background work (GitHub reverse sync,
  * issue creation, Slack delivery) runs as durable jobs on that runner.
  */
-import type { Database } from '@flowtask/database';
-import { enqueueJob, startBackgroundServices, type JobHandlers } from '@flowtask/domain';
-import { getBackgroundJobRunners, isNonRetryableBackgroundError, useDurableJobQueue } from '@flowtask/integrations';
+import type { Database } from '../db/index.js';
+import { enqueueJob, startBackgroundServices, type JobHandlers } from '../domain/index.js';
+import { getBackgroundJobRunners, isNonRetryableBackgroundError, useDurableJobQueue } from '../integrations/index.js';
 import { registerDomainEventBridges } from './domain-bridges.js';
 
 export interface ApiBackground {

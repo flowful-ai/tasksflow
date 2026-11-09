@@ -1,7 +1,7 @@
 import type { Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { HTTPException } from 'hono/http-exception';
-import { isDomainError, isTaskError, type DomainErrorCode } from '@flowtask/domain';
+import { isDomainError, isTaskError, type DomainErrorCode } from '../domain/index.js';
 import type { Result } from '@flowtask/shared';
 
 /**

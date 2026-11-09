@@ -1,7 +1,7 @@
 import { Hono, type Context } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { getDatabase, type PublicShare } from '@flowtask/database';
+import { getDatabase, type PublicShare } from '../db/index.js';
 import {
   SmartViewService,
   TaskService,
@@ -9,8 +9,8 @@ import {
   toPublicTask,
   type PublicTask,
   type SmartViewWithRelations,
-} from '@flowtask/domain';
-import { hasPermission } from '@flowtask/auth';
+} from '../domain/index.js';
+import { hasPermission } from '../auth/index.js';
 import { createPaginationQuerySchema } from '@flowtask/shared';
 import {
   executeSmartViewTaskList,

@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq, gt, isNull, or } from 'drizzle-orm';
 import { z } from 'zod';
-import type { Database } from '@flowtask/database';
-import { mcpOAuthAccessTokens, mcpOAuthClients, mcpOAuthRefreshTokens } from '@flowtask/database/schema';
+import type { Database } from '../../db/index.js';
+import { mcpOAuthAccessTokens, mcpOAuthClients, mcpOAuthRefreshTokens } from '../../db/schema.js';
 import type { AgentTool } from '@flowtask/shared';
 import { OAuthError } from './errors.js';
 import { hashSecret, openWithSecret, randomOpaqueToken, sealWithSecret } from './crypto.js';

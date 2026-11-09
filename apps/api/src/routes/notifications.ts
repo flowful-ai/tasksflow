@@ -11,10 +11,10 @@
 import { Hono, type Context } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { getDatabase } from '@flowtask/database';
-import { NotificationService, type NotificationRecord } from '@flowtask/domain';
+import { getDatabase } from '../db/index.js';
+import { NotificationService, type NotificationRecord } from '../domain/index.js';
 import { getAuthz } from '../lib/authorize.js';
-import { getCurrentUser } from '@flowtask/auth';
+import { getCurrentUser } from '../auth/index.js';
 import {
   ListNotificationsQuerySchema,
   ReadAllNotificationsSchema,

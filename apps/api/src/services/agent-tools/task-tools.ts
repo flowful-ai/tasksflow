@@ -1,4 +1,4 @@
-import type { TaskFilters, TaskWithRelations } from '@flowtask/domain';
+import type { TaskFilters, TaskWithRelations } from '../../domain/index.js';
 import type { Result } from '@flowtask/shared';
 import { ToolExecutionError, fromDomainError, toToolErrorPayload } from '../../lib/mcp/errors.js';
 import type { ToolContext } from '../../lib/mcp/tool-context.js';

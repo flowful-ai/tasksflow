@@ -12,9 +12,9 @@
 import { Hono, type Context } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { getDatabase } from '@flowtask/database';
-import { OutgoingWebhookService, WorkspaceService, type OutgoingWebhookError } from '@flowtask/domain';
-import { getCurrentUser } from '@flowtask/auth';
+import { getDatabase } from '../db/index.js';
+import { OutgoingWebhookService, WorkspaceService, type OutgoingWebhookError } from '../domain/index.js';
+import { getCurrentUser } from '../auth/index.js';
 import { CreateOutgoingWebhookSchema, UpdateOutgoingWebhookSchema } from '@flowtask/shared';
 
 const outgoingWebhookRoutes = new Hono();

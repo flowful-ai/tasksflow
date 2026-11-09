@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
-import type { Database } from '@flowtask/database';
-import { mcpOAuthClients, type McpOAuthClient, type NewMcpOAuthClient } from '@flowtask/database/schema';
+import type { Database } from '../../db/index.js';
+import { mcpOAuthClients, type McpOAuthClient, type NewMcpOAuthClient } from '../../db/schema.js';
 import { OAuthError } from './errors.js';
 import { randomClientId } from './crypto.js';
 import {

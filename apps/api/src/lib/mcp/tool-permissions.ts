@@ -1,4 +1,4 @@
-import type { WorkspacePermission } from '@flowtask/auth';
+import type { WorkspacePermission } from '../../auth/index.js';
 import type { AgentTool } from '@flowtask/shared';
 
 /**

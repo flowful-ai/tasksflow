@@ -1,8 +1,8 @@
 import type { Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
-import { getDatabase } from '@flowtask/database';
-import { ProjectService, WorkspaceService } from '@flowtask/domain';
-import { hasPermission, type WorkspacePermission } from '@flowtask/auth';
+import { getDatabase } from '../db/index.js';
+import { ProjectService, WorkspaceService } from '../domain/index.js';
+import { hasPermission, type WorkspacePermission } from '../auth/index.js';
 
 const db = getDatabase();
 const projectService = new ProjectService(db);

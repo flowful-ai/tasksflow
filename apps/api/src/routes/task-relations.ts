@@ -10,8 +10,8 @@
 import { Hono, type Context } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { getDatabase } from '@flowtask/database';
-import { TaskRelationService, isTaskError } from '@flowtask/domain';
+import { getDatabase } from '../db/index.js';
+import { TaskRelationService, isTaskError } from '../domain/index.js';
 import { getAuthz, requireTask } from '../lib/authorize.js';
 import { handleRouteError } from '../lib/responses.js';
 import { AddTaskRelationSchema } from '@flowtask/shared';

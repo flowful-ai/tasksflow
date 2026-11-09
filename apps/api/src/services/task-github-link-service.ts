@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
-import type { Database } from '@flowtask/database';
-import { externalLinks, projects, tasks } from '@flowtask/database';
+import type { Database } from '../db/index.js';
+import { externalLinks, projects, tasks } from '../db/index.js';
 import { REALTIME_EVENTS, formatGitHubExternalId } from '@flowtask/shared';
 import {
   NonRetryableError,
@@ -12,7 +12,7 @@ import {
   scheduleBackgroundJob,
   type GitHubRepoTarget,
   type PublishRealtimeEvent,
-} from '@flowtask/integrations';
+} from '../integrations/index.js';
 
 export type TaskGitHubLinkErrorCode =
   | 'NO_INTEGRATION'

@@ -1,4 +1,4 @@
-import { getDatabase } from '@flowtask/database';
+import { getDatabase } from '../../db/index.js';
 import {
   AgentLookupService,
   ProjectService,
@@ -9,8 +9,8 @@ import {
   type ProjectWithRelations,
   type TaskKey,
   type TaskWithRelations,
-} from '@flowtask/domain';
-import { hasPermission, type WorkspacePermission } from '@flowtask/auth';
+} from '../../domain/index.js';
+import { hasPermission, type WorkspacePermission } from '../../auth/index.js';
 import { AgentToolSchema, type AgentTool, type WorkspaceRole } from '@flowtask/shared';
 import { ToolExecutionError } from './errors.js';
 

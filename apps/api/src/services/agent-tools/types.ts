@@ -1,5 +1,5 @@
-import { getDatabase } from '@flowtask/database';
-import { CommentService, SmartViewService, TaskService } from '@flowtask/domain';
+import { getDatabase } from '../../db/index.js';
+import { CommentService, SmartViewService, TaskService } from '../../domain/index.js';
 import { publishEvent } from '../../sse/manager.js';
 import { TaskGitHubLinkService } from '../task-github-link-service.js';
 import type { ToolContext } from '../../lib/mcp/tool-context.js';

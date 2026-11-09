@@ -6,9 +6,9 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
-import { getDatabase } from '@flowtask/database';
-import { AgentService, WorkspaceService } from '@flowtask/domain';
-import { getCurrentUser } from '@flowtask/auth';
+import { getDatabase } from '../db/index.js';
+import { AgentService, WorkspaceService } from '../domain/index.js';
+import { getCurrentUser } from '../auth/index.js';
 import {
   AgentToolSchema,
   AIModelSchema,
@@ -16,7 +16,7 @@ import {
   UpdateAgentSchema,
   getRequiredApiKeyProvidersForModel,
 } from '@flowtask/shared';
-import { hasPermission, type WorkspacePermission } from '@flowtask/auth';
+import { hasPermission, type WorkspacePermission } from '../auth/index.js';
 import { buildAiSdkTools, MCP_SERVER_INSTRUCTIONS } from '../services/agent-tool-runtime.js';
 import { buildToolContext } from '../lib/mcp/tool-context.js';
 

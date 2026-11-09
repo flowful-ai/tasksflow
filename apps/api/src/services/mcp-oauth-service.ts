@@ -1,5 +1,5 @@
-import { getDatabase, type Database } from '@flowtask/database';
-import type { McpOAuthClient } from '@flowtask/database/schema';
+import { getDatabase, type Database } from '../db/index.js';
+import type { McpOAuthClient } from '../db/schema.js';
 import { OAuthError } from './mcp-oauth/errors.js';
 import { isAuthorizingRole } from './mcp-oauth/scopes.js';
 import * as clients from './mcp-oauth/clients.js';

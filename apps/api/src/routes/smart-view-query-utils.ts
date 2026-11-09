@@ -1,5 +1,5 @@
 import type { Context } from 'hono';
-import { FilterEngine, isValidTimeZone, type TaskService } from '@flowtask/domain';
+import { FilterEngine, isValidTimeZone, type TaskService } from '../domain/index.js';
 import { ok, FilterGroupSchema, type FilterCondition, type FilterGroup } from '@flowtask/shared';
 
 export const CURRENT_USER_TEMPLATE = '{{current_user}}';

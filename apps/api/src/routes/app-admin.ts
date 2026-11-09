@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { getDatabase } from '@flowtask/database';
-import { AppAdminService } from '@flowtask/domain';
+import { getDatabase } from '../db/index.js';
+import { AppAdminService } from '../domain/index.js';
 import { AppUsersListQuerySchema, UpdateAppUserRoleSchema } from '@flowtask/shared';
 import { requireUser } from '../lib/authorize.js';
 import { AppError, forbidden, fromResult, handleRouteError, notFound } from '../lib/responses.js';

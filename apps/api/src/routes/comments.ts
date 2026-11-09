@@ -1,10 +1,10 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { getDatabase } from '@flowtask/database';
-import { CommentService } from '@flowtask/domain';
+import { getDatabase } from '../db/index.js';
+import { CommentService } from '../domain/index.js';
 import { CreateCommentSchema, UpdateCommentSchema, PaginationQuerySchema, REALTIME_EVENTS } from '@flowtask/shared';
 import { publishEvent } from '../sse/manager.js';
-import { hasPermission } from '@flowtask/auth';
+import { hasPermission } from '../auth/index.js';
 import { requireTask } from '../lib/authorize.js';
 import { fromResult, handleRouteError, notFound } from '../lib/responses.js';
 

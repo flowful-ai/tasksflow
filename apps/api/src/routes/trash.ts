@@ -11,8 +11,8 @@
 import { Hono, type Context } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { getDatabase } from '@flowtask/database';
-import { TaskService, isTaskError } from '@flowtask/domain';
+import { getDatabase } from '../db/index.js';
+import { TaskService, isTaskError } from '../domain/index.js';
 import { requireProject } from '../lib/authorize.js';
 import { handleRouteError } from '../lib/responses.js';
 import { TRASH_RETENTION_DAYS, TrashQuerySchema } from '@flowtask/shared';

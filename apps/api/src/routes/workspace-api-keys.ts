@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { getDatabase } from '@flowtask/database';
-import { AgentService, WorkspaceService } from '@flowtask/domain';
-import { getCurrentUser } from '@flowtask/auth';
+import { getDatabase } from '../db/index.js';
+import { AgentService, WorkspaceService } from '../domain/index.js';
+import { getCurrentUser } from '../auth/index.js';
 import { ApiKeyProviderSchema, UpdateWorkspaceAiSettingsSchema } from '@flowtask/shared';
-import { hasPermission } from '@flowtask/auth';
+import { hasPermission } from '../auth/index.js';
 
 const workspaceApiKeysRoutes = new Hono();
 const db = getDatabase();

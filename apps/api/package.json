@@ -9,27 +9,34 @@
     "start": "bun run dist/index.js",
     "typecheck": "tsc --noEmit",
     "test": "bun test --pass-with-no-tests",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "db:rekey": "bun scripts/rekey-positions.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.0",
     "@ai-sdk/google": "^3.0.0",
     "@ai-sdk/openai": "^3.0.0",
-    "@flowtask/auth": "workspace:*",
-    "@flowtask/database": "workspace:*",
-    "@flowtask/domain": "workspace:*",
-    "@flowtask/integrations": "workspace:*",
     "@flowtask/shared": "workspace:*",
     "@hono/zod-validator": "^0.4.2",
     "@modelcontextprotocol/sdk": "^1.32.2",
+    "@octokit/auth-app": "^8.2.0",
+    "@octokit/rest": "^21.0.2",
     "@openrouter/ai-sdk-provider": "^2.0.0",
+    "@slack/bolt": "^4.1.0",
     "ai": "^6.0.84",
+    "better-auth": "^1.7.18",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.13.17",
+    "postgres": "^3.4.5",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/bun": "~1.3.11",
+    "drizzle-kit": "^0.31.11",
     "typescript": "^5.7.2"
   }
 }

@@ -1,5 +1,5 @@
-import type { TaskWithRelations } from '@flowtask/domain';
-import { UNTRUSTED_TEXT_KEY } from '@flowtask/domain';
+import type { TaskWithRelations } from '../../domain/index.js';
+import { UNTRUSTED_TEXT_KEY } from '../../domain/index.js';
 import { ToolExecutionError } from './errors.js';
 import type { JsonRecord } from './json-schema-zod.js';
 import { resolveMcpTaskViewArgs, resolveMcpWriteReturnMode, type McpTaskViewArgs, type McpWriteReturnMode } from './tool-args.js';

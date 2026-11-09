@@ -1,11 +1,11 @@
-import { closeDatabase, getDatabase, runMigrations } from '@flowtask/database';
+import { closeDatabase, getDatabase, runMigrations } from './db/index.js';
 import { createApp } from './app.js';
 import { startApiBackground } from './background/index.js';
 import { applyClientIp, parseTrustedProxyHops, resolveClientIp } from './lib/client-ip.js';
 import { resolveMigrationsDir, shouldRunMigrations } from './lib/migrations.js';
 import { markShuttingDown, registerShutdownHook, runShutdownHooks, withTimeout } from './lib/shutdown.js';
 import { initSSE, shutdownSSE } from './sse/manager.js';
-import { checkApiKeyEncryptionConfig, rekeyTaskPositions } from '@flowtask/domain';
+import { checkApiKeyEncryptionConfig, rekeyTaskPositions } from './domain/index.js';
 
 const { app, webDistDir } = createApp();
 

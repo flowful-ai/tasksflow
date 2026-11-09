@@ -1,11 +1,11 @@
-import { getDatabase, githubInstallations } from '@flowtask/database';
+import { getDatabase, githubInstallations } from '../db/index.js';
 import {
   InstallationVerificationError,
   consumeOAuthState,
   updateGitHubConfig,
   verifyUserInstallation,
   type FetchLike,
-} from '@flowtask/integrations';
+} from '../integrations/index.js';
 import { authorizeProjectIntegration } from './integration-access.js';
 
 const db = getDatabase();

@@ -1,4 +1,4 @@
-import { createConnection } from '@flowtask/database';
+import { createConnection } from '../db/index.js';
 import type { RealtimeTransport } from './hub.js';
 import { NOTIFY_CHANNEL } from './wire.js';
 

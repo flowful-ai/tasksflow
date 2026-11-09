@@ -6,8 +6,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { createDatabase, type Database } from '@flowtask/database';
-import { mcpOAuthClients, users, workspaceMembers, workspaces } from '@flowtask/database/schema';
+import { createDatabase, type Database } from '../../db/index.js';
+import { mcpOAuthClients, users, workspaceMembers, workspaces } from '../../db/schema.js';
 import { OAuthError } from './errors.js';
 import { buildS256CodeChallenge } from './crypto.js';
 import { createAuthorizationCode, exchangeAuthorizationCode } from './codes.js';

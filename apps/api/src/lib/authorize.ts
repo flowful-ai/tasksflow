@@ -1,5 +1,5 @@
 import type { Context } from 'hono';
-import { getDatabase } from '@flowtask/database';
+import { getDatabase } from '../db/index.js';
 import {
   AuthorizationService,
   canAccessSmartView,
@@ -12,8 +12,8 @@ import {
   type TaskAuthorizationOptions,
   type TaskGrant,
   type WorkspaceGrant,
-} from '@flowtask/domain';
-import { getOptionalUser, hasPermission, type AuthSession, type AuthUser, type WorkspacePermission } from '@flowtask/auth';
+} from '../domain/index.js';
+import { getOptionalUser, hasPermission, type AuthSession, type AuthUser, type WorkspacePermission } from '../auth/index.js';
 import { AppError, forbidden, fromResult, notFound, unauthorized } from './responses.js';
 
 /**

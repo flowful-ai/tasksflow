@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import type { TaskWithRelations } from '@flowtask/domain';
+import type { TaskWithRelations } from '../../domain/index.js';
 import {
   projectTask,
   projectTaskList,

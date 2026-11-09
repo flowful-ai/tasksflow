@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { requireAuth } from '@flowtask/auth';
+import { requireAuth } from '../auth/index.js';
 import { getAuthz, requireSession, requireUser } from '../lib/authorize.js';
 import { AppError, forbidden, handleRouteError } from '../lib/responses.js';
 import { registerClient } from '../sse/manager.js';

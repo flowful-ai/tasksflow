@@ -8,10 +8,6 @@ WORKDIR /app
 
 COPY package.json bun.lock tsconfig.json ./
 COPY packages/shared/package.json packages/shared/
-COPY packages/database/package.json packages/database/
-COPY packages/auth/package.json packages/auth/
-COPY packages/domain/package.json packages/domain/
-COPY packages/integrations/package.json packages/integrations/
 COPY apps/web/package.json apps/web/
 COPY apps/api/package.json apps/api/
 RUN bun install --frozen-lockfile
@@ -31,9 +27,9 @@ ENV VITE_API_URL=$VITE_API_URL \
     VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID \
     VITE_GITHUB_APP_SLUG=$VITE_GITHUB_APP_SLUG
 
-# The web build reads @flowtask/shared from its dist; the API bundle reads every
-# workspace package from source (the "bun" export condition) and inlines all
-# dependencies, so the runner needs no node_modules.
+# The web build reads @flowtask/shared from its dist; the API bundle reads it
+# from source (the "bun" export condition) and inlines all dependencies, so
+# the runner needs no node_modules.
 RUN cd packages/shared && bun run build
 RUN cd apps/web && bun run build
 RUN cd apps/api && bun run build
@@ -49,7 +45,7 @@ ENV NODE_ENV=production \
 
 COPY --from=builder --chown=bun:bun /app/apps/api/dist/ ./
 COPY --from=builder --chown=bun:bun /app/apps/web/dist/ ./public/
-COPY --from=builder --chown=bun:bun /app/packages/database/drizzle/ ./drizzle/
+COPY --from=builder --chown=bun:bun /app/apps/api/drizzle/ ./drizzle/
 
 USER bun
 EXPOSE 3001

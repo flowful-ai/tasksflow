@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { and, eq } from 'drizzle-orm';
-import { labels, taskStates, tasks, workspaceMembers, workspaces } from '@flowtask/database';
+import { labels, taskStates, tasks, workspaceMembers, workspaces } from '../db/index.js';
 import { integrationEnabled, setupHarness, type Harness, type Seed } from './harness.js';
 
 /**

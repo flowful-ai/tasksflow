@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ToolJsonType, ToolParameterSchema } from '@flowtask/domain';
+import type { ToolJsonType, ToolParameterSchema } from '../../domain/index.js';
 
 export type JsonValue = string | number | boolean | null | JsonValue[] | JsonRecord;
 export interface JsonRecord {

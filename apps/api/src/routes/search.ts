@@ -9,8 +9,8 @@
 import { Hono, type Context } from 'hono';
 import type { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { getDatabase } from '@flowtask/database';
-import { SearchService } from '@flowtask/domain';
+import { getDatabase } from '../db/index.js';
+import { SearchService } from '../domain/index.js';
 import { getAuthz, requireWorkspace } from '../lib/authorize.js';
 import { handleRouteError } from '../lib/responses.js';
 import { SearchQuerySchema } from '@flowtask/shared';

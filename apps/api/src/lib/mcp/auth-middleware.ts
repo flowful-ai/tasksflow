@@ -1,6 +1,6 @@
 import type { Context, MiddlewareHandler } from 'hono';
-import { getDatabase } from '@flowtask/database';
-import { WorkspaceService } from '@flowtask/domain';
+import { getDatabase } from '../../db/index.js';
+import { WorkspaceService } from '../../domain/index.js';
 import type { WorkspaceRole } from '@flowtask/shared';
 import { getBaseUrl } from '../base-url.js';
 import { extractBearerToken } from './bearer.js';

@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { and, eq } from 'drizzle-orm';
-import { getDatabase, projectIntegrations } from '@flowtask/database';
-import { getCurrentSession, getCurrentUser } from '@flowtask/auth';
+import { getDatabase, projectIntegrations } from '../db/index.js';
+import { getCurrentSession, getCurrentUser } from '../auth/index.js';
 import { UpdateSlackIntegrationSchema, parseSlackConfig, type SlackConfig } from '@flowtask/shared';
 import {
   buildSlackAuthorizeUrl,
@@ -11,7 +11,7 @@ import {
   getEnvSlackBotToken,
   getSlackOAuthCredentials,
   readSecretEnv,
-} from '@flowtask/integrations';
+} from '../integrations/index.js';
 import { apiError, authorizeProjectIntegration } from '../services/integration-access.js';
 
 /**

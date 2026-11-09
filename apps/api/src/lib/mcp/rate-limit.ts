@@ -1,5 +1,5 @@
 import type { Context, MiddlewareHandler } from 'hono';
-import { RateLimitService, type RateLimitResult } from '@flowtask/domain';
+import { RateLimitService, type RateLimitResult } from '../../domain/index.js';
 import { getClientIp } from '../client-ip.js';
 
 /**

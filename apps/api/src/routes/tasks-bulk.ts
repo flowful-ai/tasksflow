@@ -12,9 +12,9 @@
 import { Hono, type Context } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { getDatabase } from '@flowtask/database';
-import { TaskBulkService, lookupTaskProjects } from '@flowtask/domain';
-import { getCurrentUser, type WorkspacePermission } from '@flowtask/auth';
+import { getDatabase } from '../db/index.js';
+import { TaskBulkService, lookupTaskProjects } from '../domain/index.js';
+import { getCurrentUser, type WorkspacePermission } from '../auth/index.js';
 import { getAuthz } from '../lib/authorize.js';
 import { BulkTaskRequestSchema, type BulkTaskOperation } from '@flowtask/shared';
 

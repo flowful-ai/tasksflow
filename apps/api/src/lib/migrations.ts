@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 /**
- * Drizzle migrations folder: MIGRATIONS_DIR, else packages/database/drizzle in
+ * Drizzle migrations folder: MIGRATIONS_DIR, else apps/api/drizzle in
  * the repo (dev), else ./drizzle next to the bundle (Docker image). Null when
  * none has a meta/_journal.json.
  */
@@ -11,7 +11,7 @@ export function resolveMigrationsDir(
 ): string | null {
   const candidates = [
     env.MIGRATIONS_DIR,
-    join(import.meta.dir, '../../../../packages/database/drizzle'),
+    join(import.meta.dir, '../../drizzle'),
     join(import.meta.dir, 'drizzle'),
   ];
   for (const candidate of candidates) {

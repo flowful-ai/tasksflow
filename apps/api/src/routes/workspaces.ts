@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { getDatabase } from '@flowtask/database';
-import { WorkspaceService } from '@flowtask/domain';
+import { getDatabase } from '../db/index.js';
+import { WorkspaceService } from '../domain/index.js';
 import {
   CreateWorkspaceSchema,
   UpdateWorkspaceSchema,

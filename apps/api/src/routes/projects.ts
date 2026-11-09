@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { getDatabase } from '@flowtask/database';
-import { ProjectService } from '@flowtask/domain';
-import { hasPermission } from '@flowtask/auth';
+import { getDatabase } from '../db/index.js';
+import { ProjectService } from '../domain/index.js';
+import { hasPermission } from '../auth/index.js';
 import {
   CreateProjectSchema,
   UpdateProjectSchema,

@@ -1,6 +1,6 @@
 import type { Context } from 'hono';
 import { getConnInfo } from 'hono/bun';
-import { CLIENT_IP_HEADER } from '@flowtask/auth';
+import { CLIENT_IP_HEADER } from '../auth/index.js';
 
 export { CLIENT_IP_HEADER };
 

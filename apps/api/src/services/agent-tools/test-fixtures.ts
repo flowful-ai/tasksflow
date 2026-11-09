@@ -2,7 +2,7 @@
  * In-memory fakes for agent tool tests (two workspaces, an ACL-restricted
  * project). Not imported by production code.
  */
-import type { ProjectWithRelations, TaskFilters, TaskListOptions, TaskWithRelations } from '@flowtask/domain';
+import type { ProjectWithRelations, TaskFilters, TaskListOptions, TaskWithRelations } from '../../domain/index.js';
 import { err, ok, type WorkspaceRole } from '@flowtask/shared';
 import type { ToolScopeDeps, WorkspaceMemberSummary } from '../../lib/mcp/tool-context.js';
 import type { ToolServices } from './types.js';

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq, gt, isNull } from 'drizzle-orm';
-import type { Database } from '@flowtask/database';
-import { mcpOAuthAuthorizationCodes, type NewMcpOAuthAuthorizationCode } from '@flowtask/database/schema';
+import type { Database } from '../../db/index.js';
+import { mcpOAuthAuthorizationCodes, type NewMcpOAuthAuthorizationCode } from '../../db/schema.js';
 import { OAuthError } from './errors.js';
 import { buildS256CodeChallenge, hashSecret, randomOpaqueToken } from './crypto.js';
 import { normalizeScopeString } from './scopes.js';

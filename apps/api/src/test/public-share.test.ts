@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
 import { and, eq } from 'drizzle-orm';
-import { publicShares, workspaceMembers } from '@flowtask/database';
-import { SHARE_PASSWORD_LIMITS } from '@flowtask/domain';
+import { publicShares, workspaceMembers } from '../db/index.js';
+import { SHARE_PASSWORD_LIMITS } from '../domain/index.js';
 import { integrationEnabled, setupHarness, type Harness } from './harness.js';
 
 describe.skipIf(!integrationEnabled)('public shares', () => {

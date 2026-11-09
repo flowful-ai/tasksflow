@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { WorkspaceService } from '@flowtask/domain';
-import { getDatabase } from '@flowtask/database';
-import { getCurrentUser } from '@flowtask/auth';
+import { WorkspaceService } from '../domain/index.js';
+import { getDatabase } from '../db/index.js';
+import { getCurrentUser } from '../auth/index.js';
 import { AgentToolSchema } from '@flowtask/shared';
 import { McpOAuthService, OAuthError } from '../services/mcp-oauth-service.js';
 

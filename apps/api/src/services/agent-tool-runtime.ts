@@ -1,5 +1,5 @@
 import { jsonSchema, tool, type ToolSet } from 'ai';
-import { AGENT_TOOLS, isMutatingTool, type ToolAnnotations, type ToolDefinition, type ToolObjectSchema } from '@flowtask/domain';
+import { AGENT_TOOLS, isMutatingTool, type ToolAnnotations, type ToolDefinition, type ToolObjectSchema } from '../domain/index.js';
 import type { AgentTool } from '@flowtask/shared';
 import { ToolExecutionError, toToolErrorPayload, type ToolErrorPayload } from '../lib/mcp/errors.js';
 import { formatZodIssues, isJsonRecord, jsonSchemaToZod, type JsonRecord, type JsonValue } from '../lib/mcp/json-schema-zod.js';

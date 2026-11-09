@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
-import { getDatabase, githubInstallations } from '@flowtask/database';
-import { authMiddleware, getCurrentSession, getCurrentUser, getOptionalUser } from '@flowtask/auth';
-import { TaskService } from '@flowtask/domain';
+import { getDatabase, githubInstallations } from '../db/index.js';
+import { authMiddleware, getCurrentSession, getCurrentUser, getOptionalUser } from '../auth/index.js';
+import { TaskService } from '../domain/index.js';
 import { GitHubRepoRefSchema, LinkGitHubRepositorySchema, findLinkedRepository } from '@flowtask/shared';
 import {
   GitHubSyncService,
@@ -15,7 +15,7 @@ import {
   readSecretEnv,
   updateGitHubConfig,
   updateRepoSyncStatus,
-} from '@flowtask/integrations';
+} from '../integrations/index.js';
 import { apiError, authorizeProjectIntegration } from '../services/integration-access.js';
 import { GitHubInstallError, completeGitHubInstallation } from '../services/github-install-service.js';
 import { slackRoutes } from './slack.js';
