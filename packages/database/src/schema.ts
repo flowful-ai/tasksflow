@@ -8,7 +8,40 @@ import {
   jsonb,
   uniqueIndex,
   index,
+  check,
+  customType,
+  primaryKey,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+
+/** Postgres full-text search vector (always a generated column here). */
+const tsvector = customType<{ data: string; driverData: string }>({
+  dataType() {
+    return 'tsvector';
+  },
+});
+
+/** Allowed values for tasks.priority (mirrors TaskPrioritySchema in @flowtask/shared). */
+export const TASK_PRIORITY_VALUES = ['urgent', 'high', 'medium', 'low', 'none'] as const;
+/** Allowed values for task_states.category (mirrors TaskStateCategorySchema). */
+export const TASK_STATE_CATEGORY_VALUES = ['backlog', 'in_progress', 'done'] as const;
+/** Allowed values for task_relations.type. */
+export const TASK_RELATION_TYPE_VALUES = ['blocks', 'relates', 'duplicates'] as const;
+/** Allowed values for notifications.type. */
+export const NOTIFICATION_TYPE_VALUES = [
+  'assigned',
+  'mentioned',
+  'commented',
+  'status_changed',
+  'due_soon',
+  'overdue',
+  'github',
+] as const;
+
+function sqlInList(values: readonly string[]) {
+  return sql.raw(values.map((v) => `'${v}'`).join(', '));
+}
 
 // ============ CORE TABLES ============
 
@@ -85,6 +118,9 @@ export const projects = pgTable(
     icon: text('icon'),
     isArchived: boolean('is_archived').default(false).notNull(),
     access: text('access').notNull().default('all'), // 'all', 'admin', 'members'
+    // Next task sequence number (FLOW-<n>), allocated with UPDATE ... RETURNING
+    // inside the task-create transaction. Backfill: drizzle-v2-data/task-sequence.sql
+    nextTaskSeq: integer('next_task_seq').notNull().default(1),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -149,7 +185,10 @@ export const taskStates = pgTable(
     position: text('position').notNull(), // Lexicographic ordering
     color: text('color'),
   },
-  (table) => [index('task_state_project_idx').on(table.projectId)]
+  (table) => [
+    index('task_state_project_idx').on(table.projectId),
+    check('task_state_category_check', sql`${table.category} IN (${sqlInList(TASK_STATE_CATEGORY_VALUES)})`),
+  ]
 );
 
 export const tasks = pgTable(
@@ -164,7 +203,14 @@ export const tasks = pgTable(
     title: text('title').notNull(),
     description: text('description'), // Markdown
     priority: text('priority'), // 'urgent', 'high', 'medium', 'low', 'none'
-    position: text('position').notNull(), // Lexicographic ordering within column
+    // Fractional index within the column. Must sort byte-wise: the column is
+    // switched to COLLATE "C" by drizzle-v2-data/b20-positions-collation.sql
+    // (drizzle can't declare a collation, and a custom type would make
+    // drizzle-kit push TRUNCATE the table), and TaskService orders with an
+    // explicit COLLATE "C" as well.
+    position: text('position').notNull(),
+    // Sub-tasks: same-project parent, cycles rejected in TaskService.
+    parentId: uuid('parent_id').references((): AnyPgColumn => tasks.id, { onDelete: 'set null' }),
     dueDate: timestamp('due_date'),
     startDate: timestamp('start_date'),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
@@ -172,9 +218,22 @@ export const tasks = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
     deletedAt: timestamp('deleted_at'), // Soft delete
+    // Full-text search: title (weight A) + description (weight B), 'simple'
+    // config so it works for any language. Not selected by TaskService.
+    searchVector: tsvector('search_vector').generatedAlwaysAs(
+      sql`setweight(to_tsvector('simple', coalesce(title, '')), 'A') || setweight(to_tsvector('simple', coalesce(description, '')), 'B')`
+    ),
   },
   (table) => [
     index('task_project_idx').on(table.projectId),
+    index('task_parent_idx').on(table.parentId),
+    index('task_search_idx').using('gin', table.searchVector),
+    index('task_deleted_at_idx').on(table.projectId, table.deletedAt),
+    index('task_due_date_idx').on(table.dueDate),
+    check(
+      'task_priority_check',
+      sql`${table.priority} IS NULL OR ${table.priority} IN (${sqlInList(TASK_PRIORITY_VALUES)})`
+    ),
     index('task_state_idx').on(table.stateId),
     index('task_assignee_idx').on(table.createdBy),
     // Composite index for the primary board query: filter by project (+state)
@@ -273,10 +332,15 @@ export const taskEvents = pgTable(
     fieldName: text('field_name'),
     oldValue: jsonb('old_value'),
     newValue: jsonb('new_value'),
+    // Display snapshot taken when the event was recorded (e.g. state names for a
+    // move), so history still renders after a state/label/user is deleted.
+    metadata: jsonb('metadata'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [
     index('task_event_task_idx').on(table.taskId),
+    // Per-task history, newest first, keyset-paginated on (created_at, id).
+    index('task_event_task_created_idx').on(table.taskId, table.createdAt, table.id),
     // Supports "activity by actor" lookups and the set-null on user delete.
     index('task_event_actor_idx').on(table.actorId),
   ]
@@ -689,6 +753,162 @@ export const accounts = pgTable(
   ]
 );
 
+// ============ TASK RELATIONS ============
+
+export const taskRelations = pgTable(
+  'task_relations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // 'blocks': task blocks relatedTask. 'duplicates': task duplicates relatedTask.
+    // 'relates': symmetric (stored once; the reverse pair is rejected in TaskRelationService).
+    taskId: uuid('task_id')
+      .references(() => tasks.id, { onDelete: 'cascade' })
+      .notNull(),
+    relatedTaskId: uuid('related_task_id')
+      .references(() => tasks.id, { onDelete: 'cascade' })
+      .notNull(),
+    type: text('type').notNull(),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('unique_task_relation').on(table.taskId, table.relatedTaskId, table.type),
+    index('task_relation_related_idx').on(table.relatedTaskId),
+    check('task_relation_no_self', sql`${table.taskId} <> ${table.relatedTaskId}`),
+    check('task_relation_type_check', sql`${table.type} IN (${sqlInList(TASK_RELATION_TYPE_VALUES)})`),
+  ]
+);
+
+// ============ NOTIFICATIONS (Inbox) ============
+
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    workspaceId: uuid('workspace_id')
+      .references(() => workspaces.id, { onDelete: 'cascade' })
+      .notNull(),
+    type: text('type').notNull(),
+    taskId: uuid('task_id').references(() => tasks.id, { onDelete: 'cascade' }),
+    actorId: uuid('actor_id').references(() => users.id, { onDelete: 'set null' }),
+    data: jsonb('data').notNull().default({}),
+    // Idempotency key, e.g. "due_soon:<taskId>:2026-11-09" (one reminder per task per day).
+    dedupeKey: text('dedupe_key'),
+    readAt: timestamp('read_at', { withTimezone: true }),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
+    snoozedUntil: timestamp('snoozed_until', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    // Inbox list: WHERE user_id AND workspace_id ... ORDER BY created_at DESC, id DESC
+    index('notification_inbox_idx').on(table.userId, table.workspaceId, table.createdAt, table.id),
+    // Unread badge
+    index('notification_unread_idx')
+      .on(table.userId, table.workspaceId)
+      .where(sql`${table.readAt} IS NULL AND ${table.archivedAt} IS NULL`),
+    index('notification_task_idx').on(table.taskId),
+    uniqueIndex('unique_notification_dedupe')
+      .on(table.userId, table.dedupeKey)
+      .where(sql`${table.dedupeKey} IS NOT NULL`),
+    check('notification_type_check', sql`${table.type} IN (${sqlInList(NOTIFICATION_TYPE_VALUES)})`),
+  ]
+);
+
+// ============ JOBS (Postgres queue, FOR UPDATE SKIP LOCKED) ============
+
+export const jobs = pgTable(
+  'jobs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    type: text('type').notNull(),
+    payload: jsonb('payload').notNull().default({}),
+    // Singleton key: at most one pending job per key (recurring scans, dedupe).
+    key: text('key'),
+    runAt: timestamp('run_at', { withTimezone: true }).defaultNow().notNull(),
+    attempts: integer('attempts').notNull().default(0),
+    maxAttempts: integer('max_attempts').notNull().default(5),
+    lastError: text('last_error'),
+    lockedAt: timestamp('locked_at', { withTimezone: true }),
+    lockedBy: text('locked_by'),
+    doneAt: timestamp('done_at', { withTimezone: true }),
+    failedAt: timestamp('failed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('job_pending_idx')
+      .on(table.runAt)
+      .where(sql`${table.doneAt} IS NULL AND ${table.failedAt} IS NULL`),
+    uniqueIndex('unique_pending_job_key')
+      .on(table.key)
+      .where(sql`${table.key} IS NOT NULL AND ${table.doneAt} IS NULL AND ${table.failedAt} IS NULL`),
+    index('job_done_idx').on(table.doneAt),
+  ]
+);
+
+// ============ OUTGOING WEBHOOKS ============
+
+export const outgoingWebhooks = pgTable(
+  'outgoing_webhooks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    workspaceId: uuid('workspace_id')
+      .references(() => workspaces.id, { onDelete: 'cascade' })
+      .notNull(),
+    url: text('url').notNull(),
+    description: text('description'),
+    // HMAC-SHA256 signing secret. Returned in full only at creation / rotation.
+    secret: text('secret').notNull(),
+    events: text('events').array().notNull().default(sql`ARRAY[]::text[]`),
+    enabled: boolean('enabled').notNull().default(true),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index('outgoing_webhook_workspace_idx').on(table.workspaceId)]
+);
+
+export const outgoingWebhookDeliveries = pgTable(
+  'outgoing_webhook_deliveries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    webhookId: uuid('webhook_id')
+      .references(() => outgoingWebhooks.id, { onDelete: 'cascade' })
+      .notNull(),
+    event: text('event').notNull(),
+    payload: jsonb('payload').notNull(),
+    status: text('status').notNull().default('pending'), // 'pending', 'success', 'failed'
+    responseCode: integer('response_code'),
+    attempt: integer('attempt').notNull().default(0),
+    error: text('error'),
+    durationMs: integer('duration_ms'),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('outgoing_webhook_delivery_webhook_idx').on(table.webhookId, table.createdAt),
+    index('outgoing_webhook_delivery_created_idx').on(table.createdAt),
+  ]
+);
+
+// ============ RATE LIMITING (UNLOGGED via drizzle-v2-data/rate-limit-unlogged.sql) ============
+
+export const rateLimitCounters = pgTable(
+  'rate_limit_counters',
+  {
+    key: text('key').notNull(),
+    bucketStart: timestamp('bucket_start', { withTimezone: true }).notNull(),
+    count: integer('count').notNull().default(0),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.key, table.bucketStart] }),
+    index('rate_limit_counters_expires_idx').on(table.expiresAt),
+  ]
+);
+
 // Type exports for use in application code
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -779,3 +999,21 @@ export type NewGitHubInstallation = typeof githubInstallations.$inferInsert;
 
 export type ProjectMember = typeof projectMembers.$inferSelect;
 export type NewProjectMember = typeof projectMembers.$inferInsert;
+
+export type TaskRelation = typeof taskRelations.$inferSelect;
+export type NewTaskRelation = typeof taskRelations.$inferInsert;
+
+export type Notification = typeof notifications.$inferSelect;
+export type NewNotification = typeof notifications.$inferInsert;
+
+export type Job = typeof jobs.$inferSelect;
+export type NewJob = typeof jobs.$inferInsert;
+
+export type OutgoingWebhook = typeof outgoingWebhooks.$inferSelect;
+export type NewOutgoingWebhook = typeof outgoingWebhooks.$inferInsert;
+
+export type OutgoingWebhookDelivery = typeof outgoingWebhookDeliveries.$inferSelect;
+export type NewOutgoingWebhookDelivery = typeof outgoingWebhookDeliveries.$inferInsert;
+
+export type RateLimitCounter = typeof rateLimitCounters.$inferSelect;
+export type NewRateLimitCounter = typeof rateLimitCounters.$inferInsert;

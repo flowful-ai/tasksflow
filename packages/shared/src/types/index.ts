@@ -9,3 +9,7 @@ export * from './agent.js';
 export * from './api-token.js';
 export * from './invitation.js';
 export * from './app.js';
+export * from './json.js';
+export * from './notification.js';
+export * from './outgoing-webhook.js';
+export * from './search.js';

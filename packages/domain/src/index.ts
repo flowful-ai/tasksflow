@@ -1,6 +1,16 @@
 // Task domain
 export * from './task/service.js';
 export * from './task/types.js';
+export * from './task/errors.js';
+export * from './task/access.js';
+export * from './task/relations.js';
+export * from './task/history.js';
+export * from './task/bulk.js';
+export { placeTask, positionOrder } from './task/positions.js';
+
+// Domain events, search
+export * from './events/index.js';
+export * from './search/index.js';
 
 // Project domain
 export * from './project/service.js';

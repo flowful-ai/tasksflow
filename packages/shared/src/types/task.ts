@@ -29,8 +29,10 @@ export const CreateTaskSchema = z.object({
   priority: TaskPrioritySchema.optional(),
   dueDate: z.coerce.date().optional(),
   startDate: z.coerce.date().optional(),
-  assigneeIds: z.array(z.string().uuid()).optional(),
-  labelIds: z.array(z.string().uuid()).optional(),
+  assigneeIds: z.array(z.string().uuid()).max(50).optional(),
+  labelIds: z.array(z.string().uuid()).max(50).optional(),
+  /** Parent task (sub-task). Must be in the same project; cycles are rejected. */
+  parentId: z.string().uuid().nullable().optional(),
   // GitHub integration: optionally create a linked GitHub issue
   createOnGitHub: z.boolean().optional(),
   githubRepo: z.object({
@@ -65,13 +67,31 @@ export const UpdateTaskSchema = z.object({
   position: z.string().optional(),
   dueDate: z.coerce.date().nullable().optional(),
   startDate: z.coerce.date().nullable().optional(),
+  /** Set (or clear with null) the parent task. Same project only; cycles rejected. */
+  parentId: z.string().uuid().nullable().optional(),
+  /** Replace the full assignee set (validated against workspace/project membership). */
+  assigneeIds: z.array(z.string().uuid()).max(50).optional(),
+  /** Replace the full label set (labels must belong to the task's project). */
+  labelIds: z.array(z.string().uuid()).max(50).optional(),
 });
 
 export type UpdateTask = z.infer<typeof UpdateTaskSchema>;
 
+/**
+ * Move a task to a column and/or reorder it.
+ *
+ * Preferred: pass the neighbours the task is dropped between and let the
+ * server compute the key (`afterTaskId` = the task that ends up directly
+ * above, `beforeTaskId` = directly below; either may be omitted at the
+ * column edges, both omitted = append to the end).
+ * Legacy: pass a client-computed `position`; the server keeps it when it is a
+ * valid, unused key and otherwise inserts the task where that key would sort.
+ */
 export const MoveTaskSchema = z.object({
   stateId: z.string().uuid(),
-  position: z.string(),
+  position: z.string().max(200).optional(),
+  afterTaskId: z.string().uuid().nullable().optional(),
+  beforeTaskId: z.string().uuid().nullable().optional(),
 });
 
 export type MoveTask = z.infer<typeof MoveTaskSchema>;
@@ -105,6 +125,8 @@ export const TaskEventTypeSchema = z.enum([
   'commented',
   'deleted',
   'restored',
+  'relation_added',
+  'relation_removed',
 ]);
 export type TaskEventType = z.infer<typeof TaskEventTypeSchema>;
 
@@ -145,3 +167,87 @@ export const UpdateCommentSchema = z.object({
 });
 
 export type UpdateComment = z.infer<typeof UpdateCommentSchema>;
+
+// ============ Task relations ============
+
+export const TaskRelationTypeSchema = z.enum(['blocks', 'relates', 'duplicates']);
+export type TaskRelationType = z.infer<typeof TaskRelationTypeSchema>;
+
+/**
+ * Relation as seen from one task. `blocks`/`duplicates` are directional:
+ * `direction: 'outgoing'` means "this task blocks/duplicates `task`",
+ * `'incoming'` means "`task` blocks/duplicates this task". `relates` is
+ * symmetric and always reported as 'outgoing'.
+ */
+export const AddTaskRelationSchema = z.object({
+  relatedTaskId: z.string().uuid(),
+  type: TaskRelationTypeSchema,
+  /** For 'blocks'/'duplicates': 'outgoing' (default) = this task → related, 'incoming' = related → this task. */
+  direction: z.enum(['outgoing', 'incoming']).default('outgoing'),
+});
+export type AddTaskRelation = z.infer<typeof AddTaskRelationSchema>;
+
+// ============ Bulk operations ============
+
+export const BULK_TASK_LIMIT = 200;
+
+export const BulkTaskOperationSchema = z
+  .object({
+    stateId: z.string().uuid().optional(),
+    priority: TaskPrioritySchema.nullable().optional(),
+    addAssigneeIds: z.array(z.string().uuid()).max(50).optional(),
+    removeAssigneeIds: z.array(z.string().uuid()).max(50).optional(),
+    addLabelIds: z.array(z.string().uuid()).max(50).optional(),
+    removeLabelIds: z.array(z.string().uuid()).max(50).optional(),
+    delete: z.boolean().optional(),
+    restore: z.boolean().optional(),
+  })
+  .refine((op) => !(op.delete && op.restore), { message: 'delete and restore are mutually exclusive' })
+  .refine(
+    (op) =>
+      op.stateId !== undefined ||
+      op.priority !== undefined ||
+      Boolean(op.addAssigneeIds?.length) ||
+      Boolean(op.removeAssigneeIds?.length) ||
+      Boolean(op.addLabelIds?.length) ||
+      Boolean(op.removeLabelIds?.length) ||
+      op.delete === true ||
+      op.restore === true,
+    { message: 'op must change at least one thing' }
+  );
+export type BulkTaskOperation = z.infer<typeof BulkTaskOperationSchema>;
+
+export const BulkTaskRequestSchema = z.object({
+  taskIds: z.array(z.string().uuid()).min(1).max(BULK_TASK_LIMIT),
+  op: BulkTaskOperationSchema,
+});
+export type BulkTaskRequest = z.infer<typeof BulkTaskRequestSchema>;
+
+export type BulkTaskResultStatus = 'updated' | 'unchanged' | 'not_found' | 'forbidden' | 'invalid';
+
+export interface BulkTaskItemResult {
+  taskId: string;
+  status: BulkTaskResultStatus;
+  /** Error code when status is not updated/unchanged (e.g. INVALID_STATE, INVALID_ASSIGNEE). */
+  code?: string;
+  message?: string;
+}
+
+// ============ History ============
+
+export const TaskHistoryQuerySchema = z.object({
+  cursor: z.string().max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+export type TaskHistoryQuery = z.infer<typeof TaskHistoryQuerySchema>;
+
+// ============ Trash ============
+
+export const TrashQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+export type TrashQuery = z.infer<typeof TrashQuerySchema>;
+
+/** Days a soft-deleted task stays in the trash before the purge job hard-deletes it. */
+export const TRASH_RETENTION_DAYS = 30;
