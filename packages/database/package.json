@@ -22,6 +22,7 @@
     "dev": "tsup",
     "watch": "tsup --watch",
     "typecheck": "tsc --noEmit",
+    "test": "bun test --pass-with-no-tests",
     "clean": "rm -rf dist",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
@@ -29,12 +30,11 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@flowtask/shared": "workspace:*",
-    "drizzle-orm": "^0.45.0",
+    "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.5"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.30.1",
+    "drizzle-kit": "^0.31.11",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2"
   }

@@ -87,10 +87,17 @@ export const authApi = {
   },
 
   unlinkAccount: async (input: UnlinkAccountInput): Promise<{ status: boolean }> => {
-    const result = await authClient.unlinkAccount({
-      providerId: input.providerId,
-      accountId: input.accountId,
-    });
+    // Better Auth 1.7 unlinks by its own account row id, not the provider's account id.
+    const accounts = await authApi.listAccounts();
+    const account = accounts.find(
+      (a) =>
+        a.providerId === input.providerId &&
+        (input.accountId === undefined || a.accountId === input.accountId)
+    );
+    if (!account) {
+      throw new Error('Linked account not found');
+    }
+    const result = await authClient.unlinkAccount({ accountId: account.id });
     if (result.error) {
       throw new Error(result.error.message || 'Failed to unlink account');
     }
