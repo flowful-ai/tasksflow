@@ -50,8 +50,8 @@
 
 ## Side Effects Rule
 
-- Task and comment writes go through the domain services, which emit domain events after commit.
-- Realtime task events, Slack, GitHub reverse sync, notifications and outgoing webhooks subscribe to those events. Do not publish task SSE events or call Slack/GitHub directly from routes. (Comment, project and member SSE events are still published by their routes.)
+- Task, comment, project and membership writes go through the domain services, which emit domain events after commit.
+- Realtime events, access refreshes, Slack, GitHub reverse sync, notifications and outgoing webhooks subscribe to those events (`apps/api/src/background/domain-bridges.ts`). Do not publish SSE events or call Slack/GitHub directly from routes, tools or integrations.
 
 ## MCP OAuth Rules
 

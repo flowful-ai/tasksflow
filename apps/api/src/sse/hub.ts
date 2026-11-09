@@ -1,12 +1,11 @@
 import { randomUUID } from 'crypto';
-import { isJsonObject, type WorkspaceRole } from '@flowtask/shared';
+import type { WorkspaceRole } from '@flowtask/shared';
 import { isAdminRole } from '../domain/workspace/role-policy.js';
 import {
   decodeWireMessage,
   encodeWithinLimit,
   formatSseFrame,
   toEventData,
-  type EventData,
   type EventPayload,
   type UserEventMessage,
   type WireMessage,
@@ -34,8 +33,6 @@ export interface AccessResolver {
     role: WorkspaceRole
   ): Promise<string[]>;
   isSessionActive(sessionId: string): Promise<boolean>;
-  /** Used when an event names a task but not its project. */
-  resolveTaskProjectId(taskId: string): Promise<string | null>;
 }
 
 export interface ClientSink {
@@ -71,10 +68,11 @@ interface ClientState {
   closed: boolean;
 }
 
-export interface PublishOptions {
-  /** Explicit project scope; overrides anything derived from the payload. */
-  projectId?: string | null;
-}
+/**
+ * Who may receive a workspace event: members who can access `projectId`, or
+ * every member of the workspace ('workspace').
+ */
+export type PublishScope = { projectId: string } | 'workspace';
 
 export interface HubTimings {
   heartbeatMs: number;
@@ -102,28 +100,6 @@ export interface HubOptions {
 }
 
 const encoder = new TextEncoder();
-
-function stringField(data: EventData, key: string): string | null {
-  const value = data[key];
-  return typeof value === 'string' && value.length > 0 ? value : null;
-}
-
-function nestedId(data: EventData, key: string): string | null {
-  const value = data[key];
-  return isJsonObject(value) && typeof value.id === 'string' ? value.id : null;
-}
-
-/**
- * Project scope derivable from the payload alone: explicit `projectId`, a
- * nested `project.id` (tasks), or the id of a `project:*` event.
- */
-export function deriveProjectId(event: string, data: EventData): string | null {
-  return (
-    stringField(data, 'projectId') ??
-    nestedId(data, 'project') ??
-    (event.startsWith('project:') ? stringField(data, 'id') : null)
-  );
-}
 
 export class RealtimeHub {
   readonly instanceId: string;
@@ -211,16 +187,16 @@ export class RealtimeHub {
   // ------------------------------------------------------------------ publish
 
   /**
-   * Publish a workspace event. Delivered only to clients that can access the
-   * event's project; events without a project go to every workspace member.
+   * Publish a workspace event. A project-scoped event reaches only clients
+   * that can access that project; a 'workspace' event reaches every member.
    */
   publishEvent(
     workspaceId: string,
     event: string,
     payload: EventPayload,
-    options: PublishOptions = {}
+    scope: PublishScope
   ): void {
-    void this.publishEventAsync(workspaceId, event, payload, options).catch((error: unknown) => {
+    void this.publishEventAsync(workspaceId, event, payload, scope).catch((error: unknown) => {
       this.logger.error('[realtime] publishEvent failed:', error);
     });
   }
@@ -229,15 +205,10 @@ export class RealtimeHub {
     workspaceId: string,
     event: string,
     payload: EventPayload,
-    options: PublishOptions = {}
+    scope: PublishScope
   ): Promise<void> {
     const data = toEventData(payload);
-    let projectId =
-      options.projectId !== undefined ? options.projectId : deriveProjectId(event, data);
-    if (projectId === null && options.projectId === undefined) {
-      const taskId = stringField(data, 'taskId');
-      if (taskId) projectId = await this.resolver.resolveTaskProjectId(taskId);
-    }
+    const projectId = scope === 'workspace' ? null : scope.projectId;
 
     const encoded = encodeWithinLimit<WorkspaceEventMessage>({
       k: 'ws',

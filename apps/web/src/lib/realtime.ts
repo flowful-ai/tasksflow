@@ -38,22 +38,11 @@ function str(data: JsonObject, key: string): string | null {
 }
 
 /**
- * True when an event payload is a full task (TaskWithRelations), not the
+ * Task events always carry the full task (TaskWithRelations), except the
  * ids-only form the server sends when the payload is too large (`truncated`).
  */
 export function isCompleteTaskPayload(record: JsonObject): record is JsonObject & TaskDto {
-  if (record.truncated === true) return false;
-  return (
-    typeof record.id === 'string' &&
-    typeof record.projectId === 'string' &&
-    typeof record.title === 'string' &&
-    typeof record.position === 'string' &&
-    'stateId' in record &&
-    'state' in record &&
-    Array.isArray(record.assignees) &&
-    Array.isArray(record.labels) &&
-    isJsonObject(record.project ?? null)
-  );
+  return record.truncated !== true && typeof record.id === 'string';
 }
 
 export function actionsForEvent(event: string, data: JsonObject): CacheAction[] {

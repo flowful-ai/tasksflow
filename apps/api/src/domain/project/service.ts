@@ -1,3 +1,4 @@
+import { domainEvents } from '../events/bus.js';
 import { escapeLike } from '@flowtask/shared';
 import { eq, and, sql, desc, asc, like, inArray, SQL } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
@@ -90,6 +91,7 @@ export class ProjectService {
 
       await this.db.insert(taskStates).values(stateValues);
 
+      await this.emitUpdated(project.id, true, input.workspaceId);
       return this.getById(project.id);
     } catch (error) {
       return err(toError(error));
@@ -175,6 +177,7 @@ export class ProjectService {
         return err(new Error('Failed to update project'));
       }
 
+      await this.emitUpdated(projectId);
       return this.getById(projectId);
     } catch (error) {
       return err(toError(error));
@@ -186,7 +189,11 @@ export class ProjectService {
    */
   async delete(projectId: string): Promise<Result<void, Error>> {
     try {
-      await this.db.delete(projects).where(eq(projects.id, projectId));
+      const [deleted] = await this.db
+        .delete(projects)
+        .where(eq(projects.id, projectId))
+        .returning({ workspaceId: projects.workspaceId });
+      if (deleted) await this.emitUpdated(projectId, true, deleted.workspaceId);
       return ok(undefined);
     } catch (error) {
       return err(toError(error));
@@ -369,6 +376,7 @@ export class ProjectService {
         return err(new Error('Failed to create task state'));
       }
 
+      await this.emitUpdated(input.projectId);
       return ok(state);
     } catch (error) {
       return err(toError(error));
@@ -402,6 +410,7 @@ export class ProjectService {
         return err(new DomainError('NOT_FOUND', 'Task state not found'));
       }
 
+      await this.emitUpdated(projectId);
       return ok(updated);
     } catch (error) {
       return err(toError(error));
@@ -416,7 +425,7 @@ export class ProjectService {
       if (!isUuid(stateId)) {
         return err(new DomainError('NOT_FOUND', 'Task state not found'));
       }
-      return await this.db.transaction(async (tx) => {
+      const result = await this.db.transaction(async (tx) => {
         const scope = and(eq(taskStates.id, stateId), eq(taskStates.projectId, projectId));
         const [state] = await tx
           .select({ id: taskStates.id })
@@ -435,6 +444,8 @@ export class ProjectService {
         await tx.delete(taskStates).where(scope);
         return ok(undefined);
       });
+      if (result.ok) await this.emitUpdated(projectId);
+      return result;
     } catch (error) {
       return err(toError(error));
     }
@@ -460,6 +471,7 @@ export class ProjectService {
         return err(new Error('Failed to create label'));
       }
 
+      await this.emitUpdated(input.projectId);
       return ok(label);
     } catch (error) {
       return err(toError(error));
@@ -492,6 +504,7 @@ export class ProjectService {
         return err(new DomainError('NOT_FOUND', 'Label not found'));
       }
 
+      await this.emitUpdated(projectId);
       return ok(updated);
     } catch (error) {
       return err(toError(error));
@@ -513,6 +526,7 @@ export class ProjectService {
       if (!deleted) {
         return err(new DomainError('NOT_FOUND', 'Label not found'));
       }
+      await this.emitUpdated(projectId);
       return ok(undefined);
     } catch (error) {
       return err(toError(error));
@@ -520,6 +534,31 @@ export class ProjectService {
   }
 
   // === Access Control ===
+
+  /**
+   * Emit `project.updated` after a committed change (realtime refresh, and an
+   * access refresh when `accessChanged`).
+   */
+  private async emitUpdated(
+    projectId: string,
+    accessChanged = false,
+    workspaceId?: string
+  ): Promise<void> {
+    let resolvedWorkspaceId = workspaceId;
+    if (!resolvedWorkspaceId) {
+      const [row] = await this.db
+        .select({ workspaceId: projects.workspaceId })
+        .from(projects)
+        .where(eq(projects.id, projectId));
+      resolvedWorkspaceId = row?.workspaceId;
+    }
+    if (!resolvedWorkspaceId) return;
+    domainEvents.emit('project.updated', {
+      workspaceId: resolvedWorkspaceId,
+      projectId,
+      accessChanged,
+    });
+  }
 
   /**
    * Get project members with user details.
@@ -616,6 +655,7 @@ export class ProjectService {
         }
       });
 
+      await this.emitUpdated(projectId, true);
       return ok(undefined);
     } catch (error) {
       return err(toError(error));

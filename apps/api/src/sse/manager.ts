@@ -5,7 +5,7 @@ import {
   type AccessResolver,
   type ClientHandle,
   type ClientRegistration,
-  type PublishOptions,
+  type PublishScope,
 } from './hub.js';
 import { PostgresTransport } from './postgres-transport.js';
 import type { EventPayload } from './wire.js';
@@ -21,7 +21,6 @@ const accessResolver: AccessResolver = {
   listAccessibleProjectIds: (workspaceId, userId, role) =>
     getAuthz().listAccessibleProjectIds(workspaceId, userId, role),
   isSessionActive: (sessionId) => getAuthz().isSessionActive(sessionId),
-  resolveTaskProjectId: (taskId) => getAuthz().getTaskProjectId(taskId),
 };
 
 let hub: RealtimeHub = new RealtimeHub({ resolver: accessResolver });
@@ -63,19 +62,16 @@ export async function shutdownSSE(): Promise<void> {
 }
 
 /**
- * Publish an event to a workspace's realtime clients.
- *
- * The event is only delivered to clients that can access its project, taken
- * from `options.projectId`, else `data.projectId` / `data.project.id`, else
- * resolved from `data.taskId`. Events with no project go to every member.
+ * Publish an event to a workspace's realtime clients: those who can access
+ * `scope.projectId`, or every member for a 'workspace' event.
  */
 export function publishEvent<T extends EventPayload>(
   workspaceId: string,
   event: string,
   data: T,
-  options?: PublishOptions
+  scope: PublishScope
 ): void {
-  hub.publishEvent(workspaceId, event, data, options);
+  hub.publishEvent(workspaceId, event, data, scope);
 }
 
 /** Publish an event to all of one user's streams (any workspace). */

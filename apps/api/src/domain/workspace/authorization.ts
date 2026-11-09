@@ -272,16 +272,6 @@ export class AuthorizationService<P extends string> {
     return rows.length === unique.length;
   }
 
-  /** Project of a task (deleted tasks included), or null. */
-  async getTaskProjectId(taskId: string): Promise<string | null> {
-    if (!isUuid(taskId)) return null;
-    const [row] = await this.db
-      .select({ projectId: tasks.projectId })
-      .from(tasks)
-      .where(eq(tasks.id, taskId));
-    return row?.projectId ?? null;
-  }
-
   /** Whether a Better Auth session still exists and has not expired. */
   async isSessionActive(sessionId: string): Promise<boolean> {
     if (!isUuid(sessionId)) return false;

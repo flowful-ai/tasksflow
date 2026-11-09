@@ -29,6 +29,11 @@ function createRegistry(): ListenerRegistry {
     'comment.created': new Set(),
     'comment.updated': new Set(),
     'comment.deleted': new Set(),
+    'project.updated': new Set(),
+    'member.joined': new Set(),
+    'member.left': new Set(),
+    'member.role_changed': new Set(),
+    'workspace.deleted': new Set(),
   };
 }
 

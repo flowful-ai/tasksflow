@@ -9,11 +9,9 @@ import {
   UpdateProjectSchema,
   CreateTaskStateSchema,
   CreateLabelSchema,
-  REALTIME_EVENTS,
 } from '@flowtask/shared';
 import { requireProject, requireWorkspace } from '../lib/authorize.js';
 import { fromResult, handleRouteError } from '../lib/responses.js';
-import { notifyAccessChanged, publishEvent } from '../sse/manager.js';
 
 const projects = new Hono();
 projects.onError(handleRouteError);
@@ -25,15 +23,6 @@ const StateOrLabelUpdateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   color: z.string().max(32).optional(),
 });
-
-function publishProjectUpdated(workspaceId: string, projectId: string): void {
-  publishEvent(
-    workspaceId,
-    REALTIME_EVENTS.PROJECT_UPDATED,
-    { id: projectId, projectId },
-    { projectId }
-  );
-}
 
 // List projects in workspace (filtered by the project ACL)
 projects.get('/', async (c) => {
@@ -76,7 +65,6 @@ projects.post(
       }
     );
 
-    notifyAccessChanged(workspaceId);
     return c.json({ success: true, data: project }, 201);
   }
 );
@@ -106,11 +94,7 @@ projects.get('/:projectId/permissions', async (c) => {
 
 // Update project
 projects.patch('/:projectId', zValidator('json', UpdateProjectSchema), async (c) => {
-  const { project, workspaceId, user } = await requireProject(
-    c,
-    c.req.param('projectId'),
-    'project:update'
-  );
+  const { project, user } = await requireProject(c, c.req.param('projectId'), 'project:update');
   const data = c.req.valid('json');
 
   const updated = fromResult(
@@ -122,24 +106,17 @@ projects.patch('/:projectId', zValidator('json', UpdateProjectSchema), async (c)
     }
   );
 
-  publishProjectUpdated(workspaceId, project.id);
   return c.json({ success: true, data: updated });
 });
 
 // Delete project
 projects.delete('/:projectId', async (c) => {
-  const { project, workspaceId } = await requireProject(
-    c,
-    c.req.param('projectId'),
-    'project:delete'
-  );
+  const { project } = await requireProject(c, c.req.param('projectId'), 'project:delete');
   fromResult(await projectService.delete(project.id), {
     code: 'DELETE_FAILED',
     message: 'Failed to delete project',
   });
 
-  publishProjectUpdated(workspaceId, project.id);
-  notifyAccessChanged(workspaceId);
   return c.json({ success: true, data: null });
 });
 
@@ -155,11 +132,7 @@ projects.get('/:projectId/states', async (c) => {
 });
 
 projects.post('/:projectId/states', zValidator('json', CreateTaskStateSchema), async (c) => {
-  const { project, workspaceId } = await requireProject(
-    c,
-    c.req.param('projectId'),
-    'project:update'
-  );
+  const { project } = await requireProject(c, c.req.param('projectId'), 'project:update');
   const data = c.req.valid('json');
 
   const state = fromResult(
@@ -171,7 +144,6 @@ projects.post('/:projectId/states', zValidator('json', CreateTaskStateSchema), a
     }
   );
 
-  publishProjectUpdated(workspaceId, project.id);
   return c.json({ success: true, data: state }, 201);
 });
 
@@ -179,11 +151,7 @@ projects.patch(
   '/:projectId/states/:stateId',
   zValidator('json', StateOrLabelUpdateSchema),
   async (c) => {
-    const { project, workspaceId } = await requireProject(
-      c,
-      c.req.param('projectId'),
-      'project:update'
-    );
+    const { project } = await requireProject(c, c.req.param('projectId'), 'project:update');
     const data = c.req.valid('json');
 
     const state = fromResult(
@@ -195,17 +163,12 @@ projects.patch(
       }
     );
 
-    publishProjectUpdated(workspaceId, project.id);
     return c.json({ success: true, data: state });
   }
 );
 
 projects.delete('/:projectId/states/:stateId', async (c) => {
-  const { project, workspaceId } = await requireProject(
-    c,
-    c.req.param('projectId'),
-    'project:update'
-  );
+  const { project } = await requireProject(c, c.req.param('projectId'), 'project:update');
 
   fromResult(await projectService.deleteTaskState(project.id, c.req.param('stateId')), {
     status: 400,
@@ -213,18 +176,13 @@ projects.delete('/:projectId/states/:stateId', async (c) => {
     message: 'Failed to delete task state',
   });
 
-  publishProjectUpdated(workspaceId, project.id);
   return c.json({ success: true, data: null });
 });
 
 // === Labels ===
 
 projects.post('/:projectId/labels', zValidator('json', CreateLabelSchema), async (c) => {
-  const { project, workspaceId } = await requireProject(
-    c,
-    c.req.param('projectId'),
-    'project:update'
-  );
+  const { project } = await requireProject(c, c.req.param('projectId'), 'project:update');
   const data = c.req.valid('json');
 
   const label = fromResult(await projectService.createLabel({ ...data, projectId: project.id }), {
@@ -233,7 +191,6 @@ projects.post('/:projectId/labels', zValidator('json', CreateLabelSchema), async
     message: 'Failed to create label',
   });
 
-  publishProjectUpdated(workspaceId, project.id);
   return c.json({ success: true, data: label }, 201);
 });
 
@@ -241,11 +198,7 @@ projects.patch(
   '/:projectId/labels/:labelId',
   zValidator('json', StateOrLabelUpdateSchema),
   async (c) => {
-    const { project, workspaceId } = await requireProject(
-      c,
-      c.req.param('projectId'),
-      'project:update'
-    );
+    const { project } = await requireProject(c, c.req.param('projectId'), 'project:update');
     const data = c.req.valid('json');
 
     const label = fromResult(
@@ -257,17 +210,12 @@ projects.patch(
       }
     );
 
-    publishProjectUpdated(workspaceId, project.id);
     return c.json({ success: true, data: label });
   }
 );
 
 projects.delete('/:projectId/labels/:labelId', async (c) => {
-  const { project, workspaceId } = await requireProject(
-    c,
-    c.req.param('projectId'),
-    'project:update'
-  );
+  const { project } = await requireProject(c, c.req.param('projectId'), 'project:update');
 
   fromResult(await projectService.deleteLabel(project.id, c.req.param('labelId')), {
     status: 400,
@@ -275,7 +223,6 @@ projects.delete('/:projectId/labels/:labelId', async (c) => {
     message: 'Failed to delete label',
   });
 
-  publishProjectUpdated(workspaceId, project.id);
   return c.json({ success: true, data: null });
 });
 
@@ -301,11 +248,7 @@ projects.put(
     })
   ),
   async (c) => {
-    const { project, workspaceId } = await requireProject(
-      c,
-      c.req.param('projectId'),
-      'project:update'
-    );
+    const { project } = await requireProject(c, c.req.param('projectId'), 'project:update');
     const data = c.req.valid('json');
 
     fromResult(await projectService.setAccess(project.id, data.access, data.userIds), {
@@ -314,9 +257,6 @@ projects.put(
       message: 'Failed to update project access',
     });
 
-    // Realtime streams cache each client's accessible projects; refresh them.
-    notifyAccessChanged(workspaceId);
-    publishProjectUpdated(workspaceId, project.id);
     return c.json({ success: true, data: null });
   }
 );

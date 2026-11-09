@@ -77,7 +77,6 @@ describe('isCompleteTaskPayload', () => {
   test('rejects ids-only (truncated) payloads', () => {
     expect(isCompleteTaskPayload({ id: 't1', projectId: 'p1', truncated: true })).toBe(false);
     expect(isCompleteTaskPayload({ ...fullTask, truncated: true })).toBe(false);
-    expect(isCompleteTaskPayload({ id: 't1', projectId: 'p1' })).toBe(false);
   });
 });
 

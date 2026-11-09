@@ -1,3 +1,4 @@
+import { domainEvents } from '../events/bus.js';
 import { eq, and, desc } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
 import { workspaceInvitations, workspaceMembers, workspaces, users } from '../../db/index.js';
@@ -221,7 +222,7 @@ export class InvitationService {
       // One transaction with the invitation row locked (FOR UPDATE): concurrent
       // accepts of a multi-use link serialize here, so usesCount can never pass
       // maxUses and a single-use link admits exactly one member.
-      await this.db.transaction(async (tx) => {
+      const joined = await this.db.transaction(async (tx) => {
         const [invitation] = await tx
           .select()
           .from(workspaceInvitations)
@@ -287,7 +288,9 @@ export class InvitationService {
             acceptedAt: isSingleUse ? new Date() : invitation.acceptedAt,
           })
           .where(eq(workspaceInvitations.id, invitation.id));
+        return { workspaceId: invitation.workspaceId, role };
       });
+      domainEvents.emit('member.joined', { ...joined, userId: input.userId });
       return ok(undefined);
     } catch (error) {
       return err(toError(error));

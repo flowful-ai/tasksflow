@@ -1,4 +1,4 @@
-import type { JsonValue } from '@flowtask/shared';
+import type { JsonValue, WorkspaceRole } from '@flowtask/shared';
 import type { TaskWithRelations } from '../task/types.js';
 import type { CommentWithUser } from '../comment/types.js';
 
@@ -93,6 +93,38 @@ export interface CommentDeletedEvent extends CommentEventBase {
   commentId: string;
 }
 
+/**
+ * A project, its states, labels or access changed. `accessChanged` means
+ * who can see the project may have changed (create, delete, ACL edit).
+ */
+export interface ProjectUpdatedEvent {
+  workspaceId: string;
+  projectId: string;
+  accessChanged: boolean;
+}
+
+export interface MemberJoinedEvent {
+  workspaceId: string;
+  userId: string;
+  role: WorkspaceRole;
+}
+
+export interface MemberLeftEvent {
+  workspaceId: string;
+  userId: string;
+}
+
+export interface MemberRoleChangedEvent {
+  workspaceId: string;
+  userId: string;
+  role: WorkspaceRole;
+}
+
+/** The workspace and all its memberships are gone. */
+export interface WorkspaceDeletedEvent {
+  workspaceId: string;
+}
+
 export interface DomainEventMap {
   'task.created': TaskCreatedEvent;
   'task.updated': TaskUpdatedEvent;
@@ -103,6 +135,11 @@ export interface DomainEventMap {
   'comment.created': CommentCreatedEvent;
   'comment.updated': CommentUpdatedEvent;
   'comment.deleted': CommentDeletedEvent;
+  'project.updated': ProjectUpdatedEvent;
+  'member.joined': MemberJoinedEvent;
+  'member.left': MemberLeftEvent;
+  'member.role_changed': MemberRoleChangedEvent;
+  'workspace.deleted': WorkspaceDeletedEvent;
 }
 
 export type DomainEventName = keyof DomainEventMap;

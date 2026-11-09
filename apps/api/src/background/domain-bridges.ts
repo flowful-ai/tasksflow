@@ -21,7 +21,12 @@ import {
 } from '../integrations/index.js';
 import { REALTIME_EVENTS } from '@flowtask/shared';
 import { and, eq } from 'drizzle-orm';
-import { publishEvent, publishUserEvent } from '../sse/manager.js';
+import {
+  notifyAccessChanged,
+  notifyMemberRemoved,
+  publishEvent,
+  publishUserEvent,
+} from '../sse/manager.js';
 
 interface EventActor {
   actorId: string | null;
@@ -129,10 +134,12 @@ export function registerDomainEventBridges(db: Database): () => void {
     }),
 
     domainEvents.on('task.deleted', async (event) => {
-      publishEvent(event.workspaceId, REALTIME_EVENTS.TASK_DELETED, {
-        id: event.taskId,
-        projectId: event.projectId,
-      });
+      publishEvent(
+        event.workspaceId,
+        REALTIME_EVENTS.TASK_DELETED,
+        { id: event.taskId, projectId: event.projectId },
+        { projectId: event.projectId }
+      );
       if (event.origin !== 'github' && (await taskHasGitHubIssue(event.taskId))) {
         reverseSync.scheduleIssueStateSync(event.taskId);
       }
@@ -197,6 +204,46 @@ export function registerDomainEventBridges(db: Database): () => void {
         { taskId: event.taskId, projectId: event.projectId, commentId: event.commentId },
         { projectId: event.projectId }
       );
+    }),
+
+    domainEvents.on('project.updated', (event) => {
+      // Refresh cached project access first so the event reaches the right clients.
+      if (event.accessChanged) notifyAccessChanged(event.workspaceId);
+      publishEvent(
+        event.workspaceId,
+        REALTIME_EVENTS.PROJECT_UPDATED,
+        { id: event.projectId, projectId: event.projectId },
+        { projectId: event.projectId }
+      );
+    }),
+
+    domainEvents.on('member.joined', (event) => {
+      publishEvent(
+        event.workspaceId,
+        REALTIME_EVENTS.MEMBER_JOINED,
+        { workspaceId: event.workspaceId, userId: event.userId },
+        'workspace'
+      );
+    }),
+
+    domainEvents.on('member.left', (event) => {
+      // Close the removed user's realtime streams on every instance immediately.
+      notifyMemberRemoved(event.workspaceId, event.userId);
+      publishEvent(
+        event.workspaceId,
+        REALTIME_EVENTS.MEMBER_LEFT,
+        { workspaceId: event.workspaceId, userId: event.userId },
+        'workspace'
+      );
+    }),
+
+    domainEvents.on('member.role_changed', (event) => {
+      notifyAccessChanged(event.workspaceId, event.userId);
+    }),
+
+    domainEvents.on('workspace.deleted', (event) => {
+      // Memberships are gone: refreshing access closes every stream of the workspace.
+      notifyAccessChanged(event.workspaceId);
     }),
 
     onNotificationCreated((notification) => {

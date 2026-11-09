@@ -53,13 +53,14 @@ App-level roles (`users.app_role`: `user`, `app_manager`) gate `/api/app/*` (use
 
 Services emit typed events on an in-process bus (`apps/api/src/domain/events/bus.ts`) **after** their transaction commits. Listeners run asynchronously and in isolation: a failing listener is logged and never affects the write.
 
-Events: `task.created`, `task.updated`, `task.moved`, `task.deleted`, `task.restored`, `tasks.rekeyed`, `comment.created`.
+Events: `task.created`, `task.updated`, `task.moved`, `task.deleted`, `task.restored`, `tasks.rekeyed`, `comment.created`, `comment.updated`, `comment.deleted`, `project.updated`, `member.joined`, `member.left`, `member.role_changed`, `workspace.deleted`. No route, tool or integration publishes SSE events or refreshes realtime access by hand; the bridge does it from these events.
 
 ```
-TaskService / CommentService ──emit after commit──> domainEvents
+Task/Comment/Project/Workspace/InvitationService ──emit after commit──> domainEvents
    │
    ├─ background/domain-bridges.ts
-   │    ├─ SSE: task:created|updated|moved|deleted, tasks:rekeyed (task.restored is sent as task:created)
+   │    ├─ SSE: task:*, tasks:rekeyed, comment:*, project:updated, member:* (task.restored is sent as task:created)
+   │    ├─ realtime access refresh: project access changes, role changes, member removal, workspace deletion
    │    ├─ Slack: task created, state changed, assigned, comment added  → job slack.notify_task_event
    │    └─ GitHub reverse sync (linked issues, not for origin 'github') → jobs github.reverse_sync.*
    ├─ domain/notification/subscriber.ts → inbox rows (assigned, mentioned, commented, status_changed)
@@ -67,7 +68,7 @@ TaskService / CommentService ──emit after commit──> domainEvents
    └─ domain/webhook-out/subscriber.ts → job webhooks.deliver per matching outgoing webhook
 ```
 
-Every write path (REST, bulk, trash, MCP and in-app agent tools, GitHub sync) goes through the services, so all of them produce the same side effects. Comment, project and member SSE events (`comment:*`, `project:updated`, `member:joined`, `member:left`) are the exception: the comment, project and workspace routes, the GitHub webhook processor and the agent tools publish them directly. Writes that come from GitHub carry `origin: 'github'` and are not pushed back to GitHub. `TaskService.transaction()` groups several task writes into one transaction and emits all their events once it commits.
+Every write path (REST, bulk, trash, MCP and in-app agent tools, GitHub sync) goes through the services, so all of them produce the same side effects. Writes that come from GitHub carry `origin: 'github'` and are not pushed back to GitHub. `TaskService.transaction()` groups several task writes into one transaction and emits all their events once it commits.
 
 ## Jobs
 
@@ -92,7 +93,7 @@ The queue is the `jobs` table (`apps/api/src/domain/jobs/`):
 ## Realtime
 
 - Clients open `GET /api/events/stream?workspaceId=<id>` (EventSource, session cookie). The stream starts with `retry: 5000` and a `connected` event.
-- The hub (`apps/api/src/sse/hub.ts`) stores each stream's user, session, role and accessible project ids. An event is written only to streams that can access its project (from an explicit `projectId`, `data.projectId`, `data.project.id`, or the task's project). User events go to every stream of that user.
+- The hub (`apps/api/src/sse/hub.ts`) stores each stream's user, session, role and accessible project ids. Every publish names its scope, `{ projectId }` or `'workspace'`; a project event is written only to streams that can access that project, a workspace event to every member. User events go to every stream of that user.
 - Every 60 s the hub re-checks sessions and memberships; removing a member or deleting a workspace closes the affected streams immediately; ACL, role and project changes refresh the access caches.
 - Across instances, events go through Postgres `NOTIFY` on one channel and every instance `LISTEN`s on a dedicated connection (`apps/api/src/sse/postgres-transport.ts`; `NOTIFY` itself goes through the application pool, so the `LISTEN` is the only extra connection), suppressing its own echoes. Payloads over about 7 KB are sent as ids only (NOTIFY's limit is 8 KB). A self-ping watchdog rebuilds a dead `LISTEN`. The transport is only created when `DATABASE_URL` is set; see the scaling note in [deploy.md](deploy.md#scaling).
 - Slow consumers are dropped (more than 500 queued chunks).

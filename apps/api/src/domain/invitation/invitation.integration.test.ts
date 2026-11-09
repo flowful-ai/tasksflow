@@ -13,6 +13,8 @@ import {
 } from '../task/test-fixtures.js';
 import { isDomainError } from '../workspace/errors.js';
 import { InvitationService } from './service.js';
+import { domainEvents } from '../events/bus.js';
+import type { MemberJoinedEvent } from '../events/types.js';
 
 describe.skipIf(!TEST_DATABASE_URL)('invitations (integration)', () => {
   it('a 2-use link admits exactly 2 of 6 concurrent accepts', async () => {
@@ -76,6 +78,8 @@ describe.skipIf(!TEST_DATABASE_URL)('invitations (integration)', () => {
       })
     );
     const user = await createUser(db, 'Twice');
+    const joined: MemberJoinedEvent[] = [];
+    const off = domainEvents.on('member.joined', (event) => void joined.push(event));
     expect((await service.accept({ token: invitation.token, userId: user.id })).ok).toBe(true);
     const again = await service.accept({ token: invitation.token, userId: user.id });
     expect(again.ok).toBe(false);
@@ -86,6 +90,9 @@ describe.skipIf(!TEST_DATABASE_URL)('invitations (integration)', () => {
       .from(workspaceInvitations)
       .where(eq(workspaceInvitations.id, invitation.id));
     expect(row?.usesCount).toBe(1);
+    // Accepting announces the new member once (realtime member:joined).
+    off();
+    expect(joined).toEqual([{ workspaceId: ws.workspaceId, userId: user.id, role: 'member' }]);
   });
 
   it('rejects an invitation with an invalid stored role with a client-safe error', async () => {

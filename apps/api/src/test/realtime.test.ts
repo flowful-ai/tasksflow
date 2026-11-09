@@ -56,7 +56,6 @@ describe.skipIf(!integrationEnabled)('realtime over Postgres LISTEN/NOTIFY', () 
     getRole: async () => role,
     listAccessibleProjectIds: async () => projects,
     isSessionActive: async () => true,
-    resolveTaskProjectId: async () => null,
   });
 
   let a: RealtimeHub;
@@ -90,7 +89,7 @@ describe.skipIf(!integrationEnabled)('realtime over Postgres LISTEN/NOTIFY', () 
   });
 
   it('uses exactly one extra connection per instance: the LISTEN', async () => {
-    await a.publishEventAsync(crypto.randomUUID(), 'task:updated', { id: 'warm-up' });
+    await a.publishEventAsync(crypto.randomUUID(), 'task:updated', { id: 'warm-up' }, 'workspace');
     const rows = await pool.$client<{ count: number }[]>`
       SELECT count(*)::int AS count FROM pg_stat_activity
       WHERE application_name = ${LISTEN_APPLICATION_NAME} AND datname = current_database()`;
@@ -118,14 +117,24 @@ describe.skipIf(!integrationEnabled)('realtime over Postgres LISTEN/NOTIFY', () 
       sink: onB,
     });
 
-    await a.publishEventAsync(workspaceId, 'task:updated', {
-      id: 'secret-task',
-      projectId: 'p-secret',
-    });
-    await a.publishEventAsync(workspaceId, 'task:updated', {
-      id: 'open-task',
-      projectId: 'p-open',
-    });
+    await a.publishEventAsync(
+      workspaceId,
+      'task:updated',
+      {
+        id: 'secret-task',
+        projectId: 'p-secret',
+      },
+      { projectId: 'p-secret' }
+    );
+    await a.publishEventAsync(
+      workspaceId,
+      'task:updated',
+      {
+        id: 'open-task',
+        projectId: 'p-open',
+      },
+      { projectId: 'p-open' }
+    );
     await waitFor(() => onB.text().includes('open-task'));
 
     expect(onB.text()).not.toContain('secret-task');
@@ -143,11 +152,16 @@ describe.skipIf(!integrationEnabled)('realtime over Postgres LISTEN/NOTIFY', () 
       projectIds: [],
       sink: onB,
     });
-    await a.publishEventAsync(workspaceId, 'task:updated', {
-      id: 'big',
-      projectId: 'p-open',
-      description: 'x'.repeat(20_000),
-    });
+    await a.publishEventAsync(
+      workspaceId,
+      'task:updated',
+      {
+        id: 'big',
+        projectId: 'p-open',
+        description: 'x'.repeat(20_000),
+      },
+      { projectId: 'p-open' }
+    );
     await waitFor(() => onB.text().includes('"big"'));
     expect(onB.text()).toContain('"truncated":true');
     expect(onB.text()).not.toContain('xxxxxxxx');

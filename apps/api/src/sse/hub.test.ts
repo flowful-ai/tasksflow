@@ -2,7 +2,6 @@ import { describe, expect, it } from 'bun:test';
 import type { WorkspaceRole } from '@flowtask/shared';
 import {
   RealtimeHub,
-  deriveProjectId,
   type AccessResolver,
   type ClientSink,
   type RealtimeTransport,
@@ -23,7 +22,6 @@ interface FakeState {
   roles: Map<string, WorkspaceRole>;
   access: Map<string, string[]>;
   sessions: Set<string>;
-  taskProjects: Map<string, string>;
 }
 
 function fakeResolver(state: FakeState): AccessResolver {
@@ -31,7 +29,6 @@ function fakeResolver(state: FakeState): AccessResolver {
     getRole: async (_workspaceId, userId) => state.roles.get(userId) ?? null,
     listAccessibleProjectIds: async (_workspaceId, userId) => state.access.get(userId) ?? [],
     isSessionActive: async (sessionId) => state.sessions.has(sessionId),
-    resolveTaskProjectId: async (taskId) => state.taskProjects.get(taskId) ?? null,
   };
 }
 
@@ -92,7 +89,6 @@ function baseState(): FakeState {
       ['admin', [OPEN, SECRET]],
     ]),
     sessions: new Set(['s-member', 's-admin']),
-    taskProjects: new Map([['task-secret', SECRET]]),
   };
 }
 
@@ -115,25 +111,38 @@ describe('RealtimeHub project filtering', () => {
     const member = register(hub, 'member', 'member', [OPEN]);
     const admin = register(hub, 'admin', 'admin', [OPEN, SECRET]);
 
-    await hub.publishEventAsync(WS, 'task:updated', { id: 't1', projectId: SECRET });
-    await hub.publishEventAsync(WS, 'task:updated', { id: 't2', projectId: OPEN });
+    await hub.publishEventAsync(
+      WS,
+      'task:updated',
+      { id: 't1', projectId: SECRET },
+      { projectId: SECRET }
+    );
+    await hub.publishEventAsync(
+      WS,
+      'task:updated',
+      { id: 't2', projectId: OPEN },
+      { projectId: OPEN }
+    );
 
     expect(member.sink.frames.join('')).not.toContain('t1');
     expect(member.sink.frames.join('')).toContain('t2');
     expect(events(admin.sink)).toEqual(['task:updated', 'task:updated']);
   });
 
-  it('derives the project from task payloads, explicit options and task lookups', async () => {
+  it('scopes events by the explicit project, or to the whole workspace', async () => {
     const hub = new RealtimeHub({ resolver: fakeResolver(baseState()) });
     const member = register(hub, 'member', 'member', [OPEN]);
 
-    await hub.publishEventAsync(WS, 'task:created', { id: 'nested', project: { id: SECRET } });
-    await hub.publishEventAsync(WS, 'comment:created', {
-      taskId: 'task-secret',
-      comment: { id: 'c1' },
-    });
-    await hub.publishEventAsync(WS, 'task:updated', { id: 'explicit' }, { projectId: SECRET });
-    await hub.publishEventAsync(WS, 'member:joined', { workspaceId: WS, userId: 'x' });
+    // The payload's own fields are never used to guess the scope.
+    await hub.publishEventAsync(
+      WS,
+      'task:updated',
+      { id: 'explicit', projectId: OPEN },
+      {
+        projectId: SECRET,
+      }
+    );
+    await hub.publishEventAsync(WS, 'member:joined', { workspaceId: WS, userId: 'x' }, 'workspace');
 
     expect(events(member.sink)).toEqual(['member:joined']);
   });
@@ -141,7 +150,12 @@ describe('RealtimeHub project filtering', () => {
   it('frames events with id and event fields', async () => {
     const hub = new RealtimeHub({ resolver: fakeResolver(baseState()) });
     const member = register(hub, 'member', 'member', [OPEN]);
-    await hub.publishEventAsync(WS, 'task:moved', { id: 't', projectId: OPEN });
+    await hub.publishEventAsync(
+      WS,
+      'task:moved',
+      { id: 't', projectId: OPEN },
+      { projectId: OPEN }
+    );
     expect(member.sink.frames[0]).toMatch(
       /^id: [0-9a-f]{8}-1\nevent: task:moved\ndata: \{.*"timestamp"/
     );
@@ -197,7 +211,12 @@ describe('RealtimeHub membership and access changes', () => {
 
     state.access.set('member', [OPEN, SECRET]);
     await hub.revalidateAll();
-    await hub.publishEventAsync(WS, 'task:updated', { id: 'now-visible', projectId: SECRET });
+    await hub.publishEventAsync(
+      WS,
+      'task:updated',
+      { id: 'now-visible', projectId: SECRET },
+      { projectId: SECRET }
+    );
     expect(member.sink.frames.join('')).toContain('now-visible');
 
     state.sessions.delete('s-member');
@@ -230,7 +249,12 @@ describe('RealtimeHub cross-instance delivery', () => {
       const onB = register(b, 'admin', 'admin', [OPEN, SECRET]);
       const memberOnB = register(b, 'member', 'member', [OPEN]);
 
-      await a.publishEventAsync(WS, 'task:updated', { id: 't', projectId: SECRET });
+      await a.publishEventAsync(
+        WS,
+        'task:updated',
+        { id: 't', projectId: SECRET },
+        { projectId: SECRET }
+      );
 
       expect(events(onA.sink)).toEqual(['task:updated']);
       expect(events(onB.sink)).toEqual(['task:updated']);
@@ -262,7 +286,12 @@ describe('RealtimeHub cross-instance delivery', () => {
     await hub.start();
     try {
       const member = register(hub, 'member', 'member', [OPEN]);
-      await hub.publishEventAsync(WS, 'task:updated', { id: 't', projectId: OPEN });
+      await hub.publishEventAsync(
+        WS,
+        'task:updated',
+        { id: 't', projectId: OPEN },
+        { projectId: OPEN }
+      );
       expect(events(member.sink)).toEqual(['task:updated']);
       expect(errors.length).toBe(1);
     } finally {
@@ -335,12 +364,5 @@ describe('wire format', () => {
       at: at.toISOString(),
       list: [1, 'a'],
     });
-  });
-
-  it('derives project ids from common payload shapes', () => {
-    expect(deriveProjectId('task:created', { projectId: 'p' })).toBe('p');
-    expect(deriveProjectId('task:created', { project: { id: 'p2' } })).toBe('p2');
-    expect(deriveProjectId('project:updated', { id: 'p3' })).toBe('p3');
-    expect(deriveProjectId('member:joined', { id: 'u' })).toBeNull();
   });
 });

@@ -80,9 +80,9 @@ In development, `bun run dev` starts the API on 3001 and Vite on 3000. Vite prox
 
 ### Domain events drive side effects
 
-Every write path (REST routes, MCP and in-app agent tools, bulk, trash, GitHub sync) goes through the domain services, which emit on `domainEvents` (`apps/api/src/domain/events/bus.ts`) after the transaction commits. `apps/api/src/background/domain-bridges.ts` subscribes once and turns events into SSE messages, Slack notifications and GitHub reverse sync; the notification and outgoing-webhook subscribers live in `apps/api/src/domain/`. Do not publish task SSE events or call Slack/GitHub by hand from a route. (Comment, project and member SSE events, `comment:*`, `project:updated`, `member:*`, are still published directly by their routes, the GitHub webhook processor and the agent tools.)
+Every write path (REST routes, MCP and in-app agent tools, bulk, trash, GitHub sync, invitations) goes through the domain services (`TaskService`, `CommentService`, `ProjectService`, `WorkspaceService`, `InvitationService`), which emit on `domainEvents` (`apps/api/src/domain/events/bus.ts`) after the transaction commits. `apps/api/src/background/domain-bridges.ts` subscribes once and turns events into SSE messages (with an explicit scope: a project, or `'workspace'`), realtime access refreshes, Slack notifications and GitHub reverse sync; the notification and outgoing-webhook subscribers live in `apps/api/src/domain/`. Do not call `publishEvent`, `notifyAccessChanged`, Slack or GitHub by hand from a route, tool or integration.
 
-Domain events: `task.created`, `task.updated`, `task.moved`, `task.deleted`, `task.restored`, `tasks.rekeyed`, `comment.created`.
+Domain events: `task.created`, `task.updated`, `task.moved`, `task.deleted`, `task.restored`, `tasks.rekeyed`, `comment.created`, `comment.updated`, `comment.deleted`, `project.updated`, `member.joined`, `member.left`, `member.role_changed`, `workspace.deleted`.
 
 ### Fractional positions
 
@@ -106,7 +106,7 @@ Smart Views store a JSON filter that `apps/api/src/domain/smart-view/filter-engi
 ### Realtime (SSE)
 
 - One stream per tab: `GET /api/events/stream?workspaceId=<id>` (session cookie). Same port as the API.
-- `apps/api/src/sse/hub.ts` keeps each client's role and accessible project ids, and only writes events for projects the user can access. Sessions and membership are re-checked every 60 s; removing a member closes their streams at once.
+- `apps/api/src/sse/hub.ts` keeps each client's role and accessible project ids, and only writes events for projects the user can access. Every `publishEvent` call names its scope (`{ projectId }` or `'workspace'`); the hub never guesses it from the payload. Sessions and membership are re-checked every 60 s; removing a member closes their streams at once.
 - Cross-instance fan-out uses Postgres `LISTEN` on a dedicated connection (`apps/api/src/sse/postgres-transport.ts`) and `NOTIFY` through the app pool. Payloads over about 7 KB are sent as ids only.
 - User-targeted events (`publishUserEvent`, for example `notification:created`) reach every stream of that user.
 - Client event names are in `REALTIME_EVENTS` (`packages/shared/src/constants.ts`), e.g. `task:created`, `task:moved`, `tasks:rekeyed`.

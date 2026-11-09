@@ -8,11 +8,9 @@ import {
   UpdateWorkspaceSchema,
   WorkspaceRoleSchema,
   WorkspaceActivityQuerySchema,
-  REALTIME_EVENTS,
 } from '@flowtask/shared';
 import { getAuthz, requireUser, requireWorkspace } from '../lib/authorize.js';
 import { badRequest, forbidden, fromResult, handleRouteError } from '../lib/responses.js';
-import { notifyAccessChanged, notifyMemberRemoved, publishEvent } from '../sse/manager.js';
 
 const workspaces = new Hono();
 workspaces.onError(handleRouteError);
@@ -133,8 +131,6 @@ workspaces.delete('/:workspaceId', async (c) => {
     code: 'DELETE_FAILED',
     message: 'Failed to delete workspace',
   });
-  // Memberships are gone: refreshing access closes every stream of the workspace.
-  notifyAccessChanged(workspaceId);
   return c.json({ success: true, data: null });
 });
 
@@ -175,7 +171,6 @@ workspaces.post(
       }
     );
 
-    publishEvent(workspaceId, REALTIME_EVENTS.MEMBER_JOINED, { workspaceId, userId });
     return c.json({ success: true, data: member }, 201);
   }
 );
@@ -202,8 +197,6 @@ workspaces.post(
       { status: 400, code: 'TRANSFER_FAILED', message: 'Failed to transfer ownership' }
     );
 
-    notifyAccessChanged(workspaceId, user.id);
-    notifyAccessChanged(workspaceId, userId);
     return c.json({ success: true, data: member });
   }
 );
@@ -231,7 +224,6 @@ workspaces.patch(
       { status: 400, code: 'UPDATE_FAILED', message: 'Failed to update member' }
     );
 
-    notifyAccessChanged(workspaceId, memberId);
     return c.json({ success: true, data: member });
   }
 );
@@ -257,9 +249,6 @@ workspaces.delete('/:workspaceId/members/:memberId', async (c) => {
     }
   );
 
-  // Close the removed user's realtime streams on every instance immediately.
-  notifyMemberRemoved(workspaceId, memberId);
-  publishEvent(workspaceId, REALTIME_EVENTS.MEMBER_LEFT, { workspaceId, userId: memberId });
   return c.json({ success: true, data: null });
 });
 

@@ -1,3 +1,4 @@
+import { domainEvents } from '../events/bus.js';
 import { escapeLike } from '@flowtask/shared';
 import { eq, and, or, sql, desc, asc, like, inArray, lt, SQL } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
@@ -210,6 +211,7 @@ export class WorkspaceService {
   async delete(workspaceId: string): Promise<Result<void, Error>> {
     try {
       await this.db.delete(workspaces).where(eq(workspaces.id, workspaceId));
+      domainEvents.emit('workspace.deleted', { workspaceId });
       return ok(undefined);
     } catch (error) {
       return err(toError(error));
@@ -493,7 +495,7 @@ export class WorkspaceService {
    */
   async addMember(input: AddMemberInput): Promise<Result<WorkspaceMemberWithUser, Error>> {
     try {
-      return await this.db.transaction(async (tx) => {
+      const result = await this.db.transaction(async (tx) => {
         const members = await this.lockMembers(tx, input.workspaceId);
         const actorRole = members.get(input.addedBy) ?? null;
         if (!actorRole) {
@@ -522,6 +524,14 @@ export class WorkspaceService {
         }
         return ok({ ...member, user });
       });
+      if (result.ok) {
+        domainEvents.emit('member.joined', {
+          workspaceId: input.workspaceId,
+          userId: input.userId,
+          role: input.role,
+        });
+      }
+      return result;
     } catch (error) {
       return err(toError(error));
     }
@@ -532,7 +542,7 @@ export class WorkspaceService {
    */
   async updateMember(input: UpdateMemberInput): Promise<Result<WorkspaceMemberWithUser, Error>> {
     try {
-      return await this.db.transaction(async (tx) => {
+      const result = await this.db.transaction(async (tx) => {
         const members = await this.lockMembers(tx, input.workspaceId);
         const actorRole = members.get(input.updatedBy) ?? null;
         if (!actorRole) {
@@ -566,6 +576,14 @@ export class WorkspaceService {
         }
         return ok({ ...updated, user });
       });
+      if (result.ok) {
+        domainEvents.emit('member.role_changed', {
+          workspaceId: input.workspaceId,
+          userId: input.userId,
+          role: input.role,
+        });
+      }
+      return result;
     } catch (error) {
       return err(toError(error));
     }
@@ -576,7 +594,7 @@ export class WorkspaceService {
    */
   async removeMember(input: RemoveMemberInput): Promise<Result<void, Error>> {
     try {
-      return await this.db.transaction(async (tx) => {
+      const result = await this.db.transaction(async (tx) => {
         const members = await this.lockMembers(tx, input.workspaceId);
         const targetRole = members.get(input.userId);
         if (!targetRole) {
@@ -614,6 +632,10 @@ export class WorkspaceService {
           );
         return ok(undefined);
       });
+      if (result.ok) {
+        domainEvents.emit('member.left', { workspaceId: input.workspaceId, userId: input.userId });
+      }
+      return result;
     } catch (error) {
       return err(toError(error));
     }
@@ -627,7 +649,7 @@ export class WorkspaceService {
     input: TransferOwnershipInput
   ): Promise<Result<WorkspaceMemberWithUser, Error>> {
     try {
-      return await this.db.transaction(async (tx) => {
+      const result = await this.db.transaction(async (tx) => {
         const members = await this.lockMembers(tx, input.workspaceId);
         if (members.get(input.fromUserId) !== 'owner') {
           return err(new DomainError('FORBIDDEN', 'Only an owner can transfer ownership'));
@@ -664,6 +686,19 @@ export class WorkspaceService {
         }
         return ok({ ...promoted, user });
       });
+      if (result.ok) {
+        domainEvents.emit('member.role_changed', {
+          workspaceId: input.workspaceId,
+          userId: input.toUserId,
+          role: 'owner',
+        });
+        domainEvents.emit('member.role_changed', {
+          workspaceId: input.workspaceId,
+          userId: input.fromUserId,
+          role: 'admin',
+        });
+      }
+      return result;
     } catch (error) {
       return err(toError(error));
     }
