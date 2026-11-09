@@ -20,6 +20,7 @@ import {
   recordTaskEvents,
   stateMetadata,
   stateSnapshots,
+  completedAtFor,
   TaskService,
   type AssigneeLabelDiff,
 } from './service.js';
@@ -94,6 +95,7 @@ export class TaskBulkService {
             stateId: tasks.stateId,
             priority: tasks.priority,
             deletedAt: tasks.deletedAt,
+            completedAt: tasks.completedAt,
             title: tasks.title,
             sequenceNumber: tasks.sequenceNumber,
           })
@@ -151,6 +153,7 @@ export class TaskBulkService {
                 const placement = await placeTask(sp, { projectId: scope.id, stateId: op.stateId, taskId });
                 set.stateId = op.stateId;
                 set.position = placement.position;
+                set.completedAt = await completedAtFor(sp, op.stateId, row.completedAt);
                 changes.push({ field: 'stateId', from: row.stateId, to: op.stateId });
                 const snapshots = await stateSnapshots(sp, [row.stateId, op.stateId]);
                 events.push({

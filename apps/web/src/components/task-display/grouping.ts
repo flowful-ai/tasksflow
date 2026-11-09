@@ -32,7 +32,9 @@ export const priorityOrder: Record<string, number> = {
  * Column order: by position (code-unit order, id tiebreak, as the server);
  * Done columns put the most recently completed first.
  */
-export function sortTasksForColumn<T extends { id: string; position?: string; updatedAt?: string | null }>(
+export function sortTasksForColumn<
+  T extends { id: string; position?: string; updatedAt?: string | null; completedAt?: string | null },
+>(
   tasks: T[],
   category?: string
 ): T[] {

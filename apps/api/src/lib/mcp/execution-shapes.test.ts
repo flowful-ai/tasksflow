@@ -26,6 +26,7 @@ function createTask(id: string): TaskWithRelations {
     createdAt: new Date('2026-02-12T00:00:00.000Z'),
     updatedAt: new Date('2026-02-12T00:00:00.000Z'),
     deletedAt: null,
+    completedAt: null,
     state: null,
     project: {
       id: 'project-1',

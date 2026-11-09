@@ -75,6 +75,7 @@ function sampleTask(): TaskWithRelations {
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
+    completedAt: null,
     state: { id: 'state-1', projectId: 'project-1', name: 'Todo', category: 'backlog', position: 'a0', color: '#fff' },
     assignees: [
       {

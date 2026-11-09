@@ -406,6 +406,49 @@ describe.skipIf(!TEST_DATABASE_URL)('TaskService (integration)', () => {
     });
   });
 
+  describe('completedAt', () => {
+    const completedAtOf = async (id: string) => {
+      const [row] = await testDb().select({ completedAt: tasks.completedAt }).from(tasks).where(eq(tasks.id, id));
+      return row!.completedAt;
+    };
+
+    it('stamps on entering done, keeps it done → done, clears on leaving (move, update, bulk, create)', async () => {
+      const db = testDb();
+      const [archived] = await db
+        .insert(taskStates)
+        .values({ projectId: project.projectId, name: 'Archived', category: 'done', position: 'a3' })
+        .returning();
+      const task = unwrap(await service.create({ projectId: project.projectId, title: 'completes', createdBy: ws.owner.id }));
+      expect(await completedAtOf(task.id)).toBeNull();
+
+      unwrap(await service.move(task.id, { stateId: project.states.done, movedBy: ws.owner.id }));
+      const stamped = await completedAtOf(task.id);
+      expect(stamped).toBeInstanceOf(Date);
+
+      unwrap(await service.update(task.id, { stateId: archived!.id, updatedBy: ws.owner.id }));
+      expect((await completedAtOf(task.id))?.getTime()).toBe(stamped!.getTime());
+
+      unwrap(await service.update(task.id, { stateId: project.states.progress, updatedBy: ws.owner.id }));
+      expect(await completedAtOf(task.id)).toBeNull();
+
+      const bulk = new TaskBulkService(db);
+      unwrap(
+        await bulk.apply({
+          taskIds: [task.id],
+          op: { stateId: project.states.done },
+          actorId: ws.owner.id,
+          allowedProjectIds: new Set([project.projectId]),
+        })
+      );
+      expect(await completedAtOf(task.id)).toBeInstanceOf(Date);
+
+      const createdDone = unwrap(
+        await service.create({ projectId: project.projectId, title: 'born done', stateId: project.states.done, createdBy: ws.owner.id })
+      );
+      expect(await completedAtOf(createdDone.id)).toBeInstanceOf(Date);
+    });
+  });
+
   describe('bulk', () => {
     it('applies an op per task with per-task results in one transaction', async () => {
       const db = testDb();

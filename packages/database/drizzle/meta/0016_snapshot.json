@@ -4187,6 +4187,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
         "search_vector": {
           "name": "search_vector",
           "type": "tsvector",

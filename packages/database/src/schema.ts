@@ -219,6 +219,9 @@ export const tasks = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
     deletedAt: timestamp('deleted_at'), // Soft delete
+    // Set by TaskService when the task enters a done-category state, cleared
+    // when it leaves one. Orders the board's Done column.
+    completedAt: timestamp('completed_at'),
     // Full-text search: title (weight A) + description (weight B), 'simple'
     // config so it works for any language. Not selected by TaskService.
     searchVector: tsvector('search_vector').generatedAlwaysAs(

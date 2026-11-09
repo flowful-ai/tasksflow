@@ -18,6 +18,8 @@ export const TaskSchema = BaseEntitySchema.extend({
   startDate: z.coerce.date().nullable(),
   createdBy: z.string().uuid().nullable(),
   deletedAt: z.coerce.date().nullable(),
+  /** When the task entered a done-category state; null while not done. */
+  completedAt: z.coerce.date().nullable().optional(),
 });
 
 export type Task = z.infer<typeof TaskSchema>;

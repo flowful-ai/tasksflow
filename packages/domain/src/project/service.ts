@@ -402,7 +402,7 @@ export class ProjectService {
         // FK is ON DELETE SET NULL; keep the explicit update scoped for clarity.
         await tx
           .update(tasks)
-          .set({ stateId: null })
+          .set({ stateId: null, completedAt: null })
           .where(and(eq(tasks.stateId, stateId), eq(tasks.projectId, projectId)));
         return ok(undefined);
       });

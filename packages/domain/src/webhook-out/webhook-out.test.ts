@@ -35,6 +35,7 @@ function fakeTask(): TaskWithRelations {
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
+    completedAt: null,
     state: { id: 's1', projectId: 'p', name: 'Todo', category: 'backlog', position: 'a0', color: null },
     assignees: [
       {

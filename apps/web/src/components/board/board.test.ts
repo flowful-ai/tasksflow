@@ -31,6 +31,15 @@ describe('ordering', () => {
     expect(sortColumnTasks(tasks, 'done').map((t) => t.id)).toEqual(['new', 'old', 'none']);
   });
 
+  test('done columns prefer completedAt, so editing an old done task does not reorder it', () => {
+    const tasks = [
+      { id: 'edited', position: 'a0', updatedAt: '2026-11-09T00:00:00Z', completedAt: '2026-10-01T00:00:00Z' },
+      { id: 'recent', position: 'a1', updatedAt: '2026-11-05T00:00:00Z', completedAt: '2026-11-05T00:00:00Z' },
+      { id: 'legacy', position: 'a2', updatedAt: '2026-10-15T00:00:00Z', completedAt: null },
+    ];
+    expect(sortColumnTasks(tasks, 'done').map((t) => t.id)).toEqual(['recent', 'legacy', 'edited']);
+  });
+
   test('neighbours exclude the dragged card and skip other server columns', () => {
     expect(neighboursAt(['a', 'x', 'b'], 'x')).toEqual({ afterTaskId: 'a', beforeTaskId: 'b', index: 1, count: 3 });
     expect(neighboursAt(['x', 'a'], 'x')).toEqual({ afterTaskId: null, beforeTaskId: 'a', index: 0, count: 2 });

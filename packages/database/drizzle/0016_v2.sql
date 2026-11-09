@@ -152,6 +152,7 @@ ALTER TABLE "public_shares" ADD COLUMN "show_external_links" boolean DEFAULT fal
 ALTER TABLE "task_events" ADD COLUMN "metadata" jsonb;--> statement-breakpoint
 ALTER TABLE "tasks" ADD COLUMN "parent_id" uuid;--> statement-breakpoint
 ALTER TABLE "tasks" ADD COLUMN "search_vector" "tsvector" GENERATED ALWAYS AS (setweight(to_tsvector('simple', coalesce(title, '')), 'A') || setweight(to_tsvector('simple', coalesce(description, '')), 'B')) STORED;--> statement-breakpoint
+ALTER TABLE "tasks" ADD COLUMN "completed_at" timestamp;--> statement-breakpoint
 ALTER TABLE "integration_oauth_states" ADD CONSTRAINT "integration_oauth_states_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "integration_oauth_states" ADD CONSTRAINT "integration_oauth_states_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notifications" ADD CONSTRAINT "notifications_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -390,3 +391,12 @@ SET state_id = NULL
 FROM task_states s
 WHERE t.state_id = s.id
   AND s.project_id <> t.project_id;
+--> statement-breakpoint
+-- completed_at backfill: tasks already in a done-category state count as
+-- completed at their last update. Runs after the state cleanup above.
+UPDATE tasks t
+SET completed_at = t.updated_at
+FROM task_states s
+WHERE t.state_id = s.id
+  AND s.category = 'done'
+  AND t.completed_at IS NULL;

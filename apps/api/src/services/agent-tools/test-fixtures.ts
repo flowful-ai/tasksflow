@@ -73,6 +73,7 @@ export function task(id: string, projectId: string, sequenceNumber: number, stat
     createdAt: created,
     updatedAt: created,
     deletedAt: null,
+    completedAt: null,
     state: null,
     project: { id: projectId, identifier: owner?.identifier ?? 'X', name: owner?.name ?? 'X' },
     assignees: [],

@@ -160,6 +160,26 @@ export async function recordTaskEvents(db: DbExecutor, inputs: readonly TaskEven
   );
 }
 
+/**
+ * completed_at for a task landing in `stateId`: kept when it was already
+ * completed and stays done (done → done keeps the original time), stamped
+ * now when it enters done, cleared otherwise.
+ */
+export async function completedAtFor(
+  db: DbExecutor,
+  stateId: string | null,
+  current: Date | null
+): Promise<Date | null> {
+  if (!stateId) return null;
+  const [state] = await db
+    .select({ category: taskStates.category })
+    .from(taskStates)
+    .where(eq(taskStates.id, stateId))
+    .limit(1);
+  if (state?.category !== 'done') return null;
+  return current ?? new Date();
+}
+
 /** {id, name, category} snapshots for states, for event metadata. */
 export async function stateSnapshots(
   db: DbExecutor,
@@ -207,6 +227,7 @@ export async function lockTask(db: DbExecutor, taskId: string, opts: { includeDe
       startDate: tasks.startDate,
       sequenceNumber: tasks.sequenceNumber,
       deletedAt: tasks.deletedAt,
+      completedAt: tasks.completedAt,
     })
     .from(tasks)
     .where(and(...conditions))
@@ -304,6 +325,7 @@ export class TaskService {
             description: input.description || null,
             priority: input.priority || null,
             position: placement.position,
+            completedAt: await completedAtFor(tx, stateId, null),
             parentId: input.parentId ?? null,
             dueDate: input.dueDate || null,
             startDate: input.startDate || null,
@@ -451,6 +473,7 @@ export class TaskService {
         if (stateChanged) {
           track('stateId', current.stateId, input.stateId);
           set.stateId = input.stateId;
+          set.completedAt = await completedAtFor(tx, input.stateId ?? null, current.completedAt);
         }
 
         let rekeyed = false;
@@ -631,7 +654,12 @@ export class TaskService {
 
         await tx
           .update(tasks)
-          .set({ stateId: input.stateId, position: placement.position, updatedAt: new Date() })
+          .set({
+            stateId: input.stateId,
+            position: placement.position,
+            completedAt: await completedAtFor(tx, input.stateId, current.completedAt),
+            updatedAt: new Date(),
+          })
           .where(eq(tasks.id, taskId));
 
         const stateChanged = current.stateId !== input.stateId;

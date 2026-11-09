@@ -2,7 +2,8 @@
  * Board ordering. Non-done columns follow `position` in plain code-unit order
  * with the id as tiebreak, exactly like the server's
  * `ORDER BY position COLLATE "C", id`. Done columns show the most recently
- * completed first (approximated by `updatedAt`, which a move bumps).
+ * completed first (`completedAt`, falling back to `updatedAt` for rows that
+ * predate it).
  */
 import { comparePositions } from '@flowtask/shared';
 
@@ -10,6 +11,7 @@ export interface OrderableTask {
   id: string;
   position?: string;
   updatedAt?: string | null;
+  completedAt?: string | null;
 }
 
 function compareIds(a: string, b: string): number {
@@ -28,7 +30,9 @@ function timeOf(value: string | null | undefined): number {
 }
 
 export function compareByRecentlyCompleted(a: OrderableTask, b: OrderableTask): number {
-  return timeOf(b.updatedAt) - timeOf(a.updatedAt) || compareIds(a.id, b.id);
+  return (
+    timeOf(b.completedAt ?? b.updatedAt) - timeOf(a.completedAt ?? a.updatedAt) || compareIds(a.id, b.id)
+  );
 }
 
 export function isDoneCategory(category: string | undefined | null): boolean {

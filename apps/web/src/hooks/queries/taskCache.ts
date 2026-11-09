@@ -170,8 +170,15 @@ export function moveTaskInList(tasks: TaskDto[], input: MoveTaskInput, state: Ta
     stateId: input.stateId,
     state: state ?? (current.state ? { ...current.state, id: input.stateId } : null),
     position,
-    // A move bumps updatedAt server-side; Done columns sort by it.
-    ...(changedState ? { updatedAt: new Date().toISOString() } : {}),
+    // Mirror the server: a state change bumps updatedAt, entering done stamps
+    // completedAt (done → done keeps it), leaving done clears it.
+    ...(changedState
+      ? {
+          updatedAt: new Date().toISOString(),
+          completedAt:
+            state?.category === 'done' ? (current.completedAt ?? new Date().toISOString()) : null,
+        }
+      : {}),
   };
   return [...rest.slice(0, index), moved, ...rest.slice(index)];
 }
