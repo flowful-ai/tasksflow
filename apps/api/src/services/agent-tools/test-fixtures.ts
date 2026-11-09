@@ -130,7 +130,7 @@ export function createScopeDeps(tasks: TaskWithRelations[] = createTasks()): Too
   return {
     getProject: async (projectId) =>
       PROJECTS.find((candidate) => candidate.id === projectId) ?? null,
-    hasProjectAccess: async (projectId, _userId, role) => canSee(projectId, role),
+    hasProjectAccess: async (project, _userId, role) => canSee(project.id, role),
     listAccessibleProjects: async (workspaceId, _userId, role) =>
       PROJECTS.filter(
         (candidate) => candidate.workspaceId === workspaceId && canSee(candidate.id, role)

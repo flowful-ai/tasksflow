@@ -6,13 +6,9 @@
  */
 import { and, eq, inArray } from 'drizzle-orm';
 import { projectMembers, projects, workspaceMembers } from '../../db/index.js';
-import type { WorkspaceRole } from '@flowtask/shared';
 import { projectAclAllows } from '../workspace/authorization.js';
+import { isWorkspaceRole } from '../workspace/role-policy.js';
 import type { DbExecutor } from './db.js';
-
-function isWorkspaceRole(value: string): value is WorkspaceRole {
-  return value === 'owner' || value === 'admin' || value === 'member';
-}
 
 /** Users (of a candidate list) that are workspace members allowed into the project. */
 export async function filterUsersWithProjectAccess(

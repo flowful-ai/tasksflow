@@ -1,3 +1,4 @@
+import { escapeLike } from '@flowtask/shared';
 import {
   eq,
   and,
@@ -57,10 +58,6 @@ import type {
   TaskEventInput,
   GetTaskOptions,
 } from './types.js';
-
-function escapeLike(value: string): string {
-  return value.replace(/[%_\\]/g, '\\$&');
-}
 
 type JoinName = 'task_states' | 'task_assignees' | 'task_labels';
 

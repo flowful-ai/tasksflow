@@ -110,11 +110,11 @@ describe('tenant scoping (buildToolContext)', () => {
     );
   });
 
-  it('rejects tasks in ACL-restricted projects for members', async () => {
+  it('hides tasks in ACL-restricted projects from members (not found, like the routes)', async () => {
     const { services } = createServices();
     await expectToolError(
       executeAgentTool('get_task', { taskId: TASK_SECRET }, contextFor('member'), services),
-      'FORBIDDEN'
+      'NOT_FOUND'
     );
   });
 

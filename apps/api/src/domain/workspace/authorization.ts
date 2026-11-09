@@ -10,7 +10,7 @@ import {
   sessions,
 } from '../../db/index.js';
 import type { WorkspaceRole } from '@flowtask/shared';
-import { isWorkspaceRole } from './role-policy.js';
+import { isAdminRole, isWorkspaceRole } from './role-policy.js';
 
 /**
  * Central authorization for workspace, project and task access.
@@ -75,7 +75,7 @@ export function projectAclAllows(
   role: WorkspaceRole,
   isProjectMember: boolean
 ): boolean {
-  if (role === 'owner' || role === 'admin') return true;
+  if (isAdminRole(role)) return true;
   if (access === 'all') return true;
   if (access === 'members') return isProjectMember;
   // 'admin' (admin-only) and any unknown value deny members.
@@ -191,7 +191,7 @@ export class AuthorizationService<P extends string> {
       ? and(eq(projects.workspaceId, workspaceId), eq(projects.isArchived, false))
       : eq(projects.workspaceId, workspaceId);
 
-    if (role === 'owner' || role === 'admin') {
+    if (isAdminRole(role)) {
       const rows = await this.db.select({ id: projects.id }).from(projects).where(inWorkspace);
       return rows.map((r) => r.id);
     }

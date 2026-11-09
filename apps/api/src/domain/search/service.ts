@@ -2,6 +2,7 @@
  * Global search for the ⌘K palette: tasks (key, full-text, prefix) and
  * projects, limited to the projects the caller can access.
  */
+import { escapeLike } from '@flowtask/shared';
 import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
 import { projects, taskStates, tasks } from '../../db/index.js';
@@ -25,10 +26,6 @@ export interface SearchInput {
   projectIds: readonly string[];
   q: string;
   limit?: number;
-}
-
-function escapeLike(value: string): string {
-  return value.replace(/[%_\\]/g, '\\$&');
 }
 
 export class SearchService {

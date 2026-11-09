@@ -26,6 +26,7 @@ import {
   requireWorkspace,
 } from '../lib/authorize.js';
 import { badRequest, forbidden, fromResult, handleRouteError } from '../lib/responses.js';
+import { getWebUrl } from '../integrations/index.js';
 
 const smartViews = new Hono();
 smartViews.onError(handleRouteError);
@@ -40,7 +41,7 @@ const ExecuteQuerySchema = createPaginationQuerySchema({
 });
 
 function shareUrl(token: string): string {
-  return `${process.env.WEB_URL || 'http://localhost:3000'}/share/${token}`;
+  return `${getWebUrl()}/share/${token}`;
 }
 
 // List smart views visible to the caller (team views, own personal views, views shared with them)

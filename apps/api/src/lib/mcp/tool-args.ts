@@ -1,5 +1,5 @@
 import { ToolExecutionError } from './errors.js';
-import type { JsonRecord, JsonValue } from './json-schema-zod.js';
+import { isJsonRecord, type JsonRecord } from './json-schema-zod.js';
 
 /**
  * Typed readers for tool arguments. Arguments are validated against the tool's
@@ -64,7 +64,7 @@ export function optionalRecordArray(args: JsonRecord, key: string): JsonRecord[]
   if (value === undefined) return undefined;
   if (!Array.isArray(value)) throw schemaMismatch(key, 'an array of objects');
   return value.map((entry) => {
-    if (!isRecord(entry)) throw schemaMismatch(key, 'an array of objects');
+    if (!isJsonRecord(entry)) throw schemaMismatch(key, 'an array of objects');
     return entry;
   });
 }
@@ -72,12 +72,8 @@ export function optionalRecordArray(args: JsonRecord, key: string): JsonRecord[]
 export function optionalRecord(args: JsonRecord, key: string): JsonRecord | undefined {
   const value = args[key];
   if (value === undefined) return undefined;
-  if (!isRecord(value)) throw schemaMismatch(key, 'an object');
+  if (!isJsonRecord(value)) throw schemaMismatch(key, 'an object');
   return value;
-}
-
-function isRecord(value: JsonValue | undefined): value is JsonRecord {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 const TASK_PRIORITIES = ['urgent', 'high', 'medium', 'low', 'none'] as const;

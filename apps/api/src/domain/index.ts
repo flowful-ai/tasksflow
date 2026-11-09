@@ -50,3 +50,4 @@ export * from './invitation/types.js';
 // App admin domain
 export * from './app-admin/service.js';
 export * from './app-admin/types.js';
+export * from './keyset-cursor.js';

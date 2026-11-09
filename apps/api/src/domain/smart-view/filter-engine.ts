@@ -1,3 +1,5 @@
+import { isUuid } from '../workspace/authorization.js';
+import { escapeLike } from '@flowtask/shared';
 import {
   eq,
   and,
@@ -55,10 +57,6 @@ import type { FilterContext } from './types.js';
  * many-to-many and compile to EXISTS / NOT EXISTS subqueries, so they never
  * need a join and never duplicate rows.
  */
-
-function escapeLike(value: string): string {
-  return value.replace(/[%_\\]/g, '\\$&');
-}
 
 /** Filter context plus the IANA timezone used for calendar templates. */
 export type FilterEngineContext = FilterContext & { timezone: string };
@@ -370,8 +368,6 @@ const FIELD_MAP: Record<string, FieldMapping> = {
   label_id: { source: 'relation', relation: 'label' },
 };
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /**
  * Coerce a resolved scalar to the column's kind. Returns undefined when the
  * value can't be compared with the column (e.g. "abc" against a uuid), so a
@@ -381,7 +377,7 @@ function coerce(value: FilterScalar, kind: FieldKind): string | number | Date | 
   if (value === null || typeof value === 'boolean') return undefined;
   switch (kind) {
     case 'uuid':
-      return typeof value === 'string' && UUID_RE.test(value) ? value : undefined;
+      return typeof value === 'string' && isUuid(value) ? value : undefined;
     case 'text':
       return value instanceof Date ? value.toISOString() : String(value);
     case 'number': {

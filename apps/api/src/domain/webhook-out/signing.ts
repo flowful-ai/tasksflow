@@ -7,7 +7,8 @@
  * Receivers should recompute the HMAC over the raw body, compare in constant
  * time, and reject timestamps older than a few minutes (replay protection).
  */
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomToken, safeEqual } from '../../integrations/crypto.js';
+import { createHmac } from 'node:crypto';
 
 export const SIGNATURE_HEADER = 'X-FlowTask-Signature';
 export const TIMESTAMP_HEADER = 'X-FlowTask-Timestamp';
@@ -36,13 +37,11 @@ export function verifyWebhookSignature(
   const tolerance = opts.toleranceSeconds ?? 300;
   const now = opts.now ?? Math.floor(Date.now() / 1000);
   if (!Number.isFinite(timestamp) || Math.abs(now - timestamp) > tolerance) return false;
-  const expected = Buffer.from(signWebhookPayload(secret, timestamp, body));
-  const actual = Buffer.from(signature);
-  return expected.length === actual.length && timingSafeEqual(expected, actual);
+  return safeEqual(signWebhookPayload(secret, timestamp, body), signature);
 }
 
 export function generateWebhookSecret(): string {
-  return `whsec_${randomBytes(32).toString('base64url')}`;
+  return `whsec_${randomToken(32)}`;
 }
 
 /** "whsec_…AbCd" — safe to show after creation. */

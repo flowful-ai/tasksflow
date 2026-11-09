@@ -1,15 +1,12 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import { randomToken } from '../../integrations/crypto.js';
 
 export function hashSecret(value: string): string {
   return createHash('sha256').update(value).digest('hex');
 }
 
-export function randomOpaqueToken(bytes = 32): string {
-  return randomBytes(bytes).toString('base64url');
-}
-
 export function randomClientId(): string {
-  return `ft_mcp_client_${randomOpaqueToken(24)}`;
+  return `ft_mcp_client_${randomToken(24)}`;
 }
 
 export function buildS256CodeChallenge(codeVerifier: string): string {

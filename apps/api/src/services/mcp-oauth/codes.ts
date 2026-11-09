@@ -3,7 +3,8 @@ import { and, eq, gt, isNull } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
 import { mcpOAuthAuthorizationCodes, type NewMcpOAuthAuthorizationCode } from '../../db/schema.js';
 import { OAuthError } from './errors.js';
-import { buildS256CodeChallenge, hashSecret, randomOpaqueToken } from './crypto.js';
+import { buildS256CodeChallenge, hashSecret } from './crypto.js';
+import { randomToken } from '../../integrations/crypto.js';
 import { normalizeScopeString } from './scopes.js';
 import { normalizeResource, resolveRequestedResource } from './resource.js';
 import { getClientByPublicId } from './clients.js';
@@ -24,7 +25,7 @@ export async function createAuthorizationCode(
     resource: string;
   }
 ): Promise<string> {
-  const code = randomOpaqueToken(32);
+  const code = randomToken(32);
 
   const insertData: NewMcpOAuthAuthorizationCode = {
     clientId: input.clientInternalId,

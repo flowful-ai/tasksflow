@@ -1,9 +1,12 @@
+import { truncate } from '@flowtask/shared';
 import { and, asc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 import { jobs, type Database, type Job } from '../../db/index.js';
 import { toJsonObject } from '@flowtask/shared';
 import { JobRetryLater, type ClaimedJob, type JobHandlers, type JobOutcome } from './types.js';
+import { toError } from '../workspace/errors.js';
+import { enqueueJob } from './queue.js';
 
 export interface JobRunnerOptions {
   /** Max jobs running at once in this process (default 4). */
@@ -42,14 +45,6 @@ export function computeBackoffMs(attempts: number, rand: () => number = Math.ran
   const base = Math.min(BACKOFF_BASE_MS * 2 ** Math.min(exponent, 30), BACKOFF_MAX_MS);
   const jitter = 0.8 + 0.4 * rand();
   return Math.round(base * jitter);
-}
-
-function toError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error));
-}
-
-function truncate(message: string): string {
-  return message.length > MAX_ERROR_LENGTH ? `${message.slice(0, MAX_ERROR_LENGTH - 1)}…` : message;
 }
 
 function toClaimedJob(row: Job): ClaimedJob {
@@ -134,7 +129,7 @@ export function createJobRunner(
           doneAt: sql`now()`,
           lockedAt: null,
           lockedBy: null,
-          lastError: outcome?.error ? truncate(outcome.error) : null,
+          lastError: outcome?.error ? truncate(outcome.error, MAX_ERROR_LENGTH) : null,
         })
         .where(and(owned, unchanged))
         .returning({ id: jobs.id });
@@ -153,25 +148,17 @@ export function createJobRunner(
       }
 
       if (outcome?.reschedule && job.key) {
-        await tx
-          .insert(jobs)
-          .values({
-            type: job.type,
-            payload: job.payload,
-            key: job.key,
-            maxAttempts: job.maxAttempts,
-            runAt: outcome.reschedule.runAt,
-          })
-          .onConflictDoNothing({
-            target: jobs.key,
-            where: sql`${jobs.key} IS NOT NULL AND ${jobs.doneAt} IS NULL AND ${jobs.failedAt} IS NULL`,
-          });
+        await enqueueJob(tx, job.type, job.payload, {
+          key: job.key,
+          maxAttempts: job.maxAttempts,
+          runAt: outcome.reschedule.runAt,
+        });
       }
     });
   }
 
   async function finishFailure(job: ClaimedJob, error: Error): Promise<void> {
-    const message = truncate(error.message || error.name);
+    const message = truncate(error.message || error.name, MAX_ERROR_LENGTH);
     const owned = and(eq(jobs.id, job.id), eq(jobs.lockedBy, workerId));
 
     if (error instanceof JobRetryLater) {

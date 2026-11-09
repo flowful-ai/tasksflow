@@ -3,6 +3,7 @@
  * snooze). Producers (domain-event subscribers, reminder jobs) call
  * `createMany`, which drops the actor, checks project access and dedupes.
  */
+import { decodeKeysetCursor, encodeKeysetCursor } from '../keyset-cursor.js';
 import { and, desc, eq, gt, isNotNull, isNull, lte, or, sql, type SQL } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
 import { notifications, projects, tasks, users, type Notification } from '../../db/index.js';
@@ -75,31 +76,6 @@ function isNotificationType(value: string): value is NotificationType {
   return NOTIFICATION_TYPES.includes(value);
 }
 
-interface Cursor {
-  ts: string;
-  id: string;
-}
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-/** Postgres timestamp[tz]::text, e.g. "2026-11-09 10:00:00.123456+00". */
-const PG_TIMESTAMP_RE =
-  /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d{1,6})?([+-]\d{2}(:?\d{2})?)?$/;
-
-function encodeCursor(cursor: Cursor): string {
-  return Buffer.from(`${cursor.ts}|${cursor.id}`, 'utf8').toString('base64url');
-}
-
-function decodeCursor(raw: string | undefined): Cursor | null {
-  if (!raw) return null;
-  const decoded = Buffer.from(raw, 'base64url').toString('utf8');
-  const sep = decoded.lastIndexOf('|');
-  if (sep <= 0) return null;
-  const ts = decoded.slice(0, sep);
-  const id = decoded.slice(sep + 1);
-  if (!UUID_RE.test(id) || !PG_TIMESTAMP_RE.test(ts)) return null;
-  return { ts, id };
-}
-
 export function notificationFilterCondition(
   filter: NotificationFilter,
   now: Date
@@ -165,7 +141,7 @@ export class NotificationService {
       ];
       const filterCondition = notificationFilterCondition(query.filter ?? 'inbox', new Date());
       if (filterCondition) conditions.push(filterCondition);
-      const cursor = decodeCursor(query.cursor);
+      const cursor = decodeKeysetCursor(query.cursor);
       if (cursor) {
         conditions.push(
           sql`(${notifications.createdAt}, ${notifications.id}) < (${cursor.ts}::timestamptz, ${cursor.id}::uuid)`
@@ -228,7 +204,9 @@ export class NotificationService {
       });
       const last = page[page.length - 1];
       const nextCursor =
-        rows.length > limit && last ? encodeCursor({ ts: last.cursorTs, id: last.n.id }) : null;
+        rows.length > limit && last
+          ? encodeKeysetCursor({ ts: last.cursorTs, id: last.n.id })
+          : null;
       return ok({ items, nextCursor });
     } catch (error) {
       return err(toError(error));

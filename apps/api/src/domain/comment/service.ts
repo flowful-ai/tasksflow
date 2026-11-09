@@ -10,7 +10,7 @@ import type {
   CommentUpdateInput,
   CommentListOptions,
 } from './types.js';
-import { DomainError } from '../workspace/errors.js';
+import { DomainError, toError } from '../workspace/errors.js';
 import { isUuid } from '../workspace/authorization.js';
 
 export class CommentService {
@@ -61,7 +61,7 @@ export class CommentService {
 
       return this.getById(comment.id);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -97,7 +97,7 @@ export class CommentService {
         agent: result.agent?.id ? result.agent : null,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -136,7 +136,7 @@ export class CommentService {
 
       return this.getById(commentId);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -168,7 +168,7 @@ export class CommentService {
 
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -224,7 +224,7 @@ export class CommentService {
 
       return ok({ comments: commentsWithUsers, total });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -240,7 +240,7 @@ export class CommentService {
 
       return ok(result?.count ?? 0);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -275,7 +275,7 @@ export class CommentService {
         agent: result.agent?.id ? result.agent : null,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -302,7 +302,7 @@ export class CommentService {
 
       return this.getById(updated.id);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -318,7 +318,7 @@ export class CommentService {
 
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 }

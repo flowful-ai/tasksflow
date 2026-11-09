@@ -1,3 +1,4 @@
+import { escapeLike } from '@flowtask/shared';
 import { eq, and, sql, desc, asc, like, inArray, SQL } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
 import {
@@ -26,11 +27,7 @@ import type {
 } from './types.js';
 import { DomainError, toError } from '../workspace/errors.js';
 import { isUuid, projectAclAllows } from '../workspace/authorization.js';
-import type { WorkspaceRole } from '@flowtask/shared';
-
-function escapeLike(value: string): string {
-  return value.replace(/[%_\\]/g, '\\$&');
-}
+import { isAdminRole } from '../workspace/role-policy.js';
 
 export class ProjectService {
   constructor(private db: Database) {}
@@ -95,7 +92,7 @@ export class ProjectService {
 
       return this.getById(project.id);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -147,7 +144,7 @@ export class ProjectService {
         taskCount: countResult?.count ?? 0,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -180,7 +177,7 @@ export class ProjectService {
 
       return this.getById(projectId);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -192,7 +189,7 @@ export class ProjectService {
       await this.db.delete(projects).where(eq(projects.id, projectId));
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -298,7 +295,7 @@ export class ProjectService {
 
       // Filter by access control if userId and role are provided
       let filteredRows = projectRows;
-      if (filters.userId && filters.workspaceRole === 'member') {
+      if (filters.userId && filters.workspaceRole && !isAdminRole(filters.workspaceRole)) {
         // Members need access checks; owners/admins see everything
         const restrictedProjectIds = filteredRows
           .filter((p) => p.access !== 'all')
@@ -334,7 +331,7 @@ export class ProjectService {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -374,7 +371,7 @@ export class ProjectService {
 
       return ok(state);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -465,7 +462,7 @@ export class ProjectService {
 
       return ok(label);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -525,38 +522,6 @@ export class ProjectService {
   // === Access Control ===
 
   /**
-   * Check if a user has access to a project based on their workspace role.
-   * Owners/admins always have access.
-   */
-  async hasAccess(
-    projectId: string,
-    userId: string,
-    workspaceRole: WorkspaceRole
-  ): Promise<boolean> {
-    if (workspaceRole === 'owner' || workspaceRole === 'admin') {
-      return true;
-    }
-    if (!isUuid(projectId)) return false;
-
-    const [project] = await this.db
-      .select({ access: projects.access })
-      .from(projects)
-      .where(eq(projects.id, projectId));
-
-    if (!project) return false;
-    if (project.access !== 'members') return projectAclAllows(project.access, workspaceRole, false);
-
-    // access === 'members' — check project_members table
-    const [member] = await this.db
-      .select({ id: projectMembers.id })
-      .from(projectMembers)
-      .where(and(eq(projectMembers.projectId, projectId), eq(projectMembers.userId, userId)))
-      .limit(1);
-
-    return !!member;
-  }
-
-  /**
    * Get project members with user details.
    */
   async getMembers(projectId: string): Promise<
@@ -591,7 +556,7 @@ export class ProjectService {
 
       return ok(rows);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -653,7 +618,7 @@ export class ProjectService {
 
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 }

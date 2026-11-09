@@ -1,3 +1,4 @@
+import { decodeDateCursor, encodeDateCursor } from '../keyset-cursor.js';
 import { and, desc, eq, lt, or, sql } from 'drizzle-orm';
 import {
   outgoingWebhookDeliveries,
@@ -157,17 +158,6 @@ function toDeliveryView(row: OutgoingWebhookDelivery): OutgoingWebhookDeliveryVi
   };
 }
 
-function encodeCursor(row: { createdAt: Date; id: string }): string {
-  return Buffer.from(`${row.createdAt.toISOString()}|${row.id}`).toString('base64url');
-}
-
-function decodeCursor(cursor: string): { createdAt: Date; id: string } | null {
-  const [iso, id] = Buffer.from(cursor, 'base64url').toString('utf8').split('|');
-  if (!iso || !id || !/^[0-9a-f-]{36}$/i.test(id)) return null;
-  const createdAt = new Date(iso);
-  return Number.isNaN(createdAt.getTime()) ? null : { createdAt, id };
-}
-
 function toError(error: unknown): OutgoingWebhookError {
   if (error instanceof OutgoingWebhookError) return error;
   if (error instanceof WebhookUrlError) return new OutgoingWebhookError(error.code, error.message);
@@ -301,7 +291,7 @@ export class OutgoingWebhookService {
       const limit = Math.max(1, Math.min(100, opts.limit ?? 20));
       const conditions = [eq(outgoingWebhookDeliveries.webhookId, webhookId)];
       if (opts.cursor) {
-        const cursor = decodeCursor(opts.cursor);
+        const cursor = decodeDateCursor(opts.cursor);
         if (!cursor) return err(new OutgoingWebhookError('INVALID_CURSOR', 'Invalid cursor'));
         const older = or(
           lt(outgoingWebhookDeliveries.createdAt, cursor.createdAt),
@@ -322,7 +312,7 @@ export class OutgoingWebhookService {
       const last = page[page.length - 1];
       return ok({
         items: page.map(toDeliveryView),
-        nextCursor: rows.length > limit && last ? encodeCursor(last) : null,
+        nextCursor: rows.length > limit && last ? encodeDateCursor(last) : null,
       });
     } catch (error) {
       return err(toError(error));

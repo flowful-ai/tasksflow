@@ -13,6 +13,7 @@ import {
 import { describeRedirectTarget } from '../services/mcp-oauth/redirect-uri.js';
 import { getBaseUrl } from '../lib/base-url.js';
 import { ipRateLimit } from '../lib/mcp/rate-limit.js';
+import { getWebUrl } from '../integrations/index.js';
 
 const mcpOAuth = new Hono();
 const oauthService = new McpOAuthService();
@@ -348,7 +349,7 @@ mcpOAuth.get('/oauth/authorize', async (c) => {
 
     const user = await getSessionUser(c);
     if (!user) {
-      const webUrl = process.env.WEB_URL || 'http://localhost:3000';
+      const webUrl = getWebUrl();
       const requestUrl = new URL(c.req.url);
       const returnTo = `${baseUrl}${requestUrl.pathname}${requestUrl.search}`;
       return c.redirect(`${webUrl}/auth/login?${encodeQuery({ redirect: returnTo })}`, 302);

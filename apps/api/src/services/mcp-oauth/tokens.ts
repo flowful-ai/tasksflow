@@ -5,7 +5,8 @@ import type { Database } from '../../db/index.js';
 import { mcpOAuthAccessTokens, mcpOAuthClients, mcpOAuthRefreshTokens } from '../../db/schema.js';
 import type { AgentTool } from '@flowtask/shared';
 import { OAuthError } from './errors.js';
-import { hashSecret, openWithSecret, randomOpaqueToken, sealWithSecret } from './crypto.js';
+import { hashSecret, openWithSecret, sealWithSecret } from './crypto.js';
+import { randomToken } from '../../integrations/crypto.js';
 import {
   expandToolPermissions,
   hasExactlyOneWorkspaceScope,
@@ -64,8 +65,8 @@ export async function issueTokenPair(
     refreshTokenId?: string;
   }
 ): Promise<{ response: OAuthTokenResponse; refreshTokenId: string; accessTokenId: string }> {
-  const accessToken = randomOpaqueToken(32);
-  const refreshToken = randomOpaqueToken(32);
+  const accessToken = randomToken(32);
+  const refreshToken = randomToken(32);
   const refreshTokenId = input.refreshTokenId ?? randomUUID();
 
   const [accessRow] = await db

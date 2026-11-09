@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { isJsonObject, type WorkspaceRole } from '@flowtask/shared';
+import { isAdminRole } from '../domain/workspace/role-policy.js';
 import {
   decodeWireMessage,
   encodeWithinLimit,
@@ -101,10 +102,6 @@ export interface HubOptions {
 }
 
 const encoder = new TextEncoder();
-
-function isAdminRole(role: WorkspaceRole): boolean {
-  return role === 'owner' || role === 'admin';
-}
 
 function stringField(data: EventData, key: string): string | null {
   const value = data[key];

@@ -1,3 +1,4 @@
+import { truncate } from '@flowtask/shared';
 import { eq, lt } from 'drizzle-orm';
 import { outgoingWebhookDeliveries, outgoingWebhooks } from '../../db/index.js';
 import { toJsonValue, type JsonValue } from '@flowtask/shared';
@@ -24,10 +25,6 @@ export interface DeliverHandlerOptions {
 export const DELIVERY_RETENTION_DAYS = 30;
 const MAX_ERROR_LENGTH = 1000;
 const USER_AGENT = 'FlowTask-Webhooks/1.0';
-
-function truncate(message: string): string {
-  return message.length > MAX_ERROR_LENGTH ? `${message.slice(0, MAX_ERROR_LENGTH - 1)}…` : message;
-}
 
 function readDeliveryId(payload: { [key: string]: JsonValue }): string | null {
   const value = payload.deliveryId;
@@ -77,7 +74,11 @@ export function createWebhookDeliveryHandler(opts: DeliverHandlerOptions = {}): 
       // Policy violations are permanent: don't retry.
       const message =
         error instanceof WebhookUrlError ? `${error.code}: ${error.message}` : 'URL check failed';
-      await record({ status: 'failed', attempt: job.attempts, error: truncate(message) });
+      await record({
+        status: 'failed',
+        attempt: job.attempts,
+        error: truncate(message, MAX_ERROR_LENGTH),
+      });
       return;
     }
 
@@ -116,7 +117,7 @@ export function createWebhookDeliveryHandler(opts: DeliverHandlerOptions = {}): 
         attempt: job.attempts,
         responseCode: null,
         durationMs: Date.now() - started,
-        error: truncate(`Request failed: ${message}`),
+        error: truncate(`Request failed: ${message}`, MAX_ERROR_LENGTH),
       });
       throw new Error(`Webhook delivery ${delivery.id} failed: ${message}`);
     }

@@ -3,7 +3,7 @@ import type { Database } from '../../db/index.js';
 import { workspaceInvitations, workspaceMembers, workspaces, users } from '../../db/index.js';
 import type { Result } from '@flowtask/shared';
 import { ok, err } from '@flowtask/shared';
-import { DomainError } from '../workspace/errors.js';
+import { DomainError, toError } from '../workspace/errors.js';
 import { isWorkspaceRole } from '../workspace/role-policy.js';
 import type {
   InvitationWithInviter,
@@ -108,7 +108,7 @@ export class InvitationService {
         workspaceName: workspace.name,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -149,7 +149,7 @@ export class InvitationService {
         workspaceName: workspace.name,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -207,7 +207,7 @@ export class InvitationService {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -290,7 +290,7 @@ export class InvitationService {
       });
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -319,7 +319,7 @@ export class InvitationService {
 
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -360,7 +360,7 @@ export class InvitationService {
         workspaceName: workspace.name,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 }

@@ -95,7 +95,7 @@ export class SmartViewService {
 
       return this.getById(view.id);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -131,7 +131,7 @@ export class SmartViewService {
         publicShares: publicSharesList,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -194,7 +194,7 @@ export class SmartViewService {
 
       return this.getById(viewId);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -206,7 +206,7 @@ export class SmartViewService {
       await this.db.delete(smartViews).where(eq(smartViews.id, viewId));
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -314,7 +314,7 @@ export class SmartViewService {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -346,7 +346,7 @@ export class SmartViewService {
 
       return ok(share);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -366,7 +366,7 @@ export class SmartViewService {
 
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -398,7 +398,7 @@ export class SmartViewService {
 
       return ok(share);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -438,7 +438,7 @@ export class SmartViewService {
 
       return ok(share);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -463,7 +463,7 @@ export class SmartViewService {
       const valid = await verifyPassword(password, share.passwordHash);
       return ok(valid);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -563,7 +563,7 @@ export class SmartViewService {
 
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -580,7 +580,7 @@ export class SmartViewService {
 
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -595,7 +595,7 @@ export class SmartViewService {
         .where(and(eq(publicShares.id, shareId), eq(publicShares.smartViewId, smartViewId)));
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 }

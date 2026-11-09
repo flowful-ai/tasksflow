@@ -21,6 +21,11 @@ export function isWorkspaceRole(value: unknown): value is WorkspaceRole {
   return value === 'owner' || value === 'admin' || value === 'member';
 }
 
+/** Owners and admins: they see every project and administer the workspace. */
+export function isAdminRole(role: WorkspaceRole): boolean {
+  return role === 'owner' || role === 'admin';
+}
+
 export function roleRank(role: WorkspaceRole): number {
   return ROLE_RANK[role];
 }

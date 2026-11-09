@@ -1,8 +1,10 @@
+import { escapeLike } from '@flowtask/shared';
 import { and, asc, count, eq, ilike, or, sql, type SQL } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
 import { users } from '../../db/index.js';
 import type { AppRole, Result } from '@flowtask/shared';
 import { err, ok } from '@flowtask/shared';
+import { toError } from '../workspace/errors.js';
 import type {
   AppContext,
   AppUserSummary,
@@ -10,10 +12,6 @@ import type {
   ListAppUsersResult,
   UpdateUserRoleInput,
 } from './types.js';
-
-function escapeLike(value: string): string {
-  return value.replace(/[%_\\]/g, '\\$&');
-}
 
 function normalizeAppRole(appRole: string): AppRole {
   return appRole === 'app_manager' ? 'app_manager' : 'user';
@@ -55,7 +53,7 @@ export class AppAdminService {
         isAppManager: appRole === 'app_manager',
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -91,7 +89,7 @@ export class AppAdminService {
         offset,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -142,7 +140,7 @@ export class AppAdminService {
 
       return ok(toSummary(updated));
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 }

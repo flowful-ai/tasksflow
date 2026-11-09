@@ -1,13 +1,10 @@
+import { truncate } from '@flowtask/shared';
 import type { TaskNotification } from '../types.js';
 import type { SlackBlock, SlackClient } from './client.js';
 
 /** Escape text for Slack mrkdwn so titles can't inject links or @mentions. */
 export function escapeSlackText(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-function truncate(text: string, max: number): string {
-  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }
 
 const ACTION_COPY: Record<TaskNotification['action'], { emoji: string; verb: string }> = {

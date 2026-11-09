@@ -2,13 +2,12 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { getDatabase } from '../db/index.js';
-import { WorkspaceService } from '../domain/index.js';
+import { WorkspaceService, decodeDateCursor, encodeDateCursor } from '../domain/index.js';
 import {
   CreateWorkspaceSchema,
   UpdateWorkspaceSchema,
   WorkspaceRoleSchema,
   WorkspaceActivityQuerySchema,
-  WorkspaceActivityCursorSchema,
   REALTIME_EVENTS,
 } from '@flowtask/shared';
 import { getAuthz, requireUser, requireWorkspace } from '../lib/authorize.js';
@@ -20,21 +19,6 @@ workspaces.onError(handleRouteError);
 
 const db = getDatabase();
 const workspaceService = new WorkspaceService(db);
-
-function encodeCursor(cursor: { createdAt: Date; id: string }): string {
-  return Buffer.from(JSON.stringify(cursor)).toString('base64url');
-}
-
-function decodeCursor(cursor: string): { createdAt: Date; id: string } | null {
-  try {
-    const decoded = Buffer.from(cursor, 'base64url').toString('utf8');
-    const parsed: unknown = JSON.parse(decoded);
-    const validated = WorkspaceActivityCursorSchema.safeParse(parsed);
-    return validated.success ? validated.data : null;
-  } catch {
-    return null;
-  }
-}
 
 // List workspaces for current user
 workspaces.get('/', async (c) => {
@@ -99,7 +83,7 @@ workspaces.get(
 
     let cursor: { createdAt: Date; id: string } | undefined;
     if (query.cursor) {
-      cursor = decodeCursor(query.cursor) || undefined;
+      cursor = decodeDateCursor(query.cursor) ?? undefined;
       if (!cursor) throw badRequest('Invalid cursor format', 'INVALID_CURSOR');
     }
 
@@ -117,7 +101,7 @@ workspaces.get(
       data: page.items,
       meta: {
         limit: query.limit,
-        nextCursor: page.nextCursor ? encodeCursor(page.nextCursor) : null,
+        nextCursor: page.nextCursor ? encodeDateCursor(page.nextCursor) : null,
       },
     });
   }

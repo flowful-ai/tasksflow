@@ -11,6 +11,7 @@ import {
   type TaskWithRelations,
 } from '../../domain/index.js';
 import { hasPermission, type WorkspacePermission } from '../../auth/index.js';
+import { getAuthz } from '../authorize.js';
 import { AgentToolSchema, type AgentTool, type WorkspaceRole } from '@flowtask/shared';
 import { ToolExecutionError } from './errors.js';
 
@@ -24,7 +25,11 @@ export interface WorkspaceMemberSummary {
 /** Data access the scoping layer needs. Swappable in tests. */
 export interface ToolScopeDeps {
   getProject(projectId: string): Promise<ProjectWithRelations | null>;
-  hasProjectAccess(projectId: string, userId: string, role: WorkspaceRole): Promise<boolean>;
+  hasProjectAccess(
+    project: Pick<ProjectWithRelations, 'id' | 'access'>,
+    userId: string,
+    role: WorkspaceRole
+  ): Promise<boolean>;
   listAccessibleProjects(
     workspaceId: string,
     userId: string,
@@ -82,8 +87,8 @@ export function createDefaultToolScopeDeps(): ToolScopeDeps {
       const result = await projectService.getById(projectId);
       return result.ok ? result.value : null;
     },
-    hasProjectAccess: (projectId, userId, role) =>
-      projectService.hasAccess(projectId, userId, role),
+    // One ACL rule for routes, MCP and the in-app chat.
+    hasProjectAccess: (project, userId, role) => getAuthz().canAccessProject(project, userId, role),
     async listAccessibleProjects(workspaceId, userId, role) {
       const result = await projectService.list({
         filters: { workspaceId, userId, workspaceRole: role, includeArchived: true },
@@ -166,8 +171,9 @@ export function buildToolContext(
     if (!project || project.workspaceId !== input.workspaceId) {
       throw new ToolExecutionError('Project not found in this workspace', 'NOT_FOUND');
     }
-    if (!(await deps.hasProjectAccess(project.id, input.userId, input.role))) {
-      throw new ToolExecutionError('You do not have access to this project', 'FORBIDDEN');
+    // Like the routes, a project the caller may not see is reported as not found.
+    if (!(await deps.hasProjectAccess(project, input.userId, input.role))) {
+      throw new ToolExecutionError('Project not found in this workspace', 'NOT_FOUND');
     }
     return project;
   };

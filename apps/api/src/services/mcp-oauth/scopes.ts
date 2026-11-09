@@ -1,5 +1,6 @@
 import { AgentToolSchema, type AgentTool } from '@flowtask/shared';
 import { OAuthError } from './errors.js';
+import { isAdminRole, isWorkspaceRole } from '../../domain/index.js';
 
 export const TOOL_SCOPE_PREFIX = 'mcp:tool:';
 export const WORKSPACE_SCOPE_PREFIX = 'mcp:workspace:';
@@ -8,8 +9,6 @@ export const McpScope = {
   toolPrefix: TOOL_SCOPE_PREFIX,
   workspacePrefix: WORKSPACE_SCOPE_PREFIX,
 };
-
-const ALLOWED_ADMIN_ROLES = new Set(['owner', 'admin']);
 
 /** A granted tool implies these companions (same permission, batched form). */
 const IMPLIED_TOOL_PERMISSIONS: Partial<Record<AgentTool, AgentTool[]>> = {
@@ -131,7 +130,7 @@ export function toToolScope(tool: string): string {
 }
 
 export function isAuthorizingRole(role: string | null): boolean {
-  return Boolean(role && ALLOWED_ADMIN_ROLES.has(role));
+  return isWorkspaceRole(role) && isAdminRole(role);
 }
 
 export function getAllMcpToolNames(): AgentTool[] {

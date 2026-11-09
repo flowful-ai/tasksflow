@@ -15,6 +15,8 @@ import {
 } from '../../db/index.js';
 import type { DbExecutor } from './db.js';
 import { TaskError } from './errors.js';
+import { projectAclAllows } from '../workspace/authorization.js';
+import { isWorkspaceRole } from '../workspace/role-policy.js';
 
 export interface ProjectScope {
   id: string;
@@ -111,12 +113,11 @@ export async function assertAssigneesCanAccess(
 
   const allowed = new Set(
     rows
-      .filter((row) => {
-        const privileged = row.role === 'owner' || row.role === 'admin';
-        if (project.access === 'admin') return privileged;
-        if (project.access === 'members') return privileged || row.projectMemberId !== null;
-        return true;
-      })
+      .filter(
+        (row) =>
+          isWorkspaceRole(row.role) &&
+          projectAclAllows(project.access, row.role, row.projectMemberId !== null)
+      )
       .map((row) => row.userId)
   );
   const rejected = ids.filter((id) => !allowed.has(id));

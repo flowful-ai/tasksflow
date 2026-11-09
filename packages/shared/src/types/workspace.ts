@@ -64,12 +64,6 @@ export const WorkspaceActivityEventTypeSchema = z.enum([
 ]);
 export type WorkspaceActivityEventType = z.infer<typeof WorkspaceActivityEventTypeSchema>;
 
-export const WorkspaceActivityCursorSchema = z.object({
-  createdAt: z.coerce.date(),
-  id: z.string().uuid(),
-});
-export type WorkspaceActivityCursor = z.infer<typeof WorkspaceActivityCursorSchema>;
-
 export const WorkspaceActivityItemSchema = z.object({
   id: z.string().uuid(),
   createdAt: z.coerce.date(),

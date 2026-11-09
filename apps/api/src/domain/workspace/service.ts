@@ -1,3 +1,4 @@
+import { escapeLike } from '@flowtask/shared';
 import { eq, and, or, sql, desc, asc, like, inArray, lt, SQL } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
 import {
@@ -37,10 +38,6 @@ import { canChangeRole, canGrantRole, canRemoveMember, isWorkspaceRole } from '.
 import { isUuid } from './authorization.js';
 
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
-
-function escapeLike(value: string): string {
-  return value.replace(/[%_\\]/g, '\\$&');
-}
 
 function countOwners(members: Map<string, WorkspaceRole>): number {
   let owners = 0;
@@ -112,7 +109,7 @@ export class WorkspaceService {
 
       return this.getById(workspace.id);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -157,7 +154,7 @@ export class WorkspaceService {
         projectCount: countResult?.count ?? 0,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -174,7 +171,7 @@ export class WorkspaceService {
 
       return this.getById(workspace.id);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -203,7 +200,7 @@ export class WorkspaceService {
 
       return this.getById(workspaceId);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -215,7 +212,7 @@ export class WorkspaceService {
       await this.db.delete(workspaces).where(eq(workspaces.id, workspaceId));
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -316,7 +313,7 @@ export class WorkspaceService {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -341,7 +338,7 @@ export class WorkspaceService {
         defaultAgentId: workspace.defaultAgentId,
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -365,7 +362,7 @@ export class WorkspaceService {
 
       return this.getAgentAiSettings(workspaceId);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -479,7 +476,7 @@ export class WorkspaceService {
 
       return ok({ items, nextCursor });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -709,7 +706,7 @@ export class WorkspaceService {
 
       return ok(member && isWorkspaceRole(member.role) ? member.role : null);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 

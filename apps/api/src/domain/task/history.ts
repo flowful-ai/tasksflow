@@ -3,6 +3,8 @@
  * resolved for ids (states, users, labels, tasks, comments) so the client can
  * render "Jo moved Todo → In progress" without extra lookups.
  */
+import { decodeKeysetCursor, encodeKeysetCursor } from '../keyset-cursor.js';
+import { isUuid } from '../workspace/authorization.js';
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
 import {
@@ -51,38 +53,13 @@ export interface TaskHistoryPage {
   nextCursor: string | null;
 }
 
-interface Cursor {
-  ts: string;
-  id: string;
-}
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-/** Postgres timestamp[tz]::text, e.g. "2026-11-09 10:00:00.123456+00". */
-const PG_TIMESTAMP_RE =
-  /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d{1,6})?([+-]\d{2}(:?\d{2})?)?$/;
-
-export function encodeHistoryCursor(cursor: Cursor): string {
-  return Buffer.from(`${cursor.ts}|${cursor.id}`, 'utf8').toString('base64url');
-}
-
-export function decodeHistoryCursor(raw: string | undefined): Cursor | null {
-  if (!raw) return null;
-  const decoded = Buffer.from(raw, 'base64url').toString('utf8');
-  const sep = decoded.lastIndexOf('|');
-  if (sep <= 0) return null;
-  const ts = decoded.slice(0, sep);
-  const id = decoded.slice(sep + 1);
-  if (!UUID_RE.test(id) || !PG_TIMESTAMP_RE.test(ts)) return null;
-  return { ts, id };
-}
-
 function asString(value: JsonValue | undefined): string | null {
   return typeof value === 'string' ? value : null;
 }
 
 function asUuid(value: JsonValue | undefined): string | null {
   const s = asString(value);
-  return s && UUID_RE.test(s) ? s : null;
+  return isUuid(s) ? s : null;
 }
 
 function snapshotState(meta: JsonValue, side: 'from' | 'to'): HistoryDisplayValue | null {
@@ -104,7 +81,7 @@ export class TaskHistoryService {
   ): Promise<Result<TaskHistoryPage, Error>> {
     try {
       const limit = Math.max(1, Math.min(100, options.limit ?? 50));
-      const cursor = decodeHistoryCursor(options.cursor);
+      const cursor = decodeKeysetCursor(options.cursor);
       const conditions = [eq(taskEvents.taskId, taskId)];
       if (cursor) {
         conditions.push(
@@ -284,9 +261,7 @@ export class TaskHistoryService {
 
       const last = events[events.length - 1];
       const nextCursor =
-        rows.length > limit && last
-          ? encodeHistoryCursor({ ts: last.cursorTs, id: last.id })
-          : null;
+        rows.length > limit && last ? encodeKeysetCursor({ ts: last.cursorTs, id: last.id }) : null;
       return ok({ items, nextCursor });
     } catch (error) {
       return err(toError(error));

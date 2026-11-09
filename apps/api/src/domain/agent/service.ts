@@ -3,6 +3,7 @@ import type { Database } from '../../db/index.js';
 import { agents, workspaceApiKeys } from '../../db/index.js';
 import type { Result, AgentTool, ApiKeyProvider } from '@flowtask/shared';
 import { ok, err } from '@flowtask/shared';
+import { toError } from '../workspace/errors.js';
 import type {
   AgentWithRelations,
   AgentCreateInput,
@@ -51,7 +52,7 @@ export class AgentService {
 
       return this.getById(agent.id);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -96,7 +97,7 @@ export class AgentService {
         remainingTokensToday: Math.max(0, agent.tokensPerDay - agent.currentDayTokens),
       });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -133,7 +134,7 @@ export class AgentService {
 
       return this.getById(agentId);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -145,7 +146,7 @@ export class AgentService {
       await this.db.delete(agents).where(eq(agents.id, agentId));
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -197,7 +198,7 @@ export class AgentService {
 
       return ok(result);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -230,7 +231,7 @@ export class AgentService {
       }
       return ok(updated.currentDayTokens);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -272,7 +273,7 @@ export class AgentService {
 
       return ok(apiKey);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -304,7 +305,7 @@ export class AgentService {
       const decrypted = await decryptApiKey(apiKey.encryptedKey);
       return ok(decrypted);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -338,7 +339,7 @@ export class AgentService {
 
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
