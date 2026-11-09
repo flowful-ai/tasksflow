@@ -1,32 +1,9 @@
 import { useMemo } from 'react';
 import { Plus, Filter } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
 import type { FilterGroup, FilterCondition } from '@flowtask/shared';
-import { api } from '../../../api/client';
+import { useProjects, useWorkspace } from '../../../hooks/queries';
 import { FilterConditionRow } from './FilterConditionRow';
 import { FILTER_FIELDS, OPERATORS_BY_TYPE } from './constants';
-
-interface WorkspaceDetail {
-  id: string;
-  name: string;
-  members: {
-    userId: string;
-    role: string;
-    user: {
-      id: string;
-      name: string | null;
-      email: string;
-    };
-  }[];
-}
-
-// Extended project type that includes relations (the API actually returns this)
-interface ProjectWithRelations {
-  id: string;
-  name: string;
-  taskStates?: { id: string; name: string; category: string; color: string | null }[];
-  labels?: { id: string; name: string; color: string | null }[];
-}
 
 interface FilterBuilderProps {
   value: FilterGroup;
@@ -35,27 +12,9 @@ interface FilterBuilderProps {
 }
 
 export function FilterBuilder({ value, onChange, workspaceId }: FilterBuilderProps) {
-  // Fetch workspace members
-  const { data: workspaceDetail } = useQuery({
-    queryKey: ['workspace', workspaceId],
-    queryFn: async () => {
-      const response = await api.get<{ data: WorkspaceDetail }>(`/api/workspaces/${workspaceId}`);
-      return response.data;
-    },
-    enabled: !!workspaceId,
-  });
-
-  // Fetch projects with their states and labels
-  const { data: projectsData } = useQuery({
-    queryKey: ['projects-with-relations', workspaceId],
-    queryFn: async () => {
-      const response = await api.get<{ data: ProjectWithRelations[] }>(
-        `/api/projects?workspaceId=${workspaceId}`
-      );
-      return response.data || [];
-    },
-    enabled: !!workspaceId,
-  });
+  const { data: workspaceDetail } = useWorkspace(workspaceId);
+  // Projects carry their task states and labels.
+  const { data: projectsData } = useProjects(workspaceId);
 
   // Aggregate labels and state categories from all projects
   const { labels, stateCategories, projects } = useMemo(() => {
@@ -94,9 +53,7 @@ export function FilterBuilder({ value, onChange, workspaceId }: FilterBuilderPro
   const workspaceMembers = workspaceDetail?.members || [];
 
   // Only work with simple conditions (not nested groups for now)
-  const conditions = value.conditions.filter(
-    (c): c is FilterCondition => 'field' in c
-  );
+  const conditions = value.conditions.filter((c): c is FilterCondition => 'field' in c);
 
   const handleOperatorToggle = () => {
     onChange({
@@ -144,11 +101,12 @@ export function FilterBuilder({ value, onChange, workspaceId }: FilterBuilderPro
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
         <div className="flex items-center gap-2 text-sm text-gray-600">
-          <Filter className="w-4 h-4" />
+          <Filter aria-hidden className="w-4 h-4" />
           <span>Match</span>
           <button
             type="button"
             onClick={handleOperatorToggle}
+            aria-label={`Match ${value.operator === 'AND' ? 'all' : 'any'} conditions (click to switch)`}
             className="px-2 py-0.5 font-medium text-primary-700 bg-primary-100 rounded hover:bg-primary-200 transition-colors"
           >
             {value.operator === 'AND' ? 'all' : 'any'}
@@ -161,15 +119,13 @@ export function FilterBuilder({ value, onChange, workspaceId }: FilterBuilderPro
       <div className="p-4 space-y-2">
         {conditions.length === 0 ? (
           <div className="py-6 text-center">
-            <p className="text-sm text-gray-500 mb-3">
-              No filters. All tasks will be included.
-            </p>
+            <p className="text-sm text-gray-500 mb-3">No filters. All tasks will be included.</p>
             <button
               type="button"
               onClick={handleAddCondition}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary-700 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
             >
-              <Plus className="w-4 h-4" />
+              <Plus aria-hidden className="w-4 h-4" />
               Add filter
             </button>
           </div>
@@ -194,7 +150,7 @@ export function FilterBuilder({ value, onChange, workspaceId }: FilterBuilderPro
               onClick={handleAddCondition}
               className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              <Plus className="w-4 h-4" />
+              <Plus aria-hidden className="w-4 h-4" />
               Add filter
             </button>
           </>

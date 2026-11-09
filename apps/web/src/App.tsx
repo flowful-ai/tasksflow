@@ -1,36 +1,64 @@
+import { lazy, Suspense, type ComponentType, type ReactNode } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from './stores/auth';
 import { Layout } from './components/layout/Layout';
-import { LoginPage } from './routes/auth/login';
-import { RegisterPage } from './routes/auth/register';
-import { DashboardPage } from './routes/dashboard';
-import { ProjectPage } from './routes/project';
-import { NewProjectPage } from './routes/new-project';
-import { ProjectsPage } from './routes/projects';
-import { TaskPage } from './routes/task';
-import { SmartViewPage } from './routes/smart-view';
-import { ViewsPage } from './routes/views';
-import { SettingsPage } from './routes/settings';
-import { PublicSharePage } from './routes/share';
-import { ProjectSettingsPage } from './routes/project-settings';
-import { GitHubCallbackPage } from './routes/github-callback';
-import { InvitePage } from './routes/invite';
+import { PageSpinner } from './components/ui/Spinner';
+import { RouteErrorBoundary } from './components/ui/ErrorBoundary';
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading, hasCheckedAuth } = useAuthStore();
+/** React.lazy for a named export: one chunk per route. */
+function lazyNamed<K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) {
+  return lazy(async () => ({ default: (await load())[name] }));
+}
+
+const LoginPage = lazyNamed(() => import('./routes/auth/login'), 'LoginPage');
+const RegisterPage = lazyNamed(() => import('./routes/auth/register'), 'RegisterPage');
+const DashboardPage = lazyNamed(() => import('./routes/dashboard'), 'DashboardPage');
+const ProjectPage = lazyNamed(() => import('./routes/project'), 'ProjectPage');
+const NewProjectPage = lazyNamed(() => import('./routes/new-project'), 'NewProjectPage');
+const ProjectsPage = lazyNamed(() => import('./routes/projects'), 'ProjectsPage');
+const TaskPage = lazyNamed(() => import('./routes/task'), 'TaskPage');
+const SmartViewPage = lazyNamed(() => import('./routes/smart-view'), 'SmartViewPage');
+const ViewsPage = lazyNamed(() => import('./routes/views'), 'ViewsPage');
+const SettingsPage = lazyNamed(() => import('./routes/settings'), 'SettingsPage');
+const PublicSharePage = lazyNamed(() => import('./routes/share'), 'PublicSharePage');
+const ProjectSettingsPage = lazyNamed(
+  () => import('./routes/project-settings'),
+  'ProjectSettingsPage'
+);
+const GitHubCallbackPage = lazyNamed(
+  () => import('./routes/github-callback'),
+  'GitHubCallbackPage'
+);
+const InvitePage = lazyNamed(() => import('./routes/invite'), 'InvitePage');
+const InboxPage = lazyNamed(() => import('./routes/inbox'), 'InboxPage');
+const MyTasksPage = lazyNamed(() => import('./routes/my-tasks'), 'MyTasksPage');
+const TrashPage = lazyNamed(() => import('./routes/trash'), 'TrashPage');
+
+/** Route element wrapper: per-route error boundary + Suspense for the lazy chunk. */
+function Page({ children }: { children: ReactNode }) {
+  return (
+    <RouteErrorBoundary>
+      <Suspense fallback={<PageSpinner />}>{children}</Suspense>
+    </RouteErrorBoundary>
+  );
+}
+
+function ProtectedRoute({ children }: { children: ReactNode }) {
+  const { isAuthenticated, isLoading, hasCheckedAuth } = useAuthStore(
+    useShallow((s) => ({
+      isAuthenticated: s.isAuthenticated,
+      isLoading: s.isLoading,
+      hasCheckedAuth: s.hasCheckedAuth,
+    }))
+  );
 
   if (isLoading || !hasCheckedAuth) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600" />
-      </div>
-    );
+    return <PageSpinner className="h-screen" label="Checking your session" />;
   }
-
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
-
   return <>{children}</>;
 }
 
@@ -38,17 +66,52 @@ export default function App() {
   return (
     <Routes>
       {/* Auth routes */}
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
+      <Route
+        path="/login"
+        element={
+          <Page>
+            <LoginPage />
+          </Page>
+        }
+      />
+      <Route
+        path="/register"
+        element={
+          <Page>
+            <RegisterPage />
+          </Page>
+        }
+      />
 
       {/* Public share route */}
-      <Route path="/share/:token" element={<PublicSharePage />} />
+      <Route
+        path="/share/:token"
+        element={
+          <Page>
+            <PublicSharePage />
+          </Page>
+        }
+      />
 
       {/* Invitation page - shows invite details and allows accepting */}
-      <Route path="/invite/:token" element={<InvitePage />} />
+      <Route
+        path="/invite/:token"
+        element={
+          <Page>
+            <InvitePage />
+          </Page>
+        }
+      />
 
       {/* GitHub callback - outside protected routes to avoid auth interference */}
-      <Route path="/github/callback" element={<GitHubCallbackPage />} />
+      <Route
+        path="/github/callback"
+        element={
+          <Page>
+            <GitHubCallbackPage />
+          </Page>
+        }
+      />
 
       {/* Protected routes */}
       <Route
@@ -58,15 +121,102 @@ export default function App() {
             <Layout>
               <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/projects" element={<ProjectsPage />} />
-                <Route path="/projects/new" element={<NewProjectPage />} />
-                <Route path="/project/:projectId" element={<ProjectPage />} />
-                <Route path="/project/:projectId/settings" element={<ProjectSettingsPage />} />
-                <Route path="/task/:taskId" element={<TaskPage />} />
-                <Route path="/views" element={<ViewsPage />} />
-                <Route path="/view/:viewId" element={<SmartViewPage />} />
-                <Route path="/settings/*" element={<SettingsPage />} />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <Page>
+                      <DashboardPage />
+                    </Page>
+                  }
+                />
+                <Route
+                  path="/projects"
+                  element={
+                    <Page>
+                      <ProjectsPage />
+                    </Page>
+                  }
+                />
+                <Route
+                  path="/projects/new"
+                  element={
+                    <Page>
+                      <NewProjectPage />
+                    </Page>
+                  }
+                />
+                <Route
+                  path="/project/:projectId"
+                  element={
+                    <Page>
+                      <ProjectPage />
+                    </Page>
+                  }
+                />
+                <Route
+                  path="/project/:projectId/settings"
+                  element={
+                    <Page>
+                      <ProjectSettingsPage />
+                    </Page>
+                  }
+                />
+                <Route
+                  path="/project/:projectId/trash"
+                  element={
+                    <Page>
+                      <TrashPage />
+                    </Page>
+                  }
+                />
+                <Route
+                  path="/inbox"
+                  element={
+                    <Page>
+                      <InboxPage />
+                    </Page>
+                  }
+                />
+                <Route
+                  path="/my-tasks"
+                  element={
+                    <Page>
+                      <MyTasksPage />
+                    </Page>
+                  }
+                />
+                <Route
+                  path="/task/:taskId"
+                  element={
+                    <Page>
+                      <TaskPage />
+                    </Page>
+                  }
+                />
+                <Route
+                  path="/views"
+                  element={
+                    <Page>
+                      <ViewsPage />
+                    </Page>
+                  }
+                />
+                <Route
+                  path="/view/:viewId"
+                  element={
+                    <Page>
+                      <SmartViewPage />
+                    </Page>
+                  }
+                />
+                <Route
+                  path="/settings/*"
+                  element={
+                    <Page>
+                      <SettingsPage />
+                    </Page>
+                  }
+                />
               </Routes>
             </Layout>
           </ProtectedRoute>

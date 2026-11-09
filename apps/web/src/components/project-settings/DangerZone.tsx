@@ -1,79 +1,32 @@
-import { useEffect, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useState } from 'react';
 import { AlertTriangle, Trash2, Archive, ArchiveRestore } from 'lucide-react';
-import { api } from '../../api/client';
-import { useWorkspaceStore } from '../../stores/workspace';
-
-interface ProjectDangerData {
-  id: string;
-  name: string;
-  isArchived: boolean;
-}
+import type { ProjectDetailDto } from '../../api/types';
+import { useDeleteProject, useUpdateProject } from '../../hooks/queries';
+import { ConfirmDialog, toast } from '../ui';
 
 interface DangerZoneProps {
-  project: ProjectDangerData;
+  project: Pick<ProjectDetailDto, 'id' | 'name' | 'isArchived'>;
   onDeleted: () => void;
 }
 
 export function DangerZone({ project, onDeleted }: DangerZoneProps) {
-  const { currentWorkspace, fetchProjects } = useWorkspaceStore();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isArchived, setIsArchived] = useState(project.isArchived);
-
-  useEffect(() => {
-    setIsArchived(project.isArchived);
-  }, [project.isArchived]);
-
-  const archiveMutation = useMutation({
-    mutationFn: async () => {
-      return api.patch(`/api/projects/${project.id}`, {
-        isArchived: !isArchived,
-      });
-    },
-    onSuccess: async () => {
-      setError(null);
-      setIsArchived((prev) => !prev);
-      if (currentWorkspace) {
-        await fetchProjects(currentWorkspace.id);
-      }
-    },
-    onError: (err: Error) => {
-      setError(err.message);
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async () => {
-      return api.delete(`/api/projects/${project.id}`);
-    },
-    onSuccess: async () => {
-      setError(null);
-      if (currentWorkspace) {
-        await fetchProjects(currentWorkspace.id);
-      }
-      onDeleted();
-    },
-    onError: (err: Error) => {
-      setError(err.message);
-    },
-  });
+  const [confirmName, setConfirmName] = useState('');
+  const updateProject = useUpdateProject(project.id);
+  const deleteProject = useDeleteProject();
+  const isArchived = project.isArchived;
 
   return (
-    <div className="card p-6 border border-red-100">
+    <section aria-labelledby="danger-heading" className="card p-6 border border-red-100">
       <div className="mb-4 flex items-center gap-2">
-        <AlertTriangle className="w-5 h-5 text-red-600" />
-        <h2 className="text-lg font-semibold text-gray-900">Danger Zone</h2>
+        <AlertTriangle aria-hidden className="w-5 h-5 text-red-600" />
+        <h2 id="danger-heading" className="text-lg font-semibold text-gray-900">
+          Danger Zone
+        </h2>
       </div>
       <p className="text-sm text-gray-600 mb-4">
         Actions here are destructive. Please proceed with caution.
       </p>
-
-      {error && (
-        <div className="p-3 text-sm text-red-600 bg-red-50 rounded-lg mb-4">
-          {error}
-        </div>
-      )}
 
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border border-gray-200 rounded-lg p-4">
@@ -88,21 +41,31 @@ export function DangerZone({ project, onDeleted }: DangerZoneProps) {
             </p>
           </div>
           <button
-            onClick={() => archiveMutation.mutate()}
+            type="button"
+            onClick={() =>
+              updateProject.mutate(
+                { isArchived: !isArchived },
+                {
+                  onSuccess: () =>
+                    toast.success(isArchived ? 'Project restored' : 'Project archived'),
+                }
+              )
+            }
             className="btn btn-secondary"
-            disabled={archiveMutation.isPending}
+            disabled={updateProject.isPending}
           >
             {isArchived ? (
-              <>
-                <ArchiveRestore className="w-4 h-4 mr-2" />
-                {archiveMutation.isPending ? 'Restoring...' : 'Unarchive'}
-              </>
+              <ArchiveRestore aria-hidden className="w-4 h-4 mr-2" />
             ) : (
-              <>
-                <Archive className="w-4 h-4 mr-2" />
-                {archiveMutation.isPending ? 'Archiving...' : 'Archive'}
-              </>
+              <Archive aria-hidden className="w-4 h-4 mr-2" />
             )}
+            {isArchived
+              ? updateProject.isPending
+                ? 'Restoring...'
+                : 'Unarchive'
+              : updateProject.isPending
+                ? 'Archiving...'
+                : 'Archive'}
           </button>
         </div>
 
@@ -114,41 +77,44 @@ export function DangerZone({ project, onDeleted }: DangerZoneProps) {
             </p>
           </div>
           <button
-            onClick={() => setShowDeleteConfirm(true)}
-            className="btn bg-red-600 text-white hover:bg-red-700"
+            type="button"
+            onClick={() => {
+              setConfirmName('');
+              setShowDeleteConfirm(true);
+            }}
+            className="btn btn-danger"
           >
-            <Trash2 className="w-4 h-4 mr-2" />
+            <Trash2 aria-hidden className="w-4 h-4 mr-2" />
             Delete
           </button>
         </div>
       </div>
 
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowDeleteConfirm(false)} />
-          <div className="relative bg-white rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Project</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Are you sure you want to delete "{project.name}"? This action cannot be undone.
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="btn btn-secondary"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => deleteMutation.mutate()}
-                className="btn bg-red-600 text-white hover:bg-red-700"
-                disabled={deleteMutation.isPending}
-              >
-                {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        title={`Delete "${project.name}"?`}
+        description="The project and all its tasks are deleted. This action cannot be undone."
+        confirmLabel="Delete project"
+        variant="danger"
+        confirmDisabled={confirmName.trim() !== project.name}
+        onConfirm={async () => {
+          await deleteProject.mutateAsync(project.id);
+          toast.success(`Deleted ${project.name}`);
+          onDeleted();
+        }}
+      >
+        <label htmlFor="confirm-project-name" className="block text-sm text-gray-700">
+          Type <strong className="font-semibold">{project.name}</strong> to confirm
+        </label>
+        <input
+          id="confirm-project-name"
+          className="input mt-1"
+          value={confirmName}
+          onChange={(e) => setConfirmName(e.target.value)}
+          autoComplete="off"
+        />
+      </ConfirmDialog>
+    </section>
   );
 }

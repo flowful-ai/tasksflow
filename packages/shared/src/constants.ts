@@ -122,6 +122,10 @@ export const REALTIME_EVENTS = {
   TASK_UPDATED: 'task:updated',
   TASK_DELETED: 'task:deleted',
   TASK_MOVED: 'task:moved',
+  /** Positions in a column were rewritten: refetch that column. */
+  TASKS_REKEYED: 'tasks:rekeyed',
+  /** User-targeted (publishUserEvent): a new inbox notification. */
+  NOTIFICATION_CREATED: 'notification:created',
   COMMENT_CREATED: 'comment:created',
   COMMENT_UPDATED: 'comment:updated',
   COMMENT_DELETED: 'comment:deleted',

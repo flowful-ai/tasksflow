@@ -1,566 +1,287 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, MoreHorizontal, LayoutGrid, List, User } from 'lucide-react';
-import clsx from 'clsx';
-import { api } from '../api/client';
+import { FolderKanban, MoreHorizontal, Plus, Settings, SearchX, Trash2 } from 'lucide-react';
+import { TaskDisplayContainer } from '../components/task-display';
+import { taskKeyOf } from '../components/task-display/TaskCard';
+import { BoardTopBar, type FilterOption } from '../components/board/BoardTopBar';
+import { BoardSkeleton } from '../components/board/BoardSkeleton';
+import { BulkActionBar } from '../components/board/BulkActionBar';
+import { useBoardKeyboard } from '../components/board/useBoardKeyboard';
+import { useIsMobile } from '../components/board/useMediaQuery';
 import {
-  BulkTaskToolbar,
-  type BulkAssignMode,
-  type BulkAssigneeOption,
-  type BulkLabelOption,
-  TaskDisplayContainer,
-  type DisplayType,
-  type TaskCardTask,
-} from '../components/task-display';
-import { TaskModal } from '../components/tasks/TaskModal';
-import { TaskDetailSheet } from '../components/tasks/TaskDetailSheet';
+  EMPTY_FILTERS,
+  applyBoardFilters,
+  describeFilters,
+  hasActiveBoardFilters,
+  toApiFilters,
+  type BoardFilters,
+} from '../components/board/filters';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  EmptyState,
+  ErrorState,
+  IconButton,
+  Kbd,
+} from '../components/ui';
+import type { MoveTaskInput } from '../api/types';
+import {
+  useCreateTask,
+  useDeleteTask,
+  useMoveTask,
+  useProject,
+  useProjectTasks,
+  useWorkspace,
+} from '../hooks/queries';
 import { useAuthStore } from '../stores/auth';
-
-interface ProjectTask {
-  id: string;
-  title: string;
-  priority: string | null;
-  position: string;
-  dueDate: string | null;
-  updatedAt: string | null;
-  sequenceNumber: number;
-  stateId: string | null;
-  state: {
-    id: string;
-    name: string;
-    color: string | null;
-    category: string;
-  } | null;
-  assignees: {
-    id: string;
-    name: string | null;
-    email: string;
-    avatarUrl?: string | null;
-  }[];
-  labels: {
-    id: string;
-    name: string;
-    color: string | null;
-  }[];
-  agent: {
-    id: string;
-    name: string;
-  } | null;
-}
-
-interface Project {
-  id: string;
-  workspaceId: string;
-  name: string;
-  identifier: string;
-  taskStates: { id: string; name: string; color: string | null; category: string }[];
-  labels: { id: string; name: string; color: string | null }[];
-}
-
-interface WorkspaceDetail {
-  members: {
-    userId: string;
-    user: {
-      id: string;
-      name: string | null;
-      email: string;
-      avatarUrl: string | null;
-    };
-  }[];
-}
-
-type NoticeType = 'success' | 'warning' | 'error';
-
-interface BulkNotice {
-  type: NoticeType;
-  message: string;
-}
-
-function resolveDoneStateId(states: Project['taskStates']): string | null {
-  const doneStates = states.filter((state) => state.category === 'done');
-  const exactDone = doneStates.find((state) => state.name.trim().toLowerCase() === 'done');
-  if (exactDone) return exactDone.id;
-
-  const nonCancelDone = doneStates.find((state) => !/cancel/i.test(state.name));
-  if (nonCancelDone) return nonCancelDone.id;
-
-  return doneStates[0]?.id ?? null;
-}
-
-function resolveCancelStateId(states: Project['taskStates']): string | null {
-  const cancelState = states.find((state) => state.category === 'done' && /cancel/i.test(state.name));
-  return cancelState?.id ?? null;
-}
-
-function summarizeBulkAction(action: string, success: number, skipped: number, failed: number): BulkNotice {
-  const suffix = [
-    `${success} succeeded`,
-    skipped > 0 ? `${skipped} skipped` : null,
-    failed > 0 ? `${failed} failed` : null,
-  ]
-    .filter(Boolean)
-    .join(', ');
-
-  if (failed > 0) {
-    return { type: 'error', message: `${action}: ${suffix}.` };
-  }
-  if (skipped > 0) {
-    return { type: 'warning', message: `${action}: ${suffix}.` };
-  }
-  return { type: 'success', message: `${action}: ${suffix}.` };
-}
-
-async function settleOperations(operations: Array<Promise<unknown>>): Promise<{ success: number; failed: number }> {
-  if (operations.length === 0) {
-    return { success: 0, failed: 0 };
-  }
-
-  const settled = await Promise.allSettled(operations);
-  const failed = settled.filter((result) => result.status === 'rejected').length;
-  return { success: settled.length - failed, failed };
-}
+import { useWorkspaceStore, type ProjectViewMode } from '../stores/workspace';
+import { useUiStore } from '../stores/ui';
 
 export function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
-  const currentUserId = useAuthStore((state) => state.user?.id ?? null);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [displayType, setDisplayType] = useState<DisplayType>('kanban');
-  const [isAssignedToMeOnly, setIsAssignedToMeOnly] = useState(false);
-  const [isBulkActionPending, setIsBulkActionPending] = useState(false);
-  const [bulkNotice, setBulkNotice] = useState<BulkNotice | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const queryClient = useQueryClient();
-
-  const { data: project, isLoading: projectLoading } = useQuery({
-    queryKey: ['project', projectId],
-    queryFn: async () => {
-      const response = await api.get<{ data: Project }>(`/api/projects/${projectId}`);
-      return response.data;
-    },
-    enabled: !!projectId,
-  });
-
-  const { data: workspaceDetail } = useQuery({
-    queryKey: ['workspace', project?.workspaceId],
-    queryFn: async () => {
-      const response = await api.get<{ data: WorkspaceDetail }>(`/api/workspaces/${project!.workspaceId}`);
-      return response.data;
-    },
-    enabled: !!project?.workspaceId,
-  });
-
-  const { data: tasksData, isLoading: tasksLoading, refetch: refetchTasks } = useQuery({
-    queryKey: ['tasks', projectId, isAssignedToMeOnly ? currentUserId : null],
-    queryFn: async () => {
-      if (isAssignedToMeOnly && !currentUserId) {
-        return [];
-      }
-
-      const searchParams = new URLSearchParams({ projectId: projectId! });
-      if (isAssignedToMeOnly && currentUserId) {
-        searchParams.set('assigneeId', currentUserId);
-      }
-
-      const response = await api.get<{ data: ProjectTask[] }>(`/api/tasks?${searchParams.toString()}`);
-      return response.data;
-    },
-    enabled: !!projectId,
-  });
-
-  const formattedTasks: TaskCardTask[] = useMemo(() => {
-    if (!tasksData || !project) return [];
-    return tasksData.map((task) => ({
-      id: task.id,
-      title: task.title,
-      priority: task.priority,
-      dueDate: task.dueDate,
-      updatedAt: task.updatedAt,
-      state: task.state,
-      assignees: task.assignees || [],
-      labels: task.labels || [],
-      project: { id: projectId!, identifier: project.identifier, name: project.name },
-      agent: task.agent,
-      sequenceNumber: task.sequenceNumber,
-    }));
-  }, [tasksData, projectId, project]);
-
-  const selectedTasks = useMemo(() => {
-    if (selectedTaskIds.size === 0) return [];
-    return formattedTasks.filter((task) => selectedTaskIds.has(task.id));
-  }, [formattedTasks, selectedTaskIds]);
-
-  const assigneeOptions = useMemo<BulkAssigneeOption[]>(() => {
-    return (workspaceDetail?.members || []).map((member) => ({
-      id: member.user.id,
-      name: member.user.name,
-      email: member.user.email,
-      avatarUrl: member.user.avatarUrl,
-    }));
-  }, [workspaceDetail?.members]);
-
-  const labelOptions = useMemo<BulkLabelOption[]>(() => {
-    return (project?.labels || []).map((label) => ({
-      id: label.id,
-      name: label.name,
-      color: label.color,
-    }));
-  }, [project?.labels]);
+  const currentUserId = useAuthStore((s) => s.user?.id ?? null);
+  const storedMode = useWorkspaceStore((s): ProjectViewMode | undefined =>
+    projectId ? s.projectViewModes[projectId] : undefined
+  );
+  const setProjectViewMode = useWorkspaceStore((s) => s.setProjectViewMode);
+  const setCurrentProjectId = useWorkspaceStore((s) => s.setCurrentProjectId);
+  const isMobile = useIsMobile();
+  const [mobileMode, setMobileMode] = useState<ProjectViewMode | null>(null);
+  const [filters, setFilters] = useState<BoardFilters>(EMPTY_FILTERS);
+  const openCreateTask = useUiStore((s) => s.openCreateTask);
+  const openTaskSheet = useUiStore((s) => s.openTaskSheet);
+  const boardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    function handleClickOutside(event: globalThis.MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsMenuOpen(false);
-      }
-    }
+    if (projectId) setCurrentProjectId(projectId);
+    setFilters(EMPTY_FILTERS);
+    setMobileMode(null);
+  }, [projectId, setCurrentProjectId]);
 
-    if (isMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [isMenuOpen]);
+  // Phones default to the list (mockup section 7); the stored choice is the desktop one.
+  const viewMode: ProjectViewMode = isMobile ? (mobileMode ?? 'list') : (storedMode ?? 'kanban');
 
-  useEffect(() => {
-    if (!bulkNotice) return;
+  const projectQuery = useProject(projectId);
+  const project = projectQuery.data;
+  const { data: workspaceDetail } = useWorkspace(project?.workspaceId);
+  const apiFilters = useMemo(() => toApiFilters(filters), [filters]);
+  const tasksQuery = useProjectTasks(projectId, apiFilters);
+  const { tasks: loadedTasks, isComplete } = tasksQuery;
+  const tasks = useMemo(() => applyBoardFilters(loadedTasks, filters), [loadedTasks, filters]);
+  const isFiltered = hasActiveBoardFilters(filters);
+  // The server total, or the client-filtered count once every page is in.
+  const total = isFiltered && isComplete ? tasks.length : tasksQuery.total;
 
-    const timeoutId = window.setTimeout(() => setBulkNotice(null), 4500);
-    return () => window.clearTimeout(timeoutId);
-  }, [bulkNotice]);
+  const taskStates = useMemo(() => project?.taskStates ?? [], [project?.taskStates]);
+  const visibleIds = useMemo(() => tasks.map((t) => t.id), [tasks]);
+  const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
 
-  useEffect(() => {
-    setSelectedTaskIds((previous) => {
-      if (previous.size === 0) {
-        return previous;
-      }
+  const deleteTask = useDeleteTask();
+  const deleteMutate = deleteTask.mutate;
+  const deleteOne = useCallback(
+    (taskId: string) => {
+      const task = taskById.get(taskId);
+      if (task) deleteMutate({ taskId, projectId: task.projectId, label: taskKeyOf(task) });
+    },
+    [taskById, deleteMutate]
+  );
 
-      const availableTaskIds = new Set(formattedTasks.map((task) => task.id));
-      const next = new Set([...previous].filter((taskId) => availableTaskIds.has(taskId)));
+  const keyboard = useBoardKeyboard({
+    containerRef: boardRef,
+    visibleIds,
+    onOpen: openTaskSheet,
+    onDeleteOne: deleteOne,
+  });
+  const selectedTasks = useMemo(
+    () =>
+      keyboard.selectedIds.size === 0 ? [] : tasks.filter((t) => keyboard.selectedIds.has(t.id)),
+    [tasks, keyboard.selectedIds]
+  );
 
-      if (next.size === previous.size) {
-        return previous;
-      }
+  const moveAsync = useMoveTask().mutateAsync;
+  const onTaskMove = useCallback(
+    (move: MoveTaskInput) =>
+      moveAsync(move).then(
+        () => undefined,
+        () => undefined
+      ),
+    [moveAsync]
+  );
+  const createAsync = useCreateTask().mutateAsync;
+  const onQuickAdd = useCallback(
+    async (stateId: string, title: string) => {
+      if (!projectId) return;
+      await createAsync({ projectId, title, stateId });
+    },
+    [createAsync, projectId]
+  );
+  const onAddTask = useCallback(
+    (stateId: string) => openCreateTask({ projectId, stateId }),
+    [openCreateTask, projectId]
+  );
 
-      return next;
-    });
-  }, [formattedTasks]);
-
-  if (projectLoading || tasksLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
-      </div>
-    );
-  }
+  const members = useMemo(() => workspaceDetail?.members ?? [], [workspaceDetail?.members]);
+  const memberOptions = useMemo<FilterOption[]>(
+    () => members.map((m) => ({ id: m.user.id, name: m.user.name || m.user.email })),
+    [members]
+  );
+  const labelOptions = useMemo<FilterOption[]>(
+    () => (project?.labels ?? []).map((l) => ({ id: l.id, name: l.name, color: l.color })),
+    [project?.labels]
+  );
+  const labelsByProject = useMemo(
+    () => new Map(project ? [[project.id, project.labels]] : []),
+    [project]
+  );
 
   if (!project) {
+    if (projectQuery.isLoading) return <BoardSkeleton variant={isMobile ? 'list' : 'kanban'} />;
     return (
-      <div className="text-center py-12">
-        <h2 className="text-xl font-semibold text-gray-900">Project not found</h2>
-      </div>
+      <ErrorState
+        error={projectQuery.error}
+        resource="project"
+        onRetry={() => void projectQuery.refetch()}
+        notFoundAction={
+          <Link to="/projects" className="btn btn-secondary">
+            Back to projects
+          </Link>
+        }
+      />
     );
   }
 
-  const taskStates = project.taskStates || [];
+  const setViewMode = (mode: ProjectViewMode) =>
+    isMobile ? setMobileMode(mode) : setProjectViewMode(project.id, mode);
+  const openCreate = () => openCreateTask({ projectId: project.id });
+  const chips = describeFilters(filters, {
+    currentUserId,
+    members: new Map(memberOptions.map((m) => [m.id, m.name])),
+    labels: new Map(labelOptions.map((l) => [l.id, l.name])),
+  });
+  const createHint = (
+    <>
+      Press <Kbd>C</Kbd> or use <b className="font-semibold">New</b> to create one.
+    </>
+  );
 
-  const refreshTaskData = async () => {
-    await refetchTasks();
-    await queryClient.invalidateQueries({ queryKey: ['smart-view-execute'] });
-  };
-
-  const handleTaskMove = async (taskId: string, stateId: string, position: string) => {
-    try {
-      await api.post(`/api/tasks/${taskId}/move`, { stateId, position });
-    } catch (error) {
-      // Surface the failure and refetch so the board reverts the optimistic
-      // position instead of silently desyncing from the server.
-      setBulkNotice({
-        type: 'error',
-        message: error instanceof Error ? `Failed to move task: ${error.message}` : 'Failed to move task.',
-      });
-    } finally {
-      await refreshTaskData();
-    }
-  };
-
-  const handleTaskClick = (taskId: string, event: MouseEvent<HTMLDivElement>) => {
-    if (event.ctrlKey || event.metaKey) {
-      setSelectedTaskIds((previous) => {
-        const next = new Set(previous);
-        if (next.has(taskId)) {
-          next.delete(taskId);
-        } else {
-          next.add(taskId);
+  let content: JSX.Element;
+  if (tasksQuery.isLoading && loadedTasks.length === 0) {
+    content = <BoardSkeleton variant={viewMode} />;
+  } else if (tasksQuery.isError && loadedTasks.length === 0) {
+    content = (
+      <ErrorState
+        error={tasksQuery.error}
+        resource="task list"
+        onRetry={() => void tasksQuery.refetch()}
+      />
+    );
+  } else if (tasks.length === 0 && isComplete && !tasksQuery.isPlaceholderData) {
+    content = isFiltered ? (
+      <EmptyState
+        icon={<SearchX />}
+        title={`No tasks match ${chips.map((c) => `"${c.label}"`).join(' + ')}`}
+        body={
+          <>
+            Clear the filter, or press <Kbd>C</Kbd> to create one.
+          </>
         }
-        return next;
-      });
-      return;
-    }
-
-    setSelectedTaskIds(new Set());
-    setSelectedTaskId(taskId);
-  };
-
-  const runBulkAction = async (
-    actionLabel: string,
-    operationBuilder: () => { operations: Array<Promise<unknown>>; skipped: number }
-  ) => {
-    if (selectedTasks.length === 0) {
-      return;
-    }
-
-    setIsBulkActionPending(true);
-
-    try {
-      const { operations, skipped } = operationBuilder();
-      const { success, failed } = await settleOperations(operations);
-
-      await refreshTaskData();
-
-      if (failed === 0 && skipped === 0) {
-        setSelectedTaskIds(new Set());
-      }
-
-      setBulkNotice(summarizeBulkAction(actionLabel, success, skipped, failed));
-    } finally {
-      setIsBulkActionPending(false);
-    }
-  };
-
-  const handleBulkAssign = async (userId: string, mode: BulkAssignMode) => {
-    await runBulkAction('Assign', () => {
-      let skipped = 0;
-
-      const operations = selectedTasks.flatMap((task) => {
-        const alreadyAssigned = task.assignees.some((assignee) => assignee.id === userId);
-
-        if (mode === 'add') {
-          if (alreadyAssigned) {
-            skipped += 1;
-            return [];
-          }
-
-          return [api.post(`/api/tasks/${task.id}/assignees`, { userId })];
-        }
-
-        const assigneesToRemove = task.assignees.filter((assignee) => assignee.id !== userId);
-
-        if (assigneesToRemove.length === 0 && alreadyAssigned) {
-          skipped += 1;
-          return [];
-        }
-
-        return [
-          (async () => {
-            await Promise.all(
-              assigneesToRemove.map((assignee) => api.delete(`/api/tasks/${task.id}/assignees/${assignee.id}`))
-            );
-
-            if (!alreadyAssigned) {
-              await api.post(`/api/tasks/${task.id}/assignees`, { userId });
-            }
-          })(),
-        ];
-      });
-
-      return { operations, skipped };
-    });
-  };
-
-  const handleBulkMoveToDone = async () => {
-    const targetStateId = resolveDoneStateId(taskStates);
-
-    if (!targetStateId) {
-      setBulkNotice({ type: 'warning', message: 'Move to Done: 0 succeeded, all selected tasks were skipped.' });
-      return;
-    }
-
-    await runBulkAction('Move to Done', () => ({
-      operations: selectedTasks.map((task) => api.patch(`/api/tasks/${task.id}`, { stateId: targetStateId })),
-      skipped: 0,
-    }));
-  };
-
-  const handleBulkCancel = async () => {
-    const targetStateId = resolveCancelStateId(taskStates);
-
-    if (!targetStateId) {
-      setBulkNotice(summarizeBulkAction('Cancel', 0, selectedTasks.length, 0));
-      return;
-    }
-
-    await runBulkAction('Cancel', () => ({
-      operations: selectedTasks.map((task) => api.patch(`/api/tasks/${task.id}`, { stateId: targetStateId })),
-      skipped: 0,
-    }));
-  };
-
-  const handleBulkDelete = async () => {
-    await runBulkAction('Delete', () => ({
-      operations: selectedTasks.map((task) => api.delete(`/api/tasks/${task.id}`)),
-      skipped: 0,
-    }));
-  };
-
-  const handleBulkSetLabels = async (selectedLabelIds: string[]) => {
-    await runBulkAction('Set labels', () => {
-      let skipped = 0;
-
-      const operations = selectedTasks.flatMap((task) => {
-        const currentLabelIds = task.labels.map((label) => label.id);
-        const labelsToAdd = selectedLabelIds.filter((labelId) => !currentLabelIds.includes(labelId));
-        const labelsToRemove = currentLabelIds.filter((labelId) => !selectedLabelIds.includes(labelId));
-
-        if (labelsToAdd.length === 0 && labelsToRemove.length === 0) {
-          skipped += 1;
-          return [];
-        }
-
-        return [
-          (async () => {
-            await Promise.all([
-              ...labelsToAdd.map((labelId) => api.post(`/api/tasks/${task.id}/labels`, { labelId })),
-              ...labelsToRemove.map((labelId) => api.delete(`/api/tasks/${task.id}/labels/${labelId}`)),
-            ]);
-          })(),
-        ];
-      });
-
-      return { operations, skipped };
-    });
-  };
-
-  return (
-    <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <div className="flex items-center space-x-2">
-            <span className="text-sm font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-              {project.identifier}
-            </span>
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 mt-1">{project.name}</h1>
-        </div>
-        <div className="flex items-center space-x-2">
-          <div className="flex items-center border border-gray-200 rounded-lg p-0.5">
-            <button
-              onClick={() => setDisplayType('kanban')}
-              className={clsx('p-1.5 rounded', displayType === 'kanban' ? 'bg-gray-100' : 'hover:bg-gray-50')}
-              title="Kanban view"
-            >
-              <LayoutGrid className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setDisplayType('list')}
-              className={clsx('p-1.5 rounded', displayType === 'list' ? 'bg-gray-100' : 'hover:bg-gray-50')}
-              title="List view"
-            >
-              <List className="w-4 h-4" />
-            </button>
-          </div>
+        action={
           <button
             type="button"
-            onClick={() => setIsAssignedToMeOnly((previous) => !previous)}
-            className={clsx(
-              'inline-flex items-center gap-1.5 border rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
-              isAssignedToMeOnly
-                ? 'border-primary-200 bg-primary-50 text-primary-700'
-                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-            )}
-            title="Show only tasks assigned to me"
-            aria-pressed={isAssignedToMeOnly}
+            className="btn btn-secondary"
+            onClick={() => setFilters(EMPTY_FILTERS)}
           >
-            <User className="w-4 h-4" />
-            My tasks
+            Clear filter
           </button>
-          <button onClick={() => setIsCreateModalOpen(true)} className="btn btn-primary">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Task
+        }
+      />
+    ) : (
+      <EmptyState
+        icon={<FolderKanban />}
+        title="No tasks yet"
+        body={createHint}
+        action={
+          <button type="button" className="btn btn-primary" onClick={openCreate}>
+            New task
           </button>
-          <div ref={menuRef} className="relative">
-            <button className="btn btn-ghost p-2" onClick={() => setIsMenuOpen((previous) => !previous)}>
-              <MoreHorizontal className="w-5 h-5" />
-            </button>
-            {isMenuOpen && (
-              <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
-                <Link
-                  to={`/project/${projectId}/settings`}
-                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Project Settings
-                </Link>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+        }
+      />
+    );
+  } else {
+    content = (
+      <TaskDisplayContainer
+        tasks={tasks}
+        displayType={viewMode}
+        groupBy="state"
+        onTaskClick={keyboard.onTaskClick}
+        onTaskMove={onTaskMove}
+        showProject={false}
+        allowDragDrop={viewMode === 'kanban'}
+        availableStates={taskStates}
+        selectedTaskIds={keyboard.selectedIds}
+        onAddTask={onAddTask}
+        onQuickAdd={onQuickAdd}
+      />
+    );
+  }
 
-      <BulkTaskToolbar
-        selectedCount={selectedTaskIds.size}
-        members={assigneeOptions}
+  return (
+    <div className="flex h-full min-w-0 flex-col">
+      <BoardTopBar
+        projectName={project.name}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        filters={filters}
+        onFiltersChange={setFilters}
+        currentUserId={currentUserId}
+        members={memberOptions}
         labels={labelOptions}
-        isLoading={isBulkActionPending}
-        onClearSelection={() => setSelectedTaskIds(new Set())}
-        onAssign={handleBulkAssign}
-        onSetLabels={handleBulkSetLabels}
-        onMoveToDone={handleBulkMoveToDone}
-        onCancel={handleBulkCancel}
-        onDelete={handleBulkDelete}
+        total={total}
+        isRefreshing={tasksQuery.isFetching && !tasksQuery.isLoading}
+        onNewTask={openCreate}
+        actions={
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <IconButton label="Project actions" icon={<MoreHorizontal />} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem icon={<Settings />} asChild>
+                <Link to={`/project/${project.id}/settings`}>Project settings</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem icon={<Trash2 />} asChild>
+                <Link to={`/project/${project.id}/trash`}>Trash</Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
       />
 
-      <div className="flex-1 min-h-0">
-        <TaskDisplayContainer
-          tasks={formattedTasks}
-          displayType={displayType}
-          groupBy="state"
-          onTaskClick={handleTaskClick}
-          onTaskMove={handleTaskMove}
-          showProject={false}
-          allowDragDrop={displayType === 'kanban'}
-          availableStates={taskStates}
-          selectedTaskIds={selectedTaskIds}
-        />
+      <div ref={boardRef} className="min-h-0 min-w-0 flex-1 pb-24 md:pb-16">
+        {content}
       </div>
 
-      {bulkNotice && (
-        <div
-          className={clsx(
-            'fixed bottom-4 right-4 z-50 rounded-lg px-4 py-2 text-sm font-medium shadow-lg',
-            bulkNotice.type === 'success' && 'bg-green-600 text-white',
-            bulkNotice.type === 'warning' && 'bg-amber-500 text-white',
-            bulkNotice.type === 'error' && 'bg-red-600 text-white'
-          )}
+      <BulkActionBar
+        tasks={selectedTasks}
+        picker={keyboard.picker}
+        onPickerChange={keyboard.setPicker}
+        onClear={keyboard.clearSelection}
+        states={taskStates}
+        members={members}
+        labelsByProject={labelsByProject}
+        onDeleteOne={deleteOne}
+      />
+
+      {selectedTasks.length === 0 && (
+        <button
+          type="button"
+          onClick={openCreate}
+          aria-label="New task"
+          className="fixed bottom-5 right-5 z-30 grid h-14 w-14 place-items-center rounded-full bg-primary-500 text-white shadow-lg hover:bg-primary-600 md:hidden"
         >
-          {bulkNotice.message}
-        </div>
-      )}
-
-      {isCreateModalOpen && (
-        <TaskModal
-          projectId={projectId!}
-          states={taskStates}
-          onClose={() => setIsCreateModalOpen(false)}
-          onCreated={() => {
-            setIsCreateModalOpen(false);
-            refetchTasks();
-          }}
-        />
-      )}
-
-      {selectedTaskId && (
-        <TaskDetailSheet
-          taskId={selectedTaskId}
-          projectId={projectId!}
-          states={taskStates}
-          onClose={() => setSelectedTaskId(null)}
-          onUpdated={() => {
-            refetchTasks();
-          }}
-        />
+          <Plus aria-hidden className="h-6 w-6" />
+        </button>
       )}
     </div>
   );

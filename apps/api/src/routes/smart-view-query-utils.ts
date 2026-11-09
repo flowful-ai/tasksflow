@@ -1,12 +1,20 @@
-import { FilterEngine, type ProjectService, type TaskService } from '@flowtask/domain';
-import { ok, type FilterCondition, type FilterGroup } from '@flowtask/shared';
+import type { Context } from 'hono';
+import { FilterEngine, isValidTimeZone, type TaskService } from '../domain/index.js';
+import { ok, FilterGroupSchema, type FilterCondition, type FilterGroup } from '@flowtask/shared';
 
 export const CURRENT_USER_TEMPLATE = '{{current_user}}';
 export const UNSUPPORTED_PUBLIC_FILTER_CODE = 'UNSUPPORTED_PUBLIC_FILTER';
 export const UNSUPPORTED_PUBLIC_FILTER_MESSAGE =
   'This view uses "Current user (me)" filters, which are not supported for public shares.';
 
-export const VALID_TASK_SORT_BY = ['position', 'created_at', 'updated_at', 'due_date', 'priority', 'sequence_number'] as const;
+export const VALID_TASK_SORT_BY = [
+  'position',
+  'created_at',
+  'updated_at',
+  'due_date',
+  'priority',
+  'sequence_number',
+] as const;
 export const VALID_TASK_SORT_ORDER = ['asc', 'desc'] as const;
 
 type TaskSortBy = (typeof VALID_TASK_SORT_BY)[number];
@@ -72,7 +80,22 @@ function resolveTaskSortOrder(value: string | null): TaskSortOrder {
   return isValidTaskSortOrder(value) ? value : 'asc';
 }
 
+/** Smart-view execution pages are capped at this many tasks. */
+export const SMART_VIEW_MAX_LIMIT = 100;
+
+/**
+ * The viewer's IANA timezone from the `X-Timezone` request header, used for
+ * day/week/month boundaries and `{{now ± N}}` in filters. Invalid or missing
+ * values fall back to UTC.
+ */
+export function readTimezoneHeader(c: Context): string | undefined {
+  const raw = c.req.header('x-timezone')?.trim();
+  return raw && raw.length <= 64 && isValidTimeZone(raw) ? raw : undefined;
+}
+
 interface ExecuteSmartViewTaskListOptions {
+  /** IANA timezone for date templates (see readTimezoneHeader). Defaults to UTC. */
+  timezone?: string;
   view: {
     workspaceId: string;
     filters: unknown;
@@ -80,32 +103,41 @@ interface ExecuteSmartViewTaskListOptions {
     sortOrder: string | null;
   };
   taskService: TaskService;
-  projectService: ProjectService;
+  /**
+   * Projects whose tasks may be returned: the viewer's accessible, non-archived
+   * projects in the view's workspace (see AuthorizationService). Never derive
+   * this from the workspace alone, or restricted projects leak.
+   */
+  projectIds: readonly string[];
   filterContextUserId: string;
   page: number;
   limit: number;
 }
 
+export function isFilterGroupValue(value: unknown): value is FilterGroup {
+  return FilterGroupSchema.safeParse(value).success;
+}
+
 export async function executeSmartViewTaskList({
   view,
   taskService,
-  projectService,
+  projectIds,
   filterContextUserId,
   page,
   limit,
+  timezone,
 }: ExecuteSmartViewTaskListOptions) {
-  const viewFilters = view.filters as FilterGroup | undefined;
-  const filterContext = FilterEngine.createContext(filterContextUserId);
-  const filterSql = viewFilters?.conditions?.length ? FilterEngine.buildWhereClause(viewFilters, filterContext) : null;
+  const viewFilters = isFilterGroupValue(view.filters) ? view.filters : undefined;
+  const filterContext = FilterEngine.createContext(filterContextUserId, { timezone });
+  const filterSql = viewFilters?.conditions?.length
+    ? FilterEngine.buildWhereClause(viewFilters, filterContext)
+    : null;
 
   const requiredJoins = viewFilters?.conditions?.length
     ? FilterEngine.getRequiredJoins(viewFilters)
     : new Set<'task_states' | 'task_assignees' | 'task_labels'>();
 
-  const projectsResult = await projectService.list({ filters: { workspaceId: view.workspaceId } });
-  const projectIds = projectsResult.ok ? projectsResult.value.map((project) => project.id) : [];
-
-  // A workspace with no projects has no tasks. Short-circuit to skip the count
+  // No accessible projects means no tasks. Short-circuit to skip the count
   // + select round-trips. (TaskService.list also treats an empty projectIds
   // array as "match nothing", so this is an optimization, not the only guard.)
   if (projectIds.length === 0) {
@@ -113,12 +145,12 @@ export async function executeSmartViewTaskList({
   }
 
   return taskService.list({
-    filters: { projectIds },
+    filters: { projectIds: [...projectIds] },
     filterSql,
     requiredJoins,
     sortBy: resolveTaskSortBy(view.sortBy),
     sortOrder: resolveTaskSortOrder(view.sortOrder),
-    page,
-    limit,
+    page: Math.max(1, page),
+    limit: Math.min(Math.max(1, limit), SMART_VIEW_MAX_LIMIT),
   });
 }

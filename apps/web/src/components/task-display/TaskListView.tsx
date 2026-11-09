@@ -1,18 +1,33 @@
-import { useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
-import { TaskCard, type TaskCardTask } from './TaskCard';
-import { groupTasks, taskMatchesGroup, sortTasksForColumn, DONE_COLUMN_INITIAL_LIMIT, type GroupBy, type TaskGroup, type AvailableState } from './grouping';
-import type { MouseEvent } from 'react';
+import { memo, useMemo, useState } from 'react';
+import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
+import { TaskCard, type TaskCardTask, type TaskOpenEvent } from './TaskCard';
+import {
+  COLUMN_RENDER_LIMIT,
+  DONE_COLUMN_INITIAL_LIMIT,
+  groupTasks,
+  sortTasksForColumn,
+  taskMatchesGroup,
+  type AvailableState,
+  type GroupBy,
+  type TaskGroup,
+} from './grouping';
+import { isDoneCategory } from '../board/ordering';
+import { ColorDot } from '../ui/ColorDot';
+import { IconButton } from '../ui/IconButton';
+import type { ContextMenuState } from '../tasks/TaskContextMenu';
 
 interface TaskListViewProps {
   tasks: TaskCardTask[];
   groupBy: GroupBy;
   secondaryGroupBy?: GroupBy;
-  onTaskClick: (taskId: string, event: MouseEvent<HTMLDivElement>) => void;
+  /** Keep this stable (useCallback): every row receives it. */
+  onTaskClick: (taskId: string, event: TaskOpenEvent) => void;
   showProject?: boolean;
   availableStates?: AvailableState[];
   mergeStatesByCategory?: boolean;
   selectedTaskIds?: Set<string>;
+  /** Group header "+" (project lists grouped by state). */
+  onAddTask?: (stateId: string) => void;
 }
 
 export function TaskListView({
@@ -24,185 +39,173 @@ export function TaskListView({
   availableStates,
   mergeStatesByCategory,
   selectedTaskIds,
+  onAddTask,
 }: TaskListViewProps) {
-  const groups = groupTasks(tasks, groupBy, availableStates, mergeStatesByCategory);
-  for (const group of groups) {
-    group.tasks = sortTasksForColumn(group.tasks, group.category);
+  const statesByProject = useMemo(() => {
+    const map = new Map<string, ContextMenuState[]>();
+    for (const state of availableStates ?? []) {
+      if (!state.projectId) continue;
+      map.set(state.projectId, [...(map.get(state.projectId) ?? []), state]);
+    }
+    return map;
+  }, [availableStates]);
+
+  const sections = useMemo(() => {
+    const sortGroups = (groups: TaskGroup[]) =>
+      groups.map((group) => ({ ...group, tasks: sortTasksForColumn(group.tasks, group.category) }));
+    if (!secondaryGroupBy)
+      return [
+        {
+          outer: null,
+          groups: sortGroups(groupTasks(tasks, groupBy, availableStates, mergeStatesByCategory)),
+        },
+      ];
+    return groupTasks(tasks, secondaryGroupBy, undefined, mergeStatesByCategory).map((outer) => ({
+      outer,
+      groups: sortGroups(
+        groupTasks(
+          tasks.filter((task) =>
+            taskMatchesGroup(task, secondaryGroupBy, outer.id, mergeStatesByCategory)
+          ),
+          groupBy,
+          availableStates,
+          mergeStatesByCategory
+        )
+      ),
+    }));
+  }, [tasks, groupBy, secondaryGroupBy, availableStates, mergeStatesByCategory]);
+
+  const isStateGrouping = groupBy === 'state' || secondaryGroupBy === 'state';
+  const effectiveShowProject =
+    showProject && groupBy !== 'project' && secondaryGroupBy !== 'project';
+  const canAdd =
+    groupBy === 'state' && !secondaryGroupBy && !mergeStatesByCategory ? onAddTask : undefined;
+
+  if (tasks.length === 0 && groupBy === 'none') {
+    return <p className="py-8 text-center text-neutral-500">No tasks found</p>;
   }
-  const secondaryGroups = secondaryGroupBy
-    ? groupTasks(tasks, secondaryGroupBy, undefined, mergeStatesByCategory)
-    : null;
 
-  if (groupBy === 'none') {
-    // Simple flat list without grouping
-    return (
-      <div className="space-y-2">
-        {tasks.length === 0 ? (
-          <p className="text-center py-8 text-gray-500">No tasks found</p>
-        ) : (
-          tasks.map((task) => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              onClick={(event) => onTaskClick(task.id, event)}
-              showProject={showProject}
-              showState={true}
-              draggable={false}
-              isSelected={selectedTaskIds?.has(task.id)}
-              states={availableStates?.filter((s) => s.projectId === task.project.id)}
-            />
-          ))
-        )}
-      </div>
-    );
-  }
-
-  const renderGroupSection = (group: TaskGroup, showProjectValue: boolean) => (
-    <TaskGroupSection
-      key={group.id}
-      group={group}
-      groupBy={groupBy}
-      onTaskClick={onTaskClick}
-      showProject={showProjectValue}
-      secondaryGroupBy={secondaryGroupBy}
-      selectedTaskIds={selectedTaskIds}
-      availableStates={availableStates}
-    />
-  );
-
-  // Grouped list with collapsible sections
   return (
-    <div className="space-y-4">
-      {groups.length === 0 ? (
-        <p className="text-center py-8 text-gray-500">No tasks found</p>
-      ) : secondaryGroups ? (
-        secondaryGroups.map((secondaryGroup) => {
-          const rowTasks = tasks.filter((task) =>
-            taskMatchesGroup(task, secondaryGroupBy!, secondaryGroup.id, mergeStatesByCategory)
-          );
-          const rowGroups = groupTasks(rowTasks, groupBy, availableStates, mergeStatesByCategory);
-          const effectiveShowProject = showProject && groupBy !== 'project' && secondaryGroupBy !== 'project';
-
+    <div className="flex flex-col gap-3">
+      {sections.map(({ outer, groups }) => {
+        const content = groups.map((group) => (
+          <ListGroup
+            key={group.id}
+            group={group}
+            onTaskClick={onTaskClick}
+            showProject={effectiveShowProject}
+            showState={!isStateGrouping}
+            selectedTaskIds={selectedTaskIds}
+            statesByProject={statesByProject}
+            onAddTask={canAdd}
+          />
+        ));
+        if (!outer)
           return (
-            <div key={secondaryGroup.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-              <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-                <div className="flex items-center gap-3">
-                  {secondaryGroup.color && (
-                    <div
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: secondaryGroup.color }}
-                    />
-                  )}
-                  <span className="font-medium text-gray-900">{secondaryGroup.name}</span>
-                  <span className="text-sm text-gray-500">({secondaryGroup.tasks.length})</span>
-                </div>
-              </div>
-              <div className="p-3 space-y-4">
-                {rowGroups.length === 0 ? (
-                  <p className="text-center py-4 text-gray-400 text-sm">No tasks</p>
-                ) : (
-                  rowGroups.map((group) => renderGroupSection(group, effectiveShowProject))
-                )}
-              </div>
+            <div key="all" className="flex flex-col gap-3">
+              {content}
             </div>
           );
-        })
-      ) : (
-        groups.map((group) => {
-          const effectiveShowProject = showProject && groupBy !== 'project';
-          return renderGroupSection(group, effectiveShowProject);
-        })
-      )}
+        return (
+          <section key={outer.id} aria-label={outer.name} className="flex flex-col gap-2">
+            <h3 className="flex items-center gap-2 px-1 text-[13px] font-semibold text-neutral-900">
+              <ColorDot color={outer.color} />
+              {outer.name}
+              <span className="font-medium text-neutral-400">{outer.tasks.length}</span>
+            </h3>
+            {content}
+          </section>
+        );
+      })}
     </div>
   );
 }
 
-interface TaskGroupSectionProps {
+interface ListGroupProps {
   group: TaskGroup;
-  groupBy: GroupBy;
-  onTaskClick: (taskId: string, event: MouseEvent<HTMLDivElement>) => void;
+  onTaskClick: (taskId: string, event: TaskOpenEvent) => void;
   showProject: boolean;
-  secondaryGroupBy?: GroupBy;
+  showState: boolean;
   selectedTaskIds?: Set<string>;
-  availableStates?: AvailableState[];
+  statesByProject: Map<string, ContextMenuState[]>;
+  onAddTask?: (stateId: string) => void;
 }
 
-function TaskGroupSection({
+const ListGroup = memo(function ListGroup({
   group,
-  groupBy,
   onTaskClick,
   showProject,
-  secondaryGroupBy,
+  showState,
   selectedTaskIds,
-  availableStates,
-}: TaskGroupSectionProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
-  const [showAll, setShowAll] = useState(false);
-
-  // Determine which task fields to show based on groupBy
-  // Don't show the grouped field since it's redundant
-  const showState = groupBy !== 'state' && secondaryGroupBy !== 'state';
-  const effectiveShowProject = showProject && groupBy !== 'project' && secondaryGroupBy !== 'project';
-
-  const isDone = group.category === 'done';
-  const visibleTasks = isDone && !showAll ? group.tasks.slice(0, DONE_COLUMN_INITIAL_LIMIT) : group.tasks;
-  const hiddenCount = group.tasks.length - visibleTasks.length;
+  statesByProject,
+  onAddTask,
+}: ListGroupProps) {
+  const isDone = isDoneCategory(group.category);
+  const [isExpanded, setIsExpanded] = useState(!isDone || group.tasks.length <= 5);
+  const [limit, setLimit] = useState(isDone ? DONE_COLUMN_INITIAL_LIMIT : COLUMN_RENDER_LIMIT);
+  const visible = group.tasks.slice(0, limit);
+  const hidden = group.tasks.length - visible.length;
+  const panelId = `list-group-${group.id}`;
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-      {/* Section header */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
-      >
-        <div className="flex items-center gap-3">
+    <section data-column={group.id} aria-label={`${group.name}, ${group.tasks.length} tasks`}>
+      <div className="flex items-center gap-1 px-1 py-1">
+        <button
+          type="button"
+          onClick={() => setIsExpanded((value) => !value)}
+          aria-expanded={isExpanded}
+          aria-controls={panelId}
+          className="flex min-w-0 flex-1 items-center gap-[7px] rounded-md py-0.5 text-left text-[13px] font-semibold text-neutral-900"
+        >
           {isExpanded ? (
-            <ChevronDown className="w-4 h-4 text-gray-500" />
+            <ChevronDown aria-hidden className="h-4 w-4 text-neutral-400" />
           ) : (
-            <ChevronRight className="w-4 h-4 text-gray-500" />
+            <ChevronRight aria-hidden className="h-4 w-4 text-neutral-400" />
           )}
-          {group.color && (
-            <div
-              className="w-3 h-3 rounded-full"
-              style={{ backgroundColor: group.color }}
-            />
-          )}
-          <span className="font-medium text-gray-900">{group.name}</span>
-          <span className="text-sm text-gray-500">({group.tasks.length})</span>
-        </div>
-      </button>
-
-      {/* Section content */}
+          <ColorDot color={group.color} />
+          <span className="truncate">{group.name}</span>
+          <span className="font-medium text-neutral-400">{group.tasks.length}</span>
+        </button>
+        {onAddTask && (
+          <IconButton
+            label={`Add task to ${group.name}`}
+            icon={<Plus />}
+            size="xs"
+            onClick={() => onAddTask(group.id)}
+          />
+        )}
+      </div>
       {isExpanded && (
-        <div className="p-3 space-y-2">
+        <div id={panelId} className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
           {group.tasks.length === 0 ? (
-            <p className="text-center py-4 text-gray-400 text-sm">No tasks</p>
+            <p className="px-3 py-3 text-sm text-neutral-400">No tasks</p>
           ) : (
             <>
-              {visibleTasks.map((task) => (
+              {visible.map((task) => (
                 <TaskCard
                   key={task.id}
                   task={task}
-                  onClick={(event) => onTaskClick(task.id, event)}
-                  showProject={effectiveShowProject}
+                  variant="row"
+                  onOpen={onTaskClick}
+                  showProject={showProject}
                   showState={showState}
-                  draggable={false}
-                  isSelected={selectedTaskIds?.has(task.id)}
-                  states={availableStates?.filter((s) => s.projectId === task.project.id)}
+                  isSelected={selectedTaskIds?.has(task.id) ?? false}
+                  states={statesByProject.get(task.project.id)}
                 />
               ))}
-              {hiddenCount > 0 && (
+              {hidden > 0 && (
                 <button
-                  onClick={() => setShowAll(true)}
-                  className="w-full py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+                  type="button"
+                  onClick={() => setLimit((value) => value + COLUMN_RENDER_LIMIT)}
+                  className="w-full border-t border-neutral-100 px-3 py-2 text-left text-[12.5px] text-neutral-500 hover:bg-neutral-50"
                 >
-                  Show {hiddenCount} more tasks
+                  Show {Math.min(hidden, COLUMN_RENDER_LIMIT)} more
                 </button>
               )}
             </>
           )}
         </div>
       )}
-    </div>
+    </section>
   );
-}
+});

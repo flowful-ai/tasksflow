@@ -1,26 +1,25 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { getDatabase } from '@flowtask/database';
-import { AgentService, WorkspaceService } from '@flowtask/domain';
-import { getCurrentUser } from '@flowtask/auth';
+import { getDatabase } from '../db/index.js';
+import { AgentService, WorkspaceService } from '../domain/index.js';
 import { ApiKeyProviderSchema, UpdateWorkspaceAiSettingsSchema } from '@flowtask/shared';
-import { hasPermission } from '@flowtask/auth';
+import type { ApiKeyProvider } from '@flowtask/shared';
+import { requireWorkspace } from '../lib/authorize.js';
+import { badRequest, fromResult, validationHook, handleRouteError } from '../lib/responses.js';
 
 const workspaceApiKeysRoutes = new Hono();
+workspaceApiKeysRoutes.onError(handleRouteError);
 const db = getDatabase();
 const agentService = new AgentService(db);
 const workspaceService = new WorkspaceService(db);
 
-const ProviderSchema = ApiKeyProviderSchema;
 const PROVIDERS = ApiKeyProviderSchema.options;
 
-async function requireWorkspaceAdminOrOwner(workspaceId: string, userId: string): Promise<void> {
-  const roleResult = await workspaceService.getMemberRole(workspaceId, userId);
-  const role = roleResult.ok ? roleResult.value : null;
-  if (!role || (role !== 'owner' && role !== 'admin')) {
-    throw new Error('FORBIDDEN');
-  }
+function providerParam(value: string | undefined): ApiKeyProvider {
+  const parsed = ApiKeyProviderSchema.safeParse(value);
+  if (!parsed.success) throw badRequest('Invalid API key provider', 'INVALID_PROVIDER');
+  return parsed.data;
 }
 
 workspaceApiKeysRoutes.post(
@@ -28,39 +27,33 @@ workspaceApiKeysRoutes.post(
   zValidator(
     'json',
     z.object({
-      provider: ProviderSchema,
+      provider: ApiKeyProviderSchema,
       apiKey: z.string().min(1),
-    })
+    }),
+    validationHook
   ),
   async (c) => {
-    const user = getCurrentUser(c);
-    const workspaceId = c.req.param('workspaceId');
+    const { workspaceId } = await requireWorkspace(
+      c,
+      c.req.param('workspaceId'),
+      'workspace:manage_settings'
+    );
     const { provider, apiKey } = c.req.valid('json');
 
-    try {
-      await requireWorkspaceAdminOrOwner(workspaceId, user.id);
-    } catch {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-    }
-
-    const result = await agentService.storeApiKey({
-      workspaceId,
-      provider,
-      apiKey,
+    const stored = fromResult(await agentService.storeApiKey({ workspaceId, provider, apiKey }), {
+      status: 400,
+      code: 'STORE_FAILED',
+      message: 'Failed to store API key',
     });
-
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'STORE_FAILED', message: result.error.message } }, 400);
-    }
 
     return c.json(
       {
         success: true,
         data: {
-          id: result.value.id,
-          workspaceId: result.value.workspaceId,
-          provider: result.value.provider,
-          createdAt: result.value.createdAt,
+          id: stored.id,
+          workspaceId: stored.workspaceId,
+          provider: stored.provider,
+          createdAt: stored.createdAt,
         },
       },
       201
@@ -69,15 +62,11 @@ workspaceApiKeysRoutes.post(
 );
 
 workspaceApiKeysRoutes.get('/:workspaceId/api-keys', async (c) => {
-  const user = getCurrentUser(c);
-  const workspaceId = c.req.param('workspaceId');
-
-  try {
-    await requireWorkspaceAdminOrOwner(workspaceId, user.id);
-  } catch {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
-
+  const { workspaceId } = await requireWorkspace(
+    c,
+    c.req.param('workspaceId'),
+    'workspace:manage_settings'
+  );
   const configuredProviders = await agentService.listApiKeyProviders(workspaceId);
 
   return c.json({
@@ -92,101 +81,72 @@ workspaceApiKeysRoutes.get('/:workspaceId/api-keys', async (c) => {
 });
 
 workspaceApiKeysRoutes.get('/:workspaceId/api-keys/:provider', async (c) => {
-  const user = getCurrentUser(c);
-  const workspaceId = c.req.param('workspaceId');
-  const providerParse = ProviderSchema.safeParse(c.req.param('provider'));
-  if (!providerParse.success) {
-    return c.json({ success: false, error: { code: 'INVALID_PROVIDER', message: 'Invalid API key provider' } }, 400);
-  }
-
-  try {
-    await requireWorkspaceAdminOrOwner(workspaceId, user.id);
-  } catch {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
-
-  const hasKey = await agentService.hasApiKey(workspaceId, providerParse.data);
-
-  return c.json({
-    success: true,
-    data: {
-      hasKey,
-      provider: providerParse.data,
-    },
-  });
+  const provider = providerParam(c.req.param('provider'));
+  const { workspaceId } = await requireWorkspace(
+    c,
+    c.req.param('workspaceId'),
+    'workspace:manage_settings'
+  );
+  const hasKey = await agentService.hasApiKey(workspaceId, provider);
+  return c.json({ success: true, data: { hasKey, provider } });
 });
 
 workspaceApiKeysRoutes.delete('/:workspaceId/api-keys/:provider', async (c) => {
-  const user = getCurrentUser(c);
-  const workspaceId = c.req.param('workspaceId');
-  const providerParse = ProviderSchema.safeParse(c.req.param('provider'));
-  if (!providerParse.success) {
-    return c.json({ success: false, error: { code: 'INVALID_PROVIDER', message: 'Invalid API key provider' } }, 400);
-  }
-
-  try {
-    await requireWorkspaceAdminOrOwner(workspaceId, user.id);
-  } catch {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
-
-  const result = await agentService.deleteApiKey(workspaceId, providerParse.data);
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'DELETE_FAILED', message: result.error.message } }, 400);
-  }
-
+  const provider = providerParam(c.req.param('provider'));
+  const { workspaceId } = await requireWorkspace(
+    c,
+    c.req.param('workspaceId'),
+    'workspace:manage_settings'
+  );
+  fromResult(await agentService.deleteApiKey(workspaceId, provider), {
+    status: 400,
+    code: 'DELETE_FAILED',
+    message: 'Failed to delete API key',
+  });
   return c.json({ success: true, data: null });
 });
 
 workspaceApiKeysRoutes.get('/:workspaceId/ai-settings', async (c) => {
-  const user = getCurrentUser(c);
-  const workspaceId = c.req.param('workspaceId');
-
-  const roleResult = await workspaceService.getMemberRole(workspaceId, user.id);
-  const role = roleResult.ok ? roleResult.value : null;
-  if (!role || !hasPermission(role, 'agent:execute')) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
-
-  const result = await workspaceService.getAgentAiSettings(workspaceId);
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'READ_FAILED', message: result.error.message } }, 400);
-  }
-
-  return c.json({ success: true, data: result.value });
+  const { workspaceId } = await requireWorkspace(c, c.req.param('workspaceId'), 'agent:execute');
+  const settings = fromResult(await workspaceService.getAgentAiSettings(workspaceId), {
+    status: 400,
+    code: 'READ_FAILED',
+    message: 'Failed to read AI settings',
+  });
+  return c.json({ success: true, data: settings });
 });
 
 workspaceApiKeysRoutes.patch(
   '/:workspaceId/ai-settings',
-  zValidator('json', UpdateWorkspaceAiSettingsSchema),
+  zValidator('json', UpdateWorkspaceAiSettingsSchema, validationHook),
   async (c) => {
-    const user = getCurrentUser(c);
-    const workspaceId = c.req.param('workspaceId');
+    const { workspaceId } = await requireWorkspace(
+      c,
+      c.req.param('workspaceId'),
+      'workspace:manage_settings'
+    );
     const data = c.req.valid('json');
-
-    try {
-      await requireWorkspaceAdminOrOwner(workspaceId, user.id);
-    } catch {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-    }
 
     if (data.defaultAgentId) {
       const agentResult = await agentService.getById(data.defaultAgentId);
-      if (!agentResult.ok || agentResult.value.workspaceId !== workspaceId || !agentResult.value.isActive) {
-        return c.json(
-          { success: false, error: { code: 'INVALID_DEFAULT_AGENT', message: 'Default agent must be active and in this workspace' } },
-          400
+      if (
+        !agentResult.ok ||
+        agentResult.value.workspaceId !== workspaceId ||
+        !agentResult.value.isActive
+      ) {
+        throw badRequest(
+          'Default agent must be active and in this workspace',
+          'INVALID_DEFAULT_AGENT'
         );
       }
     }
 
-    const result = await workspaceService.updateAgentAiSettings(workspaceId, data);
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'UPDATE_FAILED', message: result.error.message } }, 400);
-    }
-
-    return c.json({ success: true, data: result.value });
+    const settings = fromResult(await workspaceService.updateAgentAiSettings(workspaceId, data), {
+      status: 400,
+      code: 'UPDATE_FAILED',
+      message: 'Failed to update AI settings',
+    });
+    return c.json({ success: true, data: settings });
   }
 );
 

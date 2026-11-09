@@ -1,70 +1,57 @@
-# Build stage
-FROM oven/bun:1.2 AS builder
+# One image for the whole app: the Bun API bundle serves the built SPA and
+# applies database migrations on boot. Build from the repo root:
+#   docker build -f apps/api/Dockerfile -t flowtask .
 
+# ---- builder: install, build the web app and bundle the API ----
+FROM oven/bun:1.3.11 AS builder
 WORKDIR /app
 
-# Copy root package files
-COPY package.json bun.lock* tsconfig.json ./
-
-# Copy all workspace package.json files to maintain lockfile consistency
-COPY packages/shared/package.json ./packages/shared/
-COPY packages/database/package.json ./packages/database/
-COPY packages/auth/package.json ./packages/auth/
-COPY packages/domain/package.json ./packages/domain/
-COPY packages/integrations/package.json ./packages/integrations/
-COPY apps/web/package.json ./apps/web/
-COPY apps/api/package.json ./apps/api/
-
-# Install dependencies
+COPY package.json bun.lock tsconfig.json ./
+COPY packages/shared/package.json packages/shared/
+COPY apps/web/package.json apps/web/
+COPY apps/api/package.json apps/api/
 RUN bun install --frozen-lockfile
 
-# Copy source code
-COPY packages ./packages
-COPY apps/api ./apps/api
+COPY packages packages
+COPY apps/web apps/web
+COPY apps/api apps/api
 
-# Build packages and API
+# Vite inlines these at build time. VITE_API_URL stays empty: the SPA and the
+# API share an origin.
+ARG VITE_API_URL=""
+ARG VITE_GITHUB_CLIENT_ID=""
+ARG VITE_GOOGLE_CLIENT_ID=""
+ARG VITE_GITHUB_APP_SLUG=""
+ENV VITE_API_URL=$VITE_API_URL \
+    VITE_GITHUB_CLIENT_ID=$VITE_GITHUB_CLIENT_ID \
+    VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID \
+    VITE_GITHUB_APP_SLUG=$VITE_GITHUB_APP_SLUG
+
+# The web build reads @flowtask/shared from its dist; the API bundle reads it
+# from source (the "bun" export condition) and inlines all dependencies, so
+# the runner needs no node_modules.
 RUN cd packages/shared && bun run build
-RUN cd packages/database && bun run build
-RUN cd packages/auth && bun run build
-RUN cd packages/domain && bun run build
-RUN cd packages/integrations && bun run build
+RUN cd apps/web && bun run build
 RUN cd apps/api && bun run build
 
-# Production stage
-FROM oven/bun:1.2-slim AS runner
-
+# ---- runner: the bundle, the SPA and the migrations, nothing else ----
+FROM oven/bun:1.3.11-slim AS runner
 WORKDIR /app
 
-# Copy root files and all workspace package.json for lockfile consistency
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/bun.lock* ./
+ENV NODE_ENV=production \
+    API_PORT=3001 \
+    WEB_DIST_DIR=/app/public \
+    MIGRATIONS_DIR=/app/drizzle
 
-# Copy ALL workspace package.json files (required for lockfile consistency)
-COPY --from=builder /app/packages/shared/package.json ./packages/shared/
-COPY --from=builder /app/packages/database/package.json ./packages/database/
-COPY --from=builder /app/packages/auth/package.json ./packages/auth/
-COPY --from=builder /app/packages/domain/package.json ./packages/domain/
-COPY --from=builder /app/packages/integrations/package.json ./packages/integrations/
-COPY --from=builder /app/apps/api/package.json ./apps/api/
-COPY --from=builder /app/apps/web/package.json ./apps/web/
+COPY --from=builder --chown=bun:bun /app/apps/api/dist/ ./
+COPY --from=builder --chown=bun:bun /app/apps/web/dist/ ./public/
+COPY --from=builder --chown=bun:bun /app/apps/api/drizzle/ ./drizzle/
 
-# Copy built dist folders
-COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
-COPY --from=builder /app/packages/database/dist ./packages/database/dist
-COPY --from=builder /app/packages/auth/dist ./packages/auth/dist
-COPY --from=builder /app/packages/domain/dist ./packages/domain/dist
-COPY --from=builder /app/packages/integrations/dist ./packages/integrations/dist
-COPY --from=builder /app/apps/api/dist ./apps/api/dist
+USER bun
+EXPOSE 3001
 
-# Install production dependencies only
-RUN bun install --production --frozen-lockfile
+# slim has no curl or wget; use bun itself.
+HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=3 \
+  CMD ["bun", "-e", "fetch('http://127.0.0.1:' + (process.env.API_PORT || 3001) + '/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
 
-# Set environment
-ENV NODE_ENV=production
-ENV API_PORT=3001
-ENV WS_PORT=3002
-
-EXPOSE 3001 3002
-
-# Run the API
-CMD ["bun", "run", "apps/api/dist/index.js"]
+CMD ["bun", "index.js"]

@@ -1,6 +1,11 @@
 import { X } from 'lucide-react';
 import clsx from 'clsx';
-import type { FilterCondition, FilterOperator } from '@flowtask/shared';
+import {
+  FilterOperatorSchema,
+  type FilterCondition,
+  type FilterOperator,
+} from '@flowtask/shared/types';
+import { IconButton } from '../../ui';
 import {
   FILTER_FIELDS,
   OPERATORS_BY_TYPE,
@@ -8,7 +13,10 @@ import {
   operatorRequiresValue,
   getOperatorLabel,
 } from './constants';
-import { FilterValueInput } from './FilterValueInput';
+import { FilterValueInput, type FilterValue } from './FilterValueInput';
+
+const isFilterOperator = (value: string): value is FilterOperator =>
+  FilterOperatorSchema.safeParse(value).success;
 
 interface WorkspaceMember {
   userId: string;
@@ -65,9 +73,7 @@ export function FilterConditionRow({
     const newValidOperators = OPERATORS_BY_TYPE[newFieldType];
 
     // Keep the operator if it's still valid, otherwise use the first valid one
-    const newOp = newValidOperators.includes(condition.op)
-      ? condition.op
-      : newValidOperators[0];
+    const newOp = newValidOperators.includes(condition.op) ? condition.op : newValidOperators[0];
 
     onChange({
       field: newField,
@@ -88,7 +94,7 @@ export function FilterConditionRow({
     });
   };
 
-  const handleValueChange = (newValue: unknown) => {
+  const handleValueChange = (newValue: FilterValue) => {
     onChange({
       ...condition,
       value: newValue,
@@ -104,6 +110,7 @@ export function FilterConditionRow({
         <select
           value={condition.field}
           onChange={(e) => handleFieldChange(e.target.value)}
+          aria-label="Field"
           className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
         >
           {Object.entries(fieldsByCategory).map(([category, fields]) => (
@@ -122,7 +129,10 @@ export function FilterConditionRow({
       <div className="w-36 flex-shrink-0">
         <select
           value={condition.op}
-          onChange={(e) => handleOperatorChange(e.target.value as FilterOperator)}
+          onChange={(e) => {
+            if (isFilterOperator(e.target.value)) handleOperatorChange(e.target.value);
+          }}
+          aria-label="Operator"
           className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
         >
           {validOperators.map((op) => (
@@ -150,17 +160,12 @@ export function FilterConditionRow({
       )}
 
       {/* Remove button */}
-      <button
-        type="button"
+      <IconButton
+        label="Remove filter"
         onClick={onRemove}
-        className={clsx(
-          'p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors',
-          'opacity-0 group-hover:opacity-100 focus:opacity-100'
-        )}
-        title="Remove filter"
-      >
-        <X className="w-4 h-4" />
-      </button>
+        icon={<X />}
+        className={clsx('opacity-60 group-hover:opacity-100 focus-visible:opacity-100')}
+      />
     </div>
   );
 }

@@ -1,188 +1,125 @@
-import { Hono } from 'hono';
-import { cors } from 'hono/cors';
-import { logger } from 'hono/logger';
-import { secureHeaders } from 'hono/secure-headers';
-import { authMiddleware } from '@flowtask/auth';
+import { closeDatabase, getDatabase, runMigrations } from './db/index.js';
+import { createApp } from './app.js';
+import { startApiBackground } from './background/index.js';
+import { applyClientIp, parseTrustedProxyHops, resolveClientIp } from './lib/client-ip.js';
+import { resolveMigrationsDir, shouldRunMigrations } from './lib/migrations.js';
+import {
+  markShuttingDown,
+  registerShutdownHook,
+  runShutdownHooks,
+  withTimeout,
+} from './lib/shutdown.js';
+import { initSSE, shutdownSSE } from './sse/manager.js';
+import { checkApiKeyEncryptionConfig, rekeyTaskPositions } from './domain/index.js';
+import { getAllowedRedirectSchemes } from './services/mcp-oauth/redirect-uri.js';
 
-// Import routes
-import { authRoutes } from './routes/auth.js';
-import { workspaceRoutes } from './routes/workspaces.js';
-import { projectRoutes } from './routes/projects.js';
-import { taskRoutes } from './routes/tasks.js';
-import { commentRoutes } from './routes/comments.js';
-import { smartViewRoutes } from './routes/smart-views.js';
-import { webhookRoutes } from './routes/webhooks.js';
-import { publicRoutes } from './routes/public.js';
-import { agentRoutes } from './routes/agents.js';
-import { mcpRoutes } from './routes/mcp.js';
-import { mcpSseRoutes } from './routes/mcp-sse.js';
-import { mcpOAuthRoutes } from './routes/mcp-oauth.js';
-import { mcpConnectionsRoutes } from './routes/mcp-connections.js';
-import { workspaceAgentRoutes } from './routes/workspace-agents.js';
-import { workspaceApiKeysRoutes } from './routes/workspace-api-keys.js';
-import { eventRoutes } from './routes/events.js';
-import { githubRoutes, githubPublicRoutes } from './routes/github.js';
-import { invitationRoutes, publicInvitationRoutes, acceptInvitationRoutes } from './routes/invitations.js';
-import { appAdminRoutes } from './routes/app-admin.js';
-import { McpOAuthService } from './services/mcp-oauth-service.js';
-
-// Import SSE manager
-import { initSSE } from './sse/manager.js';
-
-const app = new Hono();
-const mcpOAuthService = new McpOAuthService();
-
-// Global middleware
-app.use('*', logger());
-app.use('*', secureHeaders());
-app.use(
-  '*',
-  cors({
-    origin: [
-      'http://localhost:3000',
-      'http://localhost:5173',
-      process.env.WEB_URL || '',
-    ].filter(Boolean),
-    credentials: true,
-  })
-);
-
-// Health check
-app.get('/health', (c) => {
-  return c.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// Root-level GitHub App installation callback handler
-// GitHub redirects here when "OAuth during installation" is enabled
-// We detect installation_id and forward to the proper handler
-app.get('/', (c) => {
-  const installationId = c.req.query('installation_id');
-  const setupAction = c.req.query('setup_action');
-
-  if (installationId && setupAction) {
-    // This is a GitHub App installation callback, forward to our handler
-    const url = new URL(c.req.url);
-    const redirectUrl = `/api/github/callback${url.search}`;
-    return c.redirect(redirectUrl);
-  }
-
-  // Not a GitHub callback, return API info
-  return c.json({
-    name: 'FlowTask API',
-    status: 'ok',
-    docs: '/health'
-  });
-});
-
-app.get('/.well-known/oauth-protected-resource/api/mcp/sse', (c) => {
-  const url = new URL(c.req.url);
-  const forwardedProto = c.req.header('x-forwarded-proto');
-  const forwardedHost = c.req.header('x-forwarded-host');
-  const protocol = forwardedProto || url.protocol.replace(':', '');
-  const host = forwardedHost || url.host;
-  const baseUrl = `${protocol}://${host}`;
-
-  return c.json(mcpOAuthService.getProtectedResourceMetadata(baseUrl));
-});
-
-app.get('/.well-known/oauth-authorization-server', (c) => {
-  const url = new URL(c.req.url);
-  const forwardedProto = c.req.header('x-forwarded-proto');
-  const forwardedHost = c.req.header('x-forwarded-host');
-  const protocol = forwardedProto || url.protocol.replace(':', '');
-  const host = forwardedHost || url.host;
-  const baseUrl = `${protocol}://${host}`;
-
-  return c.json(mcpOAuthService.getAuthorizationServerMetadata(baseUrl));
-});
-
-// Auth routes (public, handled by Better Auth)
-app.route('/api/auth', authRoutes);
-
-// Public routes (no auth required)
-app.route('/api/public', publicRoutes);
-
-// Webhook routes (verified by signature)
-app.route('/api/webhooks', webhookRoutes);
-
-// GitHub public routes (callback handler, no auth required)
-app.route('/api/github', githubPublicRoutes);
-
-// Public invitation routes (get invitation by token, no auth required)
-app.route('/api', publicInvitationRoutes);
-
-// MCP SSE routes (handles its own token authentication)
-app.route('/api/mcp', mcpSseRoutes);
-app.route('/api/mcp', mcpOAuthRoutes);
-
-// SSE event routes (handles its own authentication for streaming)
-app.route('/api/events', eventRoutes);
-
-// Protected routes (require authentication)
-app.use('/api/*', authMiddleware);
-
-// API routes
-app.route('/api/workspaces', workspaceRoutes);
-app.route('/api/projects', projectRoutes);
-app.route('/api/workspaces', workspaceAgentRoutes); // Workspace agent routes nested under workspaces
-app.route('/api/workspaces', workspaceApiKeysRoutes);
-app.route('/api/workspaces', mcpConnectionsRoutes);
-app.route('/api', invitationRoutes); // Invitation routes under /api/workspaces/:workspaceId/invitations
-app.route('/api', acceptInvitationRoutes); // Accept invitation route (requires auth)
-app.route('/api/tasks', taskRoutes);
-app.route('/api/tasks', commentRoutes); // Comment routes nested under tasks
-app.route('/api/smart-views', smartViewRoutes);
-app.route('/api/agents', agentRoutes);
-app.route('/api/mcp', mcpRoutes);
-app.route('/api/github', githubRoutes);
-app.route('/api/projects', githubRoutes); // GitHub routes nested under projects
-app.route('/api/app', appAdminRoutes);
-
-// Error handler
-app.onError((err, c) => {
-  console.error('Server error:', err);
-  return c.json(
-    {
-      success: false,
-      error: {
-        code: 'INTERNAL_ERROR',
-        message: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
-      },
-    },
-    500
-  );
-});
-
-// 404 handler
-app.notFound((c) => {
-  return c.json(
-    {
-      success: false,
-      error: {
-        code: 'NOT_FOUND',
-        message: 'Route not found',
-      },
-    },
-    404
-  );
-});
+const { app, webDistDir } = createApp();
 
 // Start server with Bun
 const port = parseInt(process.env.API_PORT || '3001', 10);
 const hostname = process.env.API_HOST || '0.0.0.0';
+const trustedProxyHops = parseTrustedProxyHops(process.env.TRUSTED_PROXY_HOPS);
+const shutdownTimeoutMs = Number(process.env.SHUTDOWN_TIMEOUT_MS ?? 10_000);
 
-const server = Bun.serve({
-  hostname,
-  port,
-  fetch: app.fetch,
-  // Increase idle timeout for SSE connections (default is 10s which kills long-lived streams)
-  idleTimeout: 255, // Maximum allowed value in Bun (in seconds)
-});
+async function applyMigrations(): Promise<void> {
+  if (!shouldRunMigrations(process.env.RUN_MIGRATIONS)) return;
+  const dir = resolveMigrationsDir();
+  if (!dir) {
+    throw new Error('Migrations folder not found: set MIGRATIONS_DIR, or RUN_MIGRATIONS=false');
+  }
+  console.log(`Applying database migrations from ${dir}`);
+  await runMigrations(dir);
+}
 
-console.log(`🚀 FlowTask API running at http://${hostname}:${server.port}`);
+/**
+ * Repair task position keys written by the pre-v2 generator. A read-only scan
+ * when every column is healthy; runs in the background so boot isn't delayed.
+ */
+function repairTaskPositions(): void {
+  rekeyTaskPositions(getDatabase(), { onlyInvalid: true })
+    .then((report) => {
+      if (report.columnsRekeyed > 0) {
+        console.log(
+          `Re-keyed ${report.columnsRekeyed} task column(s), ${report.tasksUpdated} task(s) updated`
+        );
+      }
+    })
+    .catch((error: Error) => console.error('Task position repair failed:', error.message));
+}
 
-// Initialize SSE manager (same port as API)
-initSSE();
+function startServer(): ReturnType<typeof Bun.serve> {
+  return Bun.serve({
+    hostname,
+    port,
+    fetch(req, server) {
+      // Resolve the client IP once, from the proxy chain we trust, and overwrite
+      // the forwarded headers so nothing downstream reads a spoofed value.
+      const socketIp = server.requestIP(req)?.address ?? null;
+      applyClientIp(
+        req.headers,
+        resolveClientIp(req.headers.get('x-forwarded-for'), socketIp, trustedProxyHops)
+      );
+      return app.fetch(req, server);
+    },
+    // Increase idle timeout for SSE connections (default is 10s which kills long-lived streams)
+    idleTimeout: 255, // Maximum allowed value in Bun (in seconds)
+  });
+}
 
-export default app;
+function installShutdownHandlers(server: ReturnType<typeof Bun.serve>): void {
+  let started = false;
+  const shutdown = async (signal: string) => {
+    if (started) return;
+    started = true;
+    markShuttingDown();
+    console.log(`${signal} received: draining`);
+    // Stop accepting new connections; resolves once open ones have finished.
+    const drained = server.stop();
+    // SSE streams and background jobs end through their hooks.
+    await runShutdownHooks(shutdownTimeoutMs);
+    await withTimeout(drained, shutdownTimeoutMs, 'in-flight requests');
+    await server.stop(true);
+    await closeDatabase().catch((error: Error) => {
+      console.error('Closing the database pool failed:', error.message);
+    });
+    console.log('Shutdown complete');
+    process.exit(0);
+  };
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  process.on('SIGINT', () => void shutdown('SIGINT'));
+}
+
+if (import.meta.main) {
+  // Warns once when API_KEY_ENCRYPTION_KEY isn't a 32-byte key (legacy derivation).
+  checkApiKeyEncryptionConfig();
+  try {
+    // Fail fast on an invalid MCP_ALLOWED_REDIRECT_SCHEMES instead of at the first registration.
+    getAllowedRedirectSchemes();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
+  try {
+    await applyMigrations();
+  } catch (error) {
+    console.error('Database migration failed:', error);
+    process.exit(1);
+  }
+  repairTaskPositions();
+  const server = startServer();
+  installShutdownHandlers(server);
+  console.log(
+    `FlowTask API running at http://${hostname}:${server.port}` +
+      (webDistDir ? ` (serving SPA from ${webDistDir})` : ' (no SPA build found)')
+  );
+  // Initialize SSE manager (same port as API); streams close on shutdown.
+  initSSE();
+  registerShutdownHook(() => shutdownSSE());
+  // Domain-event bridges, subscribers and the Postgres job runner, stopped on shutdown.
+  const background = startApiBackground(getDatabase());
+  registerShutdownHook(() => background.stop());
+}
+
+// No default export: Bun would treat a default export with `fetch` as a
+// server config and start a second listener on port 3000.
 export { app };

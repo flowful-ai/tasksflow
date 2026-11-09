@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   Users,
@@ -11,89 +11,59 @@ import {
   CheckCircle,
   LogIn,
 } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../stores/auth';
 import { useWorkspaceStore } from '../stores/workspace';
-import { invitationApi, type PublicInvitation, ApiError } from '../api/client';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { usePublicInvitation } from '../hooks/queries';
+import { PageSpinner } from '../components/ui';
+import { queryKeys } from '../api/queryKeys';
+import { invitationApi, ApiError } from '../api/client';
 
 export function InvitePage() {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
-  const { isAuthenticated, user } = useAuthStore();
-  const fetchWorkspaces = useWorkspaceStore((state) => state.fetchWorkspaces);
+  const { isAuthenticated, user } = useAuthStore(
+    useShallow((s) => ({ isAuthenticated: s.isAuthenticated, user: s.user }))
+  );
+  const queryClient = useQueryClient();
+  const setWorkspaceId = useWorkspaceStore((state) => state.setCurrentWorkspaceId);
 
-  const [invitation, setInvitation] = useState<PublicInvitation | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAccepting, setIsAccepting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [errorCode, setErrorCode] = useState<string | null>(null);
-  const [acceptedWorkspace, setAcceptedWorkspace] = useState<{
-    id: string;
-    name: string;
-  } | null>(null);
+  const invitationQuery = usePublicInvitation(token);
+  const invitation = invitationQuery.data ?? null;
+  const isLoading = invitationQuery.isLoading;
+  const loadError = token ? invitationQuery.error : new Error('Invalid invitation link');
+  const [acceptedWorkspace, setAcceptedWorkspace] = useState<{ id: string; name: string } | null>(
+    null
+  );
 
-  useEffect(() => {
-    const loadInvitation = async () => {
-      if (!token) {
-        setError('Invalid invitation link');
-        setIsLoading(false);
-        return;
-      }
+  // The error is rendered inline, so the global toast is skipped.
+  const acceptMutation = useMutation({
+    mutationFn: (inviteToken: string) => invitationApi.accept(inviteToken),
+    onSuccess: async (response) => {
+      setAcceptedWorkspace({ id: response.workspaceId, name: response.workspaceName });
+      // Refresh workspaces to include the new one, and switch to it
+      setWorkspaceId(response.workspaceId);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.all });
+    },
+    meta: { silentError: true },
+  });
+  const isAccepting = acceptMutation.isPending;
+  const error = loadError?.message ?? acceptMutation.error?.message ?? null;
+  const errorCode = loadError instanceof ApiError ? loadError.code : null;
 
-      try {
-        const response = await invitationApi.getByToken(token);
-        setInvitation(response.data);
-      } catch (err) {
-        if (err instanceof ApiError) {
-          setError(err.message);
-          setErrorCode(err.code);
-        } else {
-          setError('Failed to load invitation');
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadInvitation();
-  }, [token]);
-
-  const handleAccept = async () => {
-    if (!token) return;
-
-    setIsAccepting(true);
-    setError(null);
-
-    try {
-      const response = await invitationApi.accept(token);
-      setAcceptedWorkspace({
-        id: response.data.workspaceId,
-        name: response.data.workspaceName,
-      });
-
-      // Refresh workspaces to include the new one
-      await fetchWorkspaces();
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError('Failed to accept invitation');
-      }
-    } finally {
-      setIsAccepting(false);
-    }
+  const handleAccept = () => {
+    if (token) acceptMutation.mutate(token);
   };
 
   const handleGoToWorkspace = () => {
-    navigate('/dashboard');
+    void navigate('/dashboard');
   };
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
-          <p className="text-gray-600">Loading invitation...</p>
-        </div>
+        <PageSpinner label="Loading invitation" />
       </div>
     );
   }
@@ -130,9 +100,10 @@ export function InvitePage() {
             Welcome to {acceptedWorkspace.name}!
           </h1>
           <p className="text-gray-600 mb-6">
-            You've successfully joined the workspace. You can now start collaborating with your team.
+            You've successfully joined the workspace. You can now start collaborating with your
+            team.
           </p>
-          <button onClick={handleGoToWorkspace} className="btn btn-primary">
+          <button type="button" onClick={handleGoToWorkspace} className="btn btn-primary">
             Go to Dashboard
           </button>
         </div>
@@ -158,18 +129,14 @@ export function InvitePage() {
             <Users className="w-8 h-8" />
             <h1 className="text-xl font-semibold">Workspace Invitation</h1>
           </div>
-          <p className="text-primary-100">
-            You've been invited to join a workspace
-          </p>
+          <p className="text-primary-100">You've been invited to join a workspace</p>
         </div>
 
         {/* Content */}
         <div className="p-6 space-y-6">
           {/* Workspace info */}
           <div className="text-center">
-            <h2 className="text-2xl font-bold text-gray-900 mb-1">
-              {invitation?.workspaceName}
-            </h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-1">{invitation?.workspaceName}</h2>
             <div className="flex items-center justify-center gap-2 text-gray-600">
               {invitation?.role === 'admin' ? (
                 <>
@@ -229,9 +196,7 @@ export function InvitePage() {
           </div>
 
           {/* Error message */}
-          {error && (
-            <div className="p-3 text-sm text-red-600 bg-red-50 rounded-lg">{error}</div>
-          )}
+          {error && <div className="p-3 text-sm text-red-600 bg-red-50 rounded-lg">{error}</div>}
 
           {/* Email mismatch warning */}
           {isEmailMismatch && (

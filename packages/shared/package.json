@@ -4,12 +4,32 @@
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "types": "./src/index.ts",
   "exports": {
     ".": {
       "bun": "./src/index.ts",
-      "types": "./dist/index.d.ts",
+      "types": "./src/index.ts",
       "import": "./dist/index.js"
+    },
+    "./types": {
+      "bun": "./src/types/index.ts",
+      "types": "./src/types/index.ts",
+      "import": "./dist/types.js"
+    },
+    "./utils": {
+      "bun": "./src/utils/index.ts",
+      "types": "./src/utils/index.ts",
+      "import": "./dist/utils.js"
+    },
+    "./constants": {
+      "bun": "./src/constants.ts",
+      "types": "./src/constants.ts",
+      "import": "./dist/constants.js"
+    },
+    "./json": {
+      "bun": "./src/types/json.ts",
+      "types": "./src/types/json.ts",
+      "import": "./dist/json.js"
     }
   },
   "scripts": {
@@ -17,6 +37,7 @@
     "dev": "tsup",
     "watch": "tsup --watch",
     "typecheck": "tsc --noEmit",
+    "test": "bun test --pass-with-no-tests",
     "clean": "rm -rf dist"
   },
   "devDependencies": {
@@ -24,6 +45,7 @@
     "typescript": "^5.7.2"
   },
   "dependencies": {
+    "fractional-indexing": "^4.0.0",
     "zod": "^3.24.1"
   }
 }

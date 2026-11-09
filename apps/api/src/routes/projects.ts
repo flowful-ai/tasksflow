@@ -1,130 +1,87 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { getDatabase } from '@flowtask/database';
-import { ProjectService, WorkspaceService } from '@flowtask/domain';
-import { getCurrentUser } from '@flowtask/auth';
-import { CreateProjectSchema, UpdateProjectSchema, CreateTaskStateSchema, CreateLabelSchema } from '@flowtask/shared';
-import { hasPermission, type WorkspacePermission } from '@flowtask/auth';
+import { getDatabase } from '../db/index.js';
+import { ProjectService } from '../domain/index.js';
+import { hasPermission } from '../auth/index.js';
+import {
+  CreateProjectSchema,
+  UpdateProjectSchema,
+  CreateTaskStateSchema,
+  CreateLabelSchema,
+} from '@flowtask/shared';
+import { requireProject, requireWorkspace } from '../lib/authorize.js';
+import { fromResult, handleRouteError } from '../lib/responses.js';
 
 const projects = new Hono();
+projects.onError(handleRouteError);
+
 const db = getDatabase();
 const projectService = new ProjectService(db);
-const workspaceService = new WorkspaceService(db);
 
-// Helper to check workspace access
-async function checkWorkspaceAccess(workspaceId: string, userId: string, permission: WorkspacePermission) {
-  const roleResult = await workspaceService.getMemberRole(workspaceId, userId);
-  if (!roleResult.ok || !roleResult.value) {
-    return { allowed: false, role: null };
-  }
-  return {
-    allowed: hasPermission(roleResult.value, permission),
-    role: roleResult.value,
-  };
-}
+const StateOrLabelUpdateSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  color: z.string().max(32).optional(),
+});
 
-// List projects in workspace
+// List projects in workspace (filtered by the project ACL)
 projects.get('/', async (c) => {
-  const user = getCurrentUser(c);
-  const workspaceId = c.req.query('workspaceId');
+  const { workspaceId, role, user } = await requireWorkspace(
+    c,
+    c.req.query('workspaceId'),
+    'project:read'
+  );
 
-  if (!workspaceId) {
-    return c.json({ success: false, error: { code: 'MISSING_PARAM', message: 'workspaceId is required' } }, 400);
-  }
+  const list = fromResult(
+    await projectService.list({
+      filters: {
+        workspaceId,
+        includeArchived: c.req.query('includeArchived') === 'true',
+        search: c.req.query('search'),
+        userId: user.id,
+        workspaceRole: role,
+      },
+    }),
+    { code: 'LIST_FAILED', message: 'Failed to list projects' }
+  );
 
-  const { allowed, role } = await checkWorkspaceAccess(workspaceId, user.id, 'project:read');
-  if (!allowed) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
-
-  const result = await projectService.list({
-    filters: {
-      workspaceId,
-      includeArchived: c.req.query('includeArchived') === 'true',
-      search: c.req.query('search'),
-      userId: user.id,
-      workspaceRole: role as 'owner' | 'admin' | 'member',
-    },
-  });
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'LIST_FAILED', message: result.error.message } }, 500);
-  }
-
-  return c.json({ success: true, data: result.value });
+  return c.json({ success: true, data: list });
 });
 
 // Create project
 projects.post(
   '/',
-  zValidator(
-    'json',
-    CreateProjectSchema.extend({ workspaceId: z.string().uuid() })
-  ),
+  zValidator('json', CreateProjectSchema.extend({ workspaceId: z.string().uuid() })),
   async (c) => {
-    const user = getCurrentUser(c);
     const data = c.req.valid('json');
+    const { workspaceId, user } = await requireWorkspace(c, data.workspaceId, 'project:create');
 
-    const { allowed } = await checkWorkspaceAccess(data.workspaceId, user.id, 'project:create');
-    if (!allowed) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-    }
+    const project = fromResult(
+      await projectService.create({ ...data, workspaceId, createdBy: user.id }),
+      {
+        status: 400,
+        code: 'CREATE_FAILED',
+        message: 'Failed to create project',
+      }
+    );
 
-    const result = await projectService.create({
-      ...data,
-      createdBy: user.id,
-    });
-
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'CREATE_FAILED', message: result.error.message } }, 400);
-    }
-
-    return c.json({ success: true, data: result.value }, 201);
+    return c.json({ success: true, data: project }, 201);
   }
 );
 
 // Get project by ID
 projects.get('/:projectId', async (c) => {
-  const user = getCurrentUser(c);
-  const projectId = c.req.param('projectId');
-
-  const result = await projectService.getById(projectId);
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: result.error.message } }, 404);
-  }
-
-  const { allowed, role } = await checkWorkspaceAccess(result.value.workspaceId, user.id, 'project:read');
-  if (!allowed) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
-
-  const hasProjectAccess = await projectService.hasAccess(projectId, user.id, role as 'owner' | 'admin' | 'member');
-  if (!hasProjectAccess) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized to access this project' } }, 403);
-  }
-
-  return c.json({ success: true, data: result.value });
+  const { project } = await requireProject(c, c.req.param('projectId'), 'project:read');
+  const full = fromResult(await projectService.getById(project.id), {
+    code: 'FETCH_FAILED',
+    message: 'Failed to load project',
+  });
+  return c.json({ success: true, data: full });
 });
 
 // Get project permissions for current user
 projects.get('/:projectId/permissions', async (c) => {
-  const user = getCurrentUser(c);
-  const projectId = c.req.param('projectId');
-
-  const result = await projectService.getById(projectId);
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: result.error.message } }, 404);
-  }
-
-  const roleResult = await workspaceService.getMemberRole(result.value.workspaceId, user.id);
-  if (!roleResult.ok || !roleResult.value) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
-
-  const role = roleResult.value;
+  const { role } = await requireProject(c, c.req.param('projectId'), 'project:read');
   return c.json({
     success: true,
     data: {
@@ -136,288 +93,148 @@ projects.get('/:projectId/permissions', async (c) => {
 });
 
 // Update project
-projects.patch(
-  '/:projectId',
-  zValidator('json', UpdateProjectSchema),
-  async (c) => {
-    const user = getCurrentUser(c);
-    const projectId = c.req.param('projectId');
-    const data = c.req.valid('json');
+projects.patch('/:projectId', zValidator('json', UpdateProjectSchema), async (c) => {
+  const { project, user } = await requireProject(c, c.req.param('projectId'), 'project:update');
+  const data = c.req.valid('json');
 
-    // Get project to check workspace
-    const projectResult = await projectService.getById(projectId);
-    if (!projectResult.ok) {
-      return c.json({ success: false, error: { code: 'NOT_FOUND', message: projectResult.error.message } }, 404);
+  const updated = fromResult(
+    await projectService.update(project.id, { ...data, updatedBy: user.id }),
+    {
+      status: 400,
+      code: 'UPDATE_FAILED',
+      message: 'Failed to update project',
     }
+  );
 
-    const { allowed } = await checkWorkspaceAccess(projectResult.value.workspaceId, user.id, 'project:update');
-    if (!allowed) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-    }
-
-    const result = await projectService.update(projectId, {
-      ...data,
-      updatedBy: user.id,
-    });
-
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'UPDATE_FAILED', message: result.error.message } }, 400);
-    }
-
-    return c.json({ success: true, data: result.value });
-  }
-);
+  return c.json({ success: true, data: updated });
+});
 
 // Delete project
 projects.delete('/:projectId', async (c) => {
-  const user = getCurrentUser(c);
-  const projectId = c.req.param('projectId');
-
-  // Get project to check workspace
-  const projectResult = await projectService.getById(projectId);
-  if (!projectResult.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: projectResult.error.message } }, 404);
-  }
-
-  const { allowed } = await checkWorkspaceAccess(projectResult.value.workspaceId, user.id, 'project:delete');
-  if (!allowed) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
-
-  const result = await projectService.delete(projectId);
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'DELETE_FAILED', message: result.error.message } }, 400);
-  }
+  const { project } = await requireProject(c, c.req.param('projectId'), 'project:delete');
+  fromResult(await projectService.delete(project.id), {
+    code: 'DELETE_FAILED',
+    message: 'Failed to delete project',
+  });
 
   return c.json({ success: true, data: null });
 });
 
 // === Task States ===
 
-// Get task states for a project
 projects.get('/:projectId/states', async (c) => {
-  const user = getCurrentUser(c);
-  const projectId = c.req.param('projectId');
-
-  const projectResult = await projectService.getById(projectId);
-  if (!projectResult.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: projectResult.error.message } }, 404);
-  }
-
-  const { allowed } = await checkWorkspaceAccess(projectResult.value.workspaceId, user.id, 'project:read');
-  if (!allowed) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
-
-  return c.json({ success: true, data: projectResult.value.taskStates || [] });
+  const { project } = await requireProject(c, c.req.param('projectId'), 'project:read');
+  const full = fromResult(await projectService.getById(project.id), {
+    code: 'FETCH_FAILED',
+    message: 'Failed to load task states',
+  });
+  return c.json({ success: true, data: full.taskStates });
 });
 
-// Create task state
-projects.post(
-  '/:projectId/states',
-  zValidator('json', CreateTaskStateSchema),
-  async (c) => {
-    const user = getCurrentUser(c);
-    const projectId = c.req.param('projectId');
-    const data = c.req.valid('json');
+projects.post('/:projectId/states', zValidator('json', CreateTaskStateSchema), async (c) => {
+  const { project } = await requireProject(c, c.req.param('projectId'), 'project:update');
+  const data = c.req.valid('json');
 
-    // Get project to check workspace
-    const projectResult = await projectService.getById(projectId);
-    if (!projectResult.ok) {
-      return c.json({ success: false, error: { code: 'NOT_FOUND', message: projectResult.error.message } }, 404);
+  const state = fromResult(
+    await projectService.createTaskState({ ...data, projectId: project.id }),
+    {
+      status: 400,
+      code: 'CREATE_FAILED',
+      message: 'Failed to create task state',
     }
+  );
 
-    const { allowed } = await checkWorkspaceAccess(projectResult.value.workspaceId, user.id, 'project:update');
-    if (!allowed) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-    }
+  return c.json({ success: true, data: state }, 201);
+});
 
-    const result = await projectService.createTaskState({
-      ...data,
-      projectId,
-    });
-
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'CREATE_FAILED', message: result.error.message } }, 400);
-    }
-
-    return c.json({ success: true, data: result.value }, 201);
-  }
-);
-
-// Update task state
 projects.patch(
   '/:projectId/states/:stateId',
-  zValidator('json', z.object({ name: z.string().optional(), color: z.string().optional() })),
+  zValidator('json', StateOrLabelUpdateSchema),
   async (c) => {
-    const user = getCurrentUser(c);
-    const projectId = c.req.param('projectId');
-    const stateId = c.req.param('stateId');
+    const { project } = await requireProject(c, c.req.param('projectId'), 'project:update');
     const data = c.req.valid('json');
 
-    // Get project to check workspace
-    const projectResult = await projectService.getById(projectId);
-    if (!projectResult.ok) {
-      return c.json({ success: false, error: { code: 'NOT_FOUND', message: projectResult.error.message } }, 404);
-    }
+    const state = fromResult(
+      await projectService.updateTaskState(project.id, c.req.param('stateId'), data),
+      {
+        status: 400,
+        code: 'UPDATE_FAILED',
+        message: 'Failed to update task state',
+      }
+    );
 
-    const { allowed } = await checkWorkspaceAccess(projectResult.value.workspaceId, user.id, 'project:update');
-    if (!allowed) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-    }
-
-    const result = await projectService.updateTaskState(stateId, data);
-
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'UPDATE_FAILED', message: result.error.message } }, 400);
-    }
-
-    return c.json({ success: true, data: result.value });
+    return c.json({ success: true, data: state });
   }
 );
 
-// Delete task state
 projects.delete('/:projectId/states/:stateId', async (c) => {
-  const user = getCurrentUser(c);
-  const projectId = c.req.param('projectId');
-  const stateId = c.req.param('stateId');
+  const { project } = await requireProject(c, c.req.param('projectId'), 'project:update');
 
-  // Get project to check workspace
-  const projectResult = await projectService.getById(projectId);
-  if (!projectResult.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: projectResult.error.message } }, 404);
-  }
-
-  const { allowed } = await checkWorkspaceAccess(projectResult.value.workspaceId, user.id, 'project:update');
-  if (!allowed) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
-
-  const result = await projectService.deleteTaskState(stateId);
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'DELETE_FAILED', message: result.error.message } }, 400);
-  }
+  fromResult(await projectService.deleteTaskState(project.id, c.req.param('stateId')), {
+    status: 400,
+    code: 'DELETE_FAILED',
+    message: 'Failed to delete task state',
+  });
 
   return c.json({ success: true, data: null });
 });
 
 // === Labels ===
 
-// Create label
-projects.post(
-  '/:projectId/labels',
-  zValidator('json', CreateLabelSchema),
-  async (c) => {
-    const user = getCurrentUser(c);
-    const projectId = c.req.param('projectId');
-    const data = c.req.valid('json');
+projects.post('/:projectId/labels', zValidator('json', CreateLabelSchema), async (c) => {
+  const { project } = await requireProject(c, c.req.param('projectId'), 'project:update');
+  const data = c.req.valid('json');
 
-    // Get project to check workspace
-    const projectResult = await projectService.getById(projectId);
-    if (!projectResult.ok) {
-      return c.json({ success: false, error: { code: 'NOT_FOUND', message: projectResult.error.message } }, 404);
-    }
+  const label = fromResult(await projectService.createLabel({ ...data, projectId: project.id }), {
+    status: 400,
+    code: 'CREATE_FAILED',
+    message: 'Failed to create label',
+  });
 
-    const { allowed } = await checkWorkspaceAccess(projectResult.value.workspaceId, user.id, 'project:update');
-    if (!allowed) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-    }
+  return c.json({ success: true, data: label }, 201);
+});
 
-    const result = await projectService.createLabel({
-      ...data,
-      projectId,
-    });
-
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'CREATE_FAILED', message: result.error.message } }, 400);
-    }
-
-    return c.json({ success: true, data: result.value }, 201);
-  }
-);
-
-// Update label
 projects.patch(
   '/:projectId/labels/:labelId',
-  zValidator('json', z.object({ name: z.string().optional(), color: z.string().optional() })),
+  zValidator('json', StateOrLabelUpdateSchema),
   async (c) => {
-    const user = getCurrentUser(c);
-    const projectId = c.req.param('projectId');
-    const labelId = c.req.param('labelId');
+    const { project } = await requireProject(c, c.req.param('projectId'), 'project:update');
     const data = c.req.valid('json');
 
-    // Get project to check workspace
-    const projectResult = await projectService.getById(projectId);
-    if (!projectResult.ok) {
-      return c.json({ success: false, error: { code: 'NOT_FOUND', message: projectResult.error.message } }, 404);
-    }
+    const label = fromResult(
+      await projectService.updateLabel(project.id, c.req.param('labelId'), data),
+      {
+        status: 400,
+        code: 'UPDATE_FAILED',
+        message: 'Failed to update label',
+      }
+    );
 
-    const { allowed } = await checkWorkspaceAccess(projectResult.value.workspaceId, user.id, 'project:update');
-    if (!allowed) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-    }
-
-    const result = await projectService.updateLabel(labelId, data);
-
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'UPDATE_FAILED', message: result.error.message } }, 400);
-    }
-
-    return c.json({ success: true, data: result.value });
+    return c.json({ success: true, data: label });
   }
 );
 
-// Delete label
 projects.delete('/:projectId/labels/:labelId', async (c) => {
-  const user = getCurrentUser(c);
-  const projectId = c.req.param('projectId');
-  const labelId = c.req.param('labelId');
+  const { project } = await requireProject(c, c.req.param('projectId'), 'project:update');
 
-  // Get project to check workspace
-  const projectResult = await projectService.getById(projectId);
-  if (!projectResult.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: projectResult.error.message } }, 404);
-  }
-
-  const { allowed } = await checkWorkspaceAccess(projectResult.value.workspaceId, user.id, 'project:update');
-  if (!allowed) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
-
-  const result = await projectService.deleteLabel(labelId);
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'DELETE_FAILED', message: result.error.message } }, 400);
-  }
+  fromResult(await projectService.deleteLabel(project.id, c.req.param('labelId')), {
+    status: 400,
+    code: 'DELETE_FAILED',
+    message: 'Failed to delete label',
+  });
 
   return c.json({ success: true, data: null });
 });
 
 // === Access Control ===
 
-// Get project members
 projects.get('/:projectId/members', async (c) => {
-  const user = getCurrentUser(c);
-  const projectId = c.req.param('projectId');
-
-  const projectResult = await projectService.getById(projectId);
-  if (!projectResult.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: projectResult.error.message } }, 404);
-  }
-
-  const { allowed } = await checkWorkspaceAccess(projectResult.value.workspaceId, user.id, 'project:read');
-  if (!allowed) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
-
-  const result = await projectService.getMembers(projectId);
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'FETCH_FAILED', message: result.error.message } }, 500);
-  }
-
-  return c.json({ success: true, data: result.value });
+  const { project } = await requireProject(c, c.req.param('projectId'), 'project:read');
+  const members = fromResult(await projectService.getMembers(project.id), {
+    code: 'FETCH_FAILED',
+    message: 'Failed to load project members',
+  });
+  return c.json({ success: true, data: members });
 });
 
 // Set project access mode and members
@@ -427,28 +244,18 @@ projects.put(
     'json',
     z.object({
       access: z.enum(['all', 'admin', 'members']),
-      userIds: z.array(z.string().uuid()).optional(),
+      userIds: z.array(z.string().uuid()).max(1000).optional(),
     })
   ),
   async (c) => {
-    const user = getCurrentUser(c);
-    const projectId = c.req.param('projectId');
+    const { project } = await requireProject(c, c.req.param('projectId'), 'project:update');
     const data = c.req.valid('json');
 
-    const projectResult = await projectService.getById(projectId);
-    if (!projectResult.ok) {
-      return c.json({ success: false, error: { code: 'NOT_FOUND', message: projectResult.error.message } }, 404);
-    }
-
-    const { allowed } = await checkWorkspaceAccess(projectResult.value.workspaceId, user.id, 'project:update');
-    if (!allowed) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-    }
-
-    const result = await projectService.setAccess(projectId, data.access, data.userIds);
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'UPDATE_FAILED', message: result.error.message } }, 400);
-    }
+    fromResult(await projectService.setAccess(project.id, data.access, data.userIds), {
+      status: 400,
+      code: 'UPDATE_FAILED',
+      message: 'Failed to update project access',
+    });
 
     return c.json({ success: true, data: null });
   }

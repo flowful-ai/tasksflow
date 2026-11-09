@@ -6,16 +6,24 @@ export type WorkspaceRole = z.infer<typeof WorkspaceRoleSchema>;
 
 export const WorkspaceSchema = BaseEntitySchema.extend({
   name: z.string().min(1).max(100),
-  slug: z.string().min(1).max(50).regex(/^[a-z0-9-]+$/),
+  slug: z
+    .string()
+    .min(1)
+    .max(50)
+    .regex(/^[a-z0-9-]+$/),
 });
 
 export type Workspace = z.infer<typeof WorkspaceSchema>;
 
 export const CreateWorkspaceSchema = z.object({
   name: z.string().min(1).max(100),
-  slug: z.string().min(1).max(50).regex(/^[a-z0-9-]+$/, {
-    message: 'Slug must contain only lowercase letters, numbers, and hyphens',
-  }),
+  slug: z
+    .string()
+    .min(1)
+    .max(50)
+    .regex(/^[a-z0-9-]+$/, {
+      message: 'Slug must contain only lowercase letters, numbers, and hyphens',
+    }),
 });
 
 export type CreateWorkspace = z.infer<typeof CreateWorkspaceSchema>;
@@ -56,12 +64,6 @@ export const WorkspaceActivityEventTypeSchema = z.enum([
 ]);
 export type WorkspaceActivityEventType = z.infer<typeof WorkspaceActivityEventTypeSchema>;
 
-export const WorkspaceActivityCursorSchema = z.object({
-  createdAt: z.coerce.date(),
-  id: z.string().uuid(),
-});
-export type WorkspaceActivityCursor = z.infer<typeof WorkspaceActivityCursorSchema>;
-
 export const WorkspaceActivityItemSchema = z.object({
   id: z.string().uuid(),
   createdAt: z.coerce.date(),
@@ -77,15 +79,19 @@ export const WorkspaceActivityItemSchema = z.object({
       name: z.string(),
     }),
   }),
-  actor: z.object({
-    id: z.string().uuid(),
-    name: z.string().nullable(),
-    email: z.string().email(),
-  }).nullable(),
-  agent: z.object({
-    id: z.string(),
-    name: z.string(),
-  }).nullable(),
+  actor: z
+    .object({
+      id: z.string().uuid(),
+      name: z.string().nullable(),
+      email: z.string().email(),
+    })
+    .nullable(),
+  agent: z
+    .object({
+      id: z.string(),
+      name: z.string(),
+    })
+    .nullable(),
 });
 export type WorkspaceActivityItem = z.infer<typeof WorkspaceActivityItemSchema>;
 

@@ -1,48 +1,59 @@
 import { Hono } from 'hono';
-import { getDatabase, projectIntegrations, projects, externalLinks, accounts, workspaceMembers } from '@flowtask/database';
-import { eq, and } from 'drizzle-orm';
-import { GitHubProvider, GitHubSyncService, SlackProvider } from '@flowtask/integrations';
-import { TaskService, CommentService } from '@flowtask/domain';
-import crypto from 'crypto';
-
-// How recently a sync must have occurred to be considered "from us" (5 seconds)
-const SYNC_LOOP_THRESHOLD_MS = 5000;
+import { and, eq, lt, sql } from 'drizzle-orm';
+import { getDatabase, projectIntegrations, projects, webhookDeliveries } from '../db/index.js';
+import { authMiddleware, getCurrentSession, getOptionalUser } from '../auth/index.js';
+import { CommentService, TaskService } from '../domain/index.js';
+import { GitHubWebhookEnvelopeSchema, type SlackConfig } from '@flowtask/shared';
+import {
+  GitHubWebhookProcessor,
+  SlackOAuthError,
+  clearSlackProjectCache,
+  consumeOAuthState,
+  encryptSecret,
+  exchangeSlackOAuthCode,
+  findGitHubTargetsForRepo,
+  getSlackOAuthCredentials,
+  getWebUrl,
+  parseGitHubWebhook,
+  readSecretEnv,
+  verifyGitHubSignature,
+  verifySlackRequest,
+  type WebhookTargetResult,
+} from '../integrations/index.js';
+import { getAuthz } from '../lib/authorize.js';
+import { getSlackRedirectUri } from './slack.js';
 
 const webhooks = new Hono();
 const db = getDatabase();
-const taskService = new TaskService(db);
-const commentService = new CommentService(db);
-const githubProvider = new GitHubProvider();
-const slackProvider = new SlackProvider();
+const processor = new GitHubWebhookProcessor({
+  db,
+  taskService: new TaskService(db),
+  commentService: new CommentService(db),
+});
 
-// Constant-time string comparison that tolerates differing lengths.
-// crypto.timingSafeEqual throws a RangeError when the buffers differ in
-// length, so guard the length first (the early return is for an
-// attacker-controlled value and reveals nothing beyond length).
-function safeEqual(a: string, b: string): boolean {
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  return bufA.length === bufB.length && crypto.timingSafeEqual(bufA, bufB);
+const DELIVERY_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const PRUNE_INTERVAL_MS = 60 * 60 * 1000;
+let lastPruneAt = 0;
+
+async function pruneDeliveries(): Promise<void> {
+  if (Date.now() - lastPruneAt < PRUNE_INTERVAL_MS) return;
+  lastPruneAt = Date.now();
+  try {
+    await db
+      .delete(webhookDeliveries)
+      .where(lt(webhookDeliveries.receivedAt, new Date(Date.now() - DELIVERY_RETENTION_MS)));
+  } catch (error) {
+    console.error('Failed to prune webhook deliveries:', error);
+  }
 }
 
-// Verify GitHub webhook signature
-function verifyGitHubSignature(payload: string, signature: string, secret: string): boolean {
-  const hmac = crypto.createHmac('sha256', secret);
-  const digest = 'sha256=' + hmac.update(payload).digest('hex');
-  return safeEqual(signature, digest);
-}
-
-// Verify Slack request signature
-function verifySlackSignature(
-  body: string,
-  timestamp: string,
-  signature: string,
-  secret: string
-): boolean {
-  const baseString = `v0:${timestamp}:${body}`;
-  const hmac = crypto.createHmac('sha256', secret);
-  const mySignature = 'v0=' + hmac.update(baseString).digest('hex');
-  return safeEqual(signature, mySignature);
+function parseJson(body: string): unknown {
+  try {
+    const parsed: unknown = JSON.parse(body);
+    return parsed;
+  } catch {
+    return null;
+  }
 }
 
 // GitHub webhook endpoint
@@ -55,11 +66,8 @@ webhooks.post('/github', async (c) => {
     return c.json({ error: 'Missing required headers' }, 400);
   }
 
-  // Get raw body for signature verification
   const body = await c.req.text();
-
-  // Verify signature
-  const secret = process.env.GITHUB_WEBHOOK_SECRET;
+  const secret = readSecretEnv('GITHUB_WEBHOOK_SECRET');
   if (!secret) {
     console.error('GITHUB_WEBHOOK_SECRET is not configured — rejecting webhook');
     return c.json({ error: 'Webhook verification not configured' }, 500);
@@ -68,375 +76,260 @@ webhooks.post('/github', async (c) => {
     return c.json({ error: 'Invalid signature' }, 401);
   }
 
-  const payload = JSON.parse(body);
+  if (event === 'ping') {
+    return c.json({ status: 'pong' });
+  }
 
-  // Extract repository info to find the integration
-  const repoFullName = payload.repository?.full_name;
-  if (!repoFullName) {
+  const payload = parseJson(body);
+  const action = parseGitHubWebhook(event, payload);
+  if (action.kind === 'ignore') {
+    return c.json({ status: 'ignored', reason: action.reason });
+  }
+
+  const envelope = GitHubWebhookEnvelopeSchema.safeParse(payload);
+  if (!envelope.success || !envelope.data.repository) {
     return c.json({ status: 'ignored', reason: 'No repository in payload' });
   }
 
-  const [owner, repo] = repoFullName.split('/');
-
-  // Find the integration for this repository
-  const integrations = await db
-    .select({
-      integration: projectIntegrations,
-      project: projects,
-    })
-    .from(projectIntegrations)
-    .innerJoin(projects, eq(projectIntegrations.projectId, projects.id))
-    .where(
-      and(
-        eq(projectIntegrations.integrationType, 'github'),
-        eq(projectIntegrations.isEnabled, true)
-      )
-    );
-
-  // Filter to find matching integration by checking repositories array
-  let matchingIntegration: (typeof integrations)[number] | undefined;
-  let matchedInstallationId: number | undefined;
-
-  for (const i of integrations) {
-    const config = i.integration.config as {
-      installationId?: number;
-      repositories?: Array<{ owner: string; repo: string; installationId?: number }>;
-      owner?: string;
-      repo?: string;
-    };
-
-    // Check per-repo entries first (new model)
-    const matchedRepo = config.repositories?.find((r) => r.owner === owner && r.repo === repo);
-    if (matchedRepo) {
-      matchingIntegration = i;
-      matchedInstallationId = matchedRepo.installationId ?? config.installationId;
-      break;
+  // Dedupe on X-GitHub-Delivery: GitHub retries and redeliveries reuse the id.
+  if (deliveryId) {
+    const [claimed] = await db
+      .insert(webhookDeliveries)
+      .values({ deliveryId })
+      .onConflictDoNothing()
+      .returning({ deliveryId: webhookDeliveries.deliveryId });
+    if (!claimed) {
+      return c.json({ status: 'ignored', reason: 'Duplicate delivery' });
     }
-
-    // Legacy: top-level owner/repo
-    if (config.owner === owner && config.repo === repo) {
-      matchingIntegration = i;
-      matchedInstallationId = config.installationId;
-      break;
-    }
+    void pruneDeliveries();
   }
 
-  if (!matchingIntegration || !matchedInstallationId) {
-    return c.json({ status: 'ignored', reason: 'No matching integration found' });
-  }
-
-  const config = {
-    owner,
-    repo,
-    installationId: matchedInstallationId,
+  // Release the delivery id on any failure, so GitHub's retry or a manual
+  // redelivery is processed instead of being treated as a duplicate.
+  // Successful targets are idempotent (link claims, comment external ids, sync hashes).
+  const releaseDelivery = async (): Promise<void> => {
+    if (!deliveryId) return;
+    try {
+      await db.delete(webhookDeliveries).where(eq(webhookDeliveries.deliveryId, deliveryId));
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          level: 'error',
+          msg: 'github_webhook_release_failed',
+          deliveryId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      );
+    }
   };
 
-  // Handle the webhook
   try {
-    const result = await githubProvider.handleWebhook(payload, config);
-
-    if (result.action === 'ignore') {
-      return c.json({ status: 'ignored' });
+    const repository = envelope.data.repository;
+    const targets = await findGitHubTargetsForRepo(db, repository.owner.login, repository.name);
+    if (targets.length === 0) {
+      return c.json({ status: 'ignored', reason: 'No matching integration found' });
     }
 
-    // Check for sync loop: if we recently synced this issue from FlowTask, skip
-    if (result.externalLink && (result.action === 'update_task' || result.action === 'create_task')) {
-      const [existingLink] = await db
-        .select({ lastSyncedAt: externalLinks.lastSyncedAt })
-        .from(externalLinks)
-        .where(
-          and(
-            eq(externalLinks.integrationId, matchingIntegration.integration.id),
-            eq(externalLinks.externalType, 'github_issue'),
-            eq(externalLinks.externalId, result.externalLink.id)
-          )
+    // Deliver to every project that links this repository.
+    const results: WebhookTargetResult[] = [];
+    let failures = 0;
+    for (const target of targets) {
+      try {
+        results.push(await processor.process(target, action));
+      } catch (error) {
+        failures++;
+        console.error(
+          JSON.stringify({
+            level: 'error',
+            msg: 'github_webhook_target_failed',
+            deliveryId,
+            event,
+            integrationId: target.integrationId,
+            error: error instanceof Error ? error.message : String(error),
+          })
         );
-
-      if (existingLink?.lastSyncedAt) {
-        const timeSinceSync = Date.now() - new Date(existingLink.lastSyncedAt).getTime();
-        if (timeSinceSync < SYNC_LOOP_THRESHOLD_MS) {
-          return c.json({
-            status: 'ignored',
-            reason: 'Recent sync detected, skipping to prevent loop'
-          });
-        }
       }
     }
 
-    // Process based on action
-    const syncService = new GitHubSyncService(db, taskService);
-
-    if (result.action === 'create_task' && result.externalLink) {
-      const issueNumber = parseInt(result.externalLink.id, 10);
-      const syncResult = await syncService.syncIssue(
-        matchingIntegration.integration.id,
-        matchingIntegration.project.id,
-        config,
-        issueNumber
-      );
-
-      return c.json({
-        status: 'processed',
-        action: syncResult.action,
-        taskId: syncResult.taskId,
-      });
+    if (failures > 0) {
+      await releaseDelivery();
+      return c.json({ error: 'Webhook processing failed', results }, 500);
     }
 
-    if (result.action === 'update_task' && result.externalLink) {
-      const issueNumber = parseInt(result.externalLink.id, 10);
-      const syncResult = await syncService.syncIssue(
-        matchingIntegration.integration.id,
-        matchingIntegration.project.id,
-        config,
-        issueNumber
-      );
-
-      return c.json({
-        status: 'processed',
-        action: syncResult.action,
-        taskId: syncResult.taskId,
-      });
-    }
-
-    if (result.action === 'link_task' && result.externalLink && result.taskId) {
-      const prNumber = parseInt(result.externalLink.id, 10);
-      await syncService.linkPullRequest(
-        matchingIntegration.integration.id,
-        result.taskId,
-        prNumber,
-        result.externalLink.url
-      );
-
-      return c.json({
-        status: 'processed',
-        action: 'linked',
-        taskId: result.taskId,
-      });
-    }
-
-    // Handle comment sync actions
-    if (result.commentData) {
-      const { externalCommentId, body, authorLogin, authorId, issueNumber } = result.commentData;
-
-      // Find the linked task via externalLinks table
-      const [linkedTask] = await db
-        .select({ taskId: externalLinks.taskId })
-        .from(externalLinks)
-        .where(
-          and(
-            eq(externalLinks.integrationId, matchingIntegration.integration.id),
-            eq(externalLinks.externalType, 'github_issue'),
-            eq(externalLinks.externalId, issueNumber.toString())
-          )
-        );
-
-      if (!linkedTask) {
-        return c.json({
-          status: 'ignored',
-          reason: 'Comment on unlinked issue'
-        });
-      }
-
-      if (result.action === 'sync_comment') {
-        // Idempotency: GitHub retries deliveries, so skip if we've already
-        // synced this comment (avoids duplicate comments on redelivery).
-        const existingComment = await commentService.findByExternalId(externalCommentId);
-        if (!existingComment.ok) {
-          // Don't fall through to create on a lookup error — that would defeat
-          // the idempotency guard. Return 500 so GitHub retries the delivery.
-          console.error('Failed to check for existing synced comment:', existingComment.error);
-          return c.json({ error: 'Failed to sync comment' }, 500);
-        }
-        if (existingComment.value) {
-          return c.json({
-            status: 'ignored',
-            reason: 'Comment already synced',
-            commentId: existingComment.value.id,
-          });
-        }
-
-        // Try to match GitHub author to workspace member
-        // The accounts table stores GitHub accountId (numeric as string) where providerId = 'github'
-        const [matchedAccount] = await db
-          .select({ userId: accounts.userId })
-          .from(accounts)
-          .innerJoin(
-            workspaceMembers,
-            eq(accounts.userId, workspaceMembers.userId)
-          )
-          .where(
-            and(
-              eq(accounts.providerId, 'github'),
-              eq(accounts.accountId, authorId.toString()),
-              eq(workspaceMembers.workspaceId, matchingIntegration.project.workspaceId)
-            )
-          );
-
-        let content = body;
-        let userId: string | null = null;
-
-        if (matchedAccount) {
-          // Matched user in workspace - use their ID
-          userId = matchedAccount.userId;
-        } else {
-          // No matched user - add attribution
-          content = `**@${authorLogin}** commented on GitHub:\n\n${body}`;
-        }
-
-        const createResult = await commentService.create({
-          taskId: linkedTask.taskId,
-          userId,
-          content,
-          externalCommentId,
-        });
-
-        if (!createResult.ok) {
-          console.error('Failed to create synced comment:', createResult.error);
-          return c.json({ error: 'Failed to sync comment' }, 500);
-        }
-
-        return c.json({
-          status: 'processed',
-          action: 'comment_synced',
-          commentId: createResult.value.id,
-          taskId: linkedTask.taskId,
-        });
-      }
-
-      if (result.action === 'update_comment') {
-        const updateResult = await commentService.updateExternal(externalCommentId, body);
-
-        if (!updateResult.ok) {
-          console.error('Failed to update synced comment:', updateResult.error);
-          return c.json({ error: 'Failed to update comment' }, 500);
-        }
-
-        // Check if comment existed
-        if (!updateResult.value) {
-          return c.json({
-            status: 'ignored',
-            reason: 'Comment not found for update'
-          });
-        }
-
-        return c.json({
-          status: 'processed',
-          action: 'comment_updated',
-          commentId: updateResult.value.id,
-          taskId: linkedTask.taskId,
-        });
-      }
-
-      if (result.action === 'delete_comment') {
-        const deleteResult = await commentService.deleteExternal(externalCommentId);
-
-        if (!deleteResult.ok) {
-          console.error('Failed to delete synced comment:', deleteResult.error);
-          return c.json({ error: 'Failed to delete comment' }, 500);
-        }
-
-        return c.json({
-          status: 'processed',
-          action: 'comment_deleted',
-          taskId: linkedTask.taskId,
-        });
-      }
-    }
-
-    return c.json({ status: 'ignored' });
+    const processed = results.some((r) => r.status === 'processed');
+    return c.json({ status: processed ? 'processed' : 'ignored', results });
   } catch (error) {
-    console.error('GitHub webhook error:', error);
+    await releaseDelivery();
+    console.error(
+      JSON.stringify({
+        level: 'error',
+        msg: 'github_webhook_failed',
+        deliveryId,
+        event,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    );
     return c.json({ error: 'Webhook processing failed' }, 500);
   }
 });
 
-// Slack webhook endpoint (for slash commands and events)
+/** Escape text for Slack mrkdwn. */
+function slackEscape(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+async function slackHelpText(teamId: string | null): Promise<string> {
+  const webUrl = getWebUrl();
+  const lines = [
+    '*FlowTask for Slack* posts task notifications (created, moved, assigned, commented) to the channel chosen for each project.',
+    'Tasks are managed in FlowTask; Slack is notification-only.',
+  ];
+  if (teamId) {
+    const connected = await db
+      .select({ projectId: projects.id, name: projects.name, identifier: projects.identifier })
+      .from(projectIntegrations)
+      .innerJoin(projects, eq(projectIntegrations.projectId, projects.id))
+      .where(
+        and(
+          eq(projectIntegrations.integrationType, 'slack'),
+          eq(projectIntegrations.isEnabled, true),
+          sql`${projectIntegrations.config}->>'teamId' = ${teamId}`
+        )
+      )
+      .limit(10);
+    if (connected.length > 0) {
+      lines.push('', '*Connected projects:*');
+      for (const p of connected) {
+        lines.push(
+          `• <${webUrl}/project/${p.projectId}|${slackEscape(`${p.identifier} · ${p.name}`)}>`
+        );
+      }
+    }
+  }
+  lines.push('', `<${webUrl}|Open FlowTask>`);
+  return lines.join('\n');
+}
+
+// Slack request endpoint: URL verification and the /flowtask help command.
 webhooks.post('/slack', async (c) => {
   const timestamp = c.req.header('x-slack-request-timestamp');
   const signature = c.req.header('x-slack-signature');
-
   if (!timestamp || !signature) {
     return c.json({ error: 'Missing required headers' }, 400);
   }
 
-  // Reject requests older than 5 minutes to prevent replay attacks
-  const requestAge = Math.abs(Math.floor(Date.now() / 1000) - parseInt(timestamp, 10));
-  if (requestAge > 300) {
-    return c.json({ error: 'Request too old' }, 401);
-  }
-
-  // Get raw body for signature verification
   const body = await c.req.text();
-
-  // Verify signature
-  const secret = process.env.SLACK_SIGNING_SECRET;
+  const secret = readSecretEnv('SLACK_SIGNING_SECRET');
   if (!secret) {
     console.error('SLACK_SIGNING_SECRET is not configured — rejecting webhook');
     return c.json({ error: 'Webhook verification not configured' }, 500);
   }
-  if (!verifySlackSignature(body, timestamp, signature, secret)) {
-    return c.json({ error: 'Invalid signature' }, 401);
+  const verification = verifySlackRequest({ body, timestamp, signature, secret });
+  if (!verification.ok) {
+    return c.json(
+      {
+        error: verification.reason === 'stale_timestamp' ? 'Request too old' : 'Invalid signature',
+      },
+      401
+    );
   }
 
-  const payload = JSON.parse(body);
-
-  // Handle URL verification challenge
-  if (payload.type === 'url_verification') {
-    return c.json({ challenge: payload.challenge });
-  }
-
-  // Handle slash commands
-  if (payload.command) {
-    const command = payload.command;
-    const text = payload.text || '';
-
-    // /task list - list tasks
-    if (command === '/task' && text.startsWith('list')) {
-      // TODO: Implement task listing for Slack
-      return c.json({
-        response_type: 'ephemeral',
-        text: 'Task listing coming soon!',
-      });
+  // Slash commands are form-encoded.
+  if ((c.req.header('content-type') ?? '').includes('application/x-www-form-urlencoded')) {
+    const form = new URLSearchParams(body);
+    if (form.get('command')) {
+      return c.json({ response_type: 'ephemeral', text: await slackHelpText(form.get('team_id')) });
     }
-
-    // /task view FLOW-123 - view a specific task
-    if (command === '/task' && text.startsWith('view')) {
-      const taskRef = text.split(' ')[1];
-      // TODO: Implement task viewing for Slack
-      return c.json({
-        response_type: 'ephemeral',
-        text: `Viewing task ${taskRef} coming soon!`,
-      });
-    }
-
-    return c.json({
-      response_type: 'ephemeral',
-      text: 'Unknown command. Try `/task list` or `/task view FLOW-123`',
-    });
+    return c.json({ status: 'ignored' });
   }
 
-  // Handle events
-  if (payload.event) {
-    // Events are processed asynchronously, acknowledge immediately
-    // In a production system, we would queue this for processing
-    return c.json({ status: 'acknowledged' });
+  const payload = parseJson(body);
+  if (
+    payload &&
+    typeof payload === 'object' &&
+    'type' in payload &&
+    payload.type === 'url_verification'
+  ) {
+    const challenge =
+      'challenge' in payload && typeof payload.challenge === 'string' ? payload.challenge : '';
+    return c.json({ challenge });
   }
 
-  return c.json({ status: 'ignored' });
+  // FlowTask doesn't act on Slack events (one-way integration); acknowledge so Slack doesn't retry.
+  return c.json({ status: 'acknowledged' });
 });
 
-// Slack OAuth callback
-webhooks.get('/slack/oauth', async (c) => {
+// Slack OAuth callback (public route; runs the session middleware itself).
+webhooks.get('/slack/oauth', authMiddleware, async (c) => {
+  const webUrl = getWebUrl();
+  const fail = (reason: string, projectId?: string) =>
+    c.redirect(
+      `${projectId ? `${webUrl}/project/${projectId}/settings` : `${webUrl}/projects`}?slack_error=${encodeURIComponent(reason)}`
+    );
+
   const code = c.req.query('code');
+  const state = c.req.query('state') ?? '';
+  if (c.req.query('error')) return fail(c.req.query('error') ?? 'denied');
+  if (!code || !state) return fail('no_code');
 
-  if (!code) {
-    return c.redirect(`${process.env.WEB_URL}/integrations/slack/error?reason=no_code`);
+  const user = getOptionalUser(c);
+  let sessionId: string | null = null;
+  try {
+    sessionId = getCurrentSession(c).id;
+  } catch {
+    sessionId = null;
   }
+  if (!user || !sessionId) return fail('not_signed_in');
 
-  // TODO: Exchange code for token and store
-  // This would involve calling Slack's oauth.v2.access endpoint
+  const binding = await consumeOAuthState(db, state, 'slack');
+  if (!binding) return fail('invalid_state');
+  if (binding.userId !== user.id || binding.sessionId !== sessionId)
+    return fail('session_mismatch', binding.projectId);
 
-  return c.redirect(`${process.env.WEB_URL}/integrations/slack/success`);
+  const access = await getAuthz().authorizeProject(
+    binding.projectId,
+    user.id,
+    'project:manage_integrations'
+  );
+  if (!access.ok) return fail('forbidden', binding.projectId);
+
+  const credentials = getSlackOAuthCredentials();
+  if (!credentials) return fail('not_configured', binding.projectId);
+
+  try {
+    const installation = await exchangeSlackOAuthCode({
+      code,
+      redirectUri: getSlackRedirectUri(),
+      credentials,
+    });
+    if (!installation.channel) return fail('no_channel', binding.projectId);
+
+    const config: SlackConfig = {
+      teamId: installation.teamId,
+      teamName: installation.teamName,
+      channelId: installation.channel.id,
+      channelName: installation.channel.name,
+      botTokenEncrypted: encryptSecret(installation.botToken),
+      botUserId: installation.botUserId,
+      notifications: { taskCreated: true, stateChanged: true, assigned: true, commentAdded: true },
+    };
+
+    await db
+      .insert(projectIntegrations)
+      .values({ projectId: binding.projectId, integrationType: 'slack', config, isEnabled: true })
+      .onConflictDoUpdate({
+        target: [projectIntegrations.projectId, projectIntegrations.integrationType],
+        set: { config, isEnabled: true, updatedAt: new Date(), syncError: null },
+      });
+    clearSlackProjectCache(binding.projectId);
+
+    return c.redirect(
+      `${webUrl}/project/${binding.projectId}/settings?section=slack&slack=connected`
+    );
+  } catch (error) {
+    console.error('Slack OAuth failed:', error instanceof SlackOAuthError ? error.message : error);
+    return fail('oauth_failed', binding.projectId);
+  }
 });
 
 export { webhooks as webhookRoutes };

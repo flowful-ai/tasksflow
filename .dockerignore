@@ -1,0 +1,15 @@
+**/node_modules
+**/dist
+**/.turbo
+.git
+.github
+**/.env
+**/.env.*
+!.env.example
+**/coverage
+**/*.test.ts
+**/*.test.tsx
+**/*.log
+.claude
+.mcp.json
+docker-compose*.yml

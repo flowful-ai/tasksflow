@@ -1,57 +1,29 @@
 import { useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { PageSpinner } from '../components/ui';
 
 /**
- * GitHub App installation callback handler.
- * GitHub redirects here after a user installs the app.
- * We retrieve the stored return URL and redirect there with the installation_id.
+ * GitHub App setup URL landing page (when the app is configured to redirect
+ * to the web app rather than to /api/github/callback).
+ *
+ * The install is only trusted with GitHub's OAuth `code` and our `state`
+ * nonce, both verified server-side, so every query parameter is handed over
+ * to the API callback as-is. That route verifies and stores the installation,
+ * then redirects to the project's settings.
  */
 export function GitHubCallbackPage() {
-  const navigate = useNavigate();
   const hasProcessed = useRef(false);
 
   useEffect(() => {
     // Prevent double processing (React Strict Mode runs effects twice)
-    if (hasProcessed.current) {
-      return;
-    }
+    if (hasProcessed.current) return;
     hasProcessed.current = true;
-
-    const params = new URLSearchParams(window.location.search);
-    const installationId = params.get('installation_id');
-    const setupAction = params.get('setup_action');
-    const stateParam = params.get('state');
-
-    // Get the stored return URL from localStorage, or fall back to state parameter
-    let returnUrl = localStorage.getItem('github_install_return_url');
-
-    // If no localStorage entry, try the state parameter (used when OAuth during installation is enabled)
-    if (!returnUrl && stateParam) {
-      returnUrl = stateParam;
-    }
-
-    // Only remove localStorage after we've captured the value
-    localStorage.removeItem('github_install_return_url');
-
-    if (installationId && setupAction === 'install' && returnUrl) {
-      // Redirect to the project settings page with installation_id
-      const separator = returnUrl.includes('?') ? '&' : '?';
-      navigate(`${returnUrl}${separator}installation_id=${installationId}&setup_action=${setupAction}`, { replace: true });
-    } else if (returnUrl) {
-      // No installation_id, just go back to the return URL
-      navigate(returnUrl, { replace: true });
-    } else {
-      // Fallback to home
-      navigate('/', { replace: true });
-    }
-  }, [navigate]);
+    window.location.replace(`/api/github/callback${window.location.search}`);
+  }, []);
 
   return (
-    <div className="flex items-center justify-center h-screen">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-4" />
-        <p className="text-gray-600">Completing GitHub setup...</p>
-      </div>
-    </div>
+    <main className="flex h-screen flex-col items-center justify-center">
+      <PageSpinner className="h-auto" label="Completing GitHub setup" />
+      <p className="mt-4 text-gray-600">Completing GitHub setup...</p>
+    </main>
   );
 }

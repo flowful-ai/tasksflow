@@ -1,140 +1,121 @@
-import { Redis } from 'ioredis';
-import { randomUUID } from 'crypto';
-
-// Type constraint for event payloads - must be an object (not primitive)
-type EventPayload = object;
-
-// Unique id for this process. Used to ignore Redis messages that this same
-// process published, since those events were already delivered locally by the
-// originating broadcast call (prevents double-delivery to local clients).
-const INSTANCE_ID = randomUUID();
-
-// Track SSE clients by workspace
-const workspaceClients = new Map<string, Set<ReadableStreamDefaultController>>();
-
-// Redis pub/sub for horizontal scaling
-let publisher: Redis | null = null;
-let subscriber: Redis | null = null;
+import { getDatabase, resolveDatabaseUrl } from '../db/client.js';
+import { getAuthz } from '../lib/authorize.js';
+import {
+  applyRemoteInvalidation,
+  setCacheInvalidationBroadcaster,
+} from '../lib/cache-invalidation.js';
+import {
+  RealtimeHub,
+  type AccessResolver,
+  type ClientHandle,
+  type ClientRegistration,
+  type PublishScope,
+} from './hub.js';
+import { PostgresTransport } from './postgres-transport.js';
+import type { EventPayload } from './wire.js';
 
 /**
- * Initialize Redis pub/sub for SSE scaling across multiple servers.
+ * Process-wide realtime entry points. Events are filtered per client by
+ * project access and fanned out across API instances with Postgres
+ * LISTEN/NOTIFY (see hub.ts and postgres-transport.ts).
  */
-export function initSSE() {
-  const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
-  if (!publisher) {
-    publisher = new Redis(redisUrl);
-    subscriber = new Redis(redisUrl);
+const accessResolver: AccessResolver = {
+  getRole: (workspaceId, userId) => getAuthz().getRole(workspaceId, userId),
+  listAccessibleProjectIds: (workspaceId, userId, role) =>
+    getAuthz().listAccessibleProjectIds(workspaceId, userId, role),
+  activeSessionIds: (sessionIds) => getAuthz().activeSessionIds(sessionIds),
+};
 
-    subscriber.subscribe('sse:events');
-    subscriber.on('message', (channel, message) => {
-      if (channel === 'sse:events') {
-        try {
-          const { workspaceId, event, data, origin } = JSON.parse(message);
-          // Skip messages we published ourselves — the originating
-          // broadcastToWorkspace call already delivered them to local clients.
-          if (origin === INSTANCE_ID) {
-            return;
-          }
-          broadcastToWorkspace(workspaceId, event, data, false);
-        } catch (error) {
-          console.error('Failed to parse Redis message:', error);
-        }
-      }
-    });
+let hub: RealtimeHub = new RealtimeHub({ resolver: accessResolver });
+let started = false;
 
-    console.log('SSE manager initialized with Redis pub/sub');
+// Per-process caches (e.g. "project has Slack") are invalidated on every
+// instance through the same NOTIFY channel as realtime events.
+setCacheInvalidationBroadcaster((cache, key) => {
+  void hub.broadcastCacheInvalidation(cache, key);
+});
+
+/**
+ * Start heartbeats, revalidation and the cross-instance subscription.
+ * Safe to call more than once; never throws (LISTEN failures are retried).
+ */
+export function initSSE(): void {
+  if (started) return;
+  started = true;
+  // Same resolution as the DB pool: DATABASE_URL, or one built from POSTGRES_*
+  // (the prod compose passes the parts, not a URL).
+  const url = resolveDatabaseUrl();
+  if (!url) {
+    console.warn('[realtime] no database URL configured; realtime events stay on this instance');
   }
+  hub = new RealtimeHub({
+    resolver: accessResolver,
+    onCacheInvalidated: applyRemoteInvalidation,
+    // NOTIFY goes through the app pool; the transport only adds the LISTEN connection.
+    transportFactory: url
+      ? () =>
+          new PostgresTransport(url, async (channel, payload) => {
+            await getDatabase().$client.notify(channel, payload);
+          })
+      : null,
+  });
+  hub
+    .start()
+    .then(() => console.log('SSE manager initialized with Postgres LISTEN/NOTIFY'))
+    .catch((error: unknown) => console.error('[realtime] failed to start:', error));
+}
+
+/** Close every stream and the LISTEN connection (graceful shutdown). */
+export async function shutdownSSE(): Promise<void> {
+  started = false;
+  await hub.stop();
 }
 
 /**
- * Add a client to a workspace subscription.
+ * Publish an event to a workspace's realtime clients: those who can access
+ * `scope.projectId`, or every member for a 'workspace' event.
  */
-export function addClient(workspaceId: string, controller: ReadableStreamDefaultController) {
-  if (!workspaceClients.has(workspaceId)) {
-    workspaceClients.set(workspaceId, new Set());
-  }
-  workspaceClients.get(workspaceId)!.add(controller);
-  console.log(`SSE client added to workspace ${workspaceId} (total: ${workspaceClients.get(workspaceId)!.size})`);
-}
-
-/**
- * Remove a client from a workspace subscription.
- */
-export function removeClient(workspaceId: string, controller: ReadableStreamDefaultController) {
-  const clients = workspaceClients.get(workspaceId);
-  if (clients) {
-    clients.delete(controller);
-    console.log(`SSE client removed from workspace ${workspaceId} (remaining: ${clients.size})`);
-    if (clients.size === 0) {
-      workspaceClients.delete(workspaceId);
-    }
-  }
-}
-
-/**
- * Broadcast an event to all clients in a workspace.
- */
-function broadcastToWorkspace<T extends EventPayload>(
+export function publishEvent<T extends EventPayload>(
   workspaceId: string,
   event: string,
   data: T,
-  publishToRedis = true
-) {
-  const clients = workspaceClients.get(workspaceId);
+  scope: PublishScope
+): void {
+  hub.publishEvent(workspaceId, event, data, scope);
+}
 
-  if (clients) {
-    // Format as SSE message
-    const message = formatSSEMessage(event, data);
-    const encoder = new TextEncoder();
-    const chunk = encoder.encode(message);
+/** Publish an event to all of one user's streams (any workspace). */
+export function publishUserEvent<T extends EventPayload>(
+  userId: string,
+  event: string,
+  data: T
+): void {
+  hub.publishUserEvent(userId, event, data);
+}
 
-    // Send to all connected clients
-    for (const controller of clients) {
-      try {
-        controller.enqueue(chunk);
-      } catch {
-        // Client disconnected, will be cleaned up
-      }
-    }
-  }
-
-  // Publish to Redis for other servers. Tag with our INSTANCE_ID so we can
-  // ignore the echo of our own message (we already delivered locally above).
-  if (publishToRedis && publisher) {
-    publisher.publish('sse:events', JSON.stringify({ workspaceId, event, data, origin: INSTANCE_ID }));
-  }
+/** Immediately close a removed member's streams on every instance. */
+export function notifyMemberRemoved(workspaceId: string, userId: string): void {
+  hub.notifyMemberRemoved(workspaceId, userId);
 }
 
 /**
- * Format a message as Server-Sent Events.
+ * Refresh cached project access after an ACL, role or project change, here
+ * and on every instance. Await it before publishing an event that depends on
+ * the new access.
  */
-function formatSSEMessage<T extends EventPayload>(event: string, data: T): string {
-  return `event: ${event}\ndata: ${JSON.stringify({ ...data, timestamp: new Date().toISOString() })}\n\n`;
+export function notifyAccessChanged(workspaceId: string, userId?: string): Promise<void> {
+  return hub.notifyAccessChanged(workspaceId, userId ?? null);
 }
 
-/**
- * Publish an event to a workspace.
- * This is the main function called by route handlers.
- */
-export function publishEvent<T extends EventPayload>(workspaceId: string, event: string, data: T) {
-  broadcastToWorkspace(workspaceId, event, data, true);
+export function registerClient(registration: ClientRegistration): ClientHandle {
+  return hub.addClient(registration);
 }
 
-/**
- * Get the number of connected clients in a workspace.
- */
 export function getWorkspaceClientCount(workspaceId: string): number {
-  return workspaceClients.get(workspaceId)?.size || 0;
+  return hub.getWorkspaceClientCount(workspaceId);
 }
 
-/**
- * Get total connected clients.
- */
 export function getTotalClientCount(): number {
-  let total = 0;
-  for (const clients of workspaceClients.values()) {
-    total += clients.size;
-  }
-  return total;
+  return hub.getTotalClientCount();
 }

@@ -69,7 +69,9 @@ export const OPERATOR_LABELS: Record<FilterOperator, string> = {
 };
 
 // Context-aware labels for different field types
-export const OPERATOR_LABELS_BY_TYPE: Partial<Record<FilterFieldType, Partial<Record<FilterOperator, string>>>> = {
+export const OPERATOR_LABELS_BY_TYPE: Partial<
+  Record<FilterFieldType, Partial<Record<FilterOperator, string>>>
+> = {
   date: {
     eq: 'is',
     gt: 'is after',
@@ -96,9 +98,7 @@ export const DATE_TEMPLATES = [
   { value: '{{end_of_month}}', label: 'End of this month' },
 ];
 
-export const USER_TEMPLATES = [
-  { value: '{{current_user}}', label: 'Current user (me)' },
-];
+export const USER_TEMPLATES = [{ value: '{{current_user}}', label: 'Current user (me)' }];
 
 export const PRIORITY_OPTIONS = [
   { value: 'urgent', label: 'Urgent', color: '#dc2626' },
@@ -109,7 +109,10 @@ export const PRIORITY_OPTIONS = [
 ];
 
 // Get all field categories for grouped display
-export function getFieldsByCategory(): Record<string, { field: string; definition: FilterFieldDefinition }[]> {
+export function getFieldsByCategory(): Record<
+  string,
+  { field: string; definition: FilterFieldDefinition }[]
+> {
   const categories: Record<string, { field: string; definition: FilterFieldDefinition }[]> = {};
 
   for (const [field, definition] of Object.entries(FILTER_FIELDS)) {

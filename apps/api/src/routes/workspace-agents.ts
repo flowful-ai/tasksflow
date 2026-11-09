@@ -1,5 +1,9 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 
+/**
+ * Legacy MCP token agents (ft_v1_* tokens) were removed. AGENTS.md requires
+ * these routes to stay hard-disabled with an explicit deprecation response.
+ */
 const workspaceAgentsRouter = new Hono();
 
 const DEPRECATED_ERROR = {
@@ -10,15 +14,11 @@ const DEPRECATED_ERROR = {
   },
 };
 
-function deprecatedResponse(c: any) {
+function deprecatedResponse(c: Context): Response {
   return c.json(DEPRECATED_ERROR, 410);
 }
 
-workspaceAgentsRouter.get('/:workspaceId/agents', (c) => deprecatedResponse(c));
-workspaceAgentsRouter.post('/:workspaceId/agents', (c) => deprecatedResponse(c));
-workspaceAgentsRouter.get('/:workspaceId/agents/:agentId', (c) => deprecatedResponse(c));
-workspaceAgentsRouter.patch('/:workspaceId/agents/:agentId', (c) => deprecatedResponse(c));
-workspaceAgentsRouter.delete('/:workspaceId/agents/:agentId', (c) => deprecatedResponse(c));
-workspaceAgentsRouter.post('/:workspaceId/agents/:agentId/regenerate', (c) => deprecatedResponse(c));
+workspaceAgentsRouter.all('/:workspaceId/agents', deprecatedResponse);
+workspaceAgentsRouter.all('/:workspaceId/agents/*', deprecatedResponse);
 
 export { workspaceAgentsRouter as workspaceAgentRoutes };

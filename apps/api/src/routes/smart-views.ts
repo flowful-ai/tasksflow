@@ -1,154 +1,134 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { getDatabase } from '@flowtask/database';
-import { SmartViewService, WorkspaceService, TaskService, ProjectService } from '@flowtask/domain';
-import { getCurrentUser } from '@flowtask/auth';
-import { CreateSmartViewSchema, UpdateSmartViewSchema, CreatePublicShareSchema, type FilterGroup } from '@flowtask/shared';
-import { hasPermission, type WorkspacePermission } from '@flowtask/auth';
+import { getDatabase } from '../db/index.js';
+import { SmartViewService, TaskService, toSmartViewDto } from '../domain/index.js';
+import { hasPermission } from '../auth/index.js';
+import {
+  CreateSmartViewSchema,
+  UpdateSmartViewSchema,
+  CreatePublicShareSchema,
+  createPaginationQuerySchema,
+} from '@flowtask/shared';
 import {
   executeSmartViewTaskList,
+  isFilterGroupValue,
   smartViewUsesCurrentUserTemplate,
+  SMART_VIEW_MAX_LIMIT,
   UNSUPPORTED_PUBLIC_FILTER_CODE,
   UNSUPPORTED_PUBLIC_FILTER_MESSAGE,
+  readTimezoneHeader,
 } from './smart-view-query-utils.js';
+import {
+  canShareSmartView,
+  getAuthz,
+  requireSmartView,
+  requireWorkspace,
+} from '../lib/authorize.js';
+import { badRequest, forbidden, fromResult, handleRouteError } from '../lib/responses.js';
+import { getWebUrl } from '../integrations/index.js';
 
 const smartViews = new Hono();
+smartViews.onError(handleRouteError);
+
 const db = getDatabase();
 const smartViewService = new SmartViewService(db);
-const workspaceService = new WorkspaceService(db);
 const taskService = new TaskService(db);
-const projectService = new ProjectService(db);
 
-// Helper to check workspace access
-async function checkWorkspaceAccess(workspaceId: string, userId: string, permission: WorkspacePermission) {
-  const roleResult = await workspaceService.getMemberRole(workspaceId, userId);
-  if (!roleResult.ok || !roleResult.value) {
-    return { allowed: false, role: null };
-  }
-  return {
-    allowed: hasPermission(roleResult.value, permission),
-    role: roleResult.value,
-  };
+const ExecuteQuerySchema = createPaginationQuerySchema({
+  defaultLimit: 50,
+  maxLimit: SMART_VIEW_MAX_LIMIT,
+});
+
+function shareUrl(token: string): string {
+  return `${getWebUrl()}/share/${token}`;
 }
 
-// List smart views
+// List smart views visible to the caller (team views, own personal views, views shared with them)
 smartViews.get('/', async (c) => {
-  const user = getCurrentUser(c);
-  const workspaceId = c.req.query('workspaceId');
+  const { workspaceId, role, user } = await requireWorkspace(
+    c,
+    c.req.query('workspaceId'),
+    'smart_view:read'
+  );
 
-  if (!workspaceId) {
-    return c.json({ success: false, error: { code: 'MISSING_PARAM', message: 'workspaceId is required' } }, 400);
-  }
+  const views = fromResult(
+    await smartViewService.list({ filters: { workspaceId, userId: user.id, includeShared: true } }),
+    { code: 'LIST_FAILED', message: 'Failed to list smart views' }
+  );
 
-  const { allowed } = await checkWorkspaceAccess(workspaceId, user.id, 'smart_view:read');
-  if (!allowed) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
-
-  const result = await smartViewService.list({
-    filters: {
-      workspaceId,
-      userId: user.id,
-      includeShared: true,
-    },
-  });
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'LIST_FAILED', message: result.error.message } }, 500);
-  }
-
-  return c.json({ success: true, data: result.value });
+  const canShare = hasPermission(role, 'smart_view:share');
+  const data = views.map((view) =>
+    toSmartViewDto(view, {
+      includePublicShares: canShare && (!view.isPersonal || view.createdBy === user.id),
+    })
+  );
+  return c.json({ success: true, data });
 });
 
 // Create smart view
 smartViews.post(
   '/',
-  zValidator(
-    'json',
-    CreateSmartViewSchema.extend({ workspaceId: z.string().uuid() })
-  ),
+  zValidator('json', CreateSmartViewSchema.extend({ workspaceId: z.string().uuid() })),
   async (c) => {
-    const user = getCurrentUser(c);
     const data = c.req.valid('json');
+    const { workspaceId, user } = await requireWorkspace(c, data.workspaceId, 'smart_view:create');
 
-    const { allowed } = await checkWorkspaceAccess(data.workspaceId, user.id, 'smart_view:create');
-    if (!allowed) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-    }
+    const view = fromResult(
+      await smartViewService.create({ ...data, workspaceId, createdBy: user.id }),
+      {
+        status: 400,
+        code: 'CREATE_FAILED',
+        message: 'Failed to create smart view',
+      }
+    );
 
-    const result = await smartViewService.create({
-      ...data,
-      createdBy: user.id,
-    });
-
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'CREATE_FAILED', message: result.error.message } }, 400);
-    }
-
-    return c.json({ success: true, data: result.value }, 201);
+    return c.json(
+      { success: true, data: toSmartViewDto(view, { includePublicShares: true }) },
+      201
+    );
   }
 );
 
 // Get smart view by ID
 smartViews.get('/:viewId', async (c) => {
-  const user = getCurrentUser(c);
-  const viewId = c.req.param('viewId');
-
-  const result = await smartViewService.getById(viewId);
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: result.error.message } }, 404);
-  }
-
-  const { allowed } = await checkWorkspaceAccess(result.value.workspaceId, user.id, 'smart_view:read');
-  if (!allowed) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
-
-  return c.json({ success: true, data: result.value });
+  const grant = await requireSmartView(c, c.req.param('viewId'), 'read');
+  return c.json({
+    success: true,
+    data: toSmartViewDto(grant.view, { includePublicShares: canShareSmartView(grant) }),
+  });
 });
 
-// Execute smart view (get filtered tasks)
-smartViews.get('/:viewId/execute', async (c) => {
-  const user = getCurrentUser(c);
-  const viewId = c.req.param('viewId');
+// Execute smart view (get filtered tasks from the projects the caller can access)
+smartViews.get('/:viewId/execute', zValidator('query', ExecuteQuerySchema), async (c) => {
+  const grant = await requireSmartView(c, c.req.param('viewId'), 'read');
+  const { page, limit } = c.req.valid('query');
+  const { view, role, user } = grant;
 
-  const viewResult = await smartViewService.getById(viewId);
-
-  if (!viewResult.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: viewResult.error.message } }, 404);
-  }
-
-  const { allowed } = await checkWorkspaceAccess(viewResult.value.workspaceId, user.id, 'smart_view:read');
-  if (!allowed) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
-
-  const view = viewResult.value;
-  const page = parseInt(c.req.query('page') || '1', 10);
-  const limit = parseInt(c.req.query('limit') || '50', 10);
-
-  const tasksResult = await executeSmartViewTaskList({
-    view,
-    taskService,
-    projectService,
-    filterContextUserId: user.id,
-    page,
-    limit,
+  const projectIds = await getAuthz().listAccessibleProjectIds(view.workspaceId, user.id, role, {
+    excludeArchived: true,
   });
 
-  if (!tasksResult.ok) {
-    return c.json({ success: false, error: { code: 'EXECUTE_FAILED', message: tasksResult.error.message } }, 500);
-  }
+  const result = fromResult(
+    await executeSmartViewTaskList({
+      view,
+      taskService,
+      projectIds,
+      filterContextUserId: user.id,
+      page,
+      limit,
+      timezone: readTimezoneHeader(c),
+    }),
+    { code: 'EXECUTE_FAILED', message: 'Failed to execute smart view' }
+  );
 
   return c.json({
     success: true,
     data: {
-      view,
-      tasks: tasksResult.value.tasks,
+      view: toSmartViewDto(view, { includePublicShares: canShareSmartView(grant) }),
+      tasks: result.tasks,
       meta: {
-        total: tasksResult.value.total,
+        total: Number(result.total),
         page,
         limit,
       },
@@ -157,64 +137,42 @@ smartViews.get('/:viewId/execute', async (c) => {
 });
 
 // Update smart view
-smartViews.patch(
-  '/:viewId',
-  zValidator('json', UpdateSmartViewSchema),
-  async (c) => {
-    const user = getCurrentUser(c);
-    const viewId = c.req.param('viewId');
-    const data = c.req.valid('json');
+smartViews.patch('/:viewId', zValidator('json', UpdateSmartViewSchema), async (c) => {
+  const grant = await requireSmartView(c, c.req.param('viewId'), 'update');
+  const data = c.req.valid('json');
 
-    const viewResult = await smartViewService.getById(viewId);
-    if (!viewResult.ok) {
-      return c.json({ success: false, error: { code: 'NOT_FOUND', message: viewResult.error.message } }, 404);
-    }
-
-    const { allowed } = await checkWorkspaceAccess(viewResult.value.workspaceId, user.id, 'smart_view:update');
-    if (!allowed) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-    }
-
-    const result = await smartViewService.update(viewId, {
-      ...data,
-      updatedBy: user.id,
-    });
-
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'UPDATE_FAILED', message: result.error.message } }, 400);
-    }
-
-    return c.json({ success: true, data: result.value });
+  // Only the creator may change a view's visibility.
+  if (data.isPersonal !== undefined && grant.view.createdBy !== grant.user.id) {
+    throw forbidden('Only the creator can change whether a view is personal');
   }
-);
+
+  const view = fromResult(
+    await smartViewService.update(grant.view.id, { ...data, updatedBy: grant.user.id }),
+    {
+      status: 400,
+      code: 'UPDATE_FAILED',
+      message: 'Failed to update smart view',
+    }
+  );
+
+  return c.json({
+    success: true,
+    data: toSmartViewDto(view, { includePublicShares: canShareSmartView(grant) }),
+  });
+});
 
 // Delete smart view
 smartViews.delete('/:viewId', async (c) => {
-  const user = getCurrentUser(c);
-  const viewId = c.req.param('viewId');
-
-  const viewResult = await smartViewService.getById(viewId);
-  if (!viewResult.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: viewResult.error.message } }, 404);
-  }
-
-  const { allowed } = await checkWorkspaceAccess(viewResult.value.workspaceId, user.id, 'smart_view:delete');
-  if (!allowed) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
-
-  const result = await smartViewService.delete(viewId);
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'DELETE_FAILED', message: result.error.message } }, 400);
-  }
-
+  const { view } = await requireSmartView(c, c.req.param('viewId'), 'delete');
+  fromResult(await smartViewService.delete(view.id), {
+    code: 'DELETE_FAILED',
+    message: 'Failed to delete smart view',
+  });
   return c.json({ success: true, data: null });
 });
 
-// === Sharing ===
+// === Sharing with workspace members ===
 
-// Share with user
 smartViews.post(
   '/:viewId/shares',
   zValidator(
@@ -225,160 +183,96 @@ smartViews.post(
     })
   ),
   async (c) => {
-    const user = getCurrentUser(c);
-    const viewId = c.req.param('viewId');
+    const { view } = await requireSmartView(c, c.req.param('viewId'), 'share');
     const data = c.req.valid('json');
 
-    const viewResult = await smartViewService.getById(viewId);
-    if (!viewResult.ok) {
-      return c.json({ success: false, error: { code: 'NOT_FOUND', message: viewResult.error.message } }, 404);
+    if (!(await getAuthz().areWorkspaceMembers(view.workspaceId, [data.userId]))) {
+      throw badRequest('Views can only be shared with workspace members', 'INVALID_USER');
     }
 
-    const { allowed } = await checkWorkspaceAccess(viewResult.value.workspaceId, user.id, 'smart_view:share');
-    if (!allowed) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-    }
+    const share = fromResult(
+      await smartViewService.share({
+        smartViewId: view.id,
+        sharedWithUserId: data.userId,
+        permission: data.permission,
+      }),
+      { status: 400, code: 'SHARE_FAILED', message: 'Failed to share smart view' }
+    );
 
-    const result = await smartViewService.share({
-      smartViewId: viewId,
-      sharedWithUserId: data.userId,
-      permission: data.permission,
-    });
-
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'SHARE_FAILED', message: result.error.message } }, 400);
-    }
-
-    return c.json({ success: true, data: result.value }, 201);
+    return c.json({ success: true, data: share }, 201);
   }
 );
 
-// Remove share
 smartViews.delete('/:viewId/shares/:userId', async (c) => {
-  const user = getCurrentUser(c);
-  const viewId = c.req.param('viewId');
+  const { view } = await requireSmartView(c, c.req.param('viewId'), 'share');
   const userId = c.req.param('userId');
+  if (!z.string().uuid().safeParse(userId).success) throw badRequest('Invalid user id');
 
-  const viewResult = await smartViewService.getById(viewId);
-  if (!viewResult.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: viewResult.error.message } }, 404);
-  }
-
-  const { allowed } = await checkWorkspaceAccess(viewResult.value.workspaceId, user.id, 'smart_view:share');
-  if (!allowed) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
-
-  const result = await smartViewService.unshare(viewId, userId);
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'UNSHARE_FAILED', message: result.error.message } }, 400);
-  }
+  fromResult(await smartViewService.unshare(view.id, userId), {
+    code: 'UNSHARE_FAILED',
+    message: 'Failed to remove share',
+  });
 
   return c.json({ success: true, data: null });
 });
 
 // === Public Sharing ===
 
-// Create public share
-smartViews.post(
-  '/:viewId/public',
-  zValidator('json', CreatePublicShareSchema),
-  async (c) => {
-    const user = getCurrentUser(c);
-    const viewId = c.req.param('viewId');
-    const data = c.req.valid('json');
+smartViews.post('/:viewId/public', zValidator('json', CreatePublicShareSchema), async (c) => {
+  const { view, user } = await requireSmartView(c, c.req.param('viewId'), 'share');
+  const data = c.req.valid('json');
 
-    const viewResult = await smartViewService.getById(viewId);
-    if (!viewResult.ok) {
-      return c.json({ success: false, error: { code: 'NOT_FOUND', message: viewResult.error.message } }, 404);
+  if (
+    smartViewUsesCurrentUserTemplate(isFilterGroupValue(view.filters) ? view.filters : undefined)
+  ) {
+    throw badRequest(UNSUPPORTED_PUBLIC_FILTER_MESSAGE, UNSUPPORTED_PUBLIC_FILTER_CODE);
+  }
+
+  const share = fromResult(
+    await smartViewService.createPublicShare({ ...data, smartViewId: view.id, createdBy: user.id }),
+    {
+      status: 400,
+      code: 'CREATE_FAILED',
+      message: 'Failed to create public share',
     }
+  );
 
-    const { allowed } = await checkWorkspaceAccess(viewResult.value.workspaceId, user.id, 'smart_view:share');
-    if (!allowed) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-    }
-
-    const viewFilters = viewResult.value.filters as FilterGroup | undefined;
-    if (smartViewUsesCurrentUserTemplate(viewFilters)) {
-      return c.json(
-        {
-          success: false,
-          error: {
-            code: UNSUPPORTED_PUBLIC_FILTER_CODE,
-            message: UNSUPPORTED_PUBLIC_FILTER_MESSAGE,
-          },
-        },
-        400
-      );
-    }
-
-    const result = await smartViewService.createPublicShare({
-      ...data,
-      smartViewId: viewId,
-      createdBy: user.id,
-    });
-
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'CREATE_FAILED', message: result.error.message } }, 400);
-    }
-
-    return c.json({
+  const { passwordHash, ...safeShare } = share;
+  return c.json(
+    {
       success: true,
       data: {
-        ...result.value,
-        shareUrl: `${process.env.WEB_URL || 'http://localhost:3000'}/share/${result.value.token}`,
+        ...safeShare,
+        hasPassword: Boolean(passwordHash),
+        shareUrl: shareUrl(share.token),
       },
-    }, 201);
-  }
-);
+    },
+    201
+  );
+});
 
-// Disable public share
 smartViews.post('/:viewId/public/:shareId/disable', async (c) => {
-  const user = getCurrentUser(c);
-  const viewId = c.req.param('viewId');
+  const { view } = await requireSmartView(c, c.req.param('viewId'), 'share');
   const shareId = c.req.param('shareId');
+  if (!z.string().uuid().safeParse(shareId).success) throw badRequest('Invalid share id');
 
-  const viewResult = await smartViewService.getById(viewId);
-  if (!viewResult.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: viewResult.error.message } }, 404);
-  }
-
-  const { allowed } = await checkWorkspaceAccess(viewResult.value.workspaceId, user.id, 'smart_view:share');
-  if (!allowed) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
-
-  const result = await smartViewService.disablePublicShare(viewId, shareId);
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'DISABLE_FAILED', message: result.error.message } }, 400);
-  }
+  fromResult(await smartViewService.disablePublicShare(view.id, shareId), {
+    code: 'DISABLE_FAILED',
+    message: 'Failed to disable public share',
+  });
 
   return c.json({ success: true, data: null });
 });
 
-// Delete public share
 smartViews.delete('/:viewId/public/:shareId', async (c) => {
-  const user = getCurrentUser(c);
-  const viewId = c.req.param('viewId');
+  const { view } = await requireSmartView(c, c.req.param('viewId'), 'share');
   const shareId = c.req.param('shareId');
+  if (!z.string().uuid().safeParse(shareId).success) throw badRequest('Invalid share id');
 
-  const viewResult = await smartViewService.getById(viewId);
-  if (!viewResult.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: viewResult.error.message } }, 404);
-  }
-
-  const { allowed } = await checkWorkspaceAccess(viewResult.value.workspaceId, user.id, 'smart_view:share');
-  if (!allowed) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
-
-  const result = await smartViewService.deletePublicShare(viewId, shareId);
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'DELETE_FAILED', message: result.error.message } }, 400);
-  }
+  fromResult(await smartViewService.deletePublicShare(view.id, shareId), {
+    code: 'DELETE_FAILED',
+    message: 'Failed to delete public share',
+  });
 
   return c.json({ success: true, data: null });
 });

@@ -1,32 +1,37 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { convertToModelMessages, stepCountIs, streamText, type UIMessage } from 'ai';
+import { convertToModelMessages, stepCountIs, streamText, validateUIMessages } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
-import { getDatabase } from '@flowtask/database';
-import { AgentService, WorkspaceService, ProjectService } from '@flowtask/domain';
-import { getCurrentUser } from '@flowtask/auth';
+import { getDatabase } from '../db/index.js';
+import { AgentService, toError } from '../domain/index.js';
 import {
-  type AgentTool,
+  AgentToolSchema,
   AIModelSchema,
   CreateAgentSchema,
   UpdateAgentSchema,
   getRequiredApiKeyProvidersForModel,
 } from '@flowtask/shared';
-import { hasPermission, type WorkspacePermission } from '@flowtask/auth';
-import { buildAiSdkTools } from '../services/agent-tool-runtime.js';
-
-const ExecuteAgentMessageSchema = z.object({
-  role: z.enum(['system', 'user', 'assistant']),
-  parts: z.array(z.unknown()).min(1, { message: 'Message parts are required' }),
-  metadata: z.unknown().optional(),
-});
+import type { Context } from 'hono';
+import type { WorkspacePermission } from '../auth/index.js';
+import { requireWorkspace } from '../lib/authorize.js';
+import {
+  AppError,
+  badRequest,
+  fromResult,
+  notFound,
+  validationHook,
+  handleRouteError,
+} from '../lib/responses.js';
+import { buildAiSdkTools, MCP_SERVER_INSTRUCTIONS } from '../services/agent-tool-runtime.js';
+import { buildToolContext } from '../lib/mcp/tool-context.js';
 
 const ExecuteAgentSchema = z.object({
-  messages: z.array(ExecuteAgentMessageSchema).min(1, {
+  // UI messages are validated structurally by validateUIMessages below.
+  messages: z.array(z.unknown()).min(1, {
     message: 'At least one message is required',
   }),
   context: z
@@ -39,26 +44,24 @@ const ExecuteAgentSchema = z.object({
 });
 
 const agents = new Hono();
+agents.onError(handleRouteError);
 const db = getDatabase();
 const agentService = new AgentService(db);
-const workspaceService = new WorkspaceService(db);
-const projectService = new ProjectService(db);
 
-async function checkWorkspaceAccess(workspaceId: string, userId: string, permission: WorkspacePermission) {
-  const roleResult = await workspaceService.getMemberRole(workspaceId, userId);
-  if (!roleResult.ok || !roleResult.value) {
-    return { allowed: false, role: null };
-  }
-  return {
-    allowed: hasPermission(roleResult.value, permission),
-    role: roleResult.value,
-  };
+/** Load an agent and check the caller's workspace permission on it. */
+async function requireAgent(c: Context, permission: WorkspacePermission) {
+  const result = await agentService.getById(c.req.param('agentId') ?? '');
+  if (!result.ok) throw notFound('Agent');
+  const grant = await requireWorkspace(c, result.value.workspaceId, permission);
+  return { ...grant, agent: result.value };
 }
 
 type ModelProvider = 'openai' | 'anthropic' | 'google' | 'openrouter';
-const TOOL_EXECUTION_STEP_LIMIT = 25;
+// Each step is one model call; 8 is plenty for read-then-act flows and bounds
+// what an injected instruction could chain together.
+const TOOL_EXECUTION_STEP_LIMIT = 8;
 const TOOL_COMPLETION_INSTRUCTION =
-  'When you use one or more tools, you must always finish with a plain-language assistant response that directly answers the user. Never end with only tool calls.';
+  'When you use one or more tools, you must always finish with a plain-language assistant response that directly answers the user. Never end with only tool calls. Tools that change data ask the user for approval first; if the user denies a call, do not retry it.';
 
 function resolveProviderModelId(model: string, provider: ModelProvider): string {
   if (provider === 'openrouter') {
@@ -92,59 +95,36 @@ function resolveLanguageModel(provider: ModelProvider, apiKey: string, model: st
 
 // List agents
 agents.get('/', async (c) => {
-  const user = getCurrentUser(c);
-  const workspaceId = c.req.query('workspaceId');
-
-  if (!workspaceId) {
-    return c.json({ success: false, error: { code: 'MISSING_PARAM', message: 'workspaceId is required' } }, 400);
-  }
-
-  const { allowed } = await checkWorkspaceAccess(workspaceId, user.id, 'agent:read');
-  if (!allowed) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
-
-  const result = await agentService.list({
-    filters: {
-      workspaceId,
-      isActive:
-        c.req.query('isActive') === 'all'
-          ? undefined
-          : c.req.query('isActive') !== 'false',
-    },
-  });
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'LIST_FAILED', message: result.error.message } }, 500);
-  }
-
-  return c.json({ success: true, data: result.value });
+  const { workspaceId } = await requireWorkspace(c, c.req.query('workspaceId'), 'agent:read');
+  const list = fromResult(
+    await agentService.list({
+      filters: {
+        workspaceId,
+        isActive:
+          c.req.query('isActive') === 'all' ? undefined : c.req.query('isActive') !== 'false',
+      },
+    }),
+    { code: 'LIST_FAILED', message: 'Failed to list agents' }
+  );
+  return c.json({ success: true, data: list });
 });
 
 agents.get('/availability', async (c) => {
-  const user = getCurrentUser(c);
-  const workspaceId = c.req.query('workspaceId');
-
-  if (!workspaceId) {
-    return c.json({ success: false, error: { code: 'MISSING_PARAM', message: 'workspaceId is required' } }, 400);
-  }
-
-  const { allowed } = await checkWorkspaceAccess(workspaceId, user.id, 'agent:execute');
-  if (!allowed) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
+  const { workspaceId } = await requireWorkspace(c, c.req.query('workspaceId'), 'agent:execute');
 
   const [configuredProviders, activeAgentsResult] = await Promise.all([
     agentService.listApiKeyProviders(workspaceId),
     agentService.list({ filters: { workspaceId, isActive: true } }),
   ]);
 
-  if (!activeAgentsResult.ok) {
-    return c.json({ success: false, error: { code: 'READ_FAILED', message: activeAgentsResult.error.message } }, 400);
-  }
+  const activeAgents = fromResult(activeAgentsResult, {
+    status: 400,
+    code: 'READ_FAILED',
+    message: 'Failed to load agents',
+  });
 
   const hasProviderKey = configuredProviders.size > 0;
-  const activeAgentCount = activeAgentsResult.value.length;
+  const activeAgentCount = activeAgents.length;
 
   return c.json({
     success: true,
@@ -160,143 +140,69 @@ agents.get('/availability', async (c) => {
 // Create agent
 agents.post(
   '/',
-  zValidator(
-    'json',
-    CreateAgentSchema.extend({ workspaceId: z.string().uuid() })
-  ),
+  zValidator('json', CreateAgentSchema.extend({ workspaceId: z.string().uuid() }), validationHook),
   async (c) => {
-    const user = getCurrentUser(c);
     const data = c.req.valid('json');
-
-    const { allowed } = await checkWorkspaceAccess(data.workspaceId, user.id, 'agent:create');
-    if (!allowed) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-    }
-
-    const result = await agentService.create({
-      ...data,
-      createdBy: user.id,
+    const { user } = await requireWorkspace(c, data.workspaceId, 'agent:create');
+    const agent = fromResult(await agentService.create({ ...data, createdBy: user.id }), {
+      status: 400,
+      code: 'CREATE_FAILED',
+      message: 'Failed to create agent',
     });
-
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'CREATE_FAILED', message: result.error.message } }, 400);
-    }
-
-    return c.json({ success: true, data: result.value }, 201);
+    return c.json({ success: true, data: agent }, 201);
   }
 );
 
 // Get agent by ID
 agents.get('/:agentId', async (c) => {
-  const user = getCurrentUser(c);
-  const agentId = c.req.param('agentId');
-
-  const result = await agentService.getById(agentId);
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: result.error.message } }, 404);
-  }
-
-  const { allowed } = await checkWorkspaceAccess(result.value.workspaceId, user.id, 'agent:read');
-  if (!allowed) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
-
-  return c.json({ success: true, data: result.value });
+  const { agent } = await requireAgent(c, 'agent:read');
+  return c.json({ success: true, data: agent });
 });
 
 // Update agent
-agents.patch(
-  '/:agentId',
-  zValidator('json', UpdateAgentSchema),
-  async (c) => {
-    const user = getCurrentUser(c);
-    const agentId = c.req.param('agentId');
-    const data = c.req.valid('json');
-
-    const agentResult = await agentService.getById(agentId);
-    if (!agentResult.ok) {
-      return c.json({ success: false, error: { code: 'NOT_FOUND', message: agentResult.error.message } }, 404);
-    }
-
-    const { allowed } = await checkWorkspaceAccess(agentResult.value.workspaceId, user.id, 'agent:update');
-    if (!allowed) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-    }
-
-    const result = await agentService.update(agentId, {
-      ...data,
-      updatedBy: user.id,
-    });
-
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'UPDATE_FAILED', message: result.error.message } }, 400);
-    }
-
-    return c.json({ success: true, data: result.value });
-  }
-);
+agents.patch('/:agentId', zValidator('json', UpdateAgentSchema, validationHook), async (c) => {
+  const data = c.req.valid('json');
+  const { user, agent } = await requireAgent(c, 'agent:update');
+  const updated = fromResult(await agentService.update(agent.id, { ...data, updatedBy: user.id }), {
+    status: 400,
+    code: 'UPDATE_FAILED',
+    message: 'Failed to update agent',
+  });
+  return c.json({ success: true, data: updated });
+});
 
 // Delete agent
 agents.delete('/:agentId', async (c) => {
-  const user = getCurrentUser(c);
-  const agentId = c.req.param('agentId');
-
-  const agentResult = await agentService.getById(agentId);
-  if (!agentResult.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: agentResult.error.message } }, 404);
-  }
-
-  const { allowed } = await checkWorkspaceAccess(agentResult.value.workspaceId, user.id, 'agent:delete');
-  if (!allowed) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
-
-  const result = await agentService.delete(agentId);
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'DELETE_FAILED', message: result.error.message } }, 400);
-  }
+  const { agent } = await requireAgent(c, 'agent:delete');
+  fromResult(await agentService.delete(agent.id), {
+    status: 400,
+    code: 'DELETE_FAILED',
+    message: 'Failed to delete agent',
+  });
 
   return c.json({ success: true, data: null });
 });
 
 agents.post(
   '/:agentId/execute',
-  zValidator('json', ExecuteAgentSchema),
+  zValidator('json', ExecuteAgentSchema, validationHook),
   async (c) => {
-    const user = getCurrentUser(c);
-    const agentId = c.req.param('agentId');
     const data = c.req.valid('json');
+    const { user, role, agent } = await requireAgent(c, 'agent:execute');
+    const agentId = agent.id;
 
-    const agentResult = await agentService.getById(agentId);
-    if (!agentResult.ok) {
-      return c.json({ success: false, error: { code: 'NOT_FOUND', message: agentResult.error.message } }, 404);
+    if (agent.isRateLimited) {
+      throw new AppError(429, 'RATE_LIMITED', 'Agent has reached its daily token limit');
     }
 
-    const { allowed } = await checkWorkspaceAccess(agentResult.value.workspaceId, user.id, 'agent:execute');
-    if (!allowed) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-    }
-
-    if (agentResult.value.isRateLimited) {
-      return c.json({
-        success: false,
-        error: {
-          code: 'RATE_LIMITED',
-          message: 'Agent has reached its daily token limit',
-        },
-      }, 429);
-    }
-
-    const effectiveModel = agentResult.value.model;
+    const effectiveModel = agent.model;
     const requiredProviders = getRequiredApiKeyProvidersForModel(effectiveModel);
 
     let selectedProvider: ModelProvider | null = null;
     let apiKey: string | null = null;
 
     for (const provider of requiredProviders) {
-      const keyResult = await agentService.getApiKey(agentResult.value.workspaceId, provider);
+      const keyResult = await agentService.getApiKey(agent.workspaceId, provider);
       if (keyResult.ok) {
         selectedProvider = provider;
         apiKey = keyResult.value;
@@ -305,37 +211,48 @@ agents.post(
     }
 
     if (!selectedProvider || !apiKey) {
-      const requiredProviderNames = requiredProviders.map((provider) => provider.toUpperCase()).join(' or ');
-      return c.json({
-        success: false,
-        error: {
-          code: 'NO_API_KEY',
-          message: `Please configure a workspace ${requiredProviderNames} API key first`,
-        },
-      }, 400);
+      const requiredProviderNames = requiredProviders
+        .map((provider) => provider.toUpperCase())
+        .join(' or ');
+      throw badRequest(
+        `Please configure a workspace ${requiredProviderNames} API key first`,
+        'NO_API_KEY'
+      );
     }
 
-    const allowedTools = (agentResult.value.tools as AgentTool[]) || [];
-    const tools = buildAiSdkTools(allowedTools, {
-      workspaceId: agentResult.value.workspaceId,
+    const agentTools = AgentToolSchema.array().safeParse(agent.tools ?? []);
+    // One tenant-scoped context: workspace, role permissions and project ACL
+    // are enforced exactly as for MCP clients.
+    const toolContext = buildToolContext({
+      workspaceId: agent.workspaceId,
       userId: user.id,
+      role,
+      grantedTools: agentTools.success ? agentTools.data : [],
       mcpClientId: null,
-      allowedToolNames: new Set(allowedTools),
-      canAccessProject: async (projectId: string) => {
-        const projectResult = await projectService.getById(projectId);
-        return projectResult.ok && projectResult.value.workspaceId === agentResult.value.workspaceId;
-      },
     });
+    const tools = buildAiSdkTools(toolContext);
+
+    let uiMessages: Awaited<ReturnType<typeof validateUIMessages>>;
+    try {
+      uiMessages = await validateUIMessages({ messages: data.messages });
+    } catch (error) {
+      throw badRequest(
+        error instanceof Error ? error.message : 'Invalid messages',
+        'INVALID_MESSAGES'
+      );
+    }
 
     try {
       const model = resolveLanguageModel(selectedProvider, apiKey, effectiveModel);
-      const modelMessages = convertToModelMessages(
-        data.messages as Array<Omit<UIMessage, 'id'>>
-      );
+      const modelMessages = await convertToModelMessages(uiMessages, {
+        tools,
+        ignoreIncompleteToolCalls: true,
+      });
 
       const systemPrompt = [
-        agentResult.value.systemPrompt || 'You are a helpful FlowTask workspace assistant.',
+        agent.systemPrompt || 'You are a helpful FlowTask workspace assistant.',
         TOOL_COMPLETION_INSTRUCTION,
+        MCP_SERVER_INSTRUCTIONS,
         `Current user: ${user.name} (mail: ${user.email}, ID: ${user.id})`,
         data.context?.projectId ? `Current project ID: ${data.context.projectId}` : '',
         data.context?.taskId ? `Current task ID: ${data.context.taskId}` : '',
@@ -347,25 +264,26 @@ agents.post(
         model,
         system: systemPrompt,
         messages: modelMessages,
-        tools: tools as any,
+        tools,
         stopWhen: stepCountIs(TOOL_EXECUTION_STEP_LIMIT),
-        onFinish: async ({ usage }) => {
-          const totalTokens = usage.totalTokens ?? 0;
+        onFinish: async ({ totalUsage }) => {
+          const totalTokens = totalUsage.totalTokens ?? 0;
           if (totalTokens > 0) {
             await agentService.recordTokenUsage(agentId, totalTokens);
           }
         },
       });
 
-      return result.toUIMessageStreamResponse({ sendReasoning: false });
+      return result.toUIMessageStreamResponse({
+        sendReasoning: false,
+        originalMessages: uiMessages,
+      });
     } catch (error) {
-      return c.json({
-        success: false,
-        error: {
-          code: 'EXECUTION_FAILED',
-          message: process.env.NODE_ENV === 'production' ? 'Agent execution failed' : error instanceof Error ? error.message : 'Unknown error',
-        },
-      }, 400);
+      console.error('[agents] execution failed', error);
+      throw badRequest(
+        process.env.NODE_ENV === 'production' ? 'Agent execution failed' : toError(error).message,
+        'EXECUTION_FAILED'
+      );
     }
   }
 );

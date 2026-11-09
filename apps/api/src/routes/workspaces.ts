@@ -1,288 +1,203 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { getDatabase } from '@flowtask/database';
-import { WorkspaceService } from '@flowtask/domain';
-import { getCurrentUser } from '@flowtask/auth';
+import { getDatabase } from '../db/index.js';
+import { WorkspaceService, decodeDateCursor, encodeDateCursor } from '../domain/index.js';
 import {
   CreateWorkspaceSchema,
   UpdateWorkspaceSchema,
   WorkspaceRoleSchema,
   WorkspaceActivityQuerySchema,
-  WorkspaceActivityCursorSchema,
 } from '@flowtask/shared';
-import { hasPermission } from '@flowtask/auth';
+import { getAuthz, requireUser, requireWorkspace } from '../lib/authorize.js';
+import { badRequest, forbidden, fromResult, handleRouteError } from '../lib/responses.js';
 
 const workspaces = new Hono();
+workspaces.onError(handleRouteError);
+
 const db = getDatabase();
 const workspaceService = new WorkspaceService(db);
 
-function encodeCursor(cursor: { createdAt: Date; id: string }): string {
-  return Buffer.from(JSON.stringify(cursor)).toString('base64url');
-}
-
-function decodeCursor(cursor: string): { createdAt: Date; id: string } | null {
-  try {
-    const decoded = Buffer.from(cursor, 'base64url').toString('utf8');
-    const parsed = JSON.parse(decoded);
-    const validated = WorkspaceActivityCursorSchema.safeParse(parsed);
-    return validated.success ? validated.data : null;
-  } catch {
-    return null;
-  }
-}
-
 // List workspaces for current user
 workspaces.get('/', async (c) => {
-  const user = getCurrentUser(c);
-
-  const result = await workspaceService.list({
-    filters: { userId: user.id },
+  const user = requireUser(c);
+  const list = fromResult(await workspaceService.list({ filters: { userId: user.id } }), {
+    code: 'LIST_FAILED',
+    message: 'Failed to list workspaces',
   });
+  return c.json({ success: true, data: list });
+});
 
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'LIST_FAILED', message: result.error.message } }, 500);
-  }
+// Create workspace
+workspaces.post('/', zValidator('json', CreateWorkspaceSchema), async (c) => {
+  const user = requireUser(c);
+  const data = c.req.valid('json');
+  const workspace = fromResult(await workspaceService.create({ ...data, ownerId: user.id }), {
+    status: 400,
+    code: 'CREATE_FAILED',
+    message: 'Failed to create workspace',
+  });
+  return c.json({ success: true, data: workspace }, 201);
+});
+
+// Get workspace by slug (registered before '/:workspaceId' routes for clarity)
+workspaces.get('/by-slug/:slug', async (c) => {
+  requireUser(c);
+  const result = await workspaceService.getBySlug(c.req.param('slug'));
+  // Do not reveal whether a slug exists to non-members.
+  if (!result.ok) throw forbidden('Not a workspace member');
+  await requireWorkspace(c, result.value.id, 'workspace:read');
 
   return c.json({ success: true, data: result.value });
 });
 
-// Create workspace
-workspaces.post(
-  '/',
-  zValidator('json', CreateWorkspaceSchema),
-  async (c) => {
-    const user = getCurrentUser(c);
-    const data = c.req.valid('json');
-
-    const result = await workspaceService.create({
-      ...data,
-      ownerId: user.id,
-    });
-
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'CREATE_FAILED', message: result.error.message } }, 400);
-    }
-
-    return c.json({ success: true, data: result.value }, 201);
-  }
-);
-
 // Get workspace by ID
 workspaces.get('/:workspaceId', async (c) => {
-  const user = getCurrentUser(c);
-  const workspaceId = c.req.param('workspaceId');
-
-  // Check membership
-  const isMember = await workspaceService.isMember(workspaceId, user.id);
-  if (!isMember) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not a workspace member' } }, 403);
-  }
-
-  const result = await workspaceService.getById(workspaceId);
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: result.error.message } }, 404);
-  }
-
-  return c.json({ success: true, data: result.value });
+  const { workspaceId } = await requireWorkspace(c, c.req.param('workspaceId'), 'workspace:read');
+  const workspace = fromResult(await workspaceService.getById(workspaceId), {
+    code: 'FETCH_FAILED',
+    message: 'Failed to load workspace',
+  });
+  return c.json({ success: true, data: workspace });
 });
 
 // Get current user's role in a workspace
 workspaces.get('/:workspaceId/me', async (c) => {
-  const user = getCurrentUser(c);
-  const workspaceId = c.req.param('workspaceId');
-
-  const roleResult = await workspaceService.getMemberRole(workspaceId, user.id);
-  if (!roleResult.ok || !roleResult.value) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not a workspace member' } }, 403);
-  }
-
-  return c.json({
-    success: true,
-    data: {
-      role: roleResult.value,
-    },
-  });
+  const { role } = await requireWorkspace(c, c.req.param('workspaceId'), 'workspace:read');
+  return c.json({ success: true, data: { role } });
 });
 
-// Get workspace by slug
-workspaces.get('/by-slug/:slug', async (c) => {
-  const user = getCurrentUser(c);
-  const slug = c.req.param('slug');
-
-  const result = await workspaceService.getBySlug(slug);
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: result.error.message } }, 404);
-  }
-
-  // Check membership
-  const isMember = await workspaceService.isMember(result.value.id, user.id);
-  if (!isMember) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not a workspace member' } }, 403);
-  }
-
-  return c.json({ success: true, data: result.value });
-});
-
-// List recent task activity for workspace
+// List recent task activity for workspace, limited to projects the caller can access
 workspaces.get(
   '/:workspaceId/activity',
   zValidator('query', WorkspaceActivityQuerySchema),
   async (c) => {
-    const user = getCurrentUser(c);
-    const workspaceId = c.req.param('workspaceId');
+    const { workspaceId, role, user } = await requireWorkspace(
+      c,
+      c.req.param('workspaceId'),
+      'project:read'
+    );
     const query = c.req.valid('query');
-
-    const roleResult = await workspaceService.getMemberRole(workspaceId, user.id);
-    if (!roleResult.ok || !roleResult.value) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not a workspace member' } }, 403);
-    }
-
-    if (!hasPermission(roleResult.value, 'project:read')) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, 403);
-    }
 
     let cursor: { createdAt: Date; id: string } | undefined;
     if (query.cursor) {
-      cursor = decodeCursor(query.cursor) || undefined;
-      if (!cursor) {
-        return c.json({ success: false, error: { code: 'INVALID_CURSOR', message: 'Invalid cursor format' } }, 400);
+      cursor = decodeDateCursor(query.cursor) ?? undefined;
+      if (!cursor) throw badRequest('Invalid cursor format', 'INVALID_CURSOR');
+    }
+
+    const projectIds = await getAuthz().listAccessibleProjectIds(workspaceId, user.id, role);
+    const page = fromResult(
+      await workspaceService.listActivity(workspaceId, { limit: query.limit, cursor, projectIds }),
+      {
+        code: 'LIST_FAILED',
+        message: 'Failed to load activity',
       }
-    }
-
-    const result = await workspaceService.listActivity(workspaceId, {
-      limit: query.limit,
-      cursor,
-    });
-
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'LIST_FAILED', message: result.error.message } }, 500);
-    }
+    );
 
     return c.json({
       success: true,
-      data: result.value.items,
+      data: page.items,
       meta: {
         limit: query.limit,
-        nextCursor: result.value.nextCursor ? encodeCursor(result.value.nextCursor) : null,
+        nextCursor: page.nextCursor ? encodeDateCursor(page.nextCursor) : null,
       },
     });
   }
 );
 
 // Update workspace
-workspaces.patch(
-  '/:workspaceId',
-  zValidator('json', UpdateWorkspaceSchema),
-  async (c) => {
-    const user = getCurrentUser(c);
-    const workspaceId = c.req.param('workspaceId');
-    const data = c.req.valid('json');
-
-    // Check permission
-    const roleResult = await workspaceService.getMemberRole(workspaceId, user.id);
-    if (!roleResult.ok || !roleResult.value) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not a workspace member' } }, 403);
+workspaces.patch('/:workspaceId', zValidator('json', UpdateWorkspaceSchema), async (c) => {
+  const { workspaceId, user } = await requireWorkspace(
+    c,
+    c.req.param('workspaceId'),
+    'workspace:update'
+  );
+  const data = c.req.valid('json');
+  const workspace = fromResult(
+    await workspaceService.update(workspaceId, { ...data, updatedBy: user.id }),
+    {
+      status: 400,
+      code: 'UPDATE_FAILED',
+      message: 'Failed to update workspace',
     }
+  );
+  return c.json({ success: true, data: workspace });
+});
 
-    if (!hasPermission(roleResult.value, 'workspace:update')) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, 403);
-    }
-
-    const result = await workspaceService.update(workspaceId, {
-      ...data,
-      updatedBy: user.id,
-    });
-
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'UPDATE_FAILED', message: result.error.message } }, 400);
-    }
-
-    return c.json({ success: true, data: result.value });
-  }
-);
-
-// Delete workspace
+// Delete workspace (owner only)
 workspaces.delete('/:workspaceId', async (c) => {
-  const user = getCurrentUser(c);
-  const workspaceId = c.req.param('workspaceId');
-
-  // Check permission (only owner can delete)
-  const roleResult = await workspaceService.getMemberRole(workspaceId, user.id);
-  if (!roleResult.ok || roleResult.value !== 'owner') {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Only the owner can delete a workspace' } }, 403);
-  }
-
-  const result = await workspaceService.delete(workspaceId);
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'DELETE_FAILED', message: result.error.message } }, 400);
-  }
-
+  const { workspaceId } = await requireWorkspace(c, c.req.param('workspaceId'), 'workspace:delete');
+  fromResult(await workspaceService.delete(workspaceId), {
+    code: 'DELETE_FAILED',
+    message: 'Failed to delete workspace',
+  });
   return c.json({ success: true, data: null });
 });
 
-// Member management
+// === Member management ===
 
 // List members
 workspaces.get('/:workspaceId/members', async (c) => {
-  const user = getCurrentUser(c);
-  const workspaceId = c.req.param('workspaceId');
-
-  // Check membership
-  const isMember = await workspaceService.isMember(workspaceId, user.id);
-  if (!isMember) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not a workspace member' } }, 403);
-  }
-
-  const result = await workspaceService.getById(workspaceId);
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: result.error.message } }, 404);
-  }
-
-  return c.json({ success: true, data: result.value.members });
+  const { workspaceId } = await requireWorkspace(c, c.req.param('workspaceId'), 'workspace:read');
+  const workspace = fromResult(await workspaceService.getById(workspaceId), {
+    code: 'FETCH_FAILED',
+    message: 'Failed to load members',
+  });
+  return c.json({ success: true, data: workspace.members });
 });
 
-// Add member
+// Add member. Owner role can only be granted by an owner; others may only
+// assign roles at or below their own (enforced in WorkspaceService).
 workspaces.post(
   '/:workspaceId/members',
   zValidator(
     'json',
-    z.object({
-      userId: z.string().uuid(),
-      role: WorkspaceRoleSchema.default('member'),
-    })
+    z.object({ userId: z.string().uuid(), role: WorkspaceRoleSchema.default('member') })
   ),
   async (c) => {
-    const user = getCurrentUser(c);
-    const workspaceId = c.req.param('workspaceId');
+    const { workspaceId, user } = await requireWorkspace(
+      c,
+      c.req.param('workspaceId'),
+      'workspace:manage_members'
+    );
     const { userId, role } = c.req.valid('json');
 
-    // Check permission
-    const roleResult = await workspaceService.getMemberRole(workspaceId, user.id);
-    if (!roleResult.ok || !roleResult.value) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not a workspace member' } }, 403);
-    }
+    const member = fromResult(
+      await workspaceService.addMember({ workspaceId, userId, role, addedBy: user.id }),
+      {
+        status: 400,
+        code: 'ADD_FAILED',
+        message: 'Failed to add member',
+      }
+    );
 
-    if (!hasPermission(roleResult.value, 'workspace:manage_members')) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, 403);
-    }
+    return c.json({ success: true, data: member }, 201);
+  }
+);
 
-    const result = await workspaceService.addMember({
-      workspaceId,
-      userId,
-      role,
-      addedBy: user.id,
-    });
+// Transfer ownership to another member (owner only). The previous owner becomes an admin.
+workspaces.post(
+  '/:workspaceId/transfer-ownership',
+  zValidator('json', z.object({ userId: z.string().uuid() })),
+  async (c) => {
+    const { workspaceId, user, role } = await requireWorkspace(
+      c,
+      c.req.param('workspaceId'),
+      'workspace:read'
+    );
+    if (role !== 'owner') throw forbidden('Only an owner can transfer ownership');
+    const { userId } = c.req.valid('json');
 
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'ADD_FAILED', message: result.error.message } }, 400);
-    }
+    const member = fromResult(
+      await workspaceService.transferOwnership({
+        workspaceId,
+        fromUserId: user.id,
+        toUserId: userId,
+      }),
+      { status: 400, code: 'TRANSFER_FAILED', message: 'Failed to transfer ownership' }
+    );
 
-    return c.json({ success: true, data: result.value }, 201);
+    return c.json({ success: true, data: member });
   }
 );
 
@@ -291,63 +206,48 @@ workspaces.patch(
   '/:workspaceId/members/:memberId',
   zValidator('json', z.object({ role: WorkspaceRoleSchema })),
   async (c) => {
-    const user = getCurrentUser(c);
-    const workspaceId = c.req.param('workspaceId');
+    const { workspaceId, user } = await requireWorkspace(
+      c,
+      c.req.param('workspaceId'),
+      'workspace:manage_members'
+    );
     const memberId = c.req.param('memberId');
     const { role } = c.req.valid('json');
 
-    // Check permission
-    const roleResult = await workspaceService.getMemberRole(workspaceId, user.id);
-    if (!roleResult.ok || !roleResult.value) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not a workspace member' } }, 403);
-    }
+    const member = fromResult(
+      await workspaceService.updateMember({
+        workspaceId,
+        userId: memberId,
+        role,
+        updatedBy: user.id,
+      }),
+      { status: 400, code: 'UPDATE_FAILED', message: 'Failed to update member' }
+    );
 
-    if (!hasPermission(roleResult.value, 'workspace:manage_members')) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, 403);
-    }
-
-    const result = await workspaceService.updateMember({
-      workspaceId,
-      userId: memberId,
-      role,
-      updatedBy: user.id,
-    });
-
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'UPDATE_FAILED', message: result.error.message } }, 400);
-    }
-
-    return c.json({ success: true, data: result.value });
+    return c.json({ success: true, data: member });
   }
 );
 
-// Remove member
+// Remove member (or leave the workspace when removing yourself)
 workspaces.delete('/:workspaceId/members/:memberId', async (c) => {
-  const user = getCurrentUser(c);
+  const user = requireUser(c);
   const workspaceId = c.req.param('workspaceId');
   const memberId = c.req.param('memberId');
 
-  // Check permission (or user removing themselves)
   if (memberId !== user.id) {
-    const roleResult = await workspaceService.getMemberRole(workspaceId, user.id);
-    if (!roleResult.ok || !roleResult.value) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not a workspace member' } }, 403);
-    }
-
-    if (!hasPermission(roleResult.value, 'workspace:manage_members')) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } }, 403);
-    }
+    await requireWorkspace(c, workspaceId, 'workspace:manage_members');
+  } else {
+    await requireWorkspace(c, workspaceId, 'workspace:read');
   }
 
-  const result = await workspaceService.removeMember({
-    workspaceId,
-    userId: memberId,
-    removedBy: user.id,
-  });
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'REMOVE_FAILED', message: result.error.message } }, 400);
-  }
+  fromResult(
+    await workspaceService.removeMember({ workspaceId, userId: memberId, removedBy: user.id }),
+    {
+      status: 400,
+      code: 'REMOVE_FAILED',
+      message: 'Failed to remove member',
+    }
+  );
 
   return c.json({ success: true, data: null });
 });

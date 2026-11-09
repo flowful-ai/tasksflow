@@ -1,8 +1,8 @@
 import { createAuthClient } from 'better-auth/react';
 import { api } from './client';
+import { API_BASE_URL } from './http';
 
 // Create Better Auth client
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 export const authClient = createAuthClient({
   baseURL: API_BASE_URL,
@@ -52,7 +52,43 @@ export interface AccountInfoResponse {
   data: Record<string, unknown>;
 }
 
+/** A Better Auth session row as returned by GET /api/auth/list-sessions. */
+export interface AuthSession {
+  id: string;
+  token: string;
+  userAgent?: string | null;
+  ipAddress?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+}
+
 export const authApi = {
+  /** Change the display name (Better Auth update-user; the email cannot change). */
+  updateName: (name: string): Promise<{ status: boolean }> =>
+    api.post('/api/auth/update-user', { name }),
+
+  /** The caller's current session id (to tell "this device" apart in the list). */
+  currentSessionId: async (): Promise<string | null> => {
+    const result = await api.get<{ session?: { id: string } } | null>('/api/auth/get-session');
+    return result?.session?.id ?? null;
+  },
+
+  /**
+   * Active sessions, newest activity first. Better Auth answers 403
+   * SESSION_NOT_FRESH when the current session is more than a day old.
+   */
+  listSessions: async (): Promise<AuthSession[]> => {
+    const sessions = await api.get<AuthSession[]>('/api/auth/list-sessions');
+    return [...sessions].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  },
+
+  revokeSession: (token: string): Promise<{ status: boolean }> =>
+    api.post('/api/auth/revoke-session', { token }),
+
+  revokeOtherSessions: (): Promise<{ status: boolean }> =>
+    api.post('/api/auth/revoke-other-sessions', {}),
+
   listAccounts: async (): Promise<LinkedAccount[]> => {
     const result = await authClient.listAccounts();
     if (result.error) {
@@ -87,10 +123,17 @@ export const authApi = {
   },
 
   unlinkAccount: async (input: UnlinkAccountInput): Promise<{ status: boolean }> => {
-    const result = await authClient.unlinkAccount({
-      providerId: input.providerId,
-      accountId: input.accountId,
-    });
+    // Better Auth 1.7 unlinks by its own account row id, not the provider's account id.
+    const accounts = await authApi.listAccounts();
+    const account = accounts.find(
+      (a) =>
+        a.providerId === input.providerId &&
+        (input.accountId === undefined || a.accountId === input.accountId)
+    );
+    if (!account) {
+      throw new Error('Linked account not found');
+    }
+    const result = await authClient.unlinkAccount({ accountId: account.id });
     if (result.error) {
       throw new Error(result.error.message || 'Failed to unlink account');
     }

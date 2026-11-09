@@ -1,279 +1,212 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { Redis } from 'ioredis';
-import { getDatabase } from '@flowtask/database';
-import { SmartViewService, TaskService, RateLimitService, ProjectService } from '@flowtask/domain';
-import type { FilterGroup } from '@flowtask/shared';
+import { getDatabase, type PublicShare } from '../db/index.js';
+import {
+  SmartViewService,
+  TaskService,
+  parseHiddenFields,
+  toPublicTask,
+  type PublicTask,
+  type SmartViewWithRelations,
+} from '../domain/index.js';
+import { hasPermission } from '../auth/index.js';
+import { createPaginationQuerySchema } from '@flowtask/shared';
 import {
   executeSmartViewTaskList,
+  isFilterGroupValue,
   smartViewUsesCurrentUserTemplate,
+  SMART_VIEW_MAX_LIMIT,
   UNSUPPORTED_PUBLIC_FILTER_CODE,
   UNSUPPORTED_PUBLIC_FILTER_MESSAGE,
+  readTimezoneHeader,
 } from './smart-view-query-utils.js';
+import { getAuthz } from '../lib/authorize.js';
+import { getClientIp } from '../lib/client-ip.js';
+import {
+  AppError,
+  badRequest,
+  fromResult,
+  handleRouteError,
+  notFound,
+  tooManyRequests,
+} from '../lib/responses.js';
 
 const publicRoutes = new Hono();
+publicRoutes.onError(handleRouteError);
 
-const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-const redis = new Redis(redisUrl);
-const rateLimitService = new RateLimitService(redis);
 const db = getDatabase();
 const smartViewService = new SmartViewService(db);
 const taskService = new TaskService(db);
-const projectService = new ProjectService(db);
 
-function applyHiddenFields<T extends object>(items: T[], hideFields: string[]): T[] {
-  if (hideFields.length === 0) {
-    return items;
-  }
+const PublicPageQuerySchema = createPaginationQuerySchema({
+  defaultLimit: 50,
+  maxLimit: SMART_VIEW_MAX_LIMIT,
+});
 
-  return items.map((item) => {
-    const itemCopy = { ...item } as T & Record<string, unknown>;
-    for (const field of hideFields) {
-      if (field in itemCopy) {
-        delete itemCopy[field];
-      }
-    }
-    return itemCopy as T;
-  });
-}
-
-type PublicSharePayloadResult =
-  | {
-      ok: true;
-      data: {
-        view: {
-          name: string;
-          description: string | null;
-          displayType: string;
-          groupBy: string;
-          secondaryGroupBy: string | null;
-          sortBy: string | null;
-          sortOrder: string | null;
-          visibleFields: string[] | null;
-        };
-        tasks: object[];
-        meta: {
-          total: number;
-          page: number;
-          limit: number;
-        };
-      };
-    }
-  | {
-      ok: false;
-      status: 400 | 500;
-      code: string;
-      message: string;
-    };
-
-async function buildPublicSharePayload({
-  view,
-  share,
-  page,
-  limit,
-}: {
+interface PublicSharePayload {
   view: {
-    workspaceId: string;
-    filters: unknown;
-    sortBy: string | null;
-    sortOrder: string | null;
     name: string;
     description: string | null;
     displayType: string;
     groupBy: string;
     secondaryGroupBy: string | null;
-    visibleFields: unknown;
+    sortBy: string | null;
+    sortOrder: string | null;
+    visibleFields: string[] | null;
   };
-  share: {
-    displayTypeOverride: string | null;
-    hideFields: unknown;
+  tasks: PublicTask[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
   };
-  page: number;
-  limit: number;
-}): Promise<PublicSharePayloadResult> {
-  const viewFilters = view.filters as FilterGroup | undefined;
-  if (smartViewUsesCurrentUserTemplate(viewFilters)) {
-    return {
-      ok: false as const,
-      status: 400,
-      code: UNSUPPORTED_PUBLIC_FILTER_CODE,
-      message: UNSUPPORTED_PUBLIC_FILTER_MESSAGE,
-    };
+}
+
+/** Any failure to resolve a share is reported the same way. */
+const shareNotFound = (): AppError => notFound('Share');
+
+async function loadActiveShare(token: string): Promise<PublicShare> {
+  const result = await smartViewService.getPublicShareByToken(token);
+  if (!result.ok) throw shareNotFound();
+  return result.value;
+}
+
+async function loadSharedView(share: PublicShare): Promise<SmartViewWithRelations> {
+  const result = await smartViewService.getById(share.smartViewId);
+  if (!result.ok) throw shareNotFound();
+  return result.value;
+}
+
+/**
+ * Run the shared view with the access of the user who created the share.
+ * If that user has left the workspace or lost the sharing permission, the
+ * link stops working instead of exposing data they can no longer see.
+ */
+async function buildPublicSharePayload(
+  view: SmartViewWithRelations,
+  share: PublicShare,
+  page: number,
+  limit: number,
+  timezone: string | undefined
+): Promise<PublicSharePayload> {
+  const filters = isFilterGroupValue(view.filters) ? view.filters : undefined;
+  if (smartViewUsesCurrentUserTemplate(filters)) {
+    throw badRequest(UNSUPPORTED_PUBLIC_FILTER_MESSAGE, UNSUPPORTED_PUBLIC_FILTER_CODE);
   }
 
-  const tasksResult = await executeSmartViewTaskList({
-    view,
-    taskService,
-    projectService,
-    filterContextUserId: 'public-share',
-    page,
-    limit,
-  });
+  if (!share.createdBy) throw shareNotFound();
+  const authz = getAuthz();
+  const creatorRole = await authz.getRole(view.workspaceId, share.createdBy);
+  if (!creatorRole || !hasPermission(creatorRole, 'smart_view:share')) throw shareNotFound();
+  const projectIds = await authz.listAccessibleProjectIds(
+    view.workspaceId,
+    share.createdBy,
+    creatorRole,
+    {
+      excludeArchived: true,
+    }
+  );
 
-  if (!tasksResult.ok) {
-    return {
-      ok: false as const,
-      status: 500,
-      code: 'FETCH_FAILED',
-      message: tasksResult.error.message,
-    };
-  }
+  const result = fromResult(
+    await executeSmartViewTaskList({
+      view,
+      taskService,
+      projectIds,
+      filterContextUserId: 'public-share',
+      page,
+      limit,
+      timezone,
+    }),
+    { code: 'FETCH_FAILED', message: 'Failed to load shared tasks' }
+  );
 
-  const hideFields = Array.isArray(share.hideFields) ? share.hideFields.filter((f): f is string => typeof f === 'string') : [];
-  const filteredTasks = applyHiddenFields(tasksResult.value.tasks, hideFields);
-  const displayType = share.displayTypeOverride || view.displayType;
+  const options = {
+    hiddenFields: parseHiddenFields(share.hideFields),
+    showExternalLinks: share.showExternalLinks,
+  };
   const visibleFields = Array.isArray(view.visibleFields)
     ? view.visibleFields.filter((field): field is string => typeof field === 'string')
     : null;
 
   return {
-    ok: true as const,
-    data: {
-      view: {
-        name: view.name,
-        description: view.description,
-        displayType,
-        groupBy: view.groupBy,
-        secondaryGroupBy: view.secondaryGroupBy,
-        sortBy: view.sortBy,
-        sortOrder: view.sortOrder,
-        visibleFields,
-      },
-      tasks: filteredTasks,
-      meta: {
-        total: tasksResult.value.total,
-        page,
-        limit,
-      },
+    view: {
+      name: view.name,
+      description: view.description,
+      displayType: share.displayTypeOverride || view.displayType,
+      groupBy: view.groupBy,
+      secondaryGroupBy: view.secondaryGroupBy,
+      sortBy: view.sortBy,
+      sortOrder: view.sortOrder,
+      visibleFields,
+    },
+    tasks: result.tasks.map((task) => toPublicTask(task, options)),
+    meta: {
+      total: Number(result.total),
+      page,
+      limit,
     },
   };
 }
 
+function pageOf(c: Context): { page: number; limit: number } {
+  const parsed = PublicPageQuerySchema.safeParse({
+    page: c.req.query('page'),
+    limit: c.req.query('limit'),
+  });
+  return parsed.success ? parsed.data : { page: 1, limit: 50 };
+}
+
 // Access public share by token
 publicRoutes.get('/share/:token', async (c) => {
-  const token = c.req.param('token');
+  const share = await loadActiveShare(c.req.param('token'));
 
-  // Get the public share
-  const shareResult = await smartViewService.getPublicShareByToken(token);
-
-  if (!shareResult.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: shareResult.error.message } }, 404);
-  }
-
-  const share = shareResult.value;
-
-  // Check if password protected
   if (share.passwordHash) {
-    return c.json({
-      success: true,
-      data: {
-        requiresPassword: true,
-        shareId: share.id,
-      },
-    });
+    return c.json({ success: true, data: { requiresPassword: true, shareId: share.id } });
   }
 
-  // Record access
-  await smartViewService.recordPublicShareAccess(token);
+  const view = await loadSharedView(share);
+  const { page, limit } = pageOf(c);
+  const payload = await buildPublicSharePayload(view, share, page, limit, readTimezoneHeader(c));
+  await smartViewService.recordPublicShareAccess(share.token);
 
-  // Get the smart view
-  const viewResult = await smartViewService.getById(share.smartViewId);
-  if (!viewResult.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Smart view not found' } }, 404);
-  }
-
-  const view = viewResult.value;
-  const page = Math.max(1, parseInt(c.req.query('page') || '1', 10));
-  const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') || '50', 10)));
-
-  const payloadResult = await buildPublicSharePayload({ view, share, page, limit });
-  if (!payloadResult.ok) {
-    return c.json(
-      {
-        success: false,
-        error: {
-          code: payloadResult.code,
-          message: payloadResult.message,
-        },
-      },
-      payloadResult.status
-    );
-  }
-
-  return c.json({
-    success: true,
-    data: payloadResult.data,
-  });
+  return c.json({ success: true, data: payload });
 });
 
 // Verify password for protected share
 publicRoutes.post(
   '/share/:token/verify',
-  zValidator('json', z.object({ password: z.string() })),
+  zValidator('json', z.object({ password: z.string().max(1024) })),
   async (c) => {
-    const token = c.req.param('token');
-    const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown';
-    const rateLimitKey = `share-pw:${ip}:${token}`;
+    const share = await loadActiveShare(c.req.param('token'));
+    const ip = getClientIp(c);
 
-    // Check if locked out from too many failed attempts
-    const lockout = await rateLimitService.isLockedOut(rateLimitKey);
-    if (lockout.lockedOut) {
-      return c.json({ success: false, error: { code: 'RATE_LIMITED', message: 'Too many attempts. Try again later.' } }, 429);
+    // Count the attempt *before* verifying: per (ip, token) and per token
+    // regardless of IP, so neither parallel guesses nor rotating IPs get around it.
+    const attempt = fromResult(await smartViewService.beginPasswordAttempt(share.token, ip), {
+      code: 'RATE_LIMIT_FAILED',
+      message: 'Unable to verify password right now',
+    });
+    if (!attempt.allowed) {
+      c.header('Retry-After', String(attempt.retryAfterSeconds));
+      throw tooManyRequests('Too many attempts. Try again later.');
     }
 
     const { password } = c.req.valid('json');
+    const verified = await smartViewService.verifyPublicSharePassword(share.token, password);
+    const success = verified.ok && verified.value;
+    await smartViewService.settlePasswordAttempt(share.token, ip, success);
 
-    const isValid = await smartViewService.verifyPublicSharePassword(token, password);
-
-    if (!isValid.ok || !isValid.value) {
-      await rateLimitService.trackFailedAttempt(rateLimitKey);
-      return c.json({ success: false, error: { code: 'INVALID_PASSWORD', message: 'Invalid password' } }, 401);
+    if (!success) {
+      throw new AppError(401, 'INVALID_PASSWORD', 'Invalid password');
     }
 
-    // Clear failed attempts on success
-    await rateLimitService.clearFailedAttempts(rateLimitKey);
+    const view = await loadSharedView(share);
+    const { page, limit } = pageOf(c);
+    const payload = await buildPublicSharePayload(view, share, page, limit, readTimezoneHeader(c));
+    await smartViewService.recordPublicShareAccess(share.token);
 
-    // Record access
-    await smartViewService.recordPublicShareAccess(token);
-
-    // Get the public share
-    const shareResult = await smartViewService.getPublicShareByToken(token);
-    if (!shareResult.ok) {
-      return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Share not found' } }, 404);
-    }
-
-    const share = shareResult.value;
-
-    // Get the smart view
-    const viewResult = await smartViewService.getById(share.smartViewId);
-    if (!viewResult.ok) {
-      return c.json({ success: false, error: { code: 'NOT_FOUND', message: 'Smart view not found' } }, 404);
-    }
-
-    const view = viewResult.value;
-
-    const page = Math.max(1, parseInt(c.req.query('page') || '1', 10));
-    const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') || '50', 10)));
-
-    const payloadResult = await buildPublicSharePayload({ view, share, page, limit });
-    if (!payloadResult.ok) {
-      return c.json(
-        {
-          success: false,
-          error: {
-            code: payloadResult.code,
-            message: payloadResult.message,
-          },
-        },
-        payloadResult.status
-      );
-    }
-
-    return c.json({
-      success: true,
-      data: payloadResult.data,
-    });
+    return c.json({ success: true, data: payload });
   }
 );
 

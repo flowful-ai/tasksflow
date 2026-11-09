@@ -1,97 +1,71 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { getDatabase } from '@flowtask/database';
-import { AppAdminService } from '@flowtask/domain';
-import { getCurrentUser } from '@flowtask/auth';
+import { getDatabase } from '../db/index.js';
+import { AppAdminService } from '../domain/index.js';
 import { AppUsersListQuerySchema, UpdateAppUserRoleSchema } from '@flowtask/shared';
+import { requireUser } from '../lib/authorize.js';
+import { AppError, forbidden, fromResult, handleRouteError, notFound } from '../lib/responses.js';
 
 const appAdminRoutes = new Hono();
+appAdminRoutes.onError(handleRouteError);
+
 const db = getDatabase();
 const appAdminService = new AppAdminService(db);
 
-function mapServiceError(error: Error): { status: 400 | 403 | 404 | 409 | 500; code: string } {
+/** Known, user-facing AppAdminService errors; anything else is internal. */
+function mapServiceError(error: Error): AppError {
   switch (error.message) {
     case 'Only app managers can manage user roles':
-      return { status: 403, code: 'FORBIDDEN' };
+      return forbidden(error.message);
     case 'Cannot demote the last app manager':
-      return { status: 409, code: 'LAST_APP_MANAGER' };
+      return new AppError(409, 'LAST_APP_MANAGER', error.message);
     case 'User not found':
-      return { status: 404, code: 'NOT_FOUND' };
+      return notFound('User');
     default:
-      return { status: 400, code: 'BAD_REQUEST' };
+      console.error('[app-admin] role update failed:', error);
+      return new AppError(500, 'UPDATE_FAILED', 'Failed to update user role');
   }
 }
 
-async function requireAppManager(userId: string): Promise<{ allowed: true } | { allowed: false; status: 403 | 404; message: string }> {
+async function requireAppManager(userId: string): Promise<void> {
   const contextResult = await appAdminService.getAppContext(userId);
-  if (!contextResult.ok) {
-    return { allowed: false, status: 404, message: contextResult.error.message };
-  }
-
-  if (!contextResult.value.isAppManager) {
-    return { allowed: false, status: 403, message: 'Only app managers can access app settings' };
-  }
-
-  return { allowed: true };
+  if (!contextResult.ok) throw notFound('User');
+  if (!contextResult.value.isAppManager)
+    throw forbidden('Only app managers can access app settings');
 }
 
 appAdminRoutes.get('/me', async (c) => {
-  const user = getCurrentUser(c);
+  const user = requireUser(c);
   const contextResult = await appAdminService.getAppContext(user.id);
-
-  if (!contextResult.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: contextResult.error.message } }, 404);
-  }
-
+  if (!contextResult.ok) throw notFound('User');
   return c.json({ success: true, data: contextResult.value });
 });
 
-appAdminRoutes.get(
-  '/users',
-  zValidator('query', AppUsersListQuerySchema),
-  async (c) => {
-    const user = getCurrentUser(c);
-    const guard = await requireAppManager(user.id);
-    if (!guard.allowed) {
-      const code = guard.status === 404 ? 'NOT_FOUND' : 'FORBIDDEN';
-      return c.json({ success: false, error: { code, message: guard.message } }, guard.status);
-    }
+appAdminRoutes.get('/users', zValidator('query', AppUsersListQuerySchema), async (c) => {
+  const user = requireUser(c);
+  await requireAppManager(user.id);
 
-    const query = c.req.valid('query');
-    const result = await appAdminService.listUsers(query);
-
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'LIST_FAILED', message: result.error.message } }, 500);
-    }
-
-    return c.json({ success: true, data: result.value });
-  }
-);
+  const result = fromResult(await appAdminService.listUsers(c.req.valid('query')), {
+    code: 'LIST_FAILED',
+    message: 'Failed to list users',
+  });
+  return c.json({ success: true, data: result });
+});
 
 appAdminRoutes.patch(
   '/users/:userId/role',
   zValidator('json', UpdateAppUserRoleSchema),
   async (c) => {
-    const user = getCurrentUser(c);
-    const guard = await requireAppManager(user.id);
-    if (!guard.allowed) {
-      const code = guard.status === 404 ? 'NOT_FOUND' : 'FORBIDDEN';
-      return c.json({ success: false, error: { code, message: guard.message } }, guard.status);
-    }
+    const user = requireUser(c);
+    await requireAppManager(user.id);
 
-    const targetUserId = c.req.param('userId');
     const { appRole } = c.req.valid('json');
-
     const result = await appAdminService.updateUserRole({
-      targetUserId,
+      targetUserId: c.req.param('userId'),
       appRole,
       actorUserId: user.id,
     });
-
-    if (!result.ok) {
-      const mapped = mapServiceError(result.error);
-      return c.json({ success: false, error: { code: mapped.code, message: result.error.message } }, mapped.status);
-    }
+    if (!result.ok) throw mapServiceError(result.error);
 
     return c.json({ success: true, data: result.value });
   }

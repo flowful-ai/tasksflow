@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../../stores/auth';
 import { OAuthButtons } from '../../components/auth/OAuthButtons';
 
@@ -7,10 +8,22 @@ export function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get('redirect') || '/dashboard';
-  const { login, error, clearError, isAuthenticated } = useAuthStore();
+  const { login, error, clearError, isAuthenticated } = useAuthStore(
+    useShallow((s) => ({
+      login: s.login,
+      error: s.error,
+      clearError: s.clearError,
+      isAuthenticated: s.isAuthenticated,
+    }))
+  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const socialEnabled = Boolean(
+    import.meta.env.VITE_GITHUB_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID
+  );
+  // Email sign-in is kept only for accounts created with a password before v2.
+  const [showEmailForm, setShowEmailForm] = useState(!socialEnabled);
 
   const completeRedirect = (target: string, replace = false) => {
     if (/^https?:\/\//i.test(target)) {
@@ -21,7 +34,7 @@ export function LoginPage() {
       }
       return;
     }
-    navigate(target, { replace });
+    void navigate(target, { replace });
   };
 
   useEffect(() => {
@@ -44,17 +57,24 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
+    <main className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="mx-auto w-12 h-12 bg-primary-600 rounded-xl flex items-center justify-center">
-            <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <svg
+              aria-hidden
+              className="w-7 h-7 text-white"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+            >
               <path d="M5 12l5 5L19 7" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
-          <h2 className="mt-6 text-3xl font-bold text-gray-900">Welcome back</h2>
+          <h1 className="mt-6 text-3xl font-bold text-gray-900">Welcome back</h1>
           <p className="mt-2 text-sm text-gray-600">
-            Sign in to your TasksFlow account
+            Sign in or create your account with GitHub or Google
           </p>
         </div>
 
@@ -62,7 +82,7 @@ export function LoginPage() {
           <OAuthButtons callbackURL={redirectTo} />
 
           {error && (
-            <div className="p-3 text-sm text-red-600 bg-red-50 rounded-lg mb-4">
+            <div role="alert" className="p-3 text-sm text-red-600 bg-red-50 rounded-lg mb-4">
               {error}
               <button type="button" onClick={clearError} className="ml-2 underline">
                 Dismiss
@@ -70,63 +90,62 @@ export function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                  Email address
-                </label>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="input mt-1"
-                  placeholder="you@example.com"
-                />
+          {!showEmailForm ? (
+            <p className="text-center text-sm text-gray-500 mt-6">
+              <button
+                type="button"
+                onClick={() => setShowEmailForm(true)}
+                className="underline hover:text-gray-700"
+              >
+                Sign in with email and password
+              </button>{' '}
+              (existing accounts only)
+            </p>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-6 mt-6">
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                    Email address
+                  </label>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="input mt-1"
+                    placeholder="you@example.com"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                    Password
+                  </label>
+                  <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="input mt-1"
+                    placeholder="Enter your password"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                  Password
-                </label>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="input mt-1"
-                  placeholder="Enter your password"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="btn btn-primary w-full py-3"
-            >
-              {isSubmitting ? 'Signing in...' : 'Sign in'}
-            </button>
-          </form>
-
-          <p className="text-center text-sm text-gray-600 mt-6">
-            Don&apos;t have an account?{' '}
-            <Link
-              to={redirectTo !== '/dashboard' ? `/register?redirect=${encodeURIComponent(redirectTo)}` : '/register'}
-              className="font-medium text-primary-600 hover:text-primary-500"
-            >
-              Create one
-            </Link>
-          </p>
+              <button type="submit" disabled={isSubmitting} className="btn btn-primary w-full py-3">
+                {isSubmitting ? 'Signing in...' : 'Sign in'}
+              </button>
+            </form>
+          )}
         </div>
       </div>
-    </div>
+    </main>
   );
 }

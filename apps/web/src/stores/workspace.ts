@@ -1,134 +1,95 @@
+/**
+ * UI selection state only. Workspaces and projects themselves are server
+ * state: read them with useWorkspaces()/useCurrentWorkspace()/useProjects()
+ * from src/hooks/queries.
+ *
+ * Persisted: the selected workspace/project ids, sidebar and view preferences.
+ *
+ * Always read with a selector:
+ *   const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
+ *   const { a, b } = useWorkspaceStore(useShallow((s) => ({ a: s.a, b: s.b })));
+ */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Workspace, Project } from '@flowtask/shared';
-import { api } from '../api/client';
 
-type ProjectWithTaskCount = Project & { taskCount?: number };
+export type ProjectViewMode = 'kanban' | 'list';
 
-interface WorkspaceState {
-  workspaces: Workspace[];
-  currentWorkspace: Workspace | null;
-  projects: ProjectWithTaskCount[];
-  currentProject: ProjectWithTaskCount | null;
-  isLoading: boolean;
-  error: string | null;
+export interface WorkspaceUiState {
+  currentWorkspaceId: string | null;
+  currentProjectId: string | null;
+  /** Desktop sidebar collapsed (mobile drawer state is not persisted). */
+  sidebarCollapsed: boolean;
+  /** Board or list, per project id. */
+  projectViewModes: Record<string, ProjectViewMode>;
 
-  // Actions
-  fetchWorkspaces: () => Promise<void>;
-  setCurrentWorkspace: (workspace: Workspace | null) => void;
-  fetchProjects: (workspaceId: string) => Promise<void>;
-  setCurrentProject: (project: ProjectWithTaskCount | null) => void;
-  createWorkspace: (name: string, slug: string) => Promise<Workspace>;
-  createProject: (name: string, identifier: string) => Promise<ProjectWithTaskCount>;
+  setCurrentWorkspaceId: (workspaceId: string | null) => void;
+  setCurrentProjectId: (projectId: string | null) => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  setProjectViewMode: (projectId: string, mode: ProjectViewMode) => void;
   reset: () => void;
 }
 
-export const useWorkspaceStore = create<WorkspaceState>()(
+const INITIAL = {
+  currentWorkspaceId: null,
+  currentProjectId: null,
+  sidebarCollapsed: false,
+  projectViewModes: {},
+} satisfies Partial<WorkspaceUiState>;
+
+interface LegacyPersistedState {
+  currentWorkspace?: { id?: string } | null;
+  currentProject?: { id?: string } | null;
+}
+
+function isRecord(value: object | null | undefined): value is Record<string, string | object> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isLegacyState(value: unknown): value is LegacyPersistedState {
+  return typeof value === 'object' && value !== null;
+}
+
+/** v0 persisted whole objects; keep only their ids. */
+export function migrateWorkspaceState(
+  persisted: LegacyPersistedState | null | undefined
+): Pick<WorkspaceUiState, 'currentWorkspaceId' | 'currentProjectId'> {
+  const ws = persisted?.currentWorkspace;
+  const project = persisted?.currentProject;
+  return {
+    currentWorkspaceId: isRecord(ws) && typeof ws.id === 'string' ? ws.id : null,
+    currentProjectId: isRecord(project) && typeof project.id === 'string' ? project.id : null,
+  };
+}
+
+export const useWorkspaceStore = create<WorkspaceUiState>()(
   persist(
-    (set, get) => ({
-      workspaces: [],
-      currentWorkspace: null,
-      projects: [],
-      currentProject: null,
-      isLoading: false,
-      error: null,
-
-      fetchWorkspaces: async () => {
-        set({ isLoading: true, error: null });
-        try {
-          const response = await api.get<{ data?: Workspace[] }>('/api/workspaces');
-          const workspaces = response.data || [];
-          set({
-            workspaces,
-            isLoading: false,
-          });
-
-          // Set current workspace if not set
-          if (!get().currentWorkspace && workspaces.length > 0) {
-            set({ currentWorkspace: workspaces[0] });
-          }
-        } catch (error) {
-          set({
-            error: error instanceof Error ? error.message : 'Failed to fetch workspaces',
-            isLoading: false,
-          });
-        }
-      },
-
-      setCurrentWorkspace: (workspace) => {
-        set({ currentWorkspace: workspace, projects: [], currentProject: null });
-        if (workspace) {
-          get().fetchProjects(workspace.id);
-        }
-      },
-
-      fetchProjects: async (workspaceId) => {
-        set({ isLoading: true, error: null });
-        try {
-          const response = await api.get<{ data?: ProjectWithTaskCount[] }>(
-            `/api/projects?workspaceId=${workspaceId}`
-          );
-          set({
-            projects: response.data || [],
-            isLoading: false,
-          });
-        } catch (error) {
-          set({
-            error: error instanceof Error ? error.message : 'Failed to fetch projects',
-            isLoading: false,
-          });
-        }
-      },
-
-      setCurrentProject: (project) => {
-        set({ currentProject: project });
-      },
-
-      createWorkspace: async (name, slug) => {
-        const response = await api.post<{ data: Workspace }>('/api/workspaces', { name, slug });
-        const workspace = response.data;
-        set((state) => ({
-          workspaces: [...state.workspaces, workspace],
-          currentWorkspace: workspace,
-        }));
-        return workspace;
-      },
-
-      createProject: async (name, identifier) => {
-        const currentWorkspace = get().currentWorkspace;
-        if (!currentWorkspace) {
-          throw new Error('No workspace selected');
-        }
-
-        const response = await api.post<{ data: ProjectWithTaskCount }>('/api/projects', {
-          workspaceId: currentWorkspace.id,
-          name,
-          identifier,
-        });
-        const project = response.data;
-        set((state) => ({
-          projects: [...state.projects, project],
-          currentProject: project,
-        }));
-        return project;
-      },
-
-      reset: () => {
-        set({
-          workspaces: [],
-          currentWorkspace: null,
-          projects: [],
-          currentProject: null,
-          isLoading: false,
-          error: null,
-        });
-      },
+    (set) => ({
+      ...INITIAL,
+      setCurrentWorkspaceId: (currentWorkspaceId) =>
+        set((state) =>
+          state.currentWorkspaceId === currentWorkspaceId
+            ? state
+            : { currentWorkspaceId, currentProjectId: null }
+        ),
+      setCurrentProjectId: (currentProjectId) => set({ currentProjectId }),
+      setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
+      setProjectViewMode: (projectId, mode) =>
+        set((state) => ({ projectViewModes: { ...state.projectViewModes, [projectId]: mode } })),
+      reset: () => set(INITIAL),
     }),
     {
       name: 'flowtask-workspace',
+      version: 1,
       partialize: (state) => ({
-        currentWorkspace: state.currentWorkspace,
-        currentProject: state.currentProject,
+        currentWorkspaceId: state.currentWorkspaceId,
+        currentProjectId: state.currentProjectId,
+        sidebarCollapsed: state.sidebarCollapsed,
+        projectViewModes: state.projectViewModes,
+      }),
+      // Only called when the stored version differs (v0 stored whole objects).
+      migrate: (persisted) => ({
+        ...INITIAL,
+        ...(isLegacyState(persisted) ? migrateWorkspaceState(persisted) : {}),
       }),
     }
   )

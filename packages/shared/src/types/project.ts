@@ -7,7 +7,11 @@ export type ProjectAccess = z.infer<typeof ProjectAccessSchema>;
 export const ProjectSchema = BaseEntitySchema.extend({
   workspaceId: z.string().uuid(),
   name: z.string().min(1).max(100),
-  identifier: z.string().min(1).max(10).regex(/^[A-Z0-9]+$/),
+  identifier: z
+    .string()
+    .min(1)
+    .max(10)
+    .regex(/^[A-Z0-9]+$/),
   description: z.string().nullable(),
   icon: z.string().nullable(),
   isArchived: z.boolean().default(false),
@@ -19,9 +23,13 @@ export type Project = z.infer<typeof ProjectSchema>;
 
 export const CreateProjectSchema = z.object({
   name: z.string().min(1).max(100),
-  identifier: z.string().min(1).max(10).regex(/^[A-Z0-9]+$/, {
-    message: 'Identifier must contain only uppercase letters and numbers',
-  }),
+  identifier: z
+    .string()
+    .min(1)
+    .max(10)
+    .regex(/^[A-Z0-9]+$/, {
+      message: 'Identifier must contain only uppercase letters and numbers',
+    }),
   description: z.string().optional(),
   icon: z.string().optional(),
 });

@@ -1,4 +1,5 @@
 import type { TaskCardTask } from './TaskCard';
+import { sortColumnTasks } from '../board/ordering';
 
 export type GroupBy = 'state' | 'assignee' | 'project' | 'priority' | 'label' | 'none';
 
@@ -28,39 +29,23 @@ export const priorityOrder: Record<string, number> = {
 };
 
 /**
- * Sorts tasks by priority (urgent first) then by last modification date (most recent first)
+ * Column order: by position (code-unit order, id tiebreak, as the server);
+ * Done columns put the most recently completed first.
  */
-export function sortTasksByPriorityAndDate<T extends { priority: string | null; updatedAt?: string | null }>(tasks: T[]): T[] {
-  return [...tasks].sort((a, b) => {
-    const aPrio = priorityOrder[a.priority || 'none'] ?? 4;
-    const bPrio = priorityOrder[b.priority || 'none'] ?? 4;
-    if (aPrio !== bPrio) return aPrio - bPrio;
-    const aDate = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-    const bDate = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-    return bDate - aDate;
-  });
-}
-
-/**
- * Sorts tasks based on column category:
- * - 'done' columns: sort by last modification date only (most recent first)
- * - Other columns: sort by priority then last modification date
- */
-export function sortTasksForColumn<T extends { priority: string | null; updatedAt?: string | null }>(
-  tasks: T[],
-  category?: string
-): T[] {
-  if (category === 'done') {
-    return [...tasks].sort((a, b) => {
-      const aDate = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-      const bDate = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-      return bDate - aDate;
-    });
-  }
-  return sortTasksByPriorityAndDate(tasks);
+export function sortTasksForColumn<
+  T extends {
+    id: string;
+    position?: string;
+    updatedAt?: string | null;
+    completedAt?: string | null;
+  },
+>(tasks: T[], category?: string): T[] {
+  return sortColumnTasks(tasks, category);
 }
 
 export const DONE_COLUMN_INITIAL_LIMIT = 20;
+/** Cards rendered per column before a "Show more" button (no virtualiser installed). */
+export const COLUMN_RENDER_LIMIT = 150;
 
 const stateCategoryOrder: Record<string, number> = {
   backlog: 0,
@@ -124,7 +109,7 @@ export function groupTasks(
   if (groupBy === 'state' && availableStates) {
     if (mergeStatesByCategory) {
       // When merging by category, pre-populate by category names (matching getGroupInfo logic)
-      const categories = new Set(availableStates.map(s => s.category || 'backlog'));
+      const categories = new Set(availableStates.map((s) => s.category || 'backlog'));
       for (const category of categories) {
         groupMap.set(category, {
           id: category,
@@ -141,6 +126,7 @@ export function groupTasks(
           id: state.id,
           name: state.name,
           color: state.color,
+          category: state.category,
           tasks: [],
         });
       }
@@ -180,19 +166,23 @@ function getGroupInfo(
       // When merging by category, use category as the group ID
       if (mergeStatesByCategory) {
         const category = task.state.category || 'backlog';
-        return [{
-          id: category,
-          name: categoryLabels[category] || category,
-          color: categoryColors[category] || '#6b7280',
-          category,
-        }];
+        return [
+          {
+            id: category,
+            name: categoryLabels[category] || category,
+            color: categoryColors[category] || '#6b7280',
+            category,
+          },
+        ];
       }
-      return [{
-        id: task.state.id,
-        name: task.state.name,
-        color: task.state.color,
-        category: task.state.category,
-      }];
+      return [
+        {
+          id: task.state.id,
+          name: task.state.name,
+          color: task.state.color,
+          category: task.state.category,
+        },
+      ];
 
     case 'assignee':
       if (task.assignees.length === 0) {
@@ -207,13 +197,16 @@ function getGroupInfo(
     case 'project':
       return [{ id: task.project.id, name: task.project.name, color: null }];
 
-    case 'priority':
+    case 'priority': {
       const priority = task.priority || 'none';
-      return [{
-        id: priority,
-        name: priorityLabels[priority] || priority,
-        color: priorityColors[priority] || '#6b7280',
-      }];
+      return [
+        {
+          id: priority,
+          name: priorityLabels[priority] || priority,
+          color: priorityColors[priority] || '#6b7280',
+        },
+      ];
+    }
 
     case 'label':
       if (task.labels.length === 0) {

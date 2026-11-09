@@ -9,7 +9,9 @@ import {
 
 describe('mcp-oauth scope validation', () => {
   it('accepts one workspace scope + one or more valid tool scopes', () => {
-    const parsed = validateRequestedMcpScopes('mcp:workspace:workspace-1 mcp:tool:create_task mcp:tool:add_comment');
+    const parsed = validateRequestedMcpScopes(
+      'mcp:workspace:workspace-1 mcp:tool:create_task mcp:tool:add_comment'
+    );
 
     expect(parsed.workspaceId).toBe('workspace-1');
     expect(parsed.toolScopes).toEqual(['create_task', 'add_comment']);
@@ -20,11 +22,15 @@ describe('mcp-oauth scope validation', () => {
   });
 
   it('rejects multiple workspace scopes', () => {
-    expect(() => validateRequestedMcpScopes('mcp:workspace:w1 mcp:workspace:w2 mcp:tool:create_task')).toThrow(OAuthError);
+    expect(() =>
+      validateRequestedMcpScopes('mcp:workspace:w1 mcp:workspace:w2 mcp:tool:create_task')
+    ).toThrow(OAuthError);
   });
 
   it('rejects unknown tool scope', () => {
-    expect(() => validateRequestedMcpScopes('mcp:workspace:w1 mcp:tool:drop_database')).toThrow(OAuthError);
+    expect(() => validateRequestedMcpScopes('mcp:workspace:w1 mcp:tool:drop_database')).toThrow(
+      OAuthError
+    );
   });
 });
 
