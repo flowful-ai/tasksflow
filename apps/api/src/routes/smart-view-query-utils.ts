@@ -1,5 +1,5 @@
-import { FilterEngine, type ProjectService, type TaskService } from '@flowtask/domain';
-import { ok, type FilterCondition, type FilterGroup } from '@flowtask/shared';
+import { FilterEngine, type TaskService } from '@flowtask/domain';
+import { ok, FilterGroupSchema, type FilterCondition, type FilterGroup } from '@flowtask/shared';
 
 export const CURRENT_USER_TEMPLATE = '{{current_user}}';
 export const UNSUPPORTED_PUBLIC_FILTER_CODE = 'UNSUPPORTED_PUBLIC_FILTER';
@@ -72,6 +72,9 @@ function resolveTaskSortOrder(value: string | null): TaskSortOrder {
   return isValidTaskSortOrder(value) ? value : 'asc';
 }
 
+/** Smart-view execution pages are capped at this many tasks. */
+export const SMART_VIEW_MAX_LIMIT = 100;
+
 interface ExecuteSmartViewTaskListOptions {
   view: {
     workspaceId: string;
@@ -80,21 +83,30 @@ interface ExecuteSmartViewTaskListOptions {
     sortOrder: string | null;
   };
   taskService: TaskService;
-  projectService: ProjectService;
+  /**
+   * Projects whose tasks may be returned: the viewer's accessible, non-archived
+   * projects in the view's workspace (see AuthorizationService). Never derive
+   * this from the workspace alone, or restricted projects leak.
+   */
+  projectIds: readonly string[];
   filterContextUserId: string;
   page: number;
   limit: number;
 }
 
+export function isFilterGroupValue(value: unknown): value is FilterGroup {
+  return FilterGroupSchema.safeParse(value).success;
+}
+
 export async function executeSmartViewTaskList({
   view,
   taskService,
-  projectService,
+  projectIds,
   filterContextUserId,
   page,
   limit,
 }: ExecuteSmartViewTaskListOptions) {
-  const viewFilters = view.filters as FilterGroup | undefined;
+  const viewFilters = isFilterGroupValue(view.filters) ? view.filters : undefined;
   const filterContext = FilterEngine.createContext(filterContextUserId);
   const filterSql = viewFilters?.conditions?.length ? FilterEngine.buildWhereClause(viewFilters, filterContext) : null;
 
@@ -102,10 +114,7 @@ export async function executeSmartViewTaskList({
     ? FilterEngine.getRequiredJoins(viewFilters)
     : new Set<'task_states' | 'task_assignees' | 'task_labels'>();
 
-  const projectsResult = await projectService.list({ filters: { workspaceId: view.workspaceId } });
-  const projectIds = projectsResult.ok ? projectsResult.value.map((project) => project.id) : [];
-
-  // A workspace with no projects has no tasks. Short-circuit to skip the count
+  // No accessible projects means no tasks. Short-circuit to skip the count
   // + select round-trips. (TaskService.list also treats an empty projectIds
   // array as "match nothing", so this is an optimization, not the only guard.)
   if (projectIds.length === 0) {
@@ -113,12 +122,12 @@ export async function executeSmartViewTaskList({
   }
 
   return taskService.list({
-    filters: { projectIds },
+    filters: { projectIds: [...projectIds] },
     filterSql,
     requiredJoins,
     sortBy: resolveTaskSortBy(view.sortBy),
     sortOrder: resolveTaskSortOrder(view.sortOrder),
-    page,
-    limit,
+    page: Math.max(1, page),
+    limit: Math.min(Math.max(1, limit), SMART_VIEW_MAX_LIMIT),
   });
 }
