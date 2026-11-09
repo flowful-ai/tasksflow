@@ -1,29 +1,18 @@
 import { useEffect, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '../../api/client';
-import { queryKeys } from '../../api/queryKeys';
-
-interface ProjectSettingsData {
-  id: string;
-  name: string;
-  identifier: string;
-  description: string | null;
-  icon: string | null;
-  isArchived: boolean;
-}
+import type { ProjectDetailDto } from '../../api/types';
+import { useUpdateProject } from '../../hooks/queries';
+import { toast } from '../ui';
 
 interface GeneralSettingsProps {
-  project: ProjectSettingsData;
-  onUpdated: () => void;
+  project: Pick<ProjectDetailDto, 'id' | 'name' | 'identifier' | 'description' | 'icon' | 'isArchived'>;
 }
 
-export function GeneralSettings({ project, onUpdated }: GeneralSettingsProps) {
-  const queryClient = useQueryClient();
+export function GeneralSettings({ project }: GeneralSettingsProps) {
+  const updateProject = useUpdateProject(project.id);
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description ?? '');
   const [icon, setIcon] = useState(project.icon ?? '');
   const [isArchived, setIsArchived] = useState(project.isArchived);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setName(project.name);
@@ -32,29 +21,13 @@ export function GeneralSettings({ project, onUpdated }: GeneralSettingsProps) {
     setIsArchived(project.isArchived);
   }, [project]);
 
-  const updateMutation = useMutation({
-    mutationFn: async () => {
-      return api.patch(`/api/projects/${project.id}`, {
-        name: name.trim(),
-        description: description.trim() || null,
-        icon: icon.trim() || null,
-        isArchived,
-      });
-    },
-    onSuccess: async () => {
-      setError(null);
-      onUpdated();
-      await queryClient.invalidateQueries({ queryKey: queryKeys.projects.lists() });
-    },
-    onError: (err: Error) => {
-      setError(err.message);
-    },
-  });
-
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    setError(null);
-    updateMutation.mutate();
+    updateProject.mutate(
+      // Empty strings clear the optional fields (the API rejects null here).
+      { name: name.trim(), description: description.trim(), icon: icon.trim(), isArchived },
+      { onSuccess: () => toast.success('Project saved') }
+    );
   };
 
   return (
@@ -65,61 +38,53 @@ export function GeneralSettings({ project, onUpdated }: GeneralSettingsProps) {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && (
-          <div className="p-3 text-sm text-red-600 bg-red-50 rounded-lg">
-            {error}
-          </div>
-        )}
-
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="project-name" className="block text-sm font-medium text-gray-700 mb-1">
             Project Name
           </label>
-          <input
-            type="text"
-            className="input"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            required
-          />
+          <input id="project-name" type="text" className="input" value={name} onChange={(e) => setName(e.target.value)} required />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="project-identifier" className="block text-sm font-medium text-gray-700 mb-1">
             Identifier
           </label>
           <input
+            id="project-identifier"
             type="text"
             className="input bg-gray-50 text-gray-500"
             value={project.identifier}
             readOnly
+            aria-describedby="project-identifier-hint"
           />
-          <p className="mt-1 text-xs text-gray-500">
+          <p id="project-identifier-hint" className="mt-1 text-xs text-gray-500">
             Identifier cannot be changed once created.
           </p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="project-description" className="block text-sm font-medium text-gray-700 mb-1">
             Description
           </label>
           <textarea
+            id="project-description"
             className="input min-h-[90px]"
             value={description}
-            onChange={(event) => setDescription(event.target.value)}
+            onChange={(e) => setDescription(e.target.value)}
             placeholder="Optional description"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="project-icon" className="block text-sm font-medium text-gray-700 mb-1">
             Icon
           </label>
           <input
+            id="project-icon"
             type="text"
             className="input"
             value={icon}
-            onChange={(event) => setIcon(event.target.value)}
+            onChange={(e) => setIcon(e.target.value)}
             placeholder="Optional icon name or emoji"
           />
         </div>
@@ -129,7 +94,7 @@ export function GeneralSettings({ project, onUpdated }: GeneralSettingsProps) {
             id="project-archived"
             type="checkbox"
             checked={isArchived}
-            onChange={(event) => setIsArchived(event.target.checked)}
+            onChange={(e) => setIsArchived(e.target.checked)}
             className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
           />
           <label htmlFor="project-archived" className="text-sm text-gray-700">
@@ -138,12 +103,8 @@ export function GeneralSettings({ project, onUpdated }: GeneralSettingsProps) {
         </div>
 
         <div className="pt-2 flex gap-3">
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={updateMutation.isPending || !name.trim()}
-          >
-            {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+          <button type="submit" className="btn btn-primary" disabled={updateProject.isPending || !name.trim()}>
+            {updateProject.isPending ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
       </form>

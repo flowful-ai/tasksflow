@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { PageSpinner } from '../components/ui';
 
 /**
  * GitHub App setup URL landing page (when the app is configured to redirect
@@ -20,11 +21,9 @@ export function GitHubCallbackPage() {
   }, []);
 
   return (
-    <div className="flex items-center justify-center h-screen">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto mb-4" />
-        <p className="text-gray-600">Completing GitHub setup...</p>
-      </div>
-    </div>
+    <main className="flex h-screen flex-col items-center justify-center">
+      <PageSpinner className="h-auto" label="Completing GitHub setup" />
+      <p className="mt-4 text-gray-600">Completing GitHub setup...</p>
+    </main>
   );
 }

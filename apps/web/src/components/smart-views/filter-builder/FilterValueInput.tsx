@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { ColorDot, Popover, PopoverContent, PopoverTrigger } from '../../ui';
 import { X, Check, ChevronDown } from 'lucide-react';
 import clsx from 'clsx';
 import type { FilterFieldType } from './constants';
@@ -8,7 +9,7 @@ import {
   USER_TEMPLATES,
   operatorSupportsMultiple,
 } from './constants';
-import type { FilterOperator } from '@flowtask/shared';
+import type { FilterCondition, FilterOperator } from '@flowtask/shared';
 
 interface WorkspaceMember {
   userId: string;
@@ -35,11 +36,27 @@ interface Project {
   name: string;
 }
 
+/** Values this editor writes into a filter condition. */
+export type FilterValue = string | number | string[] | undefined;
+
+function asString(value: FilterCondition['value']): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function asNumber(value: FilterCondition['value']): number {
+  return typeof value === 'number' ? value : 0;
+}
+
+function asStringArray(value: FilterCondition['value']): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+}
+
 interface FilterValueInputProps {
   fieldType: FilterFieldType;
   operator: FilterOperator;
-  value: unknown;
-  onChange: (value: unknown) => void;
+  /** The condition's stored value (shape depends on the field type and operator). */
+  value: FilterCondition['value'];
+  onChange: (value: FilterValue) => void;
   workspaceMembers: WorkspaceMember[];
   labels: Label[];
   stateCategories: StateCategory[];
@@ -60,23 +77,23 @@ export function FilterValueInput({
 
   switch (fieldType) {
     case 'text':
-      return <TextInput value={value as string} onChange={onChange} />;
+      return <TextInput value={asString(value)} onChange={onChange} />;
 
     case 'number':
-      return <NumberInput value={value as number} onChange={onChange} />;
+      return <NumberInput value={asNumber(value)} onChange={onChange} />;
 
     case 'priority':
       return isMultiple ? (
         <MultiSelect
           options={PRIORITY_OPTIONS}
-          value={(value as string[]) || []}
+          value={asStringArray(value)}
           onChange={onChange}
           placeholder="Select priorities..."
         />
       ) : (
         <SingleSelect
           options={PRIORITY_OPTIONS}
-          value={value as string}
+          value={asString(value)}
           onChange={onChange}
           placeholder="Select priority..."
         />
@@ -86,42 +103,42 @@ export function FilterValueInput({
       return isMultiple ? (
         <MultiSelect
           options={stateCategories}
-          value={(value as string[]) || []}
+          value={asStringArray(value)}
           onChange={onChange}
           placeholder="Select states..."
         />
       ) : (
         <SingleSelect
           options={stateCategories}
-          value={value as string}
+          value={asString(value)}
           onChange={onChange}
           placeholder="Select state..."
         />
       );
 
     case 'date':
-      return <DateInput value={value as string} onChange={onChange} />;
+      return <DateInput value={asString(value)} onChange={onChange} />;
 
     case 'user':
       return isMultiple ? (
         <UserMultiSelect
           members={workspaceMembers}
-          value={(value as string[]) || []}
+          value={asStringArray(value)}
           onChange={onChange}
         />
       ) : (
         <UserSelect
           members={workspaceMembers}
-          value={value as string}
+          value={asString(value)}
           onChange={onChange}
         />
       );
 
     case 'label':
       return isMultiple ? (
-        <LabelMultiSelect labels={labels} value={(value as string[]) || []} onChange={onChange} />
+        <LabelMultiSelect labels={labels} value={asStringArray(value)} onChange={onChange} />
       ) : (
-        <LabelSelect labels={labels} value={value as string} onChange={onChange} />
+        <LabelSelect labels={labels} value={asString(value)} onChange={onChange} />
       );
 
     case 'project': {
@@ -129,14 +146,14 @@ export function FilterValueInput({
       return isMultiple ? (
         <MultiSelect
           options={projectOptions}
-          value={(value as string[]) || []}
+          value={asStringArray(value)}
           onChange={onChange}
           placeholder="Select projects..."
         />
       ) : (
         <SingleSelect
           options={projectOptions}
-          value={value as string}
+          value={asString(value)}
           onChange={onChange}
           placeholder="Select project..."
         />
@@ -144,7 +161,7 @@ export function FilterValueInput({
     }
 
     default:
-      return <TextInput value={value as string} onChange={onChange} />;
+      return <TextInput value={asString(value)} onChange={onChange} />;
   }
 }
 
@@ -221,19 +238,7 @@ function MultiSelect({
   placeholder: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [isOpen]);
 
   const toggleValue = (val: string) => {
     if (value.includes(val)) {
@@ -251,10 +256,11 @@ function MultiSelect({
   const selectedOptions = options.filter((opt) => value.includes(opt.value));
 
   return (
-    <div ref={containerRef} className="relative">
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        aria-haspopup="listbox"
         className={clsx(
           'w-full flex items-center justify-between px-3 py-1.5 text-sm border rounded-lg',
           'hover:border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500',
@@ -269,8 +275,8 @@ function MultiSelect({
               <span
                 key={opt.value}
                 className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-700"
-                style={opt.color ? { backgroundColor: `${opt.color}20`, color: opt.color } : undefined}
-              >
+                >
+                {opt.color && <ColorDot color={opt.color} size="xs" />}
                 {opt.label}
                 <X
                   className="w-3 h-3 cursor-pointer hover:opacity-75"
@@ -282,9 +288,8 @@ function MultiSelect({
         </div>
         <ChevronDown className={clsx('w-4 h-4 text-gray-400 ml-2 flex-shrink-0', isOpen && 'rotate-180')} />
       </button>
-
-      {isOpen && (
-        <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] !p-0 overflow-hidden">
           <div className="max-h-48 overflow-y-auto">
             {options.map((opt) => {
               const isSelected = value.includes(opt.value);
@@ -312,9 +317,8 @@ function MultiSelect({
               );
             })}
           </div>
-        </div>
-      )}
-    </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -324,19 +328,7 @@ function DateInput({ value, onChange }: { value: string; onChange: (v: string) =
   const [inputMode, setInputMode] = useState<'template' | 'custom'>(
     value?.startsWith('{{') ? 'template' : 'custom'
   );
-  const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [isOpen]);
 
   const selectedTemplate = DATE_TEMPLATES.find((t) => t.value === value);
   const displayValue = selectedTemplate?.label || (value && !value.startsWith('{{') ? value : '');
@@ -353,10 +345,11 @@ function DateInput({ value, onChange }: { value: string; onChange: (v: string) =
   };
 
   return (
-    <div ref={containerRef} className="relative">
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        aria-haspopup="listbox"
         className={clsx(
           'w-full flex items-center justify-between px-3 py-1.5 text-sm border rounded-lg',
           'hover:border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500',
@@ -368,9 +361,8 @@ function DateInput({ value, onChange }: { value: string; onChange: (v: string) =
         </span>
         <ChevronDown className={clsx('w-4 h-4 text-gray-400', isOpen && 'rotate-180')} />
       </button>
-
-      {isOpen && (
-        <div className="absolute z-20 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-64 !p-0 overflow-hidden">
           <div className="p-2 border-b border-gray-100">
             <p className="text-xs font-medium text-gray-500 mb-2">Quick options</p>
             <div className="space-y-1">
@@ -398,9 +390,8 @@ function DateInput({ value, onChange }: { value: string; onChange: (v: string) =
               className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
             />
           </div>
-        </div>
-      )}
-    </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -416,20 +407,10 @@ function UserSelect({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-        setSearch('');
-      }
-    }
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
+    if (!isOpen) setSearch('');
   }, [isOpen]);
 
   useEffect(() => {
@@ -455,10 +436,11 @@ function UserSelect({
   };
 
   return (
-    <div ref={containerRef} className="relative">
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        aria-haspopup="listbox"
         className={clsx(
           'w-full flex items-center justify-between px-3 py-1.5 text-sm border rounded-lg',
           'hover:border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500',
@@ -470,9 +452,8 @@ function UserSelect({
         </span>
         <ChevronDown className={clsx('w-4 h-4 text-gray-400', isOpen && 'rotate-180')} />
       </button>
-
-      {isOpen && (
-        <div className="absolute z-20 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-64 !p-0 overflow-hidden">
           {/* Current user template */}
           <div className="border-b border-gray-100">
             {USER_TEMPLATES.map((template) => (
@@ -541,9 +522,8 @@ function UserSelect({
               ))
             )}
           </div>
-        </div>
-      )}
-    </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -559,19 +539,9 @@ function UserMultiSelect({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-        setSearch('');
-      }
-    }
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
+    if (!isOpen) setSearch('');
   }, [isOpen]);
 
   const toggleValue = (id: string) => {
@@ -598,10 +568,11 @@ function UserMultiSelect({
   const hasCurrentUser = value.includes('{{current_user}}');
 
   return (
-    <div ref={containerRef} className="relative">
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        aria-haspopup="listbox"
         className={clsx(
           'w-full flex items-center justify-between px-3 py-1.5 text-sm border rounded-lg',
           'hover:border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500',
@@ -639,9 +610,8 @@ function UserMultiSelect({
         </div>
         <ChevronDown className={clsx('w-4 h-4 text-gray-400 ml-2 flex-shrink-0', isOpen && 'rotate-180')} />
       </button>
-
-      {isOpen && (
-        <div className="absolute z-20 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-64 !p-0 overflow-hidden">
           {/* Current user template */}
           <div className="border-b border-gray-100">
             <button
@@ -701,9 +671,8 @@ function UserMultiSelect({
               })
             )}
           </div>
-        </div>
-      )}
-    </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -719,19 +688,9 @@ function LabelSelect({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-        setSearch('');
-      }
-    }
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
+    if (!isOpen) setSearch('');
   }, [isOpen]);
 
   const filteredLabels = labels.filter((l) =>
@@ -741,10 +700,11 @@ function LabelSelect({
   const selectedLabel = labels.find((l) => l.id === value);
 
   return (
-    <div ref={containerRef} className="relative">
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        aria-haspopup="listbox"
         className={clsx(
           'w-full flex items-center justify-between px-3 py-1.5 text-sm border rounded-lg',
           'hover:border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500',
@@ -766,9 +726,8 @@ function LabelSelect({
         </span>
         <ChevronDown className={clsx('w-4 h-4 text-gray-400', isOpen && 'rotate-180')} />
       </button>
-
-      {isOpen && (
-        <div className="absolute z-20 mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-56 !p-0 overflow-hidden">
           <div className="p-2 border-b border-gray-100">
             <input
               type="text"
@@ -806,9 +765,8 @@ function LabelSelect({
               ))
             )}
           </div>
-        </div>
-      )}
-    </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -824,19 +782,9 @@ function LabelMultiSelect({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-        setSearch('');
-      }
-    }
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
+    if (!isOpen) setSearch('');
   }, [isOpen]);
 
   const toggleValue = (id: string) => {
@@ -859,10 +807,11 @@ function LabelMultiSelect({
   const selectedLabels = labels.filter((l) => value.includes(l.id));
 
   return (
-    <div ref={containerRef} className="relative">
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        aria-haspopup="listbox"
         className={clsx(
           'w-full flex items-center justify-between px-3 py-1.5 text-sm border rounded-lg',
           'hover:border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500',
@@ -876,12 +825,9 @@ function LabelMultiSelect({
             selectedLabels.map((label) => (
               <span
                 key={label.id}
-                className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full"
-                style={{
-                  backgroundColor: label.color ? `${label.color}20` : '#e5e7eb',
-                  color: label.color || '#374151',
-                }}
+                className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full border border-gray-200 bg-white text-gray-700"
               >
+                <ColorDot color={label.color} size="xs" />
                 {label.name}
                 <X
                   className="w-3 h-3 cursor-pointer hover:opacity-75"
@@ -893,9 +839,8 @@ function LabelMultiSelect({
         </div>
         <ChevronDown className={clsx('w-4 h-4 text-gray-400 ml-2 flex-shrink-0', isOpen && 'rotate-180')} />
       </button>
-
-      {isOpen && (
-        <div className="absolute z-20 mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-56 !p-0 overflow-hidden">
           <div className="p-2 border-b border-gray-100">
             <input
               type="text"
@@ -933,8 +878,7 @@ function LabelMultiSelect({
               })
             )}
           </div>
-        </div>
-      )}
-    </div>
+      </PopoverContent>
+    </Popover>
   );
 }

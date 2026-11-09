@@ -1,6 +1,15 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { FolderKanban } from 'lucide-react';
 import { useCreateProject, useCurrentWorkspace } from '../hooks/queries';
+import { EmptyState, toast } from '../components/ui';
+
+function generateIdentifier(name: string): string {
+  return name
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '')
+    .slice(0, 4);
+}
 
 export function NewProjectPage() {
   const navigate = useNavigate();
@@ -8,105 +17,79 @@ export function NewProjectPage() {
   const createProject = useCreateProject();
   const [name, setName] = useState('');
   const [identifier, setIdentifier] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const generateIdentifier = (name: string) => {
-    return name
-      .toUpperCase()
-      .replace(/[^A-Z0-9]+/g, '')
-      .slice(0, 4);
-  };
-
-  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newName = e.target.value;
-    setName(newName);
-    setIdentifier(generateIdentifier(newName));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !identifier.trim()) return;
-
-    setIsSubmitting(true);
-    setError(null);
-
-    try {
-      if (!currentWorkspace) return;
-      const project = await createProject.mutateAsync({
-        workspaceId: currentWorkspace.id,
-        name: name.trim(),
-        identifier: identifier.trim(),
-      });
-      navigate(`/project/${project.id}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create project');
-      setIsSubmitting(false);
-    }
+    if (!currentWorkspace || !name.trim() || !identifier.trim()) return;
+    createProject.mutate(
+      { workspaceId: currentWorkspace.id, name: name.trim(), identifier: identifier.trim() },
+      {
+        onSuccess: (project) => {
+          toast.success(`Project ${project.name} created`);
+          navigate(`/project/${project.id}`);
+        },
+      }
+    );
   };
 
   if (!currentWorkspace) {
     return (
-      <div className="max-w-lg mx-auto mt-12">
-        <div className="card p-6 text-center">
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">No Workspace Selected</h2>
-          <p className="text-gray-600 mb-4">
-            Please select or create a workspace before creating a project.
-          </p>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="btn btn-primary"
-          >
+      <EmptyState
+        icon={<FolderKanban />}
+        title="No workspace selected"
+        body="Select or create a workspace before creating a project."
+        action={
+          <Link to="/dashboard" className="btn btn-primary">
             Go to Dashboard
-          </button>
-        </div>
-      </div>
+          </Link>
+        }
+      />
     );
   }
 
   return (
     <div className="max-w-lg mx-auto mt-12">
       <div className="card p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Create Project</h2>
+        <h1 className="text-lg font-semibold text-gray-900 mb-4">Create Project</h1>
         <p className="text-gray-600 mb-6">
           Create a new project in <span className="font-medium">{currentWorkspace.name}</span>.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <div className="p-3 text-sm text-red-600 bg-red-50 rounded-lg">
-              {error}
-            </div>
-          )}
-
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="new-project-name" className="block text-sm font-medium text-gray-700 mb-1">
               Project Name
             </label>
             <input
+              id="new-project-name"
               type="text"
               className="input"
               placeholder="My Project"
               value={name}
-              onChange={handleNameChange}
+              onChange={(e) => {
+                setName(e.target.value);
+                setIdentifier(generateIdentifier(e.target.value));
+              }}
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="new-project-identifier" className="block text-sm font-medium text-gray-700 mb-1">
               Project Identifier
             </label>
             <input
+              id="new-project-identifier"
               type="text"
               className="input"
               placeholder="PROJ"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value.toUpperCase())}
               maxLength={6}
+              aria-describedby="new-project-identifier-hint"
               required
             />
-            <p className="mt-1 text-sm text-gray-500">
+            <p id="new-project-identifier-hint" className="mt-1 text-sm text-gray-500">
               Used as prefix for task IDs (e.g., {identifier || 'PROJ'}-123).
             </p>
           </div>
@@ -115,15 +98,11 @@ export function NewProjectPage() {
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={isSubmitting || !name.trim() || !identifier.trim()}
+              disabled={createProject.isPending || !name.trim() || !identifier.trim()}
             >
-              {isSubmitting ? 'Creating...' : 'Create Project'}
+              {createProject.isPending ? 'Creating...' : 'Create Project'}
             </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => navigate(-1)}
-            >
+            <button type="button" className="btn btn-secondary" onClick={() => navigate(-1)}>
               Cancel
             </button>
           </div>

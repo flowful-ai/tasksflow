@@ -1,32 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
-import { api } from '../../api/client';
-
-interface SlackNotificationSettings {
-  taskCreated: boolean;
-  stateChanged: boolean;
-  assigned: boolean;
-  commentAdded: boolean;
-}
-
-interface SlackIntegrationView {
-  connected: boolean;
-  id: string | null;
-  isEnabled: boolean;
-  teamName: string | null;
-  channelId: string | null;
-  channelName: string | null;
-  notifications: SlackNotificationSettings | null;
-  canConnect: boolean;
-}
-
-interface SlackChannel {
-  id: string;
-  name: string;
-  isPrivate: boolean;
-  isMember: boolean;
-}
+import { CheckCircle2 } from 'lucide-react';
+import type { SlackNotificationSettings } from '@flowtask/shared';
+import { slackApi } from '../../api/integrations';
+import { useSlackChannels, useSlackIntegration, useSlackMutations } from '../../hooks/queries';
+import { Banner, ConfirmDialog, ErrorState, PageSpinner, toast } from '../ui';
 
 const NOTIFICATION_LABELS: Array<{ key: keyof SlackNotificationSettings; label: string }> = [
   { key: 'taskCreated', label: 'Task created' },
@@ -35,6 +12,7 @@ const NOTIFICATION_LABELS: Array<{ key: keyof SlackNotificationSettings; label: 
   { key: 'commentAdded', label: 'Comment added' },
 ];
 
+/** `slack_error` codes set by GET /api/webhooks/slack/oauth when it redirects back here. */
 const SLACK_ERROR_MESSAGES: Record<string, string> = {
   invalid_state: 'The Slack link expired or was already used. Please try again.',
   session_mismatch: 'Slack was connected from a different session. Please try again.',
@@ -51,66 +29,53 @@ interface SlackSettingsProps {
 
 /** Project Slack notifications (FlowTask → Slack, one-way). */
 export function SlackSettings({ projectId }: SlackSettingsProps) {
-  const [error, setError] = useState<string | null>(null);
+  const [callbackError, setCallbackError] = useState<string | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
+  const [confirmDisconnect, setConfirmDisconnect] = useState(false);
+  const { data: slack, isLoading, error, refetch } = useSlackIntegration(projectId);
+  const { data: channels, isLoading: channelsLoading, error: channelsError } = useSlackChannels(projectId, Boolean(slack?.connected));
+  const { update, disconnect } = useSlackMutations(projectId);
 
-  const { data: slack, isLoading, refetch } = useQuery({
-    queryKey: ['slack-integration', projectId],
-    queryFn: async () =>
-      (await api.get<{ success: boolean; data: SlackIntegrationView }>(`/api/projects/${projectId}/slack`)).data,
-  });
-
-  const { data: channels } = useQuery({
-    queryKey: ['slack-channels', projectId],
-    queryFn: async () =>
-      (await api.get<{ success: boolean; data: { channels: SlackChannel[] } }>(`/api/projects/${projectId}/slack/channels`))
-        .data.channels,
-    enabled: Boolean(slack?.connected),
-  });
-
+  // The OAuth callback lands here with ?slack=connected or ?slack_error=<code>.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const slackError = params.get('slack_error');
-    if (slackError || params.get('slack')) {
-      window.history.replaceState({}, '', window.location.pathname);
-      if (slackError) setError(SLACK_ERROR_MESSAGES[slackError] ?? 'Slack connection failed.');
-      refetch();
-    }
+    const connected = params.get('slack');
+    if (!slackError && !connected) return;
+    window.history.replaceState({}, '', window.location.pathname);
+    if (slackError) setCallbackError(SLACK_ERROR_MESSAGES[slackError] ?? 'Slack connection failed.');
+    else toast.success('Slack connected');
+    void refetch();
   }, [refetch]);
 
   const connect = async () => {
+    setIsStarting(true);
     try {
-      const response = await api.post<{ success: boolean; data: { url: string } }>(
-        `/api/projects/${projectId}/slack/install/start`
-      );
-      window.location.href = response.data.url;
+      const { url } = await slackApi.startInstall(projectId);
+      window.location.href = url;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start Slack connection');
+      setIsStarting(false);
+      toast.error(err instanceof Error ? err.message : 'Failed to start Slack connection');
     }
   };
 
-  const update = useMutation({
-    mutationFn: (patch: { channelId?: string; isEnabled?: boolean; notifications?: Partial<SlackNotificationSettings> }) =>
-      api.patch<{ success: boolean; data: SlackIntegrationView }>(`/api/projects/${projectId}/slack`, patch),
-    onSuccess: () => {
-      setError(null);
-      refetch();
-    },
-    onError: (err: Error) => setError(err.message),
-  });
-
-  const disconnect = useMutation({
-    mutationFn: () => api.delete<{ success: boolean }>(`/api/projects/${projectId}/slack`),
-    onSuccess: () => refetch(),
-    onError: (err: Error) => setError(err.message),
-  });
-
   if (isLoading) {
     return (
-      <div className="card p-6 flex items-center justify-center h-32">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+      <div className="card p-6">
+        <PageSpinner className="h-32" label="Loading Slack settings" />
       </div>
     );
   }
+
+  if (error || !slack) {
+    return (
+      <div className="card p-6">
+        <ErrorState error={error} resource="Slack settings" onRetry={() => void refetch()} />
+      </div>
+    );
+  }
+
+  const notifications = slack.notifications;
 
   return (
     <div className="card p-6 space-y-4">
@@ -119,37 +84,42 @@ export function SlackSettings({ projectId }: SlackSettingsProps) {
         <p className="text-sm text-gray-500 mt-1">Post task activity from this project to a Slack channel.</p>
       </div>
 
-      {error && (
-        <div className="p-3 text-sm text-red-600 bg-red-50 rounded-lg flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-          <span>{error}</span>
-        </div>
-      )}
+      {callbackError && <Banner variant="error">{callbackError}</Banner>}
 
-      {!slack?.connected ? (
-        slack?.canConnect ? (
-          <button onClick={connect} className="btn btn-primary">
-            Connect Slack
+      {!slack.connected ? (
+        slack.canConnect ? (
+          <button type="button" onClick={() => void connect()} className="btn btn-primary" disabled={isStarting}>
+            {isStarting ? 'Redirecting to Slack…' : 'Connect Slack'}
           </button>
         ) : (
-          <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+          <Banner variant="warning">
             Slack is not configured. Set SLACK_CLIENT_ID, SLACK_CLIENT_SECRET and SLACK_SIGNING_SECRET on the server.
-          </p>
+          </Banner>
         )
       ) : (
         <div className="space-y-4">
-          <div className="flex items-center gap-2 text-sm text-gray-700">
-            <CheckCircle2 className="w-4 h-4 text-green-600" />
-            Connected to {slack.teamName ?? 'Slack'}, posting to #{slack.channelName}
-          </div>
+          <p className="flex items-center gap-2 text-sm text-gray-700">
+            <CheckCircle2 aria-hidden className="w-4 h-4 text-green-600" />
+            Connected to {slack.teamName ?? 'Slack'}
+            {slack.channelName ? <>, posting to #{slack.channelName}</> : null}
+          </p>
 
-          <label className="block text-sm">
-            <span className="text-gray-700">Channel</span>
+          <div className="text-sm">
+            <label htmlFor="slack-channel" className="text-gray-700">
+              Channel
+            </label>
             <select
+              id="slack-channel"
               className="input mt-1"
               value={slack.channelId ?? ''}
-              onChange={(e) => update.mutate({ channelId: e.target.value })}
-              disabled={update.isPending || !channels}
+              onChange={(e) =>
+                update.mutate(
+                  { channelId: e.target.value },
+                  { onSuccess: (view) => toast.success(`Posting to #${view.channelName ?? 'channel'}`) }
+                )
+              }
+              disabled={update.isPending || channelsLoading || !channels}
+              aria-describedby={channelsError ? 'slack-channel-error' : undefined}
             >
               {slack.channelId && !channels?.some((ch) => ch.id === slack.channelId) && (
                 <option value={slack.channelId}>#{slack.channelName}</option>
@@ -161,7 +131,12 @@ export function SlackSettings({ projectId }: SlackSettingsProps) {
                 </option>
               ))}
             </select>
-          </label>
+            {channelsError && (
+              <p id="slack-channel-error" className="mt-1 text-xs text-red-600">
+                Could not list channels: {channelsError.message}
+              </p>
+            )}
+          </div>
 
           <fieldset className="space-y-2">
             <legend className="text-sm text-gray-700 mb-1">Notify on</legend>
@@ -169,7 +144,7 @@ export function SlackSettings({ projectId }: SlackSettingsProps) {
               <label key={key} className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
-                  checked={slack.notifications?.[key] ?? true}
+                  checked={notifications?.[key] ?? true}
                   onChange={(e) => update.mutate({ notifications: { [key]: e.target.checked } })}
                   disabled={update.isPending}
                 />
@@ -183,17 +158,40 @@ export function SlackSettings({ projectId }: SlackSettingsProps) {
               <input
                 type="checkbox"
                 checked={slack.isEnabled}
-                onChange={(e) => update.mutate({ isEnabled: e.target.checked })}
+                onChange={(e) =>
+                  update.mutate(
+                    { isEnabled: e.target.checked },
+                    { onSuccess: (view) => toast.success(view.isEnabled ? 'Slack notifications on' : 'Slack notifications paused') }
+                  )
+                }
                 disabled={update.isPending}
               />
               Enabled
             </label>
-            <button onClick={() => disconnect.mutate()} className="btn btn-secondary ml-auto" disabled={disconnect.isPending}>
+            <button
+              type="button"
+              onClick={() => setConfirmDisconnect(true)}
+              className="btn btn-secondary ml-auto"
+              disabled={disconnect.isPending}
+            >
               Disconnect
             </button>
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDisconnect}
+        onOpenChange={setConfirmDisconnect}
+        title="Disconnect Slack?"
+        description="This project stops posting to Slack and the stored bot token is deleted."
+        confirmLabel="Disconnect"
+        variant="danger"
+        onConfirm={async () => {
+          await disconnect.mutateAsync();
+          toast.success('Slack disconnected');
+        }}
+      />
     </div>
   );
 }

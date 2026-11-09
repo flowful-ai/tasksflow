@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../../stores/auth';
 import { OAuthButtons } from '../../components/auth/OAuthButtons';
 
@@ -7,7 +8,9 @@ export function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get('redirect') || '/dashboard';
-  const { login, error, clearError, isAuthenticated } = useAuthStore();
+  const { login, error, clearError, isAuthenticated } = useAuthStore(
+    useShallow((s) => ({ login: s.login, error: s.error, clearError: s.clearError, isAuthenticated: s.isAuthenticated }))
+  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -49,11 +52,12 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
+    <main className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="mx-auto w-12 h-12 bg-primary-600 rounded-xl flex items-center justify-center">
             <svg
+              aria-hidden
               className="w-7 h-7 text-white"
               viewBox="0 0 24 24"
               fill="none"
@@ -63,7 +67,7 @@ export function LoginPage() {
               <path d="M5 12l5 5L19 7" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
-          <h2 className="mt-6 text-3xl font-bold text-gray-900">Welcome back</h2>
+          <h1 className="mt-6 text-3xl font-bold text-gray-900">Welcome back</h1>
           <p className="mt-2 text-sm text-gray-600">
             Sign in or create your account with GitHub or Google
           </p>
@@ -73,7 +77,7 @@ export function LoginPage() {
           <OAuthButtons callbackURL={redirectTo} />
 
           {error && (
-            <div className="p-3 text-sm text-red-600 bg-red-50 rounded-lg mb-4">
+            <div role="alert" className="p-3 text-sm text-red-600 bg-red-50 rounded-lg mb-4">
               {error}
               <button type="button" onClick={clearError} className="ml-2 underline">
                 Dismiss
@@ -137,6 +141,6 @@ export function LoginPage() {
           )}
         </div>
       </div>
-    </div>
+    </main>
   );
 }
