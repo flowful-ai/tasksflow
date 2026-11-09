@@ -117,7 +117,7 @@ export function TaskModal({
       {/* Form */}
       <form onSubmit={submit} className="p-4 space-y-4">
         <div>
-          <label htmlFor="task-title" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="task-title" className="block text-sm font-medium text-neutral-700 mb-1">
             Title *
           </label>
           <input
@@ -135,7 +135,7 @@ export function TaskModal({
         <div>
           <label
             htmlFor="task-description"
-            className="block text-sm font-medium text-gray-700 mb-1"
+            className="block text-sm font-medium text-neutral-700 mb-1"
           >
             Description
           </label>
@@ -150,7 +150,7 @@ export function TaskModal({
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label htmlFor="task-status" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="task-status" className="block text-sm font-medium text-neutral-700 mb-1">
               Status
             </label>
             <select
@@ -169,7 +169,7 @@ export function TaskModal({
           </div>
 
           <div>
-            <label htmlFor="task-priority" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="task-priority" className="block text-sm font-medium text-neutral-700 mb-1">
               Priority
             </label>
             <select
@@ -189,15 +189,15 @@ export function TaskModal({
 
         {/* Assign to me - only show for new tasks */}
         {!isEditing && (
-          <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+          <div className="flex items-center gap-2 pt-2 border-t border-neutral-100">
             <input
               type="checkbox"
               id="assignToMe"
               checked={assignToMe}
               onChange={(e) => setAssignToMe(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              className="h-4 w-4 rounded border-neutral-300 text-blue-600 focus:ring-blue-500"
             />
-            <label htmlFor="assignToMe" className="text-sm text-gray-700">
+            <label htmlFor="assignToMe" className="text-sm text-neutral-700">
               Assign to me
             </label>
           </div>
@@ -205,7 +205,7 @@ export function TaskModal({
 
         {/* GitHub Integration - only show for new tasks when repos are linked */}
         {!isEditing && hasGitHub && (
-          <div className="pt-2 space-y-2 border-t border-gray-100">
+          <div className="pt-2 space-y-2 border-t border-neutral-100">
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -223,9 +223,9 @@ export function TaskModal({
                     setSelectedRepo(null);
                   }
                 }}
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="h-4 w-4 rounded border-neutral-300 text-blue-600 focus:ring-blue-500"
               />
-              <label htmlFor="createOnGitHub" className="text-sm text-gray-700">
+              <label htmlFor="createOnGitHub" className="text-sm text-neutral-700">
                 Also create GitHub issue
               </label>
             </div>

@@ -96,7 +96,7 @@ export function ActiveShareBanner({
                 ? 'Access limit reached'
                 : 'This view is publicly shared'}
           </span>
-          <div className="flex items-center gap-3 text-sm text-gray-600 mt-0.5">
+          <div className="flex items-center gap-3 text-sm text-neutral-600 mt-0.5">
             {hasPassword && (
               <span className="flex items-center gap-1">
                 <Lock className="w-3 h-3" />
@@ -229,7 +229,7 @@ export function ShareDialog({
         }}
         title={
           <span className="flex items-center gap-2">
-            <Share2 className="w-5 h-5 text-gray-600" aria-hidden />
+            <Share2 className="w-5 h-5 text-neutral-600" aria-hidden />
             Share "{viewName}"
           </span>
         }
@@ -254,7 +254,7 @@ export function ShareDialog({
                 {publicShares.length > 0 && (
                   <button
                     onClick={() => setShowCreateForm(false)}
-                    className="text-sm text-gray-600 hover:text-gray-700"
+                    className="text-sm text-neutral-600 hover:text-neutral-700"
                   >
                     Back to shares
                   </button>
@@ -275,7 +275,7 @@ export function ShareDialog({
         {/* Active shares list */}
         {activeShares.length > 0 && !showCreateForm && (
           <div className="space-y-3">
-            <h3 className="text-sm font-medium text-gray-700">Active shares</h3>
+            <h3 className="text-sm font-medium text-neutral-700">Active shares</h3>
             {activeShares.map((share) => {
               const expired = isShareExpired(share);
               const maxedOut = isShareMaxedOut(share);
@@ -298,27 +298,27 @@ export function ShareDialog({
                             expired || maxedOut ? 'text-amber-600' : 'text-green-600'
                           )}
                         />
-                        <span className="text-sm font-medium text-gray-900">
+                        <span className="text-sm font-medium text-neutral-900">
                           {expired ? 'Expired' : maxedOut ? 'Access limit reached' : 'Public link'}
                         </span>
                         {share.hasPassword && (
                           <Lock
-                            className="w-3.5 h-3.5 text-gray-500"
+                            className="w-3.5 h-3.5 text-neutral-500"
                             aria-label="Password protected"
                           />
                         )}
                         {share.showExternalLinks && (
-                          <span className="inline-flex items-center gap-1 text-xs text-gray-600">
+                          <span className="inline-flex items-center gap-1 text-xs text-neutral-600">
                             <GitBranch className="w-3.5 h-3.5" aria-hidden />
                             GitHub links shown
                           </span>
                         )}
                       </div>
-                      <div className="mt-1 flex items-center gap-1 text-xs text-gray-500">
+                      <div className="mt-1 flex items-center gap-1 text-xs text-neutral-500">
                         <LinkIcon className="w-3 h-3" />
                         <span className="truncate max-w-[250px]">{getShareUrl(share.token)}</span>
                       </div>
-                      <div className="mt-2 flex items-center gap-3 text-xs text-gray-500">
+                      <div className="mt-2 flex items-center gap-3 text-xs text-neutral-500">
                         <span className="flex items-center gap-1">
                           <Eye className="w-3 h-3" />
                           {share.accessCount} view{share.accessCount !== 1 ? 's' : ''}
@@ -336,7 +336,7 @@ export function ShareDialog({
                       </div>
                     </div>
                   </div>
-                  <div className="mt-3 pt-3 border-t border-gray-200 flex items-center gap-2">
+                  <div className="mt-3 pt-3 border-t border-neutral-200 flex items-center gap-2">
                     <button
                       onClick={() => handleCopyLink(share.token, share.id)}
                       disabled={expired || maxedOut}
@@ -344,7 +344,7 @@ export function ShareDialog({
                         'flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg transition-colors',
                         copiedId === share.id
                           ? 'bg-green-100 text-green-700'
-                          : 'text-gray-700 hover:bg-gray-100',
+                          : 'text-neutral-700 hover:bg-neutral-100',
                         (expired || maxedOut) && 'opacity-50 cursor-not-allowed'
                       )}
                     >
@@ -386,16 +386,16 @@ export function ShareDialog({
         {/* Inactive shares */}
         {inactiveShares.length > 0 && !showCreateForm && (
           <div className="space-y-3">
-            <h3 className="text-sm font-medium text-gray-500">Disabled shares</h3>
+            <h3 className="text-sm font-medium text-neutral-500">Disabled shares</h3>
             {inactiveShares.map((share) => (
-              <div key={share.id} className="p-3 rounded-lg border bg-gray-50 border-gray-200">
+              <div key={share.id} className="p-3 rounded-lg border bg-neutral-50 border-neutral-200">
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <Globe className="w-4 h-4 text-gray-400" />
-                      <span className="text-sm font-medium text-gray-500">Disabled</span>
+                      <Globe className="w-4 h-4 text-neutral-400" />
+                      <span className="text-sm font-medium text-neutral-500">Disabled</span>
                     </div>
-                    <div className="mt-1 text-xs text-gray-400">
+                    <div className="mt-1 text-xs text-neutral-400">
                       {share.accessCount} view{share.accessCount !== 1 ? 's' : ''} • Created{' '}
                       {new Date(share.createdAt).toLocaleDateString()}
                     </div>
@@ -416,14 +416,14 @@ export function ShareDialog({
         {/* Create form */}
         {showCreateForm && (
           <div className="space-y-4">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-neutral-600">
               Create a public link to share this view with anyone, even without a TasksFlow account.
             </p>
 
             <div>
               <label
                 htmlFor="share-password"
-                className="block text-sm font-medium text-gray-700 mb-1"
+                className="block text-sm font-medium text-neutral-700 mb-1"
               >
                 <Lock className="w-4 h-4 inline mr-1" aria-hidden />
                 Password (optional)
@@ -450,7 +450,7 @@ export function ShareDialog({
             <div>
               <label
                 htmlFor="share-expires"
-                className="block text-sm font-medium text-gray-700 mb-1"
+                className="block text-sm font-medium text-neutral-700 mb-1"
               >
                 <Calendar className="w-4 h-4 inline mr-1" aria-hidden />
                 Expiration date (optional)
@@ -466,7 +466,7 @@ export function ShareDialog({
             </div>
 
             <div>
-              <label htmlFor="share-max" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="share-max" className="block text-sm font-medium text-neutral-700 mb-1">
                 <Hash className="w-4 h-4 inline mr-1" aria-hidden />
                 Maximum access count (optional)
               </label>
@@ -481,16 +481,16 @@ export function ShareDialog({
               />
             </div>
 
-            <label className="flex items-start gap-2 rounded-lg border border-gray-200 p-3">
+            <label className="flex items-start gap-2 rounded-lg border border-neutral-200 p-3">
               <input
                 type="checkbox"
                 checked={showExternalLinks}
                 onChange={(e) => setShowExternalLinks(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-gray-300"
+                className="mt-0.5 h-4 w-4 rounded border-neutral-300"
               />
               <span>
-                <span className="block text-sm font-medium text-gray-900">Show GitHub links</span>
-                <span className="block text-xs text-gray-600">
+                <span className="block text-sm font-medium text-neutral-900">Show GitHub links</span>
+                <span className="block text-xs text-neutral-600">
                   Expose linked GitHub issue and pull request URLs on the public page.
                 </span>
               </span>

@@ -57,7 +57,7 @@ export function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
+    <main className="min-h-screen flex items-center justify-center bg-neutral-50 py-12 px-4">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="mx-auto w-12 h-12 bg-primary-600 rounded-xl flex items-center justify-center">
@@ -72,8 +72,8 @@ export function LoginPage() {
               <path d="M5 12l5 5L19 7" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
-          <h1 className="mt-6 text-3xl font-bold text-gray-900">Welcome back</h1>
-          <p className="mt-2 text-sm text-gray-600">
+          <h1 className="mt-6 text-3xl font-bold text-neutral-900">Welcome back</h1>
+          <p className="mt-2 text-sm text-neutral-600">
             Sign in or create your account with GitHub or Google
           </p>
         </div>
@@ -91,11 +91,11 @@ export function LoginPage() {
           )}
 
           {!showEmailForm ? (
-            <p className="text-center text-sm text-gray-500 mt-6">
+            <p className="text-center text-sm text-neutral-500 mt-6">
               <button
                 type="button"
                 onClick={() => setShowEmailForm(true)}
-                className="underline hover:text-gray-700"
+                className="underline hover:text-neutral-700"
               >
                 Sign in with email and password
               </button>{' '}
@@ -105,7 +105,7 @@ export function LoginPage() {
             <form onSubmit={handleSubmit} className="space-y-6 mt-6">
               <div className="space-y-4">
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="email" className="block text-sm font-medium text-neutral-700">
                     Email address
                   </label>
                   <input
@@ -122,7 +122,7 @@ export function LoginPage() {
                 </div>
 
                 <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="password" className="block text-sm font-medium text-neutral-700">
                     Password
                   </label>
                   <input

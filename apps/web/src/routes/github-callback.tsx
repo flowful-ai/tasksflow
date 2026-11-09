@@ -23,7 +23,7 @@ export function GitHubCallbackPage() {
   return (
     <main className="flex h-screen flex-col items-center justify-center">
       <PageSpinner className="h-auto" label="Completing GitHub setup" />
-      <p className="mt-4 text-gray-600">Completing GitHub setup...</p>
+      <p className="mt-4 text-neutral-600">Completing GitHub setup...</p>
     </main>
   );
 }

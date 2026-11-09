@@ -156,7 +156,7 @@ export function SmartViewForm() {
   if (!currentWorkspace) {
     return (
       <div className="card p-6">
-        <p className="text-gray-600">Please select a workspace first.</p>
+        <p className="text-neutral-600">Please select a workspace first.</p>
       </div>
     );
   }
@@ -165,9 +165,9 @@ export function SmartViewForm() {
     return (
       <div className="card p-6">
         <div className="animate-pulse space-y-4">
-          <div className="h-6 w-48 bg-gray-200 rounded" />
-          <div className="h-10 bg-gray-100 rounded" />
-          <div className="h-24 bg-gray-100 rounded" />
+          <div className="h-6 w-48 bg-neutral-200 rounded" />
+          <div className="h-10 bg-neutral-100 rounded" />
+          <div className="h-24 bg-neutral-100 rounded" />
         </div>
       </div>
     );
@@ -178,7 +178,7 @@ export function SmartViewForm() {
       <button
         type="button"
         onClick={() => navigate(-1)}
-        className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900"
+        className="inline-flex items-center text-sm text-neutral-600 hover:text-neutral-900"
       >
         <ArrowLeft aria-hidden className="w-4 h-4 mr-1" />
         Back
@@ -190,10 +190,10 @@ export function SmartViewForm() {
             <Eye aria-hidden className="w-5 h-5 text-primary-600" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold text-neutral-900">
               {isEditing ? 'Edit View' : 'Create View'}
             </h2>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-neutral-500">
               {isEditing ? 'Update the view settings' : 'Create a new filtered view for your tasks'}
             </p>
           </div>
@@ -208,7 +208,7 @@ export function SmartViewForm() {
 
           {/* Name */}
           <div>
-            <label htmlFor="view-name" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="view-name" className="block text-sm font-medium text-neutral-700 mb-1">
               Name{' '}
               <span aria-hidden className="text-red-500">
                 *
@@ -230,7 +230,7 @@ export function SmartViewForm() {
           <div>
             <label
               htmlFor="view-description"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="block text-sm font-medium text-neutral-700 mb-1"
             >
               Description
             </label>
@@ -245,7 +245,7 @@ export function SmartViewForm() {
 
           {/* Filters */}
           <div>
-            <h3 className="block text-sm font-medium text-gray-700 mb-2">Filters</h3>
+            <h3 className="block text-sm font-medium text-neutral-700 mb-2">Filters</h3>
             <FilterBuilder
               value={formData.filters}
               onChange={(filters) => setFormData((prev) => ({ ...prev, filters }))}
@@ -255,7 +255,7 @@ export function SmartViewForm() {
 
           {/* Display Type */}
           <div>
-            <span id="view-display-type" className="block text-sm font-medium text-gray-700 mb-2">
+            <span id="view-display-type" className="block text-sm font-medium text-neutral-700 mb-2">
               Display Type
             </span>
             <div
@@ -273,7 +273,7 @@ export function SmartViewForm() {
                     'flex items-center justify-center gap-2 p-3 rounded-lg border transition-colors',
                     formData?.displayType === option.value
                       ? 'border-primary-500 bg-primary-50 text-primary-700'
-                      : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                      : 'border-neutral-200 hover:bg-neutral-50 text-neutral-700'
                   )}
                 >
                   {option.icon}
@@ -285,7 +285,7 @@ export function SmartViewForm() {
 
           {/* Group By */}
           <div>
-            <label htmlFor="view-group-by" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="view-group-by" className="block text-sm font-medium text-neutral-700 mb-1">
               Group By
             </label>
             <select
@@ -314,7 +314,7 @@ export function SmartViewForm() {
           <div>
             <label
               htmlFor="view-secondary-group-by"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="block text-sm font-medium text-neutral-700 mb-1"
             >
               Secondary Group By
             </label>
@@ -345,7 +345,7 @@ export function SmartViewForm() {
             <div>
               <label
                 htmlFor="view-sort-by"
-                className="block text-sm font-medium text-gray-700 mb-1"
+                className="block text-sm font-medium text-neutral-700 mb-1"
               >
                 Sort By
               </label>
@@ -367,7 +367,7 @@ export function SmartViewForm() {
             <div>
               <label
                 htmlFor="view-sort-order"
-                className="block text-sm font-medium text-gray-700 mb-1"
+                className="block text-sm font-medium text-neutral-700 mb-1"
               >
                 Sort Order
               </label>
@@ -395,15 +395,15 @@ export function SmartViewForm() {
               id="isPersonal"
               checked={formData?.isPersonal ?? false}
               onChange={(e) => handleChange('isPersonal', e.target.checked)}
-              className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+              className="rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
             />
-            <label htmlFor="isPersonal" className="ml-2 text-sm text-gray-700">
+            <label htmlFor="isPersonal" className="ml-2 text-sm text-neutral-700">
               Personal view (only visible to you)
             </label>
           </div>
 
           {/* Submit Buttons */}
-          <div className="flex gap-3 pt-4 border-t border-gray-200">
+          <div className="flex gap-3 pt-4 border-t border-neutral-200">
             <button
               type="submit"
               disabled={isLoading || !formData?.name?.trim()}

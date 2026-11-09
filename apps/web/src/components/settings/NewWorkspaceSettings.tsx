@@ -32,14 +32,14 @@ export function NewWorkspaceSettings() {
 
   return (
     <div className="card p-6">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">Create Workspace</h2>
-      <p className="text-gray-600 mb-6">
+      <h2 className="text-lg font-semibold text-neutral-900 mb-4">Create Workspace</h2>
+      <p className="text-neutral-600 mb-6">
         Create a new workspace to organize your projects and tasks.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="workspace-name" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="workspace-name" className="block text-sm font-medium text-neutral-700 mb-1">
             Workspace Name
           </label>
           <input
@@ -57,11 +57,11 @@ export function NewWorkspaceSettings() {
         </div>
 
         <div>
-          <label htmlFor="workspace-slug" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="workspace-slug" className="block text-sm font-medium text-neutral-700 mb-1">
             Workspace URL
           </label>
           <div className="flex items-center">
-            <span aria-hidden className="text-gray-500 text-sm mr-1">
+            <span aria-hidden className="text-neutral-500 text-sm mr-1">
               tasksflow.app/
             </span>
             <input
@@ -75,7 +75,7 @@ export function NewWorkspaceSettings() {
               required
             />
           </div>
-          <p id="workspace-slug-hint" className="mt-1 text-sm text-gray-500">
+          <p id="workspace-slug-hint" className="mt-1 text-sm text-neutral-500">
             Lowercase letters, numbers and hyphens. This is your workspace&apos;s unique identifier.
           </p>
         </div>

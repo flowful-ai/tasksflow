@@ -106,8 +106,8 @@ export function ProjectSettingsPage() {
         <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
           <ShieldX aria-hidden className="w-8 h-8 text-red-600" />
         </div>
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
-        <p className="text-gray-600 mb-6">
+        <h2 className="text-xl font-semibold text-neutral-900 mb-2">Access Denied</h2>
+        <p className="text-neutral-600 mb-6">
           You don't have permission to access the settings for this project. Contact a workspace
           admin if you need access.
         </p>
@@ -144,7 +144,7 @@ export function ProjectSettingsPage() {
           <DangerZone project={project} onDeleted={() => navigate('/projects')} />
         ) : (
           <div className="card p-6">
-            <p className="text-gray-600">You don't have permission to delete this project.</p>
+            <p className="text-neutral-600">You don't have permission to delete this project.</p>
           </div>
         );
       default:
@@ -157,13 +157,13 @@ export function ProjectSettingsPage() {
       <header className="mb-6">
         <Link
           to={`/project/${projectId}`}
-          className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-2"
+          className="inline-flex items-center text-sm text-neutral-600 hover:text-neutral-900 mb-2"
         >
           <ArrowLeft aria-hidden className="w-4 h-4 mr-1" />
           Back to project
         </Link>
-        <h1 className="text-2xl font-bold text-gray-900">{project.name} Settings</h1>
-        <p className="text-gray-500 text-sm mt-1">
+        <h1 className="text-2xl font-bold text-neutral-900">{project.name} Settings</h1>
+        <p className="text-neutral-500 text-sm mt-1">
           Manage your project settings, task states, and labels
         </p>
       </header>
@@ -188,13 +188,13 @@ export function ProjectSettingsPage() {
                       ? 'bg-red-50 text-red-600'
                       : 'bg-primary-50 text-primary-600'
                     : isDanger
-                      ? 'text-gray-700 hover:bg-red-50 hover:text-red-600'
-                      : 'text-gray-700 hover:bg-gray-100'
+                      ? 'text-neutral-700 hover:bg-red-50 hover:text-red-600'
+                      : 'text-neutral-700 hover:bg-neutral-100'
                 )}
               >
                 <Icon
                   aria-hidden
-                  className={clsx('w-5 h-5 mr-3', isDanger && !isActive && 'text-gray-400')}
+                  className={clsx('w-5 h-5 mr-3', isDanger && !isActive && 'text-neutral-400')}
                 />
                 {item.name}
               </button>

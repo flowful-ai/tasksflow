@@ -35,7 +35,7 @@ export function LabelOptions({
 
   return (
     <>
-      <div className="p-2 border-b border-gray-100">
+      <div className="p-2 border-b border-neutral-100">
         <input
           type="text"
           value={search}
@@ -43,7 +43,7 @@ export function LabelOptions({
           placeholder="Search labels..."
           aria-label="Search labels"
           autoFocus
-          className="w-full px-3 py-1.5 text-base md:text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          className="w-full px-3 py-1.5 text-base md:text-sm border border-neutral-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
         />
       </div>
       <div
@@ -53,7 +53,7 @@ export function LabelOptions({
         aria-label="Labels"
       >
         {filteredLabels.length === 0 ? (
-          <div className="px-3 py-4 text-sm text-gray-400 text-center">
+          <div className="px-3 py-4 text-sm text-neutral-400 text-center">
             {search ? 'No labels found' : 'No labels available'}
           </div>
         ) : (
@@ -68,12 +68,12 @@ export function LabelOptions({
                 onClick={() => onToggle(label.id)}
                 disabled={isLoading}
                 className={clsx(
-                  'w-full flex items-center space-x-3 px-3 py-2 text-left hover:bg-gray-50 transition-colors',
+                  'w-full flex items-center space-x-3 px-3 py-2 text-left hover:bg-neutral-50 transition-colors',
                   isSelected && 'bg-primary-50'
                 )}
               >
                 <ColorDot color={label.color} size="md" />
-                <span className="flex-1 text-sm text-gray-700 truncate">{label.name}</span>
+                <span className="flex-1 text-sm text-neutral-700 truncate">{label.name}</span>
                 {isSelected && (
                   <Check className="w-4 h-4 text-primary-600 flex-shrink-0" aria-hidden />
                 )}
@@ -104,7 +104,7 @@ export function LabelPicker({
 
   return (
     <div>
-      <div className="flex items-center space-x-2 text-sm font-medium text-gray-500 mb-2">
+      <div className="flex items-center space-x-2 text-sm font-medium text-neutral-500 mb-2">
         <Tag className="w-4 h-4" aria-hidden />
         <span>Labels</span>
       </div>
@@ -114,7 +114,7 @@ export function LabelPicker({
           {currentLabels.map((label) => (
             <li
               key={label.id}
-              className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white py-0.5 pl-2.5 pr-1 text-xs font-medium text-gray-700"
+              className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white py-0.5 pl-2.5 pr-1 text-xs font-medium text-neutral-700"
             >
               <ColorDot color={label.color} />
               <span>{label.name}</span>
@@ -143,7 +143,7 @@ export function LabelPicker({
             disabled={isLoading}
             className={clsx(
               'flex items-center space-x-1.5 px-3 py-1.5 text-sm rounded-lg border border-dashed transition-colors',
-              'border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-600',
+              'border-neutral-300 text-neutral-500 hover:border-neutral-400 hover:text-neutral-600',
               isLoading && 'opacity-50 cursor-not-allowed'
             )}
           >

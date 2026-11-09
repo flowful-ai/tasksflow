@@ -62,8 +62,8 @@ export function LabelsSettings({ projectId, labels }: LabelsSettingsProps) {
   return (
     <div className="card p-6">
       <div className="mb-4">
-        <h2 className="text-lg font-semibold text-gray-900">Labels</h2>
-        <p className="text-sm text-gray-500">Organize tasks with labels.</p>
+        <h2 className="text-lg font-semibold text-neutral-900">Labels</h2>
+        <p className="text-sm text-neutral-500">Organize tasks with labels.</p>
       </div>
 
       <ul className="space-y-3">
@@ -72,7 +72,7 @@ export function LabelsSettings({ projectId, labels }: LabelsSettingsProps) {
           return (
             <li
               key={label.id}
-              className="flex flex-col gap-3 border border-gray-200 rounded-lg p-4"
+              className="flex flex-col gap-3 border border-neutral-200 rounded-lg p-4"
             >
               <div className="flex flex-wrap items-center gap-3">
                 <ColorDot color={label.color} size="md" />
@@ -87,14 +87,14 @@ export function LabelsSettings({ projectId, labels }: LabelsSettingsProps) {
                   onChange={(e) => patchLocal(label.id, { name: e.target.value })}
                 />
                 <label className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-gray-500 uppercase">Color</span>
+                  <span className="text-xs font-semibold text-neutral-500 uppercase">Color</span>
                   <input
                     type="color"
                     value={label.color || DEFAULT_COLOR}
                     onChange={(e) =>
                       patchLocal(label.id, { color: e.target.value, colorTouched: true })
                     }
-                    className="h-9 w-12 border border-gray-200 rounded-lg"
+                    className="h-9 w-12 border border-neutral-200 rounded-lg"
                   />
                 </label>
               </div>
@@ -122,13 +122,13 @@ export function LabelsSettings({ projectId, labels }: LabelsSettingsProps) {
         })}
       </ul>
 
-      <form onSubmit={handleCreate} className="mt-6 border-t border-gray-200 pt-4 space-y-4">
-        <h3 className="text-sm font-semibold text-gray-700">Add Label</h3>
+      <form onSubmit={handleCreate} className="mt-6 border-t border-neutral-200 pt-4 space-y-4">
+        <h3 className="text-sm font-semibold text-neutral-700">Add Label</h3>
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="sm:col-span-2">
             <label
               htmlFor="new-label-name"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="block text-sm font-medium text-neutral-700 mb-1"
             >
               Name
             </label>
@@ -144,7 +144,7 @@ export function LabelsSettings({ projectId, labels }: LabelsSettingsProps) {
           <div>
             <label
               htmlFor="new-label-color"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="block text-sm font-medium text-neutral-700 mb-1"
             >
               Color
             </label>
@@ -153,7 +153,7 @@ export function LabelsSettings({ projectId, labels }: LabelsSettingsProps) {
               type="color"
               value={newColor}
               onChange={(e) => setNewColor(e.target.value)}
-              className="h-10 w-full border border-gray-200 rounded-lg"
+              className="h-10 w-full border border-neutral-200 rounded-lg"
             />
           </div>
         </div>

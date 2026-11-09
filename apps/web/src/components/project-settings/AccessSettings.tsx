@@ -70,8 +70,8 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
     return (
       <div className="card p-6">
         <div className="animate-pulse space-y-4">
-          <div className="h-6 bg-gray-200 rounded w-1/3" />
-          <div className="h-20 bg-gray-200 rounded" />
+          <div className="h-6 bg-neutral-200 rounded w-1/3" />
+          <div className="h-20 bg-neutral-200 rounded" />
         </div>
       </div>
     );
@@ -85,8 +85,8 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
   return (
     <div className="space-y-6">
       <div className="card p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-1">Project Access</h3>
-        <p className="text-sm text-gray-500 mb-6">Control who can see and access this project.</p>
+        <h3 className="text-lg font-semibold text-neutral-900 mb-1">Project Access</h3>
+        <p className="text-sm text-neutral-500 mb-6">Control who can see and access this project.</p>
 
         {/* Access mode radio group */}
         <div className="space-y-3">
@@ -94,7 +94,7 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
             className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
               access === 'all'
                 ? 'border-primary-500 bg-primary-50'
-                : 'border-gray-200 hover:border-gray-300'
+                : 'border-neutral-200 hover:border-neutral-300'
             }`}
           >
             <input
@@ -107,10 +107,10 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
             />
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <Globe aria-hidden className="w-4 h-4 text-gray-600" />
-                <span className="font-medium text-gray-900">All workspace members</span>
+                <Globe aria-hidden className="w-4 h-4 text-neutral-600" />
+                <span className="font-medium text-neutral-900">All workspace members</span>
               </div>
-              <p className="text-sm text-gray-500 mt-0.5">
+              <p className="text-sm text-neutral-500 mt-0.5">
                 Everyone in the workspace can access this project.
               </p>
             </div>
@@ -120,7 +120,7 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
             className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
               access === 'admin'
                 ? 'border-primary-500 bg-primary-50'
-                : 'border-gray-200 hover:border-gray-300'
+                : 'border-neutral-200 hover:border-neutral-300'
             }`}
           >
             <input
@@ -133,10 +133,10 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
             />
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <ShieldAlert aria-hidden className="w-4 h-4 text-gray-600" />
-                <span className="font-medium text-gray-900">Admins only</span>
+                <ShieldAlert aria-hidden className="w-4 h-4 text-neutral-600" />
+                <span className="font-medium text-neutral-900">Admins only</span>
               </div>
-              <p className="text-sm text-gray-500 mt-0.5">
+              <p className="text-sm text-neutral-500 mt-0.5">
                 Only workspace owners and admins can access this project.
               </p>
             </div>
@@ -146,7 +146,7 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
             className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
               access === 'members'
                 ? 'border-primary-500 bg-primary-50'
-                : 'border-gray-200 hover:border-gray-300'
+                : 'border-neutral-200 hover:border-neutral-300'
             }`}
           >
             <input
@@ -159,10 +159,10 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
             />
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <Lock aria-hidden className="w-4 h-4 text-gray-600" />
-                <span className="font-medium text-gray-900">Specific members</span>
+                <Lock aria-hidden className="w-4 h-4 text-neutral-600" />
+                <span className="font-medium text-neutral-900">Specific members</span>
               </div>
-              <p className="text-sm text-gray-500 mt-0.5">
+              <p className="text-sm text-neutral-500 mt-0.5">
                 Only selected members (plus owners and admins) can access this project.
               </p>
             </div>
@@ -174,7 +174,7 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
       {access === 'members' && (
         <div className="card p-6">
           <div className="flex items-center justify-between mb-4">
-            <h4 className="font-medium text-gray-900">Allowed Members</h4>
+            <h4 className="font-medium text-neutral-900">Allowed Members</h4>
             <Popover open={showMemberPicker} onOpenChange={setShowMemberPicker}>
               <PopoverTrigger asChild>
                 <button type="button" className="btn btn-secondary text-sm flex items-center gap-1">
@@ -196,16 +196,16 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
                     className="input text-sm w-full"
                   />
                 </div>
-                <ul className="max-h-48 overflow-y-auto border-t border-gray-100">
+                <ul className="max-h-48 overflow-y-auto border-t border-neutral-100">
                   {availableMembers.length === 0 ? (
-                    <li className="px-3 py-2 text-sm text-gray-500">No members available</li>
+                    <li className="px-3 py-2 text-sm text-neutral-500">No members available</li>
                   ) : (
                     availableMembers.map((member: WorkspaceMember) => (
                       <li key={member.userId}>
                         <button
                           type="button"
                           onClick={() => addMember(member.userId)}
-                          className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 focus:bg-gray-50 transition-colors text-left"
+                          className="w-full flex items-center gap-2 px-3 py-2 hover:bg-neutral-50 focus:bg-neutral-50 transition-colors text-left"
                         >
                           {member.user.avatarUrl ? (
                             <img
@@ -222,10 +222,10 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
                             </div>
                           )}
                           <div className="min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">
+                            <p className="text-sm font-medium text-neutral-900 truncate">
                               {member.user.name || member.user.email.split('@')[0]}
                             </p>
-                            <p className="text-xs text-gray-500 truncate">{member.user.email}</p>
+                            <p className="text-xs text-neutral-500 truncate">{member.user.email}</p>
                           </div>
                         </button>
                       </li>
@@ -237,7 +237,7 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
           </div>
 
           {selectedMemberDetails.length === 0 ? (
-            <p className="text-sm text-gray-500 py-4 text-center">
+            <p className="text-sm text-neutral-500 py-4 text-center">
               No members added yet. Add members to grant them access.
             </p>
           ) : (
@@ -245,7 +245,7 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
               {selectedMemberDetails.map((member: WorkspaceMember) => (
                 <div
                   key={member.userId}
-                  className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-gray-50"
+                  className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-neutral-50"
                 >
                   <div className="flex items-center gap-3">
                     {member.user.avatarUrl ? (
@@ -256,10 +256,10 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
                       </div>
                     )}
                     <div>
-                      <p className="text-sm font-medium text-gray-900">
+                      <p className="text-sm font-medium text-neutral-900">
                         {member.user.name || member.user.email.split('@')[0]}
                       </p>
-                      <p className="text-xs text-gray-500">{member.user.email}</p>
+                      <p className="text-xs text-neutral-500">{member.user.email}</p>
                     </div>
                   </div>
                   <IconButton
@@ -273,7 +273,7 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
             </div>
           )}
 
-          <p className="text-xs text-gray-400 mt-4">
+          <p className="text-xs text-neutral-400 mt-4">
             Workspace owners and admins always have access regardless of this setting.
           </p>
         </div>

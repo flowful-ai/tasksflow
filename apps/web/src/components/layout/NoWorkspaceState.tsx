@@ -20,7 +20,7 @@ export function NoWorkspaceState({ email, onSignOut }: NoWorkspaceStateProps) {
         <>
           {email ? (
             <>
-              Signed in as <span className="font-medium text-gray-900">{email}</span>.{' '}
+              Signed in as <span className="font-medium text-neutral-900">{email}</span>.{' '}
             </>
           ) : null}
           Ask a workspace admin to invite this email, or create your own workspace. If you usually

@@ -20,21 +20,21 @@ export function DangerZone({ project, onDeleted }: DangerZoneProps) {
     <section aria-labelledby="danger-heading" className="card p-6 border border-red-100">
       <div className="mb-4 flex items-center gap-2">
         <AlertTriangle aria-hidden className="w-5 h-5 text-red-600" />
-        <h2 id="danger-heading" className="text-lg font-semibold text-gray-900">
+        <h2 id="danger-heading" className="text-lg font-semibold text-neutral-900">
           Danger Zone
         </h2>
       </div>
-      <p className="text-sm text-gray-600 mb-4">
+      <p className="text-sm text-neutral-600 mb-4">
         Actions here are destructive. Please proceed with caution.
       </p>
 
       <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border border-gray-200 rounded-lg p-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border border-neutral-200 rounded-lg p-4">
           <div>
-            <h3 className="font-medium text-gray-900">
+            <h3 className="font-medium text-neutral-900">
               {isArchived ? 'Unarchive Project' : 'Archive Project'}
             </h3>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-neutral-500">
               {isArchived
                 ? 'Restore this project and make it visible again.'
                 : 'Hide this project from active lists.'}
@@ -71,8 +71,8 @@ export function DangerZone({ project, onDeleted }: DangerZoneProps) {
 
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border border-red-200 rounded-lg p-4 bg-red-50/40">
           <div>
-            <h3 className="font-medium text-gray-900">Delete Project</h3>
-            <p className="text-sm text-gray-500">
+            <h3 className="font-medium text-neutral-900">Delete Project</h3>
+            <p className="text-sm text-neutral-500">
               Permanently delete this project and all associated tasks.
             </p>
           </div>
@@ -104,7 +104,7 @@ export function DangerZone({ project, onDeleted }: DangerZoneProps) {
           onDeleted();
         }}
       >
-        <label htmlFor="confirm-project-name" className="block text-sm text-gray-700">
+        <label htmlFor="confirm-project-name" className="block text-sm text-neutral-700">
           Type <strong className="font-semibold">{project.name}</strong> to confirm
         </label>
         <input

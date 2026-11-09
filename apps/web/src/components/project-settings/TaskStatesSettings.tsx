@@ -76,8 +76,8 @@ export function TaskStatesSettings({ projectId, states }: TaskStatesSettingsProp
   return (
     <div className="card p-6">
       <div className="mb-4">
-        <h2 className="text-lg font-semibold text-gray-900">Task States</h2>
-        <p className="text-sm text-gray-500">Configure your kanban columns.</p>
+        <h2 className="text-lg font-semibold text-neutral-900">Task States</h2>
+        <p className="text-sm text-neutral-500">Configure your kanban columns.</p>
       </div>
 
       <ul className="space-y-3">
@@ -86,7 +86,7 @@ export function TaskStatesSettings({ projectId, states }: TaskStatesSettingsProp
           return (
             <li
               key={state.id}
-              className="flex flex-col gap-3 border border-gray-200 rounded-lg p-4"
+              className="flex flex-col gap-3 border border-neutral-200 rounded-lg p-4"
             >
               <div className="flex flex-wrap items-center gap-3">
                 <ColorDot color={state.color} size="md" />
@@ -102,7 +102,7 @@ export function TaskStatesSettings({ projectId, states }: TaskStatesSettingsProp
                 />
 
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-gray-500 uppercase">Category</span>
+                  <span className="text-xs font-semibold text-neutral-500 uppercase">Category</span>
                   <span
                     className={clsx(
                       'px-2 py-1 rounded-full text-xs font-medium',
@@ -110,7 +110,7 @@ export function TaskStatesSettings({ projectId, states }: TaskStatesSettingsProp
                         ? 'bg-green-100 text-green-700'
                         : state.category === 'in_progress'
                           ? 'bg-blue-100 text-blue-700'
-                          : 'bg-gray-100 text-gray-700'
+                          : 'bg-neutral-100 text-neutral-700'
                     )}
                   >
                     {CATEGORY_LABELS[state.category]}
@@ -118,14 +118,14 @@ export function TaskStatesSettings({ projectId, states }: TaskStatesSettingsProp
                 </div>
 
                 <label className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-gray-500 uppercase">Color</span>
+                  <span className="text-xs font-semibold text-neutral-500 uppercase">Color</span>
                   <input
                     type="color"
                     value={state.color || DEFAULT_COLOR}
                     onChange={(e) =>
                       patchLocal(state.id, { color: e.target.value, colorTouched: true })
                     }
-                    className="h-9 w-12 border border-gray-200 rounded-lg"
+                    className="h-9 w-12 border border-neutral-200 rounded-lg"
                   />
                 </label>
               </div>
@@ -153,13 +153,13 @@ export function TaskStatesSettings({ projectId, states }: TaskStatesSettingsProp
         })}
       </ul>
 
-      <form onSubmit={handleCreate} className="mt-6 border-t border-gray-200 pt-4 space-y-4">
-        <h3 className="text-sm font-semibold text-gray-700">Add State</h3>
+      <form onSubmit={handleCreate} className="mt-6 border-t border-neutral-200 pt-4 space-y-4">
+        <h3 className="text-sm font-semibold text-neutral-700">Add State</h3>
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="sm:col-span-2">
             <label
               htmlFor="new-state-name"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="block text-sm font-medium text-neutral-700 mb-1"
             >
               Name
             </label>
@@ -175,7 +175,7 @@ export function TaskStatesSettings({ projectId, states }: TaskStatesSettingsProp
           <div>
             <label
               htmlFor="new-state-category"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="block text-sm font-medium text-neutral-700 mb-1"
             >
               Category
             </label>
@@ -195,7 +195,7 @@ export function TaskStatesSettings({ projectId, states }: TaskStatesSettingsProp
           <div>
             <label
               htmlFor="new-state-color"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="block text-sm font-medium text-neutral-700 mb-1"
             >
               Color
             </label>
@@ -204,7 +204,7 @@ export function TaskStatesSettings({ projectId, states }: TaskStatesSettingsProp
               type="color"
               value={newColor}
               onChange={(e) => setNewColor(e.target.value)}
-              className="h-10 w-full border border-gray-200 rounded-lg"
+              className="h-10 w-full border border-neutral-200 rounded-lg"
             />
           </div>
         </div>

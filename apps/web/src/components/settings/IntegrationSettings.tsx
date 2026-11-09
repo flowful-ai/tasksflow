@@ -38,8 +38,8 @@ export function IntegrationSettings() {
 
   return (
     <div className="card p-6">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">Integrations</h2>
-      <p className="text-gray-600">Connect your own accounts to TasksFlow.</p>
+      <h2 className="text-lg font-semibold text-neutral-900 mb-4">Integrations</h2>
+      <p className="text-neutral-600">Connect your own accounts to TasksFlow.</p>
 
       {error ? (
         <ErrorState
@@ -49,26 +49,26 @@ export function IntegrationSettings() {
         />
       ) : (
         <ul className="mt-6 space-y-4">
-          <li className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+          <li className="flex items-center justify-between p-4 border border-neutral-200 rounded-lg">
             <div className="flex items-center space-x-3">
               <div
                 aria-hidden
-                className="w-10 h-10 bg-gray-900 rounded-lg flex items-center justify-center"
+                className="w-10 h-10 bg-neutral-900 rounded-lg flex items-center justify-center"
               >
                 <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
                   <path d={GITHUB_PATH} />
                 </svg>
               </div>
               <div>
-                <h3 className="font-medium text-gray-900">GitHub</h3>
-                <p className="text-sm text-gray-500">Sync issues and pull requests</p>
+                <h3 className="font-medium text-neutral-900">GitHub</h3>
+                <p className="text-sm text-neutral-500">Sync issues and pull requests</p>
                 <p className="text-xs mt-1" role="status">
                   {isLoading ? (
-                    <span className="text-gray-500">Checking connection…</span>
+                    <span className="text-neutral-500">Checking connection…</span>
                   ) : githubAccount ? (
                     <span className="text-green-700">Connected</span>
                   ) : githubEnabled ? (
-                    <span className="text-gray-500">Not connected</span>
+                    <span className="text-neutral-500">Not connected</span>
                   ) : (
                     <span className="text-amber-700">Not configured on this server</span>
                   )}
@@ -94,8 +94,8 @@ export function IntegrationSettings() {
               </button>
             )}
           </li>
-          <li className="p-4 border border-gray-200 rounded-lg text-sm text-gray-600">
-            <h3 className="font-medium text-gray-900">Slack</h3>
+          <li className="p-4 border border-neutral-200 rounded-lg text-sm text-neutral-600">
+            <h3 className="font-medium text-neutral-900">Slack</h3>
             Slack notifications are configured per project, in{' '}
             <Link to="/projects" className="text-primary-600 hover:underline">
               project settings → Slack

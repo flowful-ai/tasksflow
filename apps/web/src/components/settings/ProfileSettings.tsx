@@ -67,10 +67,10 @@ function ProfileCard() {
           </div>
         )}
         <div className="min-w-0">
-          <h2 id="profile-heading" className="text-lg font-semibold text-gray-900">
+          <h2 id="profile-heading" className="text-lg font-semibold text-neutral-900">
             Profile
           </h2>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-neutral-500">
             Your avatar comes from the account you signed in with.
           </p>
         </div>
@@ -78,7 +78,7 @@ function ProfileCard() {
 
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         <div>
-          <label htmlFor="profile-name" className="mb-1 block text-sm font-medium text-gray-700">
+          <label htmlFor="profile-name" className="mb-1 block text-sm font-medium text-neutral-700">
             Display name
           </label>
           <input
@@ -103,18 +103,18 @@ function ProfileCard() {
         </div>
 
         <div>
-          <label htmlFor="profile-email" className="mb-1 block text-sm font-medium text-gray-700">
+          <label htmlFor="profile-email" className="mb-1 block text-sm font-medium text-neutral-700">
             Email
           </label>
           <input
             id="profile-email"
             type="email"
-            className="input bg-gray-50 text-gray-500"
+            className="input bg-neutral-50 text-neutral-500"
             value={user?.email ?? ''}
             readOnly
             aria-describedby="profile-email-hint"
           />
-          <p id="profile-email-hint" className="mt-1 text-xs text-gray-500">
+          <p id="profile-email-hint" className="mt-1 text-xs text-neutral-500">
             Your email comes from your sign-in provider and can't be changed here. Manage linked
             accounts in{' '}
             <Link to="/settings/user/integrations" className="text-primary-600 hover:underline">
@@ -166,10 +166,10 @@ function SessionsCard() {
     <section aria-labelledby="sessions-heading" className="card p-6">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 id="sessions-heading" className="text-lg font-semibold text-gray-900">
+          <h2 id="sessions-heading" className="text-lg font-semibold text-neutral-900">
             Active sessions
           </h2>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-neutral-500">
             Devices signed in to your account. Sign out any you don't recognise.
           </p>
         </div>
@@ -190,7 +190,7 @@ function SessionsCard() {
           <Spinner label="Loading sessions" />
         </div>
       ) : notFresh ? (
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+        <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700">
           <p>
             For your security, the session list is only shown within a day of signing in. Sign in
             again to review your sessions.
@@ -202,15 +202,15 @@ function SessionsCard() {
       ) : error ? (
         <ErrorState error={error} resource="session list" onRetry={() => void refetch()} />
       ) : (
-        <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200">
+        <ul className="divide-y divide-neutral-100 rounded-lg border border-neutral-200">
           {sessions.map((session) => {
             const current = session.id === data?.currentId;
             const Icon = isMobile(session.userAgent) ? Smartphone : Monitor;
             return (
               <li key={session.id} className="flex items-center gap-3 p-4">
-                <Icon aria-hidden className="h-5 w-5 shrink-0 text-gray-400" />
+                <Icon aria-hidden className="h-5 w-5 shrink-0 text-neutral-400" />
                 <div className="min-w-0 flex-1">
-                  <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-gray-900">
+                  <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-neutral-900">
                     {describeUserAgent(session.userAgent)}
                     {current && (
                       <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
@@ -218,7 +218,7 @@ function SessionsCard() {
                       </span>
                     )}
                   </p>
-                  <p className="truncate text-xs text-gray-500">
+                  <p className="truncate text-xs text-neutral-500">
                     {session.ipAddress ? `${session.ipAddress} · ` : ''}
                     <span title={formatDateTime(session.updatedAt)}>
                       Last active {relativeTime(session.updatedAt)}

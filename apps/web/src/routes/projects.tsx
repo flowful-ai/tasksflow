@@ -30,8 +30,8 @@ export function ProjectsPage() {
     <div>
       <header className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Projects</h1>
-          <p className="text-gray-600 mt-1">All projects in {currentWorkspace.name}</p>
+          <h1 className="text-2xl font-bold text-neutral-900">Projects</h1>
+          <p className="text-neutral-600 mt-1">All projects in {currentWorkspace.name}</p>
         </div>
         <Link to="/projects/new" className="btn btn-primary inline-flex items-center">
           <Plus aria-hidden className="w-4 h-4 mr-2" />
@@ -69,8 +69,8 @@ export function ProjectsPage() {
                     {project.identifier}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h2 className="font-medium text-gray-900 truncate">{project.name}</h2>
-                    <p className="text-sm text-gray-500 mt-1">
+                    <h2 className="font-medium text-neutral-900 truncate">{project.name}</h2>
+                    <p className="text-sm text-neutral-500 mt-1">
                       {project.identifier} · {project.taskCount} task
                       {project.taskCount === 1 ? '' : 's'}
                     </p>

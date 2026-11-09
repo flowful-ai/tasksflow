@@ -50,8 +50,8 @@ export function NewProjectPage() {
   return (
     <div className="max-w-lg mx-auto mt-12">
       <div className="card p-6">
-        <h1 className="text-lg font-semibold text-gray-900 mb-4">Create Project</h1>
-        <p className="text-gray-600 mb-6">
+        <h1 className="text-lg font-semibold text-neutral-900 mb-4">Create Project</h1>
+        <p className="text-neutral-600 mb-6">
           Create a new project in <span className="font-medium">{currentWorkspace.name}</span>.
         </p>
 
@@ -59,7 +59,7 @@ export function NewProjectPage() {
           <div>
             <label
               htmlFor="new-project-name"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="block text-sm font-medium text-neutral-700 mb-1"
             >
               Project Name
             </label>
@@ -80,7 +80,7 @@ export function NewProjectPage() {
           <div>
             <label
               htmlFor="new-project-identifier"
-              className="block text-sm font-medium text-gray-700 mb-1"
+              className="block text-sm font-medium text-neutral-700 mb-1"
             >
               Project Identifier
             </label>
@@ -95,7 +95,7 @@ export function NewProjectPage() {
               aria-describedby="new-project-identifier-hint"
               required
             />
-            <p id="new-project-identifier-hint" className="mt-1 text-sm text-gray-500">
+            <p id="new-project-identifier-hint" className="mt-1 text-sm text-neutral-500">
               Used as prefix for task IDs (e.g., {identifier || 'PROJ'}-123).
             </p>
           </div>

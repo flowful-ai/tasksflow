@@ -146,7 +146,7 @@ function WebhookFormDialog({
     >
       <form onSubmit={submit} className="space-y-4" id="webhook-form">
         <div>
-          <label htmlFor="webhook-url" className="mb-1 block text-sm font-medium text-gray-700">
+          <label htmlFor="webhook-url" className="mb-1 block text-sm font-medium text-neutral-700">
             Payload URL
           </label>
           <input
@@ -162,7 +162,7 @@ function WebhookFormDialog({
         <div>
           <label
             htmlFor="webhook-description"
-            className="mb-1 block text-sm font-medium text-gray-700"
+            className="mb-1 block text-sm font-medium text-neutral-700"
           >
             Description (optional)
           </label>
@@ -175,8 +175,8 @@ function WebhookFormDialog({
           />
         </div>
         <fieldset>
-          <legend className="mb-2 text-sm font-medium text-gray-700">Events</legend>
-          <label className="mb-2 flex items-center gap-2 text-sm text-gray-800">
+          <legend className="mb-2 text-sm font-medium text-neutral-700">Events</legend>
+          <label className="mb-2 flex items-center gap-2 text-sm text-neutral-800">
             <input
               type="checkbox"
               checked={form.allEvents}
@@ -189,8 +189,8 @@ function WebhookFormDialog({
               <label
                 key={event}
                 className={clsx(
-                  'flex items-center gap-2 rounded border border-gray-200 px-2 py-1.5 text-sm',
-                  form.allEvents ? 'text-gray-400' : 'text-gray-700'
+                  'flex items-center gap-2 rounded border border-neutral-200 px-2 py-1.5 text-sm',
+                  form.allEvents ? 'text-neutral-400' : 'text-neutral-700'
                 )}
               >
                 <input
@@ -200,12 +200,12 @@ function WebhookFormDialog({
                   onChange={() => toggleEvent(event)}
                 />
                 <span>{EVENT_LABELS[event]}</span>
-                <code className="ml-auto text-[11px] text-gray-500">{event}</code>
+                <code className="ml-auto text-[11px] text-neutral-500">{event}</code>
               </label>
             ))}
           </div>
         </fieldset>
-        <label className="flex items-center gap-2 text-sm text-gray-700">
+        <label className="flex items-center gap-2 text-sm text-neutral-700">
           <input
             type="checkbox"
             checked={form.enabled}
@@ -218,7 +218,7 @@ function WebhookFormDialog({
             {error}
           </p>
         )}
-        <div className="flex justify-end gap-2 border-t border-gray-100 pt-3">
+        <div className="flex justify-end gap-2 border-t border-neutral-100 pt-3">
           <button type="button" className="btn btn-secondary" onClick={onClose} disabled={isSaving}>
             Cancel
           </button>
@@ -266,8 +266,8 @@ function SecretDialog({ secret, onClose }: { secret: string; onClose: () => void
         This is the only time the full secret is shown. Store it now; you can rotate it later but
         not read it again.
       </p>
-      <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-2">
-        <code className="flex-1 select-all break-all font-mono text-xs text-gray-900">
+      <div className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 p-2">
+        <code className="flex-1 select-all break-all font-mono text-xs text-neutral-900">
           {secret}
         </code>
         <IconButton
@@ -309,7 +309,7 @@ function Deliveries({ webhookId }: { webhookId: string }) {
     );
   if (!deliveries || deliveries.length === 0) {
     return (
-      <p className="p-3 text-sm text-gray-500">
+      <p className="p-3 text-sm text-neutral-500">
         No deliveries yet. Send a test to check the endpoint.
       </p>
     );
@@ -326,7 +326,7 @@ function Deliveries({ webhookId }: { webhookId: string }) {
       </div>
       <table className="w-full text-left text-xs">
         <caption className="sr-only">Recent deliveries</caption>
-        <thead className="text-gray-500">
+        <thead className="text-neutral-500">
           <tr>
             <th scope="col" className="px-3 py-2 font-medium">
               Event
@@ -348,10 +348,10 @@ function Deliveries({ webhookId }: { webhookId: string }) {
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-neutral-100">
           {deliveries.map((d) => (
             <tr key={d.id} className="align-top">
-              <td className="px-3 py-2 font-mono text-gray-800">{d.event}</td>
+              <td className="px-3 py-2 font-mono text-neutral-800">{d.event}</td>
               <td className="px-3 py-2">
                 <span
                   className={clsx(
@@ -363,12 +363,12 @@ function Deliveries({ webhookId }: { webhookId: string }) {
                 </span>
                 {d.error && <div className="mt-1 max-w-xs break-words text-red-700">{d.error}</div>}
               </td>
-              <td className="px-3 py-2 text-gray-700">{d.responseCode ?? '—'}</td>
-              <td className="px-3 py-2 text-gray-700">
+              <td className="px-3 py-2 text-neutral-700">{d.responseCode ?? '—'}</td>
+              <td className="px-3 py-2 text-neutral-700">
                 {d.durationMs !== null ? `${d.durationMs} ms` : '—'}
               </td>
-              <td className="px-3 py-2 text-gray-700">{d.attempt}</td>
-              <td className="px-3 py-2 text-gray-700">
+              <td className="px-3 py-2 text-neutral-700">{d.attempt}</td>
+              <td className="px-3 py-2 text-neutral-700">
                 {formatTime(d.deliveredAt ?? d.createdAt)}
               </td>
             </tr>
@@ -403,30 +403,30 @@ function WebhookRow({
   const [expanded, setExpanded] = useState(false);
   const panelId = `deliveries-${webhook.id}`;
   return (
-    <li className="rounded-lg border border-gray-200">
+    <li className="rounded-lg border border-neutral-200">
       <div className="flex flex-wrap items-start justify-between gap-3 p-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="truncate font-mono text-sm text-gray-900">{webhook.url}</span>
+            <span className="truncate font-mono text-sm text-neutral-900">{webhook.url}</span>
             <span
               className={clsx(
                 'rounded-full px-2 py-0.5 text-xs font-medium',
-                webhook.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                webhook.enabled ? 'bg-green-100 text-green-800' : 'bg-neutral-100 text-neutral-600'
               )}
             >
               {webhook.enabled ? 'Active' : 'Disabled'}
             </span>
           </div>
           {webhook.description && (
-            <p className="mt-1 text-sm text-gray-600">{webhook.description}</p>
+            <p className="mt-1 text-sm text-neutral-600">{webhook.description}</p>
           )}
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-neutral-500">
             {describeEvents(webhook.events)} · secret{' '}
             <code className="font-mono">{webhook.secretPreview}</code>
           </p>
         </div>
         <div className="flex items-center gap-1">
-          <label className="mr-2 flex items-center gap-1.5 text-xs text-gray-600">
+          <label className="mr-2 flex items-center gap-1.5 text-xs text-neutral-600">
             <input type="checkbox" checked={webhook.enabled} onChange={onToggle} />
             Enabled
           </label>
@@ -451,7 +451,7 @@ function WebhookRow({
       </div>
       <button
         type="button"
-        className="flex w-full items-center gap-1 border-t border-gray-100 px-4 py-2 text-left text-xs font-medium text-gray-600 hover:bg-gray-50"
+        className="flex w-full items-center gap-1 border-t border-neutral-100 px-4 py-2 text-left text-xs font-medium text-neutral-600 hover:bg-neutral-50"
         aria-expanded={expanded}
         aria-controls={panelId}
         onClick={() => setExpanded((v) => !v)}
@@ -464,7 +464,7 @@ function WebhookRow({
         Recent deliveries
       </button>
       {expanded && (
-        <div id={panelId} className="border-t border-gray-100">
+        <div id={panelId} className="border-t border-neutral-100">
           <Deliveries webhookId={webhook.id} />
         </div>
       )}
@@ -504,8 +504,8 @@ export function WebhookSettings() {
   if (!canManage) {
     return (
       <div className="card p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">Outgoing webhooks</h2>
-        <p className="text-gray-600">Only workspace owners and admins can manage webhooks.</p>
+        <h2 className="text-lg font-semibold text-neutral-900 mb-2">Outgoing webhooks</h2>
+        <p className="text-neutral-600">Only workspace owners and admins can manage webhooks.</p>
       </div>
     );
   }
@@ -550,8 +550,8 @@ export function WebhookSettings() {
     <div className="card p-6">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">Outgoing webhooks</h2>
-          <p className="mt-1 text-sm text-gray-600">
+          <h2 className="text-lg font-semibold text-neutral-900">Outgoing webhooks</h2>
+          <p className="mt-1 text-sm text-neutral-600">
             Send task and comment events from {workspace.name} to your own services (Slack, Zapier,
             CI, …).
           </p>

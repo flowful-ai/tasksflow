@@ -91,7 +91,7 @@ export function InviteMemberDialog({
       }}
       title={
         <span className="flex items-center gap-2">
-          <Mail aria-hidden className="w-5 h-5 text-gray-600" />
+          <Mail aria-hidden className="w-5 h-5 text-neutral-600" />
           {step === 'form' ? 'Invite to Workspace' : 'Invitation Created'}
         </span>
       }
@@ -99,7 +99,7 @@ export function InviteMemberDialog({
       <div>
         {step === 'form' ? (
           <form onSubmit={handleSubmit} className="space-y-4">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-neutral-600">
               Invite someone to join <span className="font-medium">{workspaceName}</span>. They'll
               receive a link to accept the invitation.
             </p>
@@ -112,13 +112,13 @@ export function InviteMemberDialog({
 
             {/* Invite Type Toggle */}
             <div>
-              <span id="invite-type-label" className="block text-sm font-medium text-gray-700 mb-2">
+              <span id="invite-type-label" className="block text-sm font-medium text-neutral-700 mb-2">
                 Invite Type
               </span>
               <div
                 role="group"
                 aria-labelledby="invite-type-label"
-                className="flex rounded-lg border border-gray-200 p-1"
+                className="flex rounded-lg border border-neutral-200 p-1"
               >
                 <button
                   type="button"
@@ -128,7 +128,7 @@ export function InviteMemberDialog({
                     'flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-colors',
                     inviteType === 'email'
                       ? 'bg-primary-100 text-primary-700'
-                      : 'text-gray-600 hover:bg-gray-100'
+                      : 'text-neutral-600 hover:bg-neutral-100'
                   )}
                 >
                   <Mail className="w-4 h-4" />
@@ -142,7 +142,7 @@ export function InviteMemberDialog({
                     'flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-colors',
                     inviteType === 'generic'
                       ? 'bg-purple-100 text-purple-700'
-                      : 'text-gray-600 hover:bg-gray-100'
+                      : 'text-neutral-600 hover:bg-neutral-100'
                   )}
                 >
                   <LinkIcon className="w-4 h-4" />
@@ -155,7 +155,7 @@ export function InviteMemberDialog({
               <div>
                 <label
                   htmlFor="invite-email"
-                  className="block text-sm font-medium text-gray-700 mb-1"
+                  className="block text-sm font-medium text-neutral-700 mb-1"
                 >
                   Email Address
                 </label>
@@ -212,7 +212,7 @@ export function InviteMemberDialog({
             )}
 
             <div>
-              <span id="invite-role-label" className="block text-sm font-medium text-gray-700 mb-2">
+              <span id="invite-role-label" className="block text-sm font-medium text-neutral-700 mb-2">
                 Role
               </span>
               <div
@@ -228,14 +228,14 @@ export function InviteMemberDialog({
                     'p-3 rounded-lg border-2 text-left transition-colors',
                     role === 'member'
                       ? 'border-primary-500 bg-primary-50'
-                      : 'border-gray-200 hover:border-gray-300'
+                      : 'border-neutral-200 hover:border-neutral-300'
                   )}
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <User className="w-4 h-4 text-gray-600" />
-                    <span className="font-medium text-gray-900">Member</span>
+                    <User className="w-4 h-4 text-neutral-600" />
+                    <span className="font-medium text-neutral-900">Member</span>
                   </div>
-                  <p className="text-xs text-gray-500">Can view and edit tasks, create views</p>
+                  <p className="text-xs text-neutral-500">Can view and edit tasks, create views</p>
                 </button>
 
                 <button
@@ -246,14 +246,14 @@ export function InviteMemberDialog({
                     'p-3 rounded-lg border-2 text-left transition-colors',
                     role === 'admin'
                       ? 'border-primary-500 bg-primary-50'
-                      : 'border-gray-200 hover:border-gray-300'
+                      : 'border-neutral-200 hover:border-neutral-300'
                   )}
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <Shield className="w-4 h-4 text-blue-600" />
-                    <span className="font-medium text-gray-900">Admin</span>
+                    <span className="font-medium text-neutral-900">Admin</span>
                   </div>
-                  <p className="text-xs text-gray-500">Full access including member management</p>
+                  <p className="text-xs text-neutral-500">Full access including member management</p>
                 </button>
               </div>
             </div>
@@ -286,7 +286,7 @@ export function InviteMemberDialog({
                   <Check className="w-6 h-6 text-green-600" />
                 )}
               </div>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-neutral-600">
                 {createdInvitation?.isGeneric ? (
                   'Generic invite link created'
                 ) : (
@@ -301,13 +301,13 @@ export function InviteMemberDialog({
             <div
               className={clsx(
                 'rounded-lg p-4',
-                createdInvitation?.isGeneric ? 'bg-purple-50' : 'bg-gray-50'
+                createdInvitation?.isGeneric ? 'bg-purple-50' : 'bg-neutral-50'
               )}
             >
               <p
                 className={clsx(
                   'block text-sm font-medium mb-2',
-                  createdInvitation?.isGeneric ? 'text-purple-900' : 'text-gray-700'
+                  createdInvitation?.isGeneric ? 'text-purple-900' : 'text-neutral-700'
                 )}
               >
                 Invite Link
@@ -318,13 +318,13 @@ export function InviteMemberDialog({
                     'flex-1 flex items-center gap-2 px-3 py-2 border rounded-lg text-sm overflow-hidden',
                     createdInvitation?.isGeneric
                       ? 'bg-white border-purple-200 text-purple-700'
-                      : 'bg-white border-gray-200 text-gray-600'
+                      : 'bg-white border-neutral-200 text-neutral-600'
                   )}
                 >
                   <LinkIcon
                     className={clsx(
                       'w-4 h-4 flex-shrink-0',
-                      createdInvitation?.isGeneric ? 'text-purple-400' : 'text-gray-400'
+                      createdInvitation?.isGeneric ? 'text-purple-400' : 'text-neutral-400'
                     )}
                   />
                   <span className="truncate">{createdInvitation?.inviteUrl}</span>
@@ -353,7 +353,7 @@ export function InviteMemberDialog({
               <p
                 className={clsx(
                   'text-xs mt-2',
-                  createdInvitation?.isGeneric ? 'text-purple-700' : 'text-gray-500'
+                  createdInvitation?.isGeneric ? 'text-purple-700' : 'text-neutral-500'
                 )}
               >
                 {createdInvitation?.isGeneric ? (

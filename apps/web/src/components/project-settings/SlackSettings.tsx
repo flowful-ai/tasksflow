@@ -85,8 +85,8 @@ export function SlackSettings({ projectId }: SlackSettingsProps) {
   return (
     <div className="card p-6 space-y-4">
       <div>
-        <h2 className="text-lg font-semibold text-gray-900">Slack Notifications</h2>
-        <p className="text-sm text-gray-500 mt-1">
+        <h2 className="text-lg font-semibold text-neutral-900">Slack Notifications</h2>
+        <p className="text-sm text-neutral-500 mt-1">
           Post task activity from this project to a Slack channel.
         </p>
       </div>
@@ -111,14 +111,14 @@ export function SlackSettings({ projectId }: SlackSettingsProps) {
         )
       ) : (
         <div className="space-y-4">
-          <p className="flex items-center gap-2 text-sm text-gray-700">
+          <p className="flex items-center gap-2 text-sm text-neutral-700">
             <CheckCircle2 aria-hidden className="w-4 h-4 text-green-600" />
             Connected to {slack.teamName ?? 'Slack'}
             {slack.channelName ? <>, posting to #{slack.channelName}</> : null}
           </p>
 
           <div className="text-sm">
-            <label htmlFor="slack-channel" className="text-gray-700">
+            <label htmlFor="slack-channel" className="text-neutral-700">
               Channel
             </label>
             <select
@@ -155,7 +155,7 @@ export function SlackSettings({ projectId }: SlackSettingsProps) {
           </div>
 
           <fieldset className="space-y-2">
-            <legend className="text-sm text-gray-700 mb-1">Notify on</legend>
+            <legend className="text-sm text-neutral-700 mb-1">Notify on</legend>
             {NOTIFICATION_LABELS.map(({ key, label }) => (
               <label key={key} className="flex items-center gap-2 text-sm">
                 <input

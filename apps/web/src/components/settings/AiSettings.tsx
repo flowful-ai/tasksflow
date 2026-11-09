@@ -119,8 +119,8 @@ export function AiSettings() {
   if (!workspace) {
     return (
       <div className="card p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">AI & Agents</h2>
-        <p className="text-gray-600">Select a workspace to manage AI settings.</p>
+        <h2 className="text-lg font-semibold text-neutral-900 mb-2">AI & Agents</h2>
+        <p className="text-neutral-600">Select a workspace to manage AI settings.</p>
       </div>
     );
   }
@@ -128,8 +128,8 @@ export function AiSettings() {
   if (forbidden) {
     return (
       <div className="card p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">AI & Agents</h2>
-        <p className="text-gray-600">Only workspace owners and admins can manage AI settings.</p>
+        <h2 className="text-lg font-semibold text-neutral-900 mb-2">AI & Agents</h2>
+        <p className="text-neutral-600">Only workspace owners and admins can manage AI settings.</p>
       </div>
     );
   }
@@ -248,12 +248,12 @@ export function AiSettings() {
 
   return (
     <div className="card p-6">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">AI & Agents</h2>
-      <p className="text-gray-600 mb-6">
+      <h2 className="text-lg font-semibold text-neutral-900 mb-4">AI & Agents</h2>
+      <p className="text-neutral-600 mb-6">
         Set up provider keys, create agents, and choose the default chat agent for your workspace.
       </p>
-      <div className="mb-4 text-sm text-gray-600">
-        Workspace: <span className="font-medium text-gray-900">{workspace.name}</span>
+      <div className="mb-4 text-sm text-neutral-600">
+        Workspace: <span className="font-medium text-neutral-900">{workspace.name}</span>
       </div>
       <div className="mb-6 rounded-lg border border-primary-100 bg-primary-50 p-4 text-sm text-primary-900">
         <div className="font-medium">Recommended flow</div>
@@ -273,10 +273,10 @@ export function AiSettings() {
           const keyValue = apiKeys[config.provider];
           const inputId = `api-key-${config.provider}`;
           return (
-            <div key={config.provider} className="rounded-lg border border-gray-200 p-4">
+            <div key={config.provider} className="rounded-lg border border-neutral-200 p-4">
               <div className="mb-4">
-                <h3 className="text-base font-medium text-gray-900">{config.label}</h3>
-                <div className="text-sm text-gray-600">
+                <h3 className="text-base font-medium text-neutral-900">{config.label}</h3>
+                <div className="text-sm text-neutral-600">
                   Status:{' '}
                   <span
                     className={hasKey ? 'text-green-700 font-medium' : 'text-amber-700 font-medium'}
@@ -285,7 +285,7 @@ export function AiSettings() {
                   </span>
                 </div>
               </div>
-              <label htmlFor={inputId} className="mb-1 block text-sm font-medium text-gray-700">
+              <label htmlFor={inputId} className="mb-1 block text-sm font-medium text-neutral-700">
                 {config.label} API Key
               </label>
               <input
@@ -299,7 +299,7 @@ export function AiSettings() {
                   setApiKeys((prev) => ({ ...prev, [config.provider]: e.target.value }))
                 }
               />
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-1 text-sm text-neutral-500">
                 Get your API key from{' '}
                 <a
                   href={config.docsUrl}
@@ -335,12 +335,12 @@ export function AiSettings() {
 
       <section
         aria-labelledby="agents-heading"
-        className="mt-8 rounded-lg border border-gray-200 p-4"
+        className="mt-8 rounded-lg border border-neutral-200 p-4"
       >
-        <h3 id="agents-heading" className="text-base font-medium text-gray-900">
+        <h3 id="agents-heading" className="text-base font-medium text-neutral-900">
           Agents
         </h3>
-        <p className="mt-1 text-sm text-gray-600">
+        <p className="mt-1 text-sm text-neutral-600">
           Create and manage reusable assistant profiles for workspace chat.
         </p>
         {!hasProviderKey && (
@@ -353,22 +353,22 @@ export function AiSettings() {
         ) : (
           <ul className="mt-4 space-y-2">
             {agents.length === 0 ? (
-              <li className="text-sm text-gray-500">
+              <li className="text-sm text-neutral-500">
                 No agents yet. Create your first agent below.
               </li>
             ) : (
               agents.map((agent) => (
-                <li key={agent.id} className="rounded-md border border-gray-200 px-3 py-3">
+                <li key={agent.id} className="rounded-md border border-neutral-200 px-3 py-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-900">{agent.name}</span>
+                        <span className="font-medium text-neutral-900">{agent.name}</span>
                         <span
                           className={clsx(
                             'rounded px-2 py-0.5 text-xs font-medium',
                             agent.isActive
                               ? 'bg-green-100 text-green-700'
-                              : 'bg-gray-100 text-gray-600'
+                              : 'bg-neutral-100 text-neutral-600'
                           )}
                         >
                           {agent.isActive ? 'Active' : 'Inactive'}
@@ -379,7 +379,7 @@ export function AiSettings() {
                           </span>
                         )}
                       </div>
-                      <div className="mt-1 text-xs font-mono text-gray-600">{agent.model}</div>
+                      <div className="mt-1 text-xs font-mono text-neutral-600">{agent.model}</div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <button
@@ -429,18 +429,18 @@ export function AiSettings() {
         )}
 
         <form
-          className="mt-5 rounded-lg border border-gray-200 p-4"
+          className="mt-5 rounded-lg border border-neutral-200 p-4"
           onSubmit={(e) => {
             e.preventDefault();
             saveAgent();
           }}
         >
-          <h4 className="text-sm font-semibold text-gray-900">
+          <h4 className="text-sm font-semibold text-neutral-900">
             {editingAgentId ? 'Edit Agent' : 'Create Agent'}
           </h4>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             <div>
-              <label htmlFor="agent-name" className="mb-1 block text-sm font-medium text-gray-700">
+              <label htmlFor="agent-name" className="mb-1 block text-sm font-medium text-neutral-700">
                 Name
               </label>
               <input
@@ -452,7 +452,7 @@ export function AiSettings() {
               />
             </div>
             <div>
-              <label htmlFor="agent-model" className="mb-1 block text-sm font-medium text-gray-700">
+              <label htmlFor="agent-model" className="mb-1 block text-sm font-medium text-neutral-700">
                 Model
               </label>
               <input
@@ -466,7 +466,7 @@ export function AiSettings() {
             <div className="md:col-span-2">
               <label
                 htmlFor="agent-prompt"
-                className="mb-1 block text-sm font-medium text-gray-700"
+                className="mb-1 block text-sm font-medium text-neutral-700"
               >
                 System Prompt (optional)
               </label>
@@ -479,7 +479,7 @@ export function AiSettings() {
               />
             </div>
             <div>
-              <label htmlFor="agent-rpm" className="mb-1 block text-sm font-medium text-gray-700">
+              <label htmlFor="agent-rpm" className="mb-1 block text-sm font-medium text-neutral-700">
                 Requests / minute
               </label>
               <input
@@ -491,7 +491,7 @@ export function AiSettings() {
               />
             </div>
             <div>
-              <label htmlFor="agent-tpd" className="mb-1 block text-sm font-medium text-gray-700">
+              <label htmlFor="agent-tpd" className="mb-1 block text-sm font-medium text-neutral-700">
                 Tokens / day
               </label>
               <input
@@ -504,12 +504,12 @@ export function AiSettings() {
             </div>
           </div>
           <fieldset className="mt-4">
-            <legend className="mb-2 block text-sm font-medium text-gray-700">Tools</legend>
+            <legend className="mb-2 block text-sm font-medium text-neutral-700">Tools</legend>
             <div className="grid gap-2 md:grid-cols-2">
               {AVAILABLE_PERMISSIONS.map((tool) => (
                 <label
                   key={tool.id}
-                  className="flex items-center gap-2 rounded border border-gray-200 px-2 py-1.5 text-sm text-gray-700"
+                  className="flex items-center gap-2 rounded border border-neutral-200 px-2 py-1.5 text-sm text-neutral-700"
                 >
                   <input
                     type="checkbox"
@@ -529,7 +529,7 @@ export function AiSettings() {
             </div>
           </fieldset>
           {editingAgentId && (
-            <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
+            <label className="mt-3 flex items-center gap-2 text-sm text-neutral-700">
               <input
                 type="checkbox"
                 checked={agentForm.isActive}
@@ -562,12 +562,12 @@ export function AiSettings() {
 
       <section
         aria-labelledby="chat-defaults-heading"
-        className="mt-8 rounded-lg border border-gray-200 p-4"
+        className="mt-8 rounded-lg border border-neutral-200 p-4"
       >
-        <h3 id="chat-defaults-heading" className="text-base font-medium text-gray-900">
+        <h3 id="chat-defaults-heading" className="text-base font-medium text-neutral-900">
           Chat Defaults
         </h3>
-        <p className="mt-1 text-sm text-gray-600">
+        <p className="mt-1 text-sm text-neutral-600">
           Choose the default agent used by in-app workspace chat.
         </p>
         {aiSettingsQuery.error ? (
@@ -580,7 +580,7 @@ export function AiSettings() {
           <Spinner label="Loading chat defaults" className="mt-3" />
         ) : (
           <div className="mt-4">
-            <label htmlFor="default-agent" className="mb-1 block text-sm font-medium text-gray-700">
+            <label htmlFor="default-agent" className="mb-1 block text-sm font-medium text-neutral-700">
               Default Agent
             </label>
             <select

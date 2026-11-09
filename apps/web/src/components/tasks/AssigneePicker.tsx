@@ -74,7 +74,7 @@ export function AssigneeOptions({
 
   return (
     <>
-      <div className="p-2 border-b border-gray-100">
+      <div className="p-2 border-b border-neutral-100">
         <input
           type="text"
           value={search}
@@ -82,12 +82,12 @@ export function AssigneeOptions({
           placeholder="Search members..."
           aria-label="Search members"
           autoFocus
-          className="w-full px-3 py-1.5 text-base md:text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+          className="w-full px-3 py-1.5 text-base md:text-sm border border-neutral-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
         />
       </div>
       <div className="max-h-48 overflow-y-auto" role="listbox" aria-label="Members">
         {filteredMembers.length === 0 ? (
-          <div className="px-3 py-4 text-sm text-gray-400 text-center">
+          <div className="px-3 py-4 text-sm text-neutral-400 text-center">
             {search ? 'No members found' : 'No members available'}
           </div>
         ) : (
@@ -102,17 +102,17 @@ export function AssigneeOptions({
                 onClick={() => onToggle(member.user.id)}
                 disabled={isLoading}
                 className={clsx(
-                  'w-full flex items-center space-x-3 px-3 py-2 text-left hover:bg-gray-50 transition-colors',
+                  'w-full flex items-center space-x-3 px-3 py-2 text-left hover:bg-neutral-50 transition-colors',
                   isAssigned && 'bg-primary-50'
                 )}
               >
                 <Avatar person={member.user} size="md" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
+                  <p className="text-sm font-medium text-neutral-900 truncate">
                     {member.user.name || member.user.email}
                   </p>
                   {member.user.name && (
-                    <p className="text-xs text-gray-500 truncate">{member.user.email}</p>
+                    <p className="text-xs text-neutral-500 truncate">{member.user.email}</p>
                   )}
                 </div>
                 {isAssigned && (
@@ -150,7 +150,7 @@ export function AssigneePicker({
 
   return (
     <div>
-      <div className="flex items-center space-x-2 text-sm font-medium text-gray-500 mb-2">
+      <div className="flex items-center space-x-2 text-sm font-medium text-neutral-500 mb-2">
         <User className="w-4 h-4" aria-hidden />
         <span>Assignees</span>
       </div>
@@ -160,10 +160,10 @@ export function AssigneePicker({
           {currentAssignees.map((assignee) => (
             <li
               key={assignee.id}
-              className="flex items-center gap-2 py-1 pl-2.5 pr-1 bg-gray-100 rounded-full"
+              className="flex items-center gap-2 py-1 pl-2.5 pr-1 bg-neutral-100 rounded-full"
             >
               <Avatar person={assignee} size="sm" />
-              <span className="text-sm text-gray-700">{assignee.name || assignee.email}</span>
+              <span className="text-sm text-neutral-700">{assignee.name || assignee.email}</span>
               <IconButton
                 label={`Unassign ${assignee.name || assignee.email}`}
                 size="xs"
@@ -202,7 +202,7 @@ export function AssigneePicker({
               disabled={isLoading}
               className={clsx(
                 'flex items-center space-x-1.5 px-3 py-1.5 text-sm rounded-lg border border-dashed transition-colors',
-                'border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-600',
+                'border-neutral-300 text-neutral-500 hover:border-neutral-400 hover:text-neutral-600',
                 isLoading && 'opacity-50 cursor-not-allowed'
               )}
             >

@@ -97,10 +97,10 @@ export function FilterBuilder({ value, onChange, workspaceId }: FilterBuilderPro
   };
 
   return (
-    <div className="border border-gray-200 rounded-lg">
+    <div className="border border-neutral-200 rounded-lg">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
-        <div className="flex items-center gap-2 text-sm text-gray-600">
+      <div className="flex items-center justify-between px-4 py-3 bg-neutral-50 border-b border-neutral-200">
+        <div className="flex items-center gap-2 text-sm text-neutral-600">
           <Filter aria-hidden className="w-4 h-4" />
           <span>Match</span>
           <button
@@ -119,7 +119,7 @@ export function FilterBuilder({ value, onChange, workspaceId }: FilterBuilderPro
       <div className="p-4 space-y-2">
         {conditions.length === 0 ? (
           <div className="py-6 text-center">
-            <p className="text-sm text-gray-500 mb-3">No filters. All tasks will be included.</p>
+            <p className="text-sm text-neutral-500 mb-3">No filters. All tasks will be included.</p>
             <button
               type="button"
               onClick={handleAddCondition}
@@ -148,7 +148,7 @@ export function FilterBuilder({ value, onChange, workspaceId }: FilterBuilderPro
             <button
               type="button"
               onClick={handleAddCondition}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              className="flex items-center gap-1.5 px-3 py-2 text-sm text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 rounded-lg transition-colors"
             >
               <Plus aria-hidden className="w-4 h-4" />
               Add filter

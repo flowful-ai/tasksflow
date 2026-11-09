@@ -36,13 +36,13 @@ export function GeneralSettings({ project }: GeneralSettingsProps) {
   return (
     <div className="card p-6">
       <div className="mb-4">
-        <h2 className="text-lg font-semibold text-gray-900">General</h2>
-        <p className="text-sm text-gray-500">Update your project details.</p>
+        <h2 className="text-lg font-semibold text-neutral-900">General</h2>
+        <p className="text-sm text-neutral-500">Update your project details.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="project-name" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="project-name" className="block text-sm font-medium text-neutral-700 mb-1">
             Project Name
           </label>
           <input
@@ -58,19 +58,19 @@ export function GeneralSettings({ project }: GeneralSettingsProps) {
         <div>
           <label
             htmlFor="project-identifier"
-            className="block text-sm font-medium text-gray-700 mb-1"
+            className="block text-sm font-medium text-neutral-700 mb-1"
           >
             Identifier
           </label>
           <input
             id="project-identifier"
             type="text"
-            className="input bg-gray-50 text-gray-500"
+            className="input bg-neutral-50 text-neutral-500"
             value={project.identifier}
             readOnly
             aria-describedby="project-identifier-hint"
           />
-          <p id="project-identifier-hint" className="mt-1 text-xs text-gray-500">
+          <p id="project-identifier-hint" className="mt-1 text-xs text-neutral-500">
             Identifier cannot be changed once created.
           </p>
         </div>
@@ -78,7 +78,7 @@ export function GeneralSettings({ project }: GeneralSettingsProps) {
         <div>
           <label
             htmlFor="project-description"
-            className="block text-sm font-medium text-gray-700 mb-1"
+            className="block text-sm font-medium text-neutral-700 mb-1"
           >
             Description
           </label>
@@ -92,7 +92,7 @@ export function GeneralSettings({ project }: GeneralSettingsProps) {
         </div>
 
         <div>
-          <label htmlFor="project-icon" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="project-icon" className="block text-sm font-medium text-neutral-700 mb-1">
             Icon
           </label>
           <input
@@ -111,9 +111,9 @@ export function GeneralSettings({ project }: GeneralSettingsProps) {
             type="checkbox"
             checked={isArchived}
             onChange={(e) => setIsArchived(e.target.checked)}
-            className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+            className="rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
           />
-          <label htmlFor="project-archived" className="text-sm text-gray-700">
+          <label htmlFor="project-archived" className="text-sm text-neutral-700">
             Archive project
           </label>
         </div>

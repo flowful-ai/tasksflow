@@ -108,8 +108,8 @@ export function SettingsPage() {
   return (
     <div className="max-w-5xl mx-auto">
       <header className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Settings</h1>
-        <p className="text-sm text-gray-600">
+        <h1 className="text-2xl font-bold text-neutral-900 mb-2">Settings</h1>
+        <p className="text-sm text-neutral-600">
           Settings are separated by scope: user, workspace, and app.
         </p>
       </header>
@@ -130,12 +130,12 @@ export function SettingsPage() {
             <section
               key={section.title}
               aria-labelledby={`settings-${section.title}`}
-              className="border border-gray-200 rounded-lg p-3"
+              className="border border-neutral-200 rounded-lg p-3"
             >
-              <h2 id={`settings-${section.title}`} className="text-sm font-semibold text-gray-900">
+              <h2 id={`settings-${section.title}`} className="text-sm font-semibold text-neutral-900">
                 {section.title}
               </h2>
-              <p className="text-xs text-gray-500 mt-1 mb-2">{section.description}</p>
+              <p className="text-xs text-neutral-500 mt-1 mb-2">{section.description}</p>
               <ul className="space-y-1">
                 {section.items.map((item) => {
                   const Icon = item.icon;
@@ -151,7 +151,7 @@ export function SettingsPage() {
                           'flex items-center px-3 py-2 text-sm font-medium rounded-lg',
                           isActive
                             ? 'bg-primary-50 text-primary-700'
-                            : 'text-gray-700 hover:bg-gray-100'
+                            : 'text-neutral-700 hover:bg-neutral-100'
                         )}
                       >
                         <Icon aria-hidden className="w-5 h-5 mr-3" />

@@ -58,7 +58,7 @@ const ROLE_LABELS: Record<WorkspaceRole, string> = {
 function RoleIcon({ role }: { role: WorkspaceRole }) {
   if (role === 'owner') return <Crown aria-hidden className="w-4 h-4 text-amber-500" />;
   if (role === 'admin') return <Shield aria-hidden className="w-4 h-4 text-blue-500" />;
-  return <User aria-hidden className="w-4 h-4 text-gray-400" />;
+  return <User aria-hidden className="w-4 h-4 text-neutral-400" />;
 }
 
 interface MemberRowProps {
@@ -86,11 +86,11 @@ function MemberRow({
   const canTransfer = currentUserRole === 'owner' && !isCurrentUser;
 
   return (
-    <li className="flex items-center justify-between py-3 px-4 hover:bg-gray-50 rounded-lg">
+    <li className="flex items-center justify-between py-3 px-4 hover:bg-neutral-50 rounded-lg">
       <div className="flex items-center gap-3">
         <div
           aria-hidden
-          className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-medium"
+          className="w-10 h-10 rounded-full bg-neutral-200 flex items-center justify-center text-neutral-600 font-medium"
         >
           {member.user.avatarUrl ? (
             <img src={member.user.avatarUrl} alt="" className="w-10 h-10 rounded-full" />
@@ -100,19 +100,19 @@ function MemberRow({
         </div>
         <div>
           <div className="flex items-center gap-2">
-            <span className="font-medium text-gray-900">{memberName(member)}</span>
+            <span className="font-medium text-neutral-900">{memberName(member)}</span>
             {isCurrentUser && (
-              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">You</span>
+              <span className="text-xs text-neutral-500 bg-neutral-100 px-2 py-0.5 rounded">You</span>
             )}
           </div>
-          <div className="text-sm text-gray-500">{member.user.email}</div>
+          <div className="text-sm text-neutral-500">{member.user.email}</div>
         </div>
       </div>
 
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1.5 text-sm">
           <RoleIcon role={member.role} />
-          <span className="text-gray-600">{ROLE_LABELS[member.role]}</span>
+          <span className="text-neutral-600">{ROLE_LABELS[member.role]}</span>
         </div>
 
         {(canManage || canTransfer) && (
@@ -204,7 +204,7 @@ function InvitationRow({ invitation, onRevoke, isRevoking }: InvitationRowProps)
         isExpired
           ? 'bg-amber-50'
           : isExhausted
-            ? 'bg-gray-100'
+            ? 'bg-neutral-100'
             : isGeneric
               ? 'bg-purple-50'
               : 'bg-blue-50'
@@ -215,20 +215,20 @@ function InvitationRow({ invitation, onRevoke, isRevoking }: InvitationRowProps)
           aria-hidden
           className={clsx(
             'w-10 h-10 rounded-full flex items-center justify-center',
-            isGeneric ? 'bg-purple-100' : 'bg-gray-200'
+            isGeneric ? 'bg-purple-100' : 'bg-neutral-200'
           )}
         >
           {isGeneric ? (
             <LinkIcon className="w-5 h-5 text-purple-600" />
           ) : (
-            <Mail className="w-5 h-5 text-gray-500" />
+            <Mail className="w-5 h-5 text-neutral-500" />
           )}
         </div>
         <div>
-          <div className="font-medium text-gray-900">
+          <div className="font-medium text-neutral-900">
             {isGeneric ? 'Generic invite link' : invitation.email}
           </div>
-          <div className="flex items-center gap-2 text-sm text-gray-500">
+          <div className="flex items-center gap-2 text-sm text-neutral-500">
             {isExhausted ? (
               <span className="flex items-center gap-1">
                 <X aria-hidden className="w-3 h-3" />
@@ -310,11 +310,11 @@ export function MemberSettings() {
     return (
       <div className="card p-6" aria-busy>
         <div className="animate-pulse space-y-4">
-          <div className="h-6 bg-gray-200 rounded w-1/3" />
-          <div className="h-4 bg-gray-200 rounded w-2/3" />
+          <div className="h-6 bg-neutral-200 rounded w-1/3" />
+          <div className="h-4 bg-neutral-200 rounded w-2/3" />
           <div className="space-y-3 mt-6">
-            <div className="h-16 bg-gray-100 rounded" />
-            <div className="h-16 bg-gray-100 rounded" />
+            <div className="h-16 bg-neutral-100 rounded" />
+            <div className="h-16 bg-neutral-100 rounded" />
           </div>
         </div>
       </div>
@@ -348,12 +348,12 @@ export function MemberSettings() {
           <div>
             <h2
               id="members-heading"
-              className="text-lg font-semibold text-gray-900 flex items-center gap-2"
+              className="text-lg font-semibold text-neutral-900 flex items-center gap-2"
             >
               <Users aria-hidden className="w-5 h-5" />
               Team Members
             </h2>
-            <p className="text-sm text-gray-600 mt-1">Manage who has access to this workspace.</p>
+            <p className="text-sm text-neutral-600 mt-1">Manage who has access to this workspace.</p>
           </div>
           {canManageMembers && (
             <button
@@ -367,7 +367,7 @@ export function MemberSettings() {
           )}
         </div>
 
-        <ul className="border border-gray-200 rounded-lg divide-y divide-gray-100">
+        <ul className="border border-neutral-200 rounded-lg divide-y divide-neutral-100">
           {members.map((member) => (
             <MemberRow
               key={member.id}
@@ -393,7 +393,7 @@ export function MemberSettings() {
         <section className="card p-6" aria-labelledby="invitations-heading">
           <h3
             id="invitations-heading"
-            className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2"
+            className="text-base font-semibold text-neutral-900 mb-4 flex items-center gap-2"
           >
             <UserPlus aria-hidden className="w-5 h-5" />
             Open Invitations

@@ -63,7 +63,7 @@ function ViewCard({ view, onDelete }: ViewCardProps) {
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="font-medium text-gray-900 truncate">
+            <h3 className="font-medium text-neutral-900 truncate">
               {/* The link's ::after covers the card so the whole card is clickable. */}
               <Link
                 to={`/view/${view.id}`}
@@ -74,20 +74,20 @@ function ViewCard({ view, onDelete }: ViewCardProps) {
             </h3>
             {view.isPersonal && (
               <Lock
-                className="w-3.5 h-3.5 text-gray-400 flex-shrink-0"
+                className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0"
                 aria-label="Personal view"
               />
             )}
           </div>
           {view.description && (
-            <p className="text-sm text-gray-500 mt-1 line-clamp-2">{view.description}</p>
+            <p className="text-sm text-neutral-500 mt-1 line-clamp-2">{view.description}</p>
           )}
           <div className="flex items-center gap-3 mt-2">
-            <span className="inline-flex items-center text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
+            <span className="inline-flex items-center text-xs text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded">
               {displayTypeLabels[view.displayType]}
             </span>
             {activeShares > 0 && (
-              <span className="inline-flex items-center gap-1 text-xs text-gray-600">
+              <span className="inline-flex items-center gap-1 text-xs text-neutral-600">
                 <Globe aria-hidden className="w-3 h-3" />
                 {activeShares} public link{activeShares === 1 ? '' : 's'}
               </span>
@@ -151,8 +151,8 @@ export function ViewsPage() {
     <div>
       <header className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Views</h1>
-          <p className="text-gray-600 mt-1">Saved filtered views in {currentWorkspace.name}</p>
+          <h1 className="text-2xl font-bold text-neutral-900">Views</h1>
+          <p className="text-neutral-600 mt-1">Saved filtered views in {currentWorkspace.name}</p>
         </div>
         <Link
           to="/settings/workspace/views/new"

@@ -104,14 +104,14 @@ export function FilterConditionRow({
   const fieldsByCategory = getFieldsByCategory();
 
   return (
-    <div className="flex items-start gap-2 p-3 bg-gray-50 rounded-lg group">
+    <div className="flex items-start gap-2 p-3 bg-neutral-50 rounded-lg group">
       {/* Field selector */}
       <div className="w-40 flex-shrink-0">
         <select
           value={condition.field}
           onChange={(e) => handleFieldChange(e.target.value)}
           aria-label="Field"
-          className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
+          className="w-full px-3 py-1.5 text-sm border border-neutral-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
         >
           {Object.entries(fieldsByCategory).map(([category, fields]) => (
             <optgroup key={category} label={category}>
@@ -133,7 +133,7 @@ export function FilterConditionRow({
             if (isFilterOperator(e.target.value)) handleOperatorChange(e.target.value);
           }}
           aria-label="Operator"
-          className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
+          className="w-full px-3 py-1.5 text-sm border border-neutral-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
         >
           {validOperators.map((op) => (
             <option key={op} value={op}>

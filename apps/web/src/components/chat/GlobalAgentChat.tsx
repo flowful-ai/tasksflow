@@ -65,7 +65,7 @@ function getToolStatusLabel(part: AnyToolPart): string {
 const MarkdownImage: Components['img'] = ({ src, alt }) => {
   const label = alt?.trim() ? alt : 'image';
   if (typeof src !== 'string' || !src) {
-    return <span className="italic text-gray-500">[{label}]</span>;
+    return <span className="italic text-neutral-500">[{label}]</span>;
   }
   return (
     <a
@@ -258,17 +258,17 @@ export default function GlobalAgentChat({
       onOpenChange={setIsOpen}
       title="Workspace chat"
       bare
-      className="!left-auto !top-auto !bottom-4 !right-4 !m-0 !h-[70vh] !max-w-md overflow-hidden border border-gray-200"
+      className="!left-auto !top-auto !bottom-4 !right-4 !m-0 !h-[70vh] !max-w-md overflow-hidden border border-neutral-200"
     >
-      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+      <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
         <div className="flex items-center gap-2">
           <Bot className="h-4 w-4 text-primary-600" aria-hidden />
-          <h2 className="text-sm font-semibold text-gray-900">Workspace Chat</h2>
+          <h2 className="text-sm font-semibold text-neutral-900">Workspace Chat</h2>
         </div>
         <IconButton label="Close chat" icon={<X />} onClick={() => setIsOpen(false)} />
       </div>
 
-      <div className="border-b border-gray-200 px-4 py-3">
+      <div className="border-b border-neutral-200 px-4 py-3">
         <select
           className="input"
           value={selectedAgentId}
@@ -293,7 +293,7 @@ export default function GlobalAgentChat({
         className="h-[calc(70vh-180px)] space-y-3 overflow-y-auto px-4 py-3"
       >
         {messages.length === 0 && (
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-neutral-500">
             Ask anything about your workspace, tasks, and projects.
           </div>
         )}
@@ -322,7 +322,7 @@ export default function GlobalAgentChat({
           return (
             <div
               key={message.id}
-              className="mr-8 rounded-xl bg-gray-100 px-3 py-2 text-sm text-gray-800"
+              className="mr-8 rounded-xl bg-neutral-100 px-3 py-2 text-sm text-neutral-800"
             >
               <div className="space-y-2 overflow-x-auto">
                 {assistantParts.map((part, index) => {
@@ -339,7 +339,7 @@ export default function GlobalAgentChat({
                         components={{
                           p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
                           strong: ({ children }) => (
-                            <strong className="font-semibold text-gray-900">{children}</strong>
+                            <strong className="font-semibold text-neutral-900">{children}</strong>
                           ),
                           em: ({ children }) => <em className="italic">{children}</em>,
                           ul: ({ children }) => (
@@ -361,24 +361,24 @@ export default function GlobalAgentChat({
                             </a>
                           ),
                           code: ({ children }) => (
-                            <code className="rounded bg-gray-200 px-1 py-0.5 text-xs text-gray-900">
+                            <code className="rounded bg-neutral-200 px-1 py-0.5 text-xs text-neutral-900">
                               {children}
                             </code>
                           ),
                           table: ({ children }) => (
-                            <table className="my-2 w-full border-collapse overflow-hidden rounded border border-gray-300 text-left text-xs">
+                            <table className="my-2 w-full border-collapse overflow-hidden rounded border border-neutral-300 text-left text-xs">
                               {children}
                             </table>
                           ),
                           thead: ({ children }) => (
-                            <thead className="bg-gray-200">{children}</thead>
+                            <thead className="bg-neutral-200">{children}</thead>
                           ),
                           tbody: ({ children }) => <tbody>{children}</tbody>,
                           tr: ({ children }) => (
-                            <tr className="border-b border-gray-300 last:border-b-0">{children}</tr>
+                            <tr className="border-b border-neutral-300 last:border-b-0">{children}</tr>
                           ),
                           th: ({ children }) => (
-                            <th className="px-2 py-1 font-semibold text-gray-900">{children}</th>
+                            <th className="px-2 py-1 font-semibold text-neutral-900">{children}</th>
                           ),
                           td: ({ children }) => <td className="px-2 py-1 align-top">{children}</td>,
                           img: MarkdownImage,
@@ -397,22 +397,22 @@ export default function GlobalAgentChat({
                     return (
                       <div
                         key={`${message.id}-tool-${index}`}
-                        className="rounded-lg border border-gray-300 bg-white p-2 text-xs text-gray-700"
+                        className="rounded-lg border border-neutral-300 bg-white p-2 text-xs text-neutral-700"
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <div className="inline-flex items-center gap-1.5 font-medium text-gray-900">
+                          <div className="inline-flex items-center gap-1.5 font-medium text-neutral-900">
                             <Wrench className="h-3.5 w-3.5" />
                             {getToolName(part)}
                           </div>
-                          <span className="rounded bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600">
+                          <span className="rounded bg-neutral-100 px-2 py-0.5 text-[11px] text-neutral-600">
                             {getToolStatusLabel(part)}
                           </span>
                         </div>
 
                         {hasInput && (
                           <details className="mt-2" open={part.state === 'approval-requested'}>
-                            <summary className="cursor-pointer text-gray-600">Input</summary>
-                            <pre className="mt-1 overflow-x-auto rounded bg-gray-100 p-2 text-[11px] text-gray-800">
+                            <summary className="cursor-pointer text-neutral-600">Input</summary>
+                            <pre className="mt-1 overflow-x-auto rounded bg-neutral-100 p-2 text-[11px] text-neutral-800">
                               {stringifyJson(part.input)}
                             </pre>
                           </details>
@@ -439,7 +439,7 @@ export default function GlobalAgentChat({
                               </button>
                               <button
                                 type="button"
-                                className="rounded border border-gray-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-800 hover:bg-gray-100"
+                                className="rounded border border-neutral-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-neutral-800 hover:bg-neutral-100"
                                 onClick={() =>
                                   void addToolApprovalResponse({
                                     id: part.approval.id,
@@ -456,8 +456,8 @@ export default function GlobalAgentChat({
 
                         {hasOutput && (
                           <details className="mt-2">
-                            <summary className="cursor-pointer text-gray-600">Output</summary>
-                            <pre className="mt-1 overflow-x-auto rounded bg-gray-100 p-2 text-[11px] text-gray-800">
+                            <summary className="cursor-pointer text-neutral-600">Output</summary>
+                            <pre className="mt-1 overflow-x-auto rounded bg-neutral-100 p-2 text-[11px] text-neutral-800">
                               {stringifyJson(part.output)}
                             </pre>
                           </details>
@@ -484,7 +484,7 @@ export default function GlobalAgentChat({
         })}
 
         {showThinking && (
-          <div className="mr-8 rounded-xl bg-gray-100 px-3 py-2 text-sm text-gray-700">
+          <div className="mr-8 rounded-xl bg-neutral-100 px-3 py-2 text-sm text-neutral-700">
             <div className="inline-flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
               Thinking...
@@ -493,7 +493,7 @@ export default function GlobalAgentChat({
         )}
       </div>
 
-      <div className="border-t border-gray-200 p-3">
+      <div className="border-t border-neutral-200 p-3">
         {currentError && <div className="mb-2 text-xs text-red-600">{currentError}</div>}
         <div className="flex items-center gap-2">
           <input

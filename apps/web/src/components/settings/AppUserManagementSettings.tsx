@@ -45,8 +45,8 @@ export function AppUserManagementSettings({ isAppManager }: AppUserManagementSet
   if (!isAppManager) {
     return (
       <div className="card p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">User Management</h2>
-        <p className="text-sm text-gray-600">
+        <h2 className="text-lg font-semibold text-neutral-900 mb-2">User Management</h2>
+        <p className="text-sm text-neutral-600">
           Only app managers can manage users at the application level.
         </p>
       </div>
@@ -57,10 +57,10 @@ export function AppUserManagementSettings({ isAppManager }: AppUserManagementSet
     <div className="card p-6">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-4">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">App Users</h2>
-          <p className="text-sm text-gray-600 mt-1">Manage app-wide access roles for all users.</p>
+          <h2 className="text-lg font-semibold text-neutral-900">App Users</h2>
+          <p className="text-sm text-neutral-600 mt-1">Manage app-wide access roles for all users.</p>
         </div>
-        <div className="text-sm text-gray-500">
+        <div className="text-sm text-neutral-500">
           {total} total user{total === 1 ? '' : 's'}
         </div>
       </div>
@@ -103,14 +103,14 @@ export function AppUserManagementSettings({ isAppManager }: AppUserManagementSet
         <ErrorState error={error} resource="user list" onRetry={() => void refetch()} />
       ) : isLoading ? (
         <div className="space-y-2" aria-busy>
-          <div className="h-12 bg-gray-100 rounded animate-pulse" />
-          <div className="h-12 bg-gray-100 rounded animate-pulse" />
-          <div className="h-12 bg-gray-100 rounded animate-pulse" />
+          <div className="h-12 bg-neutral-100 rounded animate-pulse" />
+          <div className="h-12 bg-neutral-100 rounded animate-pulse" />
+          <div className="h-12 bg-neutral-100 rounded animate-pulse" />
         </div>
       ) : (
-        <ul className="border border-gray-200 rounded-lg divide-y divide-gray-100">
+        <ul className="border border-neutral-200 rounded-lg divide-y divide-neutral-100">
           {sortedUsers.length === 0 && (
-            <li className="p-4 text-sm text-gray-500">No users found.</li>
+            <li className="p-4 text-sm text-neutral-500">No users found.</li>
           )}
 
           {sortedUsers.map((managedUser) => {
@@ -120,16 +120,16 @@ export function AppUserManagementSettings({ isAppManager }: AppUserManagementSet
             return (
               <li key={managedUser.id} className="p-4 flex items-center justify-between gap-4">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
+                  <p className="text-sm font-medium text-neutral-900 truncate">
                     {managedUser.name || managedUser.email}
                   </p>
-                  <p className="text-sm text-gray-500 truncate">{managedUser.email}</p>
+                  <p className="text-sm text-neutral-500 truncate">{managedUser.email}</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <span
                     className={clsx(
                       'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium',
-                      isAppManagerRole ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+                      isAppManagerRole ? 'bg-blue-100 text-blue-700' : 'bg-neutral-100 text-neutral-700'
                     )}
                   >
                     {roleLabel(managedUser.appRole)}

@@ -38,7 +38,7 @@ export function WorkspaceGeneralSettings() {
   if (!workspace) {
     return (
       <div className="card p-6">
-        <p className="text-gray-600">You don't belong to a workspace yet.</p>
+        <p className="text-neutral-600">You don't belong to a workspace yet.</p>
         <Link to="/settings/workspace/new" className="btn btn-primary mt-4 inline-flex">
           Create a workspace
         </Link>
@@ -90,15 +90,15 @@ function GeneralCard({ workspace, role, isRolePending }: CardProps) {
   return (
     <section aria-labelledby="workspace-heading" className="card p-6">
       <div className="mb-4">
-        <h2 id="workspace-heading" className="text-lg font-semibold text-gray-900">
+        <h2 id="workspace-heading" className="text-lg font-semibold text-neutral-900">
           Workspace
         </h2>
-        <p className="text-sm text-gray-500">General details of {workspace.name}.</p>
+        <p className="text-sm text-neutral-500">General details of {workspace.name}.</p>
       </div>
 
       {!editable && !isRolePending && (
-        <p className="mb-4 flex items-start gap-2 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-600">
-          <Lock aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
+        <p className="mb-4 flex items-start gap-2 rounded-lg bg-neutral-50 px-3 py-2 text-sm text-neutral-600">
+          <Lock aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-neutral-400" />
           Only the workspace owner and admins can change these settings. You are a{' '}
           {ROLE_LABELS[role ?? 'member'].toLowerCase()}.
         </p>
@@ -106,13 +106,13 @@ function GeneralCard({ workspace, role, isRolePending }: CardProps) {
 
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         <div>
-          <label htmlFor="workspace-name" className="mb-1 block text-sm font-medium text-gray-700">
+          <label htmlFor="workspace-name" className="mb-1 block text-sm font-medium text-neutral-700">
             Name
           </label>
           <input
             id="workspace-name"
             type="text"
-            className={editable ? 'input' : 'input bg-gray-50 text-gray-500'}
+            className={editable ? 'input' : 'input bg-neutral-50 text-neutral-500'}
             value={name}
             maxLength={MAX_NAME_LENGTH}
             readOnly={!editable}
@@ -131,32 +131,32 @@ function GeneralCard({ workspace, role, isRolePending }: CardProps) {
         </div>
 
         <div>
-          <label htmlFor="workspace-slug" className="mb-1 block text-sm font-medium text-gray-700">
+          <label htmlFor="workspace-slug" className="mb-1 block text-sm font-medium text-neutral-700">
             Slug
           </label>
           <input
             id="workspace-slug"
             type="text"
-            className="input bg-gray-50 font-mono text-gray-500"
+            className="input bg-neutral-50 font-mono text-neutral-500"
             value={workspace.slug}
             readOnly
             aria-describedby="workspace-slug-hint"
           />
-          <p id="workspace-slug-hint" className="mt-1 text-xs text-gray-500">
+          <p id="workspace-slug-hint" className="mt-1 text-xs text-neutral-500">
             The slug is set when the workspace is created and can't be changed.
           </p>
         </div>
 
         <dl className="grid grid-cols-[8rem_1fr] gap-y-2 text-sm">
-          <dt className="text-gray-500">Members</dt>
-          <dd className="text-gray-900">
+          <dt className="text-neutral-500">Members</dt>
+          <dd className="text-neutral-900">
             {workspace.members.length}{' '}
             <Link to="/settings/workspace/members" className="text-primary-600 hover:underline">
               Manage
             </Link>
           </dd>
-          <dt className="text-gray-500">Your role</dt>
-          <dd className="text-gray-900">{role ? ROLE_LABELS[role] : '—'}</dd>
+          <dt className="text-neutral-500">Your role</dt>
+          <dd className="text-neutral-900">{role ? ROLE_LABELS[role] : '—'}</dd>
         </dl>
 
         {editable && (
@@ -192,16 +192,16 @@ function DangerZone({ workspace, role }: { workspace: WorkspaceDetailDto; role: 
     <section aria-labelledby="danger-heading" className="card border border-red-100 p-6">
       <div className="mb-4 flex items-center gap-2">
         <AlertTriangle aria-hidden className="h-5 w-5 text-red-600" />
-        <h2 id="danger-heading" className="text-lg font-semibold text-gray-900">
+        <h2 id="danger-heading" className="text-lg font-semibold text-neutral-900">
           Danger Zone
         </h2>
       </div>
 
       <div className="space-y-4">
-        <div className="flex flex-col gap-3 rounded-lg border border-gray-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 rounded-lg border border-neutral-200 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="font-medium text-gray-900">Leave workspace</h3>
-            <p className="text-sm text-gray-500">
+            <h3 className="font-medium text-neutral-900">Leave workspace</h3>
+            <p className="text-sm text-neutral-500">
               {canLeave
                 ? 'You lose access to its projects, tasks and views until someone invites you again.'
                 : 'You are the only owner. Transfer ownership in Members before you leave.'}
@@ -221,8 +221,8 @@ function DangerZone({ workspace, role }: { workspace: WorkspaceDetailDto; role: 
         {isOwner && (
           <div className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50/40 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h3 className="font-medium text-gray-900">Delete workspace</h3>
-              <p className="text-sm text-gray-500">
+              <h3 className="font-medium text-neutral-900">Delete workspace</h3>
+              <p className="text-sm text-neutral-500">
                 Permanently delete this workspace with all its projects, tasks and settings.
               </p>
             </div>
@@ -270,7 +270,7 @@ function DangerZone({ workspace, role }: { workspace: WorkspaceDetailDto; role: 
           void goTo(next);
         }}
       >
-        <label htmlFor="confirm-workspace-name" className="block text-sm text-gray-700">
+        <label htmlFor="confirm-workspace-name" className="block text-sm text-neutral-700">
           Type <strong className="font-semibold">{workspace.name}</strong> to confirm
         </label>
         <input
