@@ -1,93 +1,84 @@
 import { Hono } from 'hono';
-import { getDatabase, projectIntegrations, projects, workspaceMembers, githubInstallations } from '@flowtask/database';
-import { eq, and } from 'drizzle-orm';
-import { getCurrentUser } from '@flowtask/auth';
-import { GitHubSyncService, createGitHubClientForInstallation } from '@flowtask/integrations';
+import { z } from 'zod';
+import { and, eq } from 'drizzle-orm';
+import { getDatabase, githubInstallations } from '@flowtask/database';
+import { authMiddleware, getCurrentSession, getCurrentUser, getOptionalUser } from '@flowtask/auth';
 import { TaskService } from '@flowtask/domain';
+import { GitHubRepoRefSchema, LinkGitHubRepositorySchema, findLinkedRepository } from '@flowtask/shared';
+import {
+  GitHubSyncService,
+  createGitHubClientForInstallation,
+  createOAuthState,
+  getProjectGitHubIntegration,
+  getWebUrl,
+  listInstallationRepositories,
+  readSecretEnv,
+  updateGitHubConfig,
+  updateRepoSyncStatus,
+} from '@flowtask/integrations';
+import { publishEvent } from '../sse/manager.js';
+import { apiError, authorizeProjectIntegration } from '../services/integration-access.js';
+import { GitHubInstallError, completeGitHubInstallation } from '../services/github-install-service.js';
+import { slackRoutes } from './slack.js';
 
 const github = new Hono();
 const githubPublic = new Hono();
 const db = getDatabase();
 const taskService = new TaskService(db);
 
-interface LinkedRepository {
-  owner: string;
-  repo: string;
-  installationId: number;
-  linkedAt: string;
-  lastSyncAt: string | null;
-  syncStatus: 'idle' | 'syncing' | 'synced' | 'error';
-  syncError: string | null;
+const InstallBodySchema = z.object({
+  installationId: z.coerce.number().int().positive(),
+  code: z.string().min(1),
+  state: z.string().min(1),
+});
+
+async function userOwnsInstallation(userId: string, installationId: number): Promise<boolean> {
+  const [row] = await db
+    .select({ id: githubInstallations.id })
+    .from(githubInstallations)
+    .where(and(eq(githubInstallations.userId, userId), eq(githubInstallations.installationId, installationId)));
+  return Boolean(row);
 }
 
-interface GitHubIntegrationConfig {
-  installationId?: number; // Legacy top-level, kept for backward compat
-  repositories?: LinkedRepository[];
+async function readJsonBody(c: { req: { json: () => Promise<unknown> } }): Promise<unknown> {
+  try {
+    return await c.req.json();
+  } catch {
+    return null;
+  }
 }
 
-// Helper to verify user has access to project
-async function verifyProjectAccess(projectId: string, userId: string): Promise<boolean> {
-  const [project] = await db
-    .select({ workspaceId: projects.workspaceId })
-    .from(projects)
-    .where(eq(projects.id, projectId));
-
-  if (!project) return false;
-
-  const [member] = await db
-    .select()
-    .from(workspaceMembers)
-    .where(
-      and(
-        eq(workspaceMembers.workspaceId, project.workspaceId),
-        eq(workspaceMembers.userId, userId)
-      )
-    );
-
-  return !!member;
+function sessionIdOf(c: Parameters<typeof getCurrentSession>[0]): string | null {
+  try {
+    return getCurrentSession(c).id;
+  } catch {
+    return null;
+  }
 }
 
-// List repositories from a GitHub App installation
+// List repositories of an installation the caller has verified access to.
 github.get('/installations/:installationId/repos', async (c) => {
-  // Auth handled by middleware
-  const installationId = parseInt(c.req.param('installationId'), 10);
-
-  if (isNaN(installationId)) {
-    return c.json({ success: false, error: 'Invalid installation ID' }, 400);
+  const user = getCurrentUser(c);
+  const installationId = Number(c.req.param('installationId'));
+  if (!Number.isSafeInteger(installationId) || installationId <= 0) {
+    return apiError(c, 400, 'INVALID_INSTALLATION', 'Invalid installation ID');
+  }
+  if (!(await userOwnsInstallation(user.id, installationId))) {
+    return apiError(c, 403, 'FORBIDDEN', 'You do not have access to this GitHub installation');
   }
 
   try {
-    const client = await createGitHubClientForInstallation(installationId, {
-      owner: '',
-      repo: '',
-    });
-    const octokit = client.getOctokit();
-    const { data } = await octokit.apps.listReposAccessibleToInstallation({
-      per_page: 100,
-    });
-
-    const repositories = data.repositories.map((repo: { id: number; owner: { login: string }; name: string; full_name: string; html_url: string }) => ({
-      id: repo.id,
-      owner: repo.owner.login,
-      name: repo.name,
-      fullName: repo.full_name,
-      htmlUrl: repo.html_url,
-    }));
-
+    const repositories = await listInstallationRepositories(installationId);
     return c.json({ success: true, data: { repositories } });
   } catch (error) {
     console.error('Error listing installation repos:', error);
-    return c.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to list repositories',
-    }, 500);
+    return apiError(c, 502, 'GITHUB_ERROR', 'Failed to list repositories');
   }
 });
 
-// Get the current user's GitHub App installations
+// The current user's verified GitHub App installations
 github.get('/my-installations', async (c) => {
   const user = getCurrentUser(c);
-
   const installations = await db
     .select()
     .from(githubInstallations)
@@ -105,270 +96,146 @@ github.get('/my-installations', async (c) => {
   });
 });
 
-// Get GitHub integration for a project
+// GitHub integration for a project
 github.get('/:projectId/github', async (c) => {
   const user = getCurrentUser(c);
   const projectId = c.req.param('projectId');
+  const access = await authorizeProjectIntegration(projectId, user.id, 'project:read');
+  if (!access.ok) return apiError(c, access.status, access.code, access.message);
 
-  // Verify access
-  const hasAccess = await verifyProjectAccess(projectId, user.id);
-  if (!hasAccess) {
-    return c.json({ success: false, error: 'Access denied' }, 403);
-  }
-
-  // Find existing integration
-  const [integration] = await db
-    .select()
-    .from(projectIntegrations)
-    .where(
-      and(
-        eq(projectIntegrations.projectId, projectId),
-        eq(projectIntegrations.integrationType, 'github')
-      )
-    );
-
-  // Check if current user has any GitHub installations (can link repos)
+  const integration = await getProjectGitHubIntegration(db, projectId);
   const [userInstallation] = await db
     .select({ id: githubInstallations.id })
     .from(githubInstallations)
     .where(eq(githubInstallations.userId, user.id))
     .limit(1);
-  const canLinkRepos = !!userInstallation;
+  const canManage = (await authorizeProjectIntegration(projectId, user.id, 'project:manage_integrations')).ok;
+  const canLinkRepos = canManage && Boolean(userInstallation);
 
   if (!integration) {
     return c.json({
       success: true,
-      data: {
-        id: null,
-        installationId: null,
-        repositories: [],
-        isEnabled: false,
-        canLinkRepos,
-      },
+      data: { id: null, installationId: null, repositories: [], isEnabled: false, canLinkRepos, canManage },
     });
   }
-
-  const config = integration.config as GitHubIntegrationConfig;
-  const repos = config.repositories || [];
-
-  // Backward compat: return installationId from first repo or legacy top-level
-  const installationId = repos[0]?.installationId ?? config.installationId ?? null;
 
   return c.json({
     success: true,
     data: {
       id: integration.id,
-      installationId,
-      repositories: repos,
+      installationId: integration.config.repositories[0]?.installationId ?? null,
+      repositories: integration.config.repositories,
       isEnabled: integration.isEnabled,
       canLinkRepos,
+      canManage,
     },
   });
 });
 
-// Save installation ID for a project (called after GitHub App installation)
+// Start a GitHub App install: returns a single-use state nonce bound to this session.
+github.post('/:projectId/github/install/start', async (c) => {
+  const user = getCurrentUser(c);
+  const sessionId = sessionIdOf(c);
+  const projectId = c.req.param('projectId');
+  const access = await authorizeProjectIntegration(projectId, user.id, 'project:manage_integrations');
+  if (!access.ok) return apiError(c, access.status, access.code, access.message);
+  if (!sessionId) return apiError(c, 401, 'UNAUTHORIZED', 'A browser session is required to install the GitHub App');
+
+  const state = await createOAuthState(db, { provider: 'github', userId: user.id, sessionId, projectId });
+  const slug = readSecretEnv('GITHUB_APP_SLUG');
+  const installUrl = slug
+    ? `https://github.com/apps/${encodeURIComponent(slug)}/installations/new?state=${encodeURIComponent(state)}`
+    : null;
+  return c.json({ success: true, data: { state, installUrl } });
+});
+
+// Complete an install from the SPA (alternative to the server-side callback below).
+// Requires the OAuth code and the state nonce; a bare installationId is never trusted.
 github.post('/:projectId/github/install', async (c) => {
   const user = getCurrentUser(c);
+  const sessionId = sessionIdOf(c);
   const projectId = c.req.param('projectId');
-
-  // Verify access
-  const hasAccess = await verifyProjectAccess(projectId, user.id);
-  if (!hasAccess) {
-    return c.json({ success: false, error: 'Access denied' }, 403);
+  const parsed = InstallBodySchema.safeParse(await readJsonBody(c));
+  if (!parsed.success) {
+    return apiError(c, 400, 'VERIFICATION_REQUIRED', 'installationId, code and state are required');
   }
+  if (!sessionId) return apiError(c, 401, 'UNAUTHORIZED', 'Session required');
 
-  const body = await c.req.json() as { installationId: number };
-  const { installationId } = body;
-
-  if (!installationId) {
-    return c.json({ success: false, error: 'Missing installationId' }, 400);
-  }
-
-  // Upsert into github_installations (user-level)
-  let accountLogin: string | null = null;
-  let accountType: string | null = null;
   try {
-    const client = await createGitHubClientForInstallation(installationId, { owner: '', repo: '' });
-    const octokit = client.getOctokit();
-    const { data: installation } = await octokit.apps.getInstallation({ installation_id: installationId });
-    const account = installation.account as { login?: string; type?: string } | null;
-    accountLogin = account?.login ?? null;
-    accountType = account?.type ?? null;
-  } catch {
-    // Non-critical: we can still save without account info
-  }
-
-  await db
-    .insert(githubInstallations)
-    .values({
-      userId: user.id,
-      installationId,
-      accountLogin,
-      accountType,
-    })
-    .onConflictDoUpdate({
-      target: [githubInstallations.userId, githubInstallations.installationId],
-      set: { accountLogin, accountType },
-    });
-
-  // Also ensure project_integrations row exists (without top-level installationId)
-  const [existingIntegration] = await db
-    .select()
-    .from(projectIntegrations)
-    .where(
-      and(
-        eq(projectIntegrations.projectId, projectId),
-        eq(projectIntegrations.integrationType, 'github')
-      )
-    );
-
-  if (existingIntegration) {
-    const config = existingIntegration.config as GitHubIntegrationConfig;
+    const result = await completeGitHubInstallation({ ...parsed.data, userId: user.id, sessionId });
+    if (result.projectId !== projectId) {
+      return apiError(c, 400, 'INVALID_STATE', 'Install was started for a different project');
+    }
+    const integration = await getProjectGitHubIntegration(db, projectId);
     return c.json({
       success: true,
       data: {
-        id: existingIntegration.id,
-        installationId,
-        repositories: config.repositories || [],
-        isEnabled: existingIntegration.isEnabled,
+        id: integration?.id ?? null,
+        installationId: result.installationId,
+        repositories: integration?.config.repositories ?? [],
+        isEnabled: integration?.isEnabled ?? true,
       },
     });
+  } catch (error) {
+    if (error instanceof GitHubInstallError) return apiError(c, error.status, error.code, error.message);
+    throw error;
   }
-
-  // Create new integration (no top-level installationId)
-  const [newIntegration] = await db
-    .insert(projectIntegrations)
-    .values({
-      projectId,
-      integrationType: 'github',
-      config: { repositories: [] },
-      isEnabled: true,
-    })
-    .returning();
-
-  if (!newIntegration) {
-    return c.json({ success: false, error: 'Failed to create integration' }, 500);
-  }
-
-  return c.json({
-    success: true,
-    data: {
-      id: newIntegration.id,
-      installationId,
-      repositories: [],
-      isEnabled: true,
-    },
-  });
 });
 
 // Link a repository to a project
 github.post('/:projectId/github/link', async (c) => {
   const user = getCurrentUser(c);
   const projectId = c.req.param('projectId');
+  const access = await authorizeProjectIntegration(projectId, user.id, 'project:manage_integrations');
+  if (!access.ok) return apiError(c, access.status, access.code, access.message);
 
-  // Verify access
-  const hasAccess = await verifyProjectAccess(projectId, user.id);
-  if (!hasAccess) {
-    return c.json({ success: false, error: 'Access denied' }, 403);
+  const parsed = LinkGitHubRepositorySchema.safeParse(await readJsonBody(c));
+  if (!parsed.success) return apiError(c, 400, 'INVALID_BODY', 'installationId, owner and repo are required');
+  const { installationId, owner, repo } = parsed.data;
+
+  if (!(await userOwnsInstallation(user.id, installationId))) {
+    return apiError(c, 403, 'FORBIDDEN', 'You do not have access to this GitHub installation');
   }
 
-  const body = await c.req.json() as { installationId: number; owner: string; repo: string };
-  const { installationId, owner, repo } = body;
-
-  if (!installationId || !owner || !repo) {
-    return c.json({ success: false, error: 'Missing required fields' }, 400);
+  // The installation must actually grant access to the repository.
+  let canonical: { owner: string; repo: string };
+  try {
+    const client = await createGitHubClientForInstallation(installationId, { owner, repo });
+    const repository = await client.getRepository();
+    canonical = { owner: repository.owner.login, repo: repository.name };
+  } catch {
+    return apiError(c, 400, 'REPO_NOT_ACCESSIBLE', 'This installation cannot access that repository');
   }
 
-  // Verify the current user owns this installation
-  const [userInstallation] = await db
-    .select()
-    .from(githubInstallations)
-    .where(
-      and(
-        eq(githubInstallations.userId, user.id),
-        eq(githubInstallations.installationId, installationId)
-      )
-    );
-
-  if (!userInstallation) {
-    return c.json({ success: false, error: 'You do not own this GitHub installation' }, 403);
-  }
-
-  // Check if integration exists
-  const [existingIntegration] = await db
-    .select()
-    .from(projectIntegrations)
-    .where(
-      and(
-        eq(projectIntegrations.projectId, projectId),
-        eq(projectIntegrations.integrationType, 'github')
-      )
-    );
-
-  const newRepo: LinkedRepository = {
-    owner,
-    repo,
-    installationId,
-    linkedAt: new Date().toISOString(),
-    lastSyncAt: null,
-    syncStatus: 'idle',
-    syncError: null,
-  };
-
-  if (existingIntegration) {
-    // Update existing integration
-    const config = existingIntegration.config as GitHubIntegrationConfig;
-    const repositories = config.repositories || [];
-
-    // Check if already linked
-    const isAlreadyLinked = repositories.some((r) => r.owner === owner && r.repo === repo);
-    if (isAlreadyLinked) {
-      return c.json({ success: false, error: 'Repository already linked' }, 400);
+  let alreadyLinked = false;
+  const integration = await updateGitHubConfig(db, projectId, (config) => {
+    if (findLinkedRepository(config, canonical.owner, canonical.repo)) {
+      alreadyLinked = true;
+      return config;
     }
-
-    repositories.push(newRepo);
-
-    await db
-      .update(projectIntegrations)
-      .set({
-        config: { repositories },
-        updatedAt: new Date(),
-      })
-      .where(eq(projectIntegrations.id, existingIntegration.id));
-
-    return c.json({
-      success: true,
-      data: {
-        id: existingIntegration.id,
-        installationId,
-        repositories,
-        isEnabled: true,
-      },
-    });
-  }
-
-  // Create new integration
-  const [newIntegration] = await db
-    .insert(projectIntegrations)
-    .values({
-      projectId,
-      integrationType: 'github',
-      config: { repositories: [newRepo] },
-      isEnabled: true,
-    })
-    .returning();
-
-  if (!newIntegration) {
-    return c.json({ success: false, error: 'Failed to create integration' }, 500);
-  }
+    return {
+      repositories: [
+        ...config.repositories,
+        {
+          ...canonical,
+          installationId,
+          linkedAt: new Date().toISOString(),
+          lastSyncAt: null,
+          syncStatus: 'idle',
+          syncError: null,
+        },
+      ],
+    };
+  });
+  if (alreadyLinked) return apiError(c, 400, 'ALREADY_LINKED', 'Repository already linked');
 
   return c.json({
     success: true,
     data: {
-      id: newIntegration.id,
+      id: integration.id,
       installationId,
-      repositories: [newRepo],
-      isEnabled: true,
+      repositories: integration.config.repositories,
+      isEnabled: integration.isEnabled,
     },
   });
 });
@@ -377,194 +244,106 @@ github.post('/:projectId/github/link', async (c) => {
 github.delete('/:projectId/github/link', async (c) => {
   const user = getCurrentUser(c);
   const projectId = c.req.param('projectId');
-  const owner = c.req.query('owner');
-  const repo = c.req.query('repo');
+  const access = await authorizeProjectIntegration(projectId, user.id, 'project:manage_integrations');
+  if (!access.ok) return apiError(c, access.status, access.code, access.message);
 
-  // Verify access
-  const hasAccess = await verifyProjectAccess(projectId, user.id);
-  if (!hasAccess) {
-    return c.json({ success: false, error: 'Access denied' }, 403);
-  }
+  const parsed = GitHubRepoRefSchema.safeParse({ owner: c.req.query('owner'), repo: c.req.query('repo') });
+  if (!parsed.success) return apiError(c, 400, 'INVALID_QUERY', 'Missing owner or repo parameter');
+  const { owner, repo } = parsed.data;
 
-  if (!owner || !repo) {
-    return c.json({ success: false, error: 'Missing owner or repo parameter' }, 400);
-  }
+  const existing = await getProjectGitHubIntegration(db, projectId);
+  if (!existing) return apiError(c, 404, 'NO_INTEGRATION', 'No GitHub integration found');
 
-  // Find existing integration
-  const [integration] = await db
-    .select()
-    .from(projectIntegrations)
-    .where(
-      and(
-        eq(projectIntegrations.projectId, projectId),
-        eq(projectIntegrations.integrationType, 'github')
-      )
-    );
-
-  if (!integration) {
-    return c.json({ success: false, error: 'No GitHub integration found' }, 404);
-  }
-
-  const config = integration.config as GitHubIntegrationConfig;
-  const repositories = (config.repositories || []).filter(
-    (r) => !(r.owner === owner && r.repo === repo)
-  );
-
-  await db
-    .update(projectIntegrations)
-    .set({
-      config: { ...config, repositories },
-      updatedAt: new Date(),
-    })
-    .where(eq(projectIntegrations.id, integration.id));
-
+  await updateGitHubConfig(db, projectId, (config) => ({
+    repositories: config.repositories.filter(
+      (r) => !(r.owner.toLowerCase() === owner.toLowerCase() && r.repo.toLowerCase() === repo.toLowerCase())
+    ),
+  }));
   return c.json({ success: true });
 });
 
-// Trigger a sync for a linked repository
+// Import open issues of a linked repository
 github.post('/:projectId/github/sync', async (c) => {
   const user = getCurrentUser(c);
   const projectId = c.req.param('projectId');
+  const access = await authorizeProjectIntegration(projectId, user.id, 'project:manage_integrations');
+  if (!access.ok) return apiError(c, access.status, access.code, access.message);
 
-  // Verify access
-  const hasAccess = await verifyProjectAccess(projectId, user.id);
-  if (!hasAccess) {
-    return c.json({ success: false, error: 'Access denied' }, 403);
-  }
+  const parsed = GitHubRepoRefSchema.safeParse(await readJsonBody(c));
+  if (!parsed.success) return apiError(c, 400, 'INVALID_BODY', 'Missing owner or repo');
 
-  const body = await c.req.json() as { owner: string; repo: string };
-  const { owner, repo } = body;
+  const integration = await getProjectGitHubIntegration(db, projectId, { enabledOnly: true });
+  if (!integration) return apiError(c, 404, 'NO_INTEGRATION', 'No GitHub integration found');
+  const linkedRepo = findLinkedRepository(integration.config, parsed.data.owner, parsed.data.repo);
+  if (!linkedRepo) return apiError(c, 404, 'REPO_NOT_LINKED', 'Repository not linked');
 
-  if (!owner || !repo) {
-    return c.json({ success: false, error: 'Missing owner or repo' }, 400);
-  }
+  await updateRepoSyncStatus(db, projectId, linkedRepo.owner, linkedRepo.repo, { syncStatus: 'syncing', syncError: null });
 
-  // Find integration
-  const [integration] = await db
-    .select()
-    .from(projectIntegrations)
-    .where(
-      and(
-        eq(projectIntegrations.projectId, projectId),
-        eq(projectIntegrations.integrationType, 'github')
-      )
-    );
-
-  if (!integration) {
-    return c.json({ success: false, error: 'No GitHub integration found' }, 404);
-  }
-
-  const config = integration.config as GitHubIntegrationConfig;
-
-  const linkedRepo = config.repositories?.find((r) => r.owner === owner && r.repo === repo);
-  if (!linkedRepo) {
-    return c.json({ success: false, error: 'Repository not linked' }, 404);
-  }
-
-  // Get installationId from the repo entry (or fall back to legacy top-level)
-  const repoInstallationId = linkedRepo.installationId ?? config.installationId;
-  if (!repoInstallationId) {
-    return c.json({ success: false, error: 'GitHub App not installed' }, 400);
-  }
-
-  // Update status to syncing
-  const updatedRepos = config.repositories?.map((r) =>
-    r.owner === owner && r.repo === repo ? { ...r, syncStatus: 'syncing' as const, syncError: null } : r
-  );
-
-  await db
-    .update(projectIntegrations)
-    .set({
-      config: { ...config, repositories: updatedRepos },
-      syncStatus: 'syncing',
-      updatedAt: new Date(),
-    })
-    .where(eq(projectIntegrations.id, integration.id));
-
-  // Perform sync
   try {
-    console.log(`[GitHub Sync] Starting sync for ${owner}/${repo} (project: ${projectId})`);
-    const syncService = new GitHubSyncService(db, taskService);
-    const result = await syncService.initialSync(integration.id, projectId, {
-      installationId: repoInstallationId,
-      owner,
-      repo,
+    const syncService = new GitHubSyncService({ db, taskService, publish: publishEvent });
+    const result = await syncService.initialSync({
+      integrationId: integration.id,
+      projectId,
+      workspaceId: access.workspaceId,
+      repo: linkedRepo,
     });
-    console.log(`[GitHub Sync] Completed for ${owner}/${repo}: ${result.created} created, ${result.updated} updated, ${result.errors.length} errors`);
-
-    // Update status based on result
-    const finalRepos = config.repositories?.map((r) =>
-      r.owner === owner && r.repo === repo
-        ? {
-            ...r,
-            syncStatus: result.errors.length > 0 ? ('error' as const) : ('synced' as const),
-            syncError: result.errors.length > 0 ? result.errors[0] : null,
-            lastSyncAt: new Date().toISOString(),
-          }
-        : r
-    );
-
-    await db
-      .update(projectIntegrations)
-      .set({
-        config: { ...config, repositories: finalRepos },
-        syncStatus: result.errors.length > 0 ? 'error' : 'synced',
-        lastSyncAt: new Date(),
-        syncError: result.errors.length > 0 ? result.errors[0] : null,
-        updatedAt: new Date(),
-      })
-      .where(eq(projectIntegrations.id, integration.id));
-
-    return c.json({
-      success: true,
-      data: result,
+    const firstError = result.errors[0] ?? null;
+    await updateRepoSyncStatus(db, projectId, linkedRepo.owner, linkedRepo.repo, {
+      syncStatus: firstError ? 'error' : 'synced',
+      syncError: firstError,
+      lastSyncAt: new Date().toISOString(),
     });
+    return c.json({ success: true, data: result });
   } catch (error) {
-    console.error(`[GitHub Sync] Failed for ${owner}/${repo}:`, error);
-
-    // Update status to error
-    const errorRepos = config.repositories?.map((r) =>
-      r.owner === owner && r.repo === repo
-        ? { ...r, syncStatus: 'error' as const, syncError: error instanceof Error ? error.message : 'Unknown error' }
-        : r
-    );
-
-    await db
-      .update(projectIntegrations)
-      .set({
-        config: { ...config, repositories: errorRepos },
-        syncStatus: 'error',
-        syncError: error instanceof Error ? error.message : 'Unknown error',
-        updatedAt: new Date(),
-      })
-      .where(eq(projectIntegrations.id, integration.id));
-
-    return c.json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Sync failed',
-    }, 500);
+    const message = error instanceof Error ? error.message : 'Sync failed';
+    console.error(`[GitHub Sync] Failed for ${linkedRepo.owner}/${linkedRepo.repo}:`, error);
+    await updateRepoSyncStatus(db, projectId, linkedRepo.owner, linkedRepo.repo, { syncStatus: 'error', syncError: message });
+    return apiError(c, 502, 'SYNC_FAILED', message);
   }
 });
 
-// GitHub App installation callback (when OAuth during installation is enabled)
-// This handles the redirect from GitHub after app installation
-// GitHub sends: code, installation_id, setup_action, and state (which contains our return URL)
-// This is on the PUBLIC router - no auth required
-githubPublic.get('/callback', async (c) => {
-  const installationId = c.req.query('installation_id');
+// Slack project settings live in their own module; mounted here so they share
+// this router's /api/projects mount.
+github.route('/', slackRoutes);
+
+/**
+ * GitHub App setup/callback URL (public router; runs the session middleware itself).
+ * With "Request user authorization (OAuth) during installation" enabled, GitHub
+ * sends `code`, `installation_id`, `setup_action` and our `state` nonce. The
+ * install is verified and stored here, then the user lands on project settings.
+ */
+githubPublic.get('/callback', authMiddleware, async (c) => {
+  const webUrl = getWebUrl();
+  const state = c.req.query('state') ?? '';
+  const code = c.req.query('code');
+  const installationId = Number(c.req.query('installation_id'));
   const setupAction = c.req.query('setup_action');
-  const state = c.req.query('state'); // Contains the return URL we passed
 
-  const webUrl = process.env.WEB_URL || 'http://localhost:3000';
+  const fail = (reason: string, projectId?: string) => {
+    const target = projectId ? `${webUrl}/project/${projectId}/settings` : `${webUrl}/projects`;
+    return c.redirect(`${target}?github_error=${encodeURIComponent(reason)}`);
+  };
 
-  // Build redirect URL to frontend callback handler
-  const params = new URLSearchParams();
-  if (installationId) params.set('installation_id', installationId);
-  if (setupAction) params.set('setup_action', setupAction);
-  if (state) params.set('state', state);
+  const user = getOptionalUser(c);
+  const sessionId = sessionIdOf(c);
+  if (!user || !sessionId) return fail('not_signed_in');
+  if (setupAction === 'request') return fail('installation_requested');
+  if (!code || !state) return fail('authorization_required');
+  if (!Number.isSafeInteger(installationId) || installationId <= 0) return fail('missing_installation');
 
-  const redirectUrl = `${webUrl}/github/callback?${params.toString()}`;
-  return c.redirect(redirectUrl);
+  try {
+    const result = await completeGitHubInstallation({ state, code, installationId, userId: user.id, sessionId });
+    return c.redirect(
+      `${webUrl}/project/${result.projectId}/settings?section=github&github_installation_id=${result.installationId}`
+    );
+  } catch (error) {
+    if (error instanceof GitHubInstallError) {
+      console.warn(JSON.stringify({ level: 'warn', msg: 'github_install_rejected', code: error.code, userId: user.id }));
+      return fail(error.code.toLowerCase());
+    }
+    console.error('GitHub install callback failed:', error);
+    return fail('internal_error');
+  }
 });
 
 export { github as githubRoutes, githubPublic as githubPublicRoutes };

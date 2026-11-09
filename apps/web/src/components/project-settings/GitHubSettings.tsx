@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { ExternalLink, Trash2, RefreshCw, Link2, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
-import { githubApi, type GitHubRepository, type LinkedRepository } from '../../api/client';
+import { api, githubApi, type GitHubRepository, type LinkedRepository } from '../../api/client';
 
 // GitHub icon component (since lucide-react deprecated Github)
 function GithubIcon({ className }: { className?: string }) {
@@ -19,6 +19,19 @@ interface GitHubSettingsProps {
 
 const GITHUB_APP_SLUG = import.meta.env.VITE_GITHUB_APP_SLUG;
 
+const INSTALL_ERROR_MESSAGES: Record<string, string> = {
+  not_signed_in: 'Sign in again, then restart the GitHub installation.',
+  installation_requested: 'Installation was requested; an organization owner must approve it on GitHub.',
+  authorization_required:
+    'GitHub did not return an authorization code. Enable "Request user authorization (OAuth) during installation" on the GitHub App.',
+  missing_installation: 'GitHub did not return an installation id.',
+  invalid_state: 'The install link expired or was already used. Please start again.',
+  session_mismatch: 'The install was started from a different session. Please start again.',
+  forbidden: 'You need admin access to this project to install GitHub.',
+  not_configured: 'GitHub App OAuth is not configured on the server (GITHUB_APP_CLIENT_ID / GITHUB_APP_CLIENT_SECRET).',
+  verification_failed: 'Could not verify that your GitHub account can access this installation.',
+};
+
 export function GitHubSettings({ projectId, onUpdated }: GitHubSettingsProps) {
   const isGitHubAppConfigured = !!GITHUB_APP_SLUG;
   const [showRepoSelector, setShowRepoSelector] = useState(false);
@@ -34,35 +47,37 @@ export function GitHubSettings({ projectId, onUpdated }: GitHubSettingsProps) {
   });
 
   // Fetch user's GitHub installations (to know if they can link repos)
-  const { data: userInstallations } = useQuery({
+  const { data: userInstallations, refetch: refetchInstallations } = useQuery({
     queryKey: ['github-user-installations'],
     queryFn: () => githubApi.getMyInstallations(),
   });
 
-  // Check URL for installation callback and save installation ID
+  // After the server-side install callback, GitHub lands back here with either
+  // github_installation_id (verified and saved) or github_error.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const installationId = params.get('installation_id');
-    const setupAction = params.get('setup_action');
+    const verifiedInstallationId = params.get('github_installation_id');
+    const installError = params.get('github_error');
+    const legacyInstallationId = params.get('installation_id');
 
-    if (installationId && setupAction === 'install') {
-      // Clear URL params immediately
-      window.history.replaceState({}, '', window.location.pathname);
+    if (!verifiedInstallationId && !installError && !legacyInstallationId) return;
+    window.history.replaceState({}, '', window.location.pathname);
 
-      const installId = parseInt(installationId, 10);
-      setSelectedInstallationId(installId);
-      setShowRepoSelector(true);
-
-      // Save the installation ID to the backend
-      githubApi.saveInstallation(projectId, installId)
-        .then(() => {
-          refetchIntegration();
-        })
-        .catch((err) => {
-          setError(err.message || 'Failed to save installation');
-        });
+    if (verifiedInstallationId) {
+      const installId = parseInt(verifiedInstallationId, 10);
+      if (!Number.isNaN(installId)) {
+        setSelectedInstallationId(installId);
+        setShowRepoSelector(true);
+      }
+      refetchInstallations();
+      refetchIntegration();
+    } else if (installError) {
+      setError(INSTALL_ERROR_MESSAGES[installError] ?? 'GitHub installation failed.');
+    } else {
+      // A bare installation_id can't be trusted without the OAuth proof.
+      setError(INSTALL_ERROR_MESSAGES.authorization_required);
     }
-  }, [projectId, refetchIntegration]);
+  }, [refetchIntegration, refetchInstallations]);
 
   // Fetch available repos when installation ID is set
   const { data: availableRepos, isLoading: reposLoading } = useQuery({
@@ -130,14 +145,19 @@ export function GitHubSettings({ projectId, onUpdated }: GitHubSettingsProps) {
     },
   });
 
-  const handleInstallGitHubApp = () => {
-    // Store the return URL so we can redirect back after GitHub installation
-    const returnUrl = window.location.pathname;
-    localStorage.setItem('github_install_return_url', returnUrl);
-    // Redirect to GitHub App installation page with state parameter
-    // State is passed through the OAuth flow when "Request user authorization during installation" is enabled
-    const installUrl = `https://github.com/apps/${GITHUB_APP_SLUG}/installations/new?state=${encodeURIComponent(returnUrl)}`;
-    window.location.href = installUrl;
+  const handleInstallGitHubApp = async () => {
+    try {
+      // The server issues a single-use state nonce bound to this session; GitHub
+      // passes it back to the callback together with the OAuth code.
+      const response = await api.post<{ success: boolean; data: { state: string; installUrl: string | null } }>(
+        `/api/projects/${projectId}/github/install/start`
+      );
+      const { state, installUrl } = response.data;
+      window.location.href =
+        installUrl ?? `https://github.com/apps/${GITHUB_APP_SLUG}/installations/new?state=${encodeURIComponent(state)}`;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start GitHub installation');
+    }
   };
 
   const hasLinkedRepos = integration?.repositories && integration.repositories.length > 0;
@@ -193,12 +213,14 @@ export function GitHubSettings({ projectId, onUpdated }: GitHubSettingsProps) {
                       <li>Contents: Read (for commit references)</li>
                     </ul>
                   </li>
-                  <li>Set the callback URL to your app URL</li>
+                  <li>Set the callback URL to <code>/api/github/callback</code> on your app URL and enable
+                    &quot;Request user authorization (OAuth) during installation&quot;</li>
                   <li>Generate a private key</li>
                   <li>Set these environment variables:
                     <ul className="ml-5 mt-1 list-disc font-mono text-xs">
                       <li>GITHUB_APP_ID</li>
                       <li>GITHUB_APP_PRIVATE_KEY</li>
+                      <li>GITHUB_APP_CLIENT_ID / GITHUB_APP_CLIENT_SECRET</li>
                       <li>GITHUB_WEBHOOK_SECRET</li>
                       <li>VITE_GITHUB_APP_SLUG (your app's URL slug)</li>
                     </ul>

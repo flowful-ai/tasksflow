@@ -16,6 +16,7 @@ import { publishEvent } from '../sse/manager.js';
 import { GitHubReverseSyncService, createGitHubClientForInstallation } from '@flowtask/integrations';
 import { and, eq } from 'drizzle-orm';
 import { TaskGitHubLinkError, TaskGitHubLinkService } from '../services/task-github-link-service.js';
+import { GitHubRepoRefSchema, LinkTaskGitHubIssueSchema } from '@flowtask/shared';
 import { VALID_TASK_SORT_BY, VALID_TASK_SORT_ORDER } from './smart-view-query-utils.js';
 import { getAuthz, requireProject, requireTask, requireUser } from '../lib/authorize.js';
 import { badRequest, forbidden, fromResult, handleRouteError, toAppError } from '../lib/responses.js';
@@ -40,7 +41,7 @@ tasks.onError(handleRouteError);
 const db = getDatabase();
 const taskService = new TaskService(db);
 const githubReverseSync = new GitHubReverseSyncService(db);
-const taskGitHubLinkService = new TaskGitHubLinkService(db);
+const taskGitHubLinkService = new TaskGitHubLinkService(db, publishEvent);
 
 // Helper to trigger GitHub reverse sync (async, non-blocking)
 function triggerGitHubSync(
@@ -136,29 +137,18 @@ tasks.get('/', async (c) => {
   });
 });
 
-// GitHub integration config type
-interface GitHubIntegrationConfig {
-  installationId?: number;
-  repositories?: Array<{
-    owner: string;
-    repo: string;
-    installationId?: number;
-    linkedAt: string;
-    lastSyncAt: string | null;
-    syncStatus: 'idle' | 'syncing' | 'synced' | 'error';
-    syncError: string | null;
-  }>;
-}
-
-function getInstallationIdForRepo(
-  config: GitHubIntegrationConfig,
-  owner: string,
-  repo: string
-): number | null {
-  const repoEntry = config.repositories?.find(
-    (r) => r.owner === owner && r.repo === repo
-  );
-  return repoEntry?.installationId ?? config.installationId ?? null;
+// Map TaskGitHubLinkService errors to the API error shape.
+function githubLinkErrorResponse(error: unknown): { body: { success: false; error: { code: string; message: string } }; status: 400 | 404 | 409 | 500 } {
+  if (error instanceof TaskGitHubLinkError) {
+    return { body: { success: false, error: { code: error.code, message: error.message } }, status: error.status };
+  }
+  return {
+    body: {
+      success: false,
+      error: { code: 'GITHUB_ERROR', message: error instanceof Error ? error.message : 'GitHub request failed' },
+    },
+    status: 500,
+  };
 }
 
 // Create task
@@ -198,65 +188,22 @@ tasks.post(
 
     publishEvent(workspaceId, REALTIME_EVENTS.TASK_CREATED, result.value, { projectId: project.id });
 
-    // Optionally create GitHub issue (non-blocking)
-    let githubResult: { url: string; number: number } | null = null;
+    // Optionally create a linked GitHub issue in the background (retried; the
+    // board updates over SSE once the link exists).
+    const githubQueued = Boolean(data.createOnGitHub && data.githubRepo);
     if (data.createOnGitHub && data.githubRepo) {
-      try {
-        // 1. Get GitHub integration for project
-        const [integration] = await db
-          .select()
-          .from(projectIntegrations)
-          .where(and(
-            eq(projectIntegrations.projectId, data.projectId),
-            eq(projectIntegrations.integrationType, 'github'),
-            eq(projectIntegrations.isEnabled, true)
-          ));
-
-        if (integration) {
-          const config = integration.config as GitHubIntegrationConfig;
-
-          const installationId = getInstallationIdForRepo(
-            config,
-            data.githubRepo.owner,
-            data.githubRepo.repo
-          );
-
-          if (installationId) {
-            // 2. Create GitHub client
-            const client = await createGitHubClientForInstallation(
-              installationId,
-              { owner: data.githubRepo.owner, repo: data.githubRepo.repo }
-            );
-
-            // 3. Create issue
-            const issue = await client.createIssue({
-              title: data.title,
-              body: data.description || '',
-            });
-
-            // 4. Create external link
-            await db.insert(externalLinks).values({
-              integrationId: integration.id,
-              taskId: result.value.id,
-              externalType: 'github_issue',
-              externalId: issue.number.toString(),
-              externalUrl: issue.html_url,
-              lastSyncedAt: new Date(),
-            });
-
-            githubResult = { url: issue.html_url, number: issue.number };
-          }
-        }
-      } catch (error) {
-        console.error('Failed to create GitHub issue:', error);
-        // Don't fail the request - task was created successfully
-      }
+      taskGitHubLinkService.scheduleIssueCreation({
+        taskId: result.value.id,
+        projectId: data.projectId,
+        owner: data.githubRepo.owner,
+        repo: data.githubRepo.repo,
+      });
     }
 
     return c.json({
       success: true,
       data: result.value,
-      github: githubResult,
+      github: githubQueued ? { queued: true } : null,
     }, 201);
   }
 );
@@ -481,110 +428,76 @@ tasks.post(
   }
 );
 
-// === GitHub Issue Creation ===
+// === GitHub links ===
 
-// Create GitHub issue from existing task
+// Create a GitHub issue from an existing task
 tasks.post(
   '/:taskId/github-issue',
-  zValidator(
-    'json',
-    z.object({
-      owner: z.string(),
-      repo: z.string(),
-    })
-  ),
+  zValidator('json', GitHubRepoRefSchema),
   async (c) => {
     const user = getCurrentUser(c);
     const taskId = c.req.param('taskId');
     const { owner, repo } = c.req.valid('json');
 
-    // 1. Get task and verify access
     const taskResult = await taskService.getById(taskId);
     if (!taskResult.ok) {
       return c.json({ success: false, error: { code: 'NOT_FOUND', message: taskResult.error.message } }, 404);
     }
-
-    const { allowed, project } = await checkTaskAccess(taskResult.value.projectId, user.id, 'task:update');
+    const { allowed } = await checkTaskAccess(taskResult.value.projectId, user.id, 'task:update');
     if (!allowed) {
       return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
     }
 
-    // 2. Get GitHub integration
-    const [integration] = await db
-      .select()
-      .from(projectIntegrations)
-      .where(
-        and(
-          eq(projectIntegrations.projectId, taskResult.value.projectId),
-          eq(projectIntegrations.integrationType, 'github'),
-          eq(projectIntegrations.isEnabled, true)
-        )
-      );
-
-    if (!integration) {
-      return c.json({ success: false, error: { code: 'NO_INTEGRATION', message: 'GitHub not configured for this project' } }, 400);
-    }
-
-    const config = integration.config as GitHubIntegrationConfig;
-    const installationId = getInstallationIdForRepo(config, owner, repo);
-    if (!installationId) {
-      return c.json({ success: false, error: { code: 'NO_INSTALLATION', message: 'GitHub App not installed' } }, 400);
-    }
-
-    // 3. Check task doesn't already have a linked issue
-    const [existingLink] = await db
-      .select()
-      .from(externalLinks)
-      .where(
-        and(
-          eq(externalLinks.taskId, taskId),
-          eq(externalLinks.externalType, 'github_issue')
-        )
-      );
-
-    if (existingLink) {
-      return c.json({ success: false, error: { code: 'ALREADY_LINKED', message: 'Task already has a linked GitHub issue' } }, 400);
-    }
-
-    // 4. Create GitHub issue
     try {
-      const client = await createGitHubClientForInstallation(installationId, { owner, repo });
-      const issue = await client.createIssue({
-        title: taskResult.value.title,
-        body: taskResult.value.description || '',
-      });
-
-      // 5. Create external link
-      await db.insert(externalLinks).values({
-        integrationId: integration.id,
+      const issue = await taskGitHubLinkService.createIssueForTask({
         taskId,
-        externalType: 'github_issue',
-        externalId: issue.number.toString(),
-        externalUrl: issue.html_url,
-        lastSyncedAt: new Date(),
+        projectId: taskResult.value.projectId,
+        owner,
+        repo,
       });
-
-      // 6. Publish WebSocket event with updated task
-      const updatedTask = await taskService.getById(taskId);
-      if (updatedTask.ok) {
-        publishEvent(project!.workspaceId, 'task:updated', updatedTask.value);
-      }
-
-      return c.json({
-        success: true,
-        data: { url: issue.html_url, number: issue.number },
-      }, 201);
+      return c.json({ success: true, data: issue }, 201);
     } catch (error) {
-      console.error('Failed to create GitHub issue:', error);
-      return c.json({
-        success: false,
-        error: { code: 'GITHUB_ERROR', message: error instanceof Error ? error.message : 'Failed to create GitHub issue' },
-      }, 500);
+      const { body, status } = githubLinkErrorResponse(error);
+      return c.json(body, status);
     }
   }
 );
 
-// Link an existing GitHub pull request to an existing task
+// Link an existing GitHub issue to a task
+tasks.post(
+  '/:taskId/github-issue/link',
+  zValidator('json', LinkTaskGitHubIssueSchema),
+  async (c) => {
+    const user = getCurrentUser(c);
+    const taskId = c.req.param('taskId');
+    const { owner, repo, issueNumber } = c.req.valid('json');
+
+    const taskResult = await taskService.getById(taskId);
+    if (!taskResult.ok) {
+      return c.json({ success: false, error: { code: 'NOT_FOUND', message: taskResult.error.message } }, 404);
+    }
+    const { allowed } = await checkTaskAccess(taskResult.value.projectId, user.id, 'task:update');
+    if (!allowed) {
+      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
+    }
+
+    try {
+      const issue = await taskGitHubLinkService.linkIssue({
+        taskId,
+        projectId: taskResult.value.projectId,
+        owner,
+        repo,
+        issueNumber,
+      });
+      return c.json({ success: true, data: issue }, 201);
+    } catch (error) {
+      const { body, status } = githubLinkErrorResponse(error);
+      return c.json(body, status);
+    }
+  }
+);
+
+// Link an existing GitHub pull request to a task
 tasks.post(
   '/:taskId/github-pr',
   zValidator('json', LinkTaskGitHubPrSchema),
@@ -593,50 +506,31 @@ tasks.post(
     const taskId = c.req.param('taskId');
     const { owner, repo, prNumber } = c.req.valid('json');
 
-    // 1. Get task and verify access
     const taskResult = await taskService.getById(taskId);
     if (!taskResult.ok) {
       return c.json({ success: false, error: { code: 'NOT_FOUND', message: taskResult.error.message } }, 404);
     }
-
     const { allowed, project } = await checkTaskAccess(taskResult.value.projectId, user.id, 'task:update');
-    if (!allowed) {
+    if (!allowed || !project) {
       return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
     }
 
     try {
-      const linkResult = await taskGitHubLinkService.linkPullRequestToTask({
+      const linkResult = await taskGitHubLinkService.linkPr({
         taskId,
         projectId: taskResult.value.projectId,
         owner,
         repo,
         prNumber,
       });
-
       const updatedTask = await taskService.getById(taskId);
       if (updatedTask.ok) {
-        publishEvent(project!.workspaceId, 'task:updated', updatedTask.value);
+        publishEvent(project.workspaceId, 'task:updated', updatedTask.value);
       }
-
-      return c.json({
-        success: true,
-        data: linkResult,
-      }, 201);
+      return c.json({ success: true, data: linkResult }, 201);
     } catch (error) {
-      if (error instanceof TaskGitHubLinkError) {
-        return c.json({
-          success: false,
-          error: { code: error.code, message: error.message },
-        }, error.status);
-      }
-
-      return c.json({
-        success: false,
-        error: {
-          code: 'GITHUB_ERROR',
-          message: error instanceof Error ? error.message : 'Failed to link GitHub pull request',
-        },
-      }, 500);
+      const { body, status } = githubLinkErrorResponse(error);
+      return c.json(body, status);
     }
   }
 );

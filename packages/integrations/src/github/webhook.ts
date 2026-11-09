@@ -1,226 +1,186 @@
-import type {
-  GitHubConfig,
-  WebhookResult,
-  GitHubIssueWebhookPayload,
-  GitHubPRWebhookPayload,
-  GitHubIssueCommentWebhookPayload,
-} from '../types.js';
-import type { TaskPriority } from '@flowtask/shared';
+import {
+  GitHubIssueCommentEventSchema,
+  GitHubIssuesEventSchema,
+  GitHubPullRequestEventSchema,
+  type TaskPriority,
+} from '@flowtask/shared';
+import type { GitHubRepoRef } from '../types.js';
 
 /**
- * Handles GitHub webhook events and converts them to FlowTask actions.
+ * Classified GitHub webhook delivery. Produced from the `X-GitHub-Event`
+ * header plus a Zod-validated payload; anything we don't handle is `ignore`.
  */
-export class GitHubWebhookHandler {
-  /**
-   * Handle GitHub issue events.
-   */
-  async handleIssueEvent(
-    payload: GitHubIssueWebhookPayload,
-    config: GitHubConfig
-  ): Promise<WebhookResult> {
-    const { action, issue, repository } = payload;
-
-    // Verify this is for the configured repository
-    if (repository.owner.login !== config.owner || repository.name !== config.repo) {
-      return { action: 'ignore' };
+export type GitHubWebhookAction =
+  | {
+      kind: 'issue';
+      action: 'opened' | 'edited' | 'closed' | 'reopened' | 'labeled' | 'unlabeled' | 'assigned' | 'unassigned';
+      repo: GitHubRepoRef;
+      installationId: number | null;
+      issueNumber: number;
+      /** Set when the issue was created by a GitHub App (e.g. FlowTask itself). */
+      createdByAppId: number | null;
     }
-
-    switch (action) {
-      case 'opened':
-        return {
-          action: 'create_task',
-          externalLink: {
-            type: 'github_issue',
-            id: issue.number.toString(),
-            url: issue.html_url,
-          },
-        };
-
-      case 'edited':
-      case 'closed':
-      case 'reopened':
-      case 'assigned':
-      case 'unassigned':
-      case 'labeled':
-      case 'unlabeled':
-        return {
-          action: 'update_task',
-          externalLink: {
-            type: 'github_issue',
-            id: issue.number.toString(),
-            url: issue.html_url,
-          },
-        };
-
-      default:
-        return { action: 'ignore' };
+  | {
+      kind: 'issue_comment';
+      action: 'created' | 'edited' | 'deleted';
+      repo: GitHubRepoRef;
+      installationId: number | null;
+      issueNumber: number;
+      comment: {
+        id: string;
+        body: string;
+        authorLogin: string;
+        authorId: number;
+        viaAppId: number | null;
+      };
     }
-  }
-
-  /**
-   * Handle GitHub issue comment events.
-   */
-  async handleIssueCommentEvent(
-    payload: GitHubIssueCommentWebhookPayload,
-    config: GitHubConfig
-  ): Promise<WebhookResult> {
-    const { action, comment, issue, repository, sender } = payload;
-
-    // Verify this is for the configured repository
-    if (repository.owner.login !== config.owner || repository.name !== config.repo) {
-      return { action: 'ignore' };
+  | {
+      kind: 'pull_request';
+      action: 'opened' | 'edited' | 'reopened' | 'closed' | 'synchronize';
+      repo: GitHubRepoRef;
+      installationId: number | null;
+      pr: {
+        number: number;
+        url: string;
+        title: string;
+        body: string;
+        branch: string;
+        merged: boolean;
+      };
     }
+  | { kind: 'ignore'; reason: string };
 
-    const commentData = {
-      externalCommentId: comment.id.toString(),
-      body: comment.body,
-      authorLogin: sender.login,
-      authorId: sender.id,
-      url: comment.html_url,
-      issueNumber: issue.number,
-    };
+const ISSUE_ACTIONS = ['opened', 'edited', 'closed', 'reopened', 'labeled', 'unlabeled', 'assigned', 'unassigned'] as const;
+const COMMENT_ACTIONS = ['created', 'edited', 'deleted'] as const;
+const PR_ACTIONS = ['opened', 'edited', 'reopened', 'closed', 'synchronize'] as const;
 
-    switch (action) {
-      case 'created':
-        return { action: 'sync_comment', commentData };
+function isOneOf<T extends string>(values: readonly T[], value: string): value is T {
+  return values.some((v) => v === value);
+}
 
-      case 'edited':
-        return { action: 'update_comment', commentData };
+function repoOf(repository: { name: string; owner: { login: string } }): GitHubRepoRef {
+  return { owner: repository.owner.login, repo: repository.name };
+}
 
-      case 'deleted':
-        return { action: 'delete_comment', commentData };
-
-      default:
-        return { action: 'ignore' };
-    }
-  }
-
-  /**
-   * Handle GitHub pull request events.
-   */
-  async handlePREvent(
-    payload: GitHubPRWebhookPayload,
-    config: GitHubConfig
-  ): Promise<WebhookResult> {
-    const { action, pull_request, repository } = payload;
-
-    // Verify this is for the configured repository
-    if (repository.owner.login !== config.owner || repository.name !== config.repo) {
-      return { action: 'ignore' };
-    }
-
-    // Check if PR title or body contains a task reference (e.g., FLOW-123)
-    const taskRef = this.extractTaskReference(pull_request.title + ' ' + (pull_request.body || ''));
-
-    if (!taskRef) {
-      // No task reference found, just create a link if it's a new PR
-      if (action === 'opened') {
-        return {
-          action: 'link_task',
-          externalLink: {
-            type: 'github_pr',
-            id: pull_request.number.toString(),
-            url: pull_request.html_url,
-          },
-        };
-      }
-      return { action: 'ignore' };
-    }
-
-    switch (action) {
-      case 'opened':
-      case 'edited':
-        return {
-          action: 'link_task',
-          taskId: taskRef,
-          externalLink: {
-            type: 'github_pr',
-            id: pull_request.number.toString(),
-            url: pull_request.html_url,
-          },
-        };
-
-      case 'closed':
-        // If merged, we might want to update the task status
-        if (pull_request.merged) {
-          return {
-            action: 'update_task',
-            taskId: taskRef,
-            externalLink: {
-              type: 'github_pr',
-              id: pull_request.number.toString(),
-              url: pull_request.html_url,
-            },
-          };
-        }
-        return { action: 'ignore' };
-
-      default:
-        return { action: 'ignore' };
-    }
-  }
-
-  /**
-   * Extract task reference from text (e.g., "FLOW-123" from PR title).
-   */
-  private extractTaskReference(text: string): string | null {
-    // Match patterns like FLOW-123, TASK-456, etc.
-    const match = text.match(/\b([A-Z]+-\d+)\b/);
-    return match ? match[1]! : null;
-  }
-
-  /**
-   * Convert GitHub issue state to FlowTask state category.
-   */
-  getStateCategory(state: 'open' | 'closed'): 'backlog' | 'done' {
-    return state === 'open' ? 'backlog' : 'done';
-  }
-
-  /**
-   * Map GitHub labels to FlowTask priority.
-   */
-  mapLabelsToPriority(labels: Array<{ name: string }>): TaskPriority | null {
-    const priorityLabels: Record<string, TaskPriority> = {
-      'priority:urgent': 'urgent',
-      'priority:high': 'high',
-      'priority:medium': 'medium',
-      'priority:low': 'low',
-      urgent: 'urgent',
-      high: 'high',
-      medium: 'medium',
-      low: 'low',
-      'p0': 'urgent',
-      'p1': 'high',
-      'p2': 'medium',
-      'p3': 'low',
-    };
-
-    for (const label of labels) {
-      const normalizedName = label.name.toLowerCase();
-      if (normalizedName in priorityLabels) {
-        return priorityLabels[normalizedName]!;
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * Build task data from a GitHub issue.
-   */
-  buildTaskFromIssue(issue: GitHubIssueWebhookPayload['issue']): {
-    title: string;
-    description: string | null;
-    priority: TaskPriority | null;
-    externalId: string;
-    externalUrl: string;
-  } {
+export function parseGitHubWebhook(eventName: string, payload: unknown): GitHubWebhookAction {
+  if (eventName === 'issues') {
+    const parsed = GitHubIssuesEventSchema.safeParse(payload);
+    if (!parsed.success) return { kind: 'ignore', reason: 'Malformed issues payload' };
+    const { action, issue, repository, installation } = parsed.data;
+    if (!isOneOf(ISSUE_ACTIONS, action)) return { kind: 'ignore', reason: `Unhandled issues action: ${action}` };
+    // Issues API objects can describe pull requests; those are handled via pull_request events.
+    if (issue.pull_request) return { kind: 'ignore', reason: 'Issue event for a pull request' };
     return {
-      title: issue.title,
-      description: issue.body,
-      priority: this.mapLabelsToPriority(issue.labels),
-      externalId: issue.number.toString(),
-      externalUrl: issue.html_url,
+      kind: 'issue',
+      action,
+      repo: repoOf(repository),
+      installationId: installation?.id ?? null,
+      issueNumber: issue.number,
+      createdByAppId: issue.performed_via_github_app?.id ?? null,
     };
   }
+
+  if (eventName === 'issue_comment') {
+    const parsed = GitHubIssueCommentEventSchema.safeParse(payload);
+    if (!parsed.success) return { kind: 'ignore', reason: 'Malformed issue_comment payload' };
+    const { action, comment, issue, repository, installation, sender } = parsed.data;
+    if (!isOneOf(COMMENT_ACTIONS, action)) return { kind: 'ignore', reason: `Unhandled comment action: ${action}` };
+    if (issue.pull_request) return { kind: 'ignore', reason: 'Comment on a pull request' };
+    return {
+      kind: 'issue_comment',
+      action,
+      repo: repoOf(repository),
+      installationId: installation?.id ?? null,
+      issueNumber: issue.number,
+      comment: {
+        id: comment.id.toString(),
+        body: comment.body ?? '',
+        authorLogin: comment.user?.login ?? sender.login,
+        authorId: comment.user?.id ?? sender.id,
+        viaAppId: comment.performed_via_github_app?.id ?? null,
+      },
+    };
+  }
+
+  if (eventName === 'pull_request') {
+    const parsed = GitHubPullRequestEventSchema.safeParse(payload);
+    if (!parsed.success) return { kind: 'ignore', reason: 'Malformed pull_request payload' };
+    const { action, pull_request: pr, repository, installation } = parsed.data;
+    if (!isOneOf(PR_ACTIONS, action)) return { kind: 'ignore', reason: `Unhandled pull_request action: ${action}` };
+    return {
+      kind: 'pull_request',
+      action,
+      repo: repoOf(repository),
+      installationId: installation?.id ?? null,
+      pr: {
+        number: pr.number,
+        url: pr.html_url,
+        title: pr.title,
+        body: pr.body ?? '',
+        branch: pr.head.ref,
+        merged: pr.merged === true,
+      },
+    };
+  }
+
+  return { kind: 'ignore', reason: `Unhandled event: ${eventName}` };
+}
+
+type LabelLike = string | { name?: string | null };
+
+/** Label names from either webhook payloads (objects) or REST responses (strings or objects). */
+export function labelNames(labels: readonly LabelLike[]): string[] {
+  const names: string[] = [];
+  for (const label of labels) {
+    const name = typeof label === 'string' ? label : label.name;
+    if (name) names.push(name);
+  }
+  return names;
+}
+
+const PRIORITY_LABELS: Record<string, TaskPriority> = {
+  'priority:urgent': 'urgent',
+  'priority:high': 'high',
+  'priority:medium': 'medium',
+  'priority:low': 'low',
+  urgent: 'urgent',
+  high: 'high',
+  medium: 'medium',
+  low: 'low',
+  p0: 'urgent',
+  p1: 'high',
+  p2: 'medium',
+  p3: 'low',
+};
+
+/** Map GitHub labels to a FlowTask priority. */
+export function mapLabelsToPriority(labels: readonly LabelLike[]): TaskPriority | null {
+  for (const name of labelNames(labels)) {
+    const priority = PRIORITY_LABELS[name.toLowerCase()];
+    if (priority) return priority;
+  }
+  return null;
+}
+
+/** Normalized issue content used for sync hashing and task writes. */
+export interface IssueContent {
+  title: string;
+  body: string;
+  state: 'open' | 'closed';
+  labels: string[];
+}
+
+/** Accepts webhook issues and REST responses (whose `state` is typed as a plain string). */
+export function issueContentFrom(issue: {
+  title: string;
+  body?: string | null;
+  state: string;
+  labels: readonly LabelLike[];
+}): IssueContent {
+  return {
+    title: issue.title,
+    body: issue.body ?? '',
+    state: issue.state === 'closed' ? 'closed' : 'open',
+    labels: labelNames(issue.labels),
+  };
 }

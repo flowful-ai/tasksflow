@@ -1,3 +1,19 @@
-export { SlackClient, createSlackClient } from './client.js';
+export { SlackClient, createSlackClient, getEnvSlackBotToken, type SlackBlock, type SlackChannel } from './client.js';
 export { SlackProvider } from './provider.js';
-export { SlackNotifier } from './notify.js';
+export { SlackNotifier, buildTaskNotificationMessage, escapeSlackText, type SlackMessage } from './notify.js';
+export {
+  SLACK_BOT_SCOPES,
+  buildSlackAuthorizeUrl,
+  exchangeSlackOAuthCode,
+  getSlackOAuthCredentials,
+  SlackOAuthError,
+  type SlackInstallation,
+  type SlackOAuthCredentials,
+} from './oauth.js';
+export {
+  notifySlackForTaskEvent,
+  deliverSlackTaskEvent,
+  type SlackTaskEvent,
+  type SlackDeliveryOutcome,
+  type SlackDeliveryDeps,
+} from './task-events.js';
