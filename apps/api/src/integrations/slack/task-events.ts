@@ -206,7 +206,70 @@ registerBackgroundJob(SLACK_NOTIFY_JOB, async (payload) => {
   await deliverSlackTaskEvent(getDatabase(), slackEventFromPayload(payload));
 });
 
-export function notifySlackForTaskEvent(event: SlackTaskEvent): void {
+/** How long a project's "has an enabled Slack integration" answer is reused. */
+export const SLACK_PROJECT_CACHE_TTL_MS = 30_000;
+const SLACK_PROJECT_CACHE_MAX = 5_000;
+
+const slackProjectCache = new Map<string, { expiresAt: number; enabled: Promise<boolean> }>();
+
+async function projectHasEnabledSlack(db: Database, projectId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: projectIntegrations.id })
+    .from(projectIntegrations)
+    .where(
+      and(
+        eq(projectIntegrations.projectId, projectId),
+        eq(projectIntegrations.integrationType, 'slack'),
+        eq(projectIntegrations.isEnabled, true)
+      )
+    )
+    .limit(1);
+  return Boolean(row);
+}
+
+/**
+ * Whether the project has an enabled Slack integration, cached per project
+ * for SLACK_PROJECT_CACHE_TTL_MS (the job re-checks everything when it runs).
+ * A failed lookup answers true so the event is still enqueued.
+ */
+export function slackEnabledForProject(
+  projectId: string,
+  db: Database = getDatabase(),
+  now: number = Date.now()
+): Promise<boolean> {
+  const hit = slackProjectCache.get(projectId);
+  if (hit && hit.expiresAt > now) return hit.enabled;
+  if (slackProjectCache.size >= SLACK_PROJECT_CACHE_MAX) {
+    for (const [key, entry] of slackProjectCache) {
+      if (entry.expiresAt <= now) slackProjectCache.delete(key);
+    }
+    if (slackProjectCache.size >= SLACK_PROJECT_CACHE_MAX) slackProjectCache.clear();
+  }
+  const enabled = projectHasEnabledSlack(db, projectId).catch((error: unknown) => {
+    console.error('[slack] integration lookup failed:', error);
+    return true;
+  });
+  slackProjectCache.set(projectId, { expiresAt: now + SLACK_PROJECT_CACHE_TTL_MS, enabled });
+  return enabled;
+}
+
+/** Forget the cached answer after a project's Slack integration is saved or deleted. */
+export function clearSlackProjectCache(projectId?: string): void {
+  if (projectId) slackProjectCache.delete(projectId);
+  else slackProjectCache.clear();
+}
+
+/**
+ * Enqueue a Slack notification for a task event of `projectId`, unless the
+ * project has no enabled Slack integration.
+ */
+export function notifySlackForTaskEvent(projectId: string, event: SlackTaskEvent): void {
+  void slackEnabledForProject(projectId).then((enabled) => {
+    if (enabled) scheduleSlackTaskEvent(event);
+  });
+}
+
+function scheduleSlackTaskEvent(event: SlackTaskEvent): void {
   const payload: BackgroundJobPayload = {};
   for (const [key, value] of Object.entries(event)) {
     if (isJsonValue(value)) payload[key] = value;

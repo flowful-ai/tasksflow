@@ -22,6 +22,8 @@ export {
 } from './oauth.js';
 export {
   notifySlackForTaskEvent,
+  clearSlackProjectCache,
+  slackEnabledForProject,
   deliverSlackTaskEvent,
   type SlackTaskEvent,
   type SlackDeliveryOutcome,

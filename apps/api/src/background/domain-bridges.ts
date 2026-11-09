@@ -81,7 +81,7 @@ export function registerDomainEventBridges(db: Database): () => void {
       publishEvent(event.workspaceId, REALTIME_EVENTS.TASK_CREATED, event.task, {
         projectId: event.projectId,
       });
-      notifySlackForTaskEvent({
+      notifySlackForTaskEvent(event.projectId, {
         type: 'task.created',
         taskId: event.task.id,
         ...slackActor(event),
@@ -95,7 +95,7 @@ export function registerDomainEventBridges(db: Database): () => void {
 
       const stateChange = event.changes.find((change) => change.field === 'stateId');
       if (stateChange) {
-        notifySlackForTaskEvent({
+        notifySlackForTaskEvent(event.projectId, {
           type: 'task.state_changed',
           taskId: event.task.id,
           toStateId: stringOrNull(stateChange.to),
@@ -103,7 +103,7 @@ export function registerDomainEventBridges(db: Database): () => void {
         });
       }
       for (const assigneeUserId of event.addedAssigneeIds) {
-        notifySlackForTaskEvent({
+        notifySlackForTaskEvent(event.projectId, {
           type: 'task.assigned',
           taskId: event.task.id,
           assigneeUserId,
@@ -122,7 +122,7 @@ export function registerDomainEventBridges(db: Database): () => void {
         projectId: event.projectId,
       });
       if (event.positionOnly) return;
-      notifySlackForTaskEvent({
+      notifySlackForTaskEvent(event.projectId, {
         type: 'task.state_changed',
         taskId: event.task.id,
         toStateId: event.toStateId,
@@ -172,7 +172,7 @@ export function registerDomainEventBridges(db: Database): () => void {
         { taskId: event.taskId, projectId: event.projectId, comment: event.comment },
         { projectId: event.projectId }
       );
-      notifySlackForTaskEvent({
+      notifySlackForTaskEvent(event.projectId, {
         type: 'comment.added',
         taskId: event.taskId,
         commentId: event.commentId,

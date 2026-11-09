@@ -5,6 +5,7 @@ import { getCurrentSession } from '../auth/index.js';
 import { UpdateSlackIntegrationSchema, parseSlackConfig, type SlackConfig } from '@flowtask/shared';
 import {
   buildSlackAuthorizeUrl,
+  clearSlackProjectCache,
   createOAuthState,
   createSlackClient,
   decryptSecret,
@@ -179,6 +180,7 @@ slack.patch('/:projectId/slack', async (c) => {
       updatedAt: new Date(),
     })
     .where(eq(projectIntegrations.id, integration.id));
+  clearSlackProjectCache(projectId);
 
   return c.json({ success: true, data: publicView(await getSlackIntegration(projectId)) });
 });
@@ -195,6 +197,7 @@ slack.delete('/:projectId/slack', async (c) => {
         eq(projectIntegrations.integrationType, 'slack')
       )
     );
+  clearSlackProjectCache(projectId);
   return c.json({ success: true });
 });
 

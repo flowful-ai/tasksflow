@@ -7,6 +7,7 @@ import { GitHubWebhookEnvelopeSchema, type SlackConfig } from '@flowtask/shared'
 import {
   GitHubWebhookProcessor,
   SlackOAuthError,
+  clearSlackProjectCache,
   consumeOAuthState,
   encryptSecret,
   exchangeSlackOAuthCode,
@@ -320,6 +321,7 @@ webhooks.get('/slack/oauth', authMiddleware, async (c) => {
         target: [projectIntegrations.projectId, projectIntegrations.integrationType],
         set: { config, isEnabled: true, updatedAt: new Date(), syncError: null },
       });
+    clearSlackProjectCache(binding.projectId);
 
     return c.redirect(
       `${webUrl}/project/${binding.projectId}/settings?section=slack&slack=connected`
