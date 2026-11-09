@@ -1,107 +1,96 @@
 # FlowTask - Claude Code Context
 
-This document provides context for Claude Code when working on the FlowTask codebase.
+Context for coding agents working on the FlowTask codebase. `AGENTS.md` (root and per directory) holds the hard rules; this file explains how the system fits together.
 
 ## Project Overview
 
-FlowTask is a task management platform similar to Linear, built as a TypeScript monorepo running on **Bun**. It features:
+FlowTask is a kanban task manager for small dev teams and their AI agents. It is a TypeScript monorepo on **Bun** with:
 
-- **Kanban-style task management** with drag-and-drop
-- **Smart Views** - saved filtered views with complex query conditions
-- **Public sharing** - share views externally with optional password protection
-- **GitHub integration** - one-way sync (GitHub issues/PRs → FlowTask tasks)
-- **Slack integration** - one-way notifications (FlowTask → Slack)
-- **AI agents via MCP** - tools for AI assistants to manage tasks
+- **Kanban boards** with drag and drop, sub-tasks, task relations, bulk actions and per-task history
+- **Smart Views**: saved filtered views, with public shares (optional password)
+- **Inbox** with @mentions, assignment, status and due-date notifications
+- **Search** (⌘K command palette, Postgres full-text search) and keyboard shortcuts (`?` opens the sheet)
+- **Trash** with restore; trashed tasks are purged after 30 days
+- **GitHub App integration (two-way)**: issues and PRs sync into tasks; task edits and comments sync back to GitHub
+- **Slack integration**: notifications only
+- **Outgoing webhooks** signed with HMAC-SHA256
+- **MCP server** (Streamable HTTP, OAuth 2.1) so Claude, Cursor and other MCP clients can work on tasks
+- **In-app AI chat** using workspace API keys, with user approval for tool calls that change data
 
 ## Runtime: Bun
 
-This project uses **Bun** as its primary runtime. Key implications:
-
-- Use `bun` instead of `node` or `npm`
-- TypeScript runs directly without transpilation in development
-- Native WebSocket support via `Bun.serve()`
-- No need for `tsx`, `ts-node`, or similar tools
-- The `@types/bun` package provides type definitions
-
-```bash
-# Install dependencies
-bun install
-
-# Run development servers
-bun run dev
-
-# Run a specific script
-bun run --filter @flowtask/api dev
-```
+- Use `bun`, never `node`/`npm`/`npx` (`bunx` is fine for CLIs such as `drizzle-kit`).
+- TypeScript runs directly; the API is bundled with `bun build` for production.
+- Bun version: `>=1.3.0` (`packageManager` pins `bun@1.3.11`; CI and the Dockerfile use 1.3.11).
+- There is no turbo: root scripts use `bun run --filter <package> <script>`.
 
 ## Architecture
 
-### Monorepo Structure
+### Layout
 
 ```
 flowtask/
 ├── apps/
-│   ├── api/          # Hono API server (port 3001) + WebSocket (port 3002)
-│   └── web/          # React + Vite frontend (port 5173)
-├── packages/
-│   ├── shared/       # Types, utilities, constants
-│   ├── database/     # Drizzle ORM schema and client
-│   ├── auth/         # Better Auth configuration
-│   ├── domain/       # Business logic services
-│   └── integrations/ # GitHub, Slack, OpenRouter clients
+│   ├── api/                  # @flowtask/api: Hono on Bun (port 3001)
+│   │   ├── src/
+│   │   │   ├── index.ts      # boot: migrations, Bun.serve, SSE, background, shutdown
+│   │   │   ├── app.ts        # createApp(): middleware, health, routers, SPA fallback
+│   │   │   ├── db/           # Drizzle schema, relations, client, migration runner
+│   │   │   ├── domain/       # business logic services, domain event bus, jobs queue
+│   │   │   ├── auth/         # Better Auth config, session middleware, role permissions
+│   │   │   ├── integrations/ # GitHub App, Slack, OpenRouter clients
+│   │   │   ├── services/     # agent tool runtime, MCP OAuth server, GitHub install/link
+│   │   │   ├── routes/       # Hono routers, one file per area
+│   │   │   ├── sse/          # realtime hub (SSE + Postgres LISTEN/NOTIFY)
+│   │   │   ├── background/   # domain-event bridges and job runner wiring
+│   │   │   ├── lib/          # authorize guards, responses, MCP helpers, SPA, shutdown
+│   │   │   └── test/         # integration harness and bun test preload
+│   │   ├── drizzle/          # generated SQL migrations + meta/ snapshots
+│   │   ├── drizzle.config.ts
+│   │   ├── scripts/          # rekey-positions.ts, list-routes.ts
+│   │   └── Dockerfile        # the one production image (API + SPA + migrations)
+│   └── web/                  # @flowtask/web: React + Vite SPA (dev server port 3000)
+└── packages/
+    └── shared/               # @flowtask/shared: Zod schemas, types, constants, utils
 ```
 
-### Package Dependencies
+### Package dependencies
 
 ```
-apps/api
-├── @flowtask/database
-├── @flowtask/domain
-├── @flowtask/auth
-├── @flowtask/integrations
-└── @flowtask/shared
-
-apps/web
-└── @flowtask/shared
-
-packages/domain
-├── @flowtask/database
-└── @flowtask/shared
-
-packages/integrations
-├── @flowtask/database
-└── @flowtask/shared
-
-packages/auth
-├── @flowtask/database
-└── @flowtask/shared
-
-packages/database
-└── @flowtask/shared
+apps/api  ──> @flowtask/shared
+apps/web  ──> @flowtask/shared
 ```
+
+`packages/shared` has no workspace dependencies. The API reads it from source (the `bun` export condition); the web build reads its `dist`, so run `bun run --filter @flowtask/shared build` after changing it if you build the web app on its own (`bun run build` does it first).
+
+### One process in production
+
+The API container serves everything: the JSON API, SSE, MCP, OAuth and the built SPA (`WEB_DIST_DIR`, `/app/public` in the image). On boot it applies pending migrations under a Postgres advisory lock (`RUN_MIGRATIONS`, default true), repairs invalid task position keys in the background, then starts serving. Postgres is the only other service. There is no Redis, no websocket server, no nginx and no separate migrate container.
+
+In development, `bun run dev` starts the API on 3001 and Vite on 3000. Vite proxies `/api` and `/.well-known` to the API, so open http://localhost:3000.
 
 ## Key Design Decisions
 
-### One-Way Sync Pattern
+### GitHub sync is two-way
 
-External systems are the source of truth:
+- **GitHub → FlowTask**: webhooks (`POST /api/webhooks/github`, verified with `GITHUB_WEBHOOK_SECRET`) and manual syncs create and update tasks from issues and PRs, deduplicated on `X-GitHub-Delivery`. Closed/reopened issues move the task to the first done/backlog state; merged PRs move linked tasks to done.
+- **FlowTask → GitHub**: title, description, state, priority and label changes on a task linked to a GitHub issue, and new comments, are pushed back by the reverse sync (`apps/api/src/integrations/github/reverse-sync.ts`) as durable jobs. Writes that came from GitHub carry `origin: 'github'` and are never pushed back; a content hash (`external_links.sync_hash`) guards against echo loops.
+- Installing the App requires proof: a session-bound state nonce plus the user-authorization code, checked against `GET /user/installations` (`apps/api/src/services/github-install-service.ts`).
+- **Slack** is notifications only (FlowTask → Slack). Slash commands reply with help text; Slack events are acknowledged and ignored.
 
-- **GitHub → FlowTask**: Issues/PRs sync to tasks, but changes in FlowTask don't push back
-- **FlowTask → Slack**: Notifications only, no task creation from Slack
+### Domain events drive side effects
 
-This simplifies conflict resolution and keeps the integration logic manageable.
+Every write path (REST routes, MCP and in-app agent tools, bulk, trash, GitHub sync) goes through the domain services, which emit on `domainEvents` (`apps/api/src/domain/events/bus.ts`) after the transaction commits. `apps/api/src/background/domain-bridges.ts` subscribes once and turns events into SSE messages, Slack notifications and GitHub reverse sync; the notification and outgoing-webhook subscribers live in `apps/api/src/domain/`. Do not publish task SSE events or call Slack/GitHub by hand from a route. (Comment, project and member SSE events, `comment:*`, `project:updated`, `member:*`, are still published directly by their routes, the GitHub webhook processor and the agent tools.)
 
-### Lexicographic Ordering
+Domain events: `task.created`, `task.updated`, `task.moved`, `task.deleted`, `task.restored`, `tasks.rekeyed`, `comment.created`.
 
-Tasks use lexicographic (fractional) positioning for drag-and-drop ordering:
+### Fractional positions
 
-- Positions are strings like "a0", "a1", "aV" that sort lexicographically
-- When inserting between "a0" and "a1", generate "a0V" (midpoint)
-- Utility in `packages/shared/src/utils/lexicographic.ts`
+Task order within a column uses fractional-indexing keys (`packages/shared/src/utils/lexicographic.ts`, built on the `fractional-indexing` package). Keys must sort byte-wise, so `tasks.position` is `COLLATE "C"` (set in migration `0016_v2.sql`) and queries order by `position COLLATE "C", id`. The server computes keys from `afterTaskId`/`beforeTaskId` under a per-column advisory lock and re-keys a column when a neighbour key is invalid. `bun run db:rekey` re-keys columns by hand.
 
-### Filter Engine
+### Filter engine
 
-Smart Views use a JSON-based filter configuration:
+Smart Views store a JSON filter that `apps/api/src/domain/smart-view/filter-engine.ts` compiles to SQL through an allow-list (`FIELD_MAP`):
 
 ```typescript
 {
@@ -114,282 +103,244 @@ Smart Views use a JSON-based filter configuration:
 }
 ```
 
-The filter engine (`packages/domain/src/smart-view/filter-engine.ts`) converts this to SQL.
+### Realtime (SSE)
 
-### Real-time Updates
+- One stream per tab: `GET /api/events/stream?workspaceId=<id>` (session cookie). Same port as the API.
+- `apps/api/src/sse/hub.ts` keeps each client's role and accessible project ids, and only writes events for projects the user can access. Sessions and membership are re-checked every 60 s; removing a member closes their streams at once.
+- Cross-instance fan-out uses Postgres `LISTEN/NOTIFY` on a dedicated connection (`apps/api/src/sse/postgres-transport.ts`). Payloads over about 7 KB are sent as ids only.
+- User-targeted events (`publishUserEvent`, for example `notification:created`) reach every stream of that user.
+- Client event names are in `REALTIME_EVENTS` (`packages/shared/src/constants.ts`), e.g. `task:created`, `task:moved`, `tasks:rekeyed`.
 
-- Bun's native WebSocket server in `apps/api/src/websocket/handler.ts`
-- Uses Redis pub/sub for horizontal scaling
-- Clients subscribe to workspace channels
-- Events: `task.created`, `task.updated`, `task.moved`, `task.deleted`
-- API runs on port 3001, WebSocket on port 3002
+### Jobs queue (Postgres)
+
+`apps/api/src/domain/jobs/` is a queue on the `jobs` table: claims with `FOR UPDATE SKIP LOCKED`, exponential backoff (5 s doubling, capped at 1 h), stale-lock reclaim, keyed singletons and recurring jobs. Job types:
+
+| Job                                                                                          | Kind                                                          |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `notifications.due_scan`                                                                     | recurring, hourly: due-soon and overdue reminders             |
+| `tasks.trash_purge`                                                                          | recurring, daily: deletes tasks trashed more than 30 days ago |
+| `webhooks.deliver`                                                                           | outgoing webhook delivery                                     |
+| `webhooks.delivery_cleanup`                                                                  | recurring, daily: prunes old delivery rows                    |
+| `jobs.cleanup`                                                                               | recurring, daily: prunes finished jobs                        |
+| `github.reverse_sync.task`, `github.reverse_sync.comment`, `github.reverse_sync.close_issue` | FlowTask → GitHub                                             |
+| `slack.notify_task_event`                                                                    | Slack notification                                            |
+
+`JOBS_DISABLED=true` turns the runner off in a process (integration work then runs in-process with retries).
+
+### Authorization
+
+`AuthorizationService` (`apps/api/src/domain/workspace/authorization.ts`) resolves workspace membership, the project ACL (`projects.access`: `all`, `members`, `admin`, plus `project_members`) and the role permission (`apps/api/src/auth/permissions.ts`; roles `owner`, `admin`, `member`). Routes use the guards in `apps/api/src/lib/authorize.ts` (`requireUser`, `requireWorkspace`, `requireProject`, `requireTask`, `requireSmartView`), which throw `AppError` (401/403/404). Resources the caller may not know about return 404, not 403.
+
+### MCP and agent tools
+
+- MCP endpoint: `/api/mcp` (Streamable HTTP, stateless, POST only), with `/api/mcp/sse` as an alias for already-configured clients. The old `/api/mcp/sse/stream` and `/api/mcp/sse/message` return 410.
+- Auth is OAuth 2.1 only: Authorization Code + PKCE (S256), dynamic client registration, refresh token rotation with reuse detection, and RFC 8707 resource binding. Only workspace `owner` and `admin` roles can authorize. Static bearer tokens (`ft_v1_*`) are gone; `/api/workspaces/:id/agents` returns 410.
+- Metadata: `/.well-known/oauth-protected-resource/api/mcp` (and `/api/mcp/sse`), `/.well-known/oauth-authorization-server`, `/api/mcp/.well-known/oauth-authorization-server`.
+- Tools are defined once in `AGENT_TOOLS` (`apps/api/src/domain/agent/tools.ts`) and run through `executeAgentTool` in `apps/api/src/services/agent-tool-runtime.ts`, shared by MCP and the in-app chat. Text written by users or synced from GitHub is wrapped as `{ "untrusted_text": "..." }` in tool output.
+- The in-app chat (`POST /api/agents/:agentId/execute`) uses the workspace's OpenRouter key (OpenAI, Anthropic and Google keys are also accepted); mutating tools need user approval in the UI.
+
+### Response format
+
+```typescript
+{ success: true, data: T, meta?: {...} }
+{ success: false, error: { code: string, message: string } }
+```
+
+`handleRouteError` (`apps/api/src/lib/responses.ts`) keeps `AppError` status codes and hides internal errors behind a generic 500.
 
 ## Database Schema
 
-Key tables (defined in `packages/database/src/schema.ts`):
+Defined in `apps/api/src/db/schema.ts` (relations in `apps/api/src/db/relations.ts`).
 
-| Table                  | Purpose                                      |
-| ---------------------- | -------------------------------------------- |
-| `users`                | User accounts                                |
-| `workspaces`           | Top-level organization                       |
-| `workspace_members`    | User-workspace membership with roles         |
-| `projects`             | Projects within workspaces                   |
-| `task_states`          | Kanban columns (Backlog, In Progress, Done)  |
-| `tasks`                | Task items with title, description, priority |
-| `task_assignees`       | Many-to-many task-user assignments           |
-| `labels`               | Project-level labels                         |
-| `task_labels`          | Many-to-many task-label assignments          |
-| `task_events`          | Audit log of all task changes                |
-| `comments`             | Task comments                                |
-| `smart_views`          | Saved filtered views                         |
-| `public_shares`        | Public share tokens for smart views          |
-| `project_integrations` | GitHub/Slack integration configs             |
-| `external_links`       | Links between tasks and GitHub issues/PRs    |
-| `agents`               | AI agent configurations                      |
-| `user_api_keys`        | Encrypted OpenRouter API keys                |
+| Table                                                                                                                             | Purpose                                                                                    |
+| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `users`                                                                                                                           | User accounts (`app_role`: `user` or `app_manager`)                                        |
+| `sessions`, `accounts`, `verification_tokens`                                                                                     | Better Auth sessions, linked social/password accounts, verification tokens                 |
+| `auth_rate_limits`                                                                                                                | Better Auth rate-limit counters, shared across replicas                                    |
+| `workspaces`                                                                                                                      | Top-level organisation                                                                     |
+| `workspace_members`                                                                                                               | Membership with role (`owner`, `admin`, `member`)                                          |
+| `workspace_invitations`                                                                                                           | Invitations by token                                                                       |
+| `projects`                                                                                                                        | Projects (identifier for `FLOW-123` keys, `access` mode, `next_task_seq`)                  |
+| `project_members`                                                                                                                 | Project ACL for `members`-only projects                                                    |
+| `project_integrations`                                                                                                            | GitHub/Slack configuration per project                                                     |
+| `task_states`                                                                                                                     | Kanban columns (`category`: `backlog`, `in_progress`, `done`)                              |
+| `tasks`                                                                                                                           | Tasks (priority, position, parent, soft delete, `completed_at`, generated `search_vector`) |
+| `task_assignees`                                                                                                                  | Task ↔ user                                                                                |
+| `labels`, `task_labels`                                                                                                           | Project labels and task ↔ label                                                            |
+| `task_relations`                                                                                                                  | `blocks`, `relates`, `duplicates`                                                          |
+| `task_events`                                                                                                                     | Audit log behind per-task history and the activity feed                                    |
+| `comments`                                                                                                                        | Task comments (Markdown, mentions)                                                         |
+| `external_links`                                                                                                                  | Task ↔ GitHub issue/PR (`external_id` is `owner/repo#N`)                                   |
+| `smart_views`, `smart_view_shares`                                                                                                | Saved views and per-user shares                                                            |
+| `public_shares`, `public_share_password_attempts`                                                                                 | Public share tokens and password attempt counters                                          |
+| `notifications`                                                                                                                   | Inbox                                                                                      |
+| `agents`                                                                                                                          | In-app AI agent configurations                                                             |
+| `workspace_api_keys`                                                                                                              | Encrypted AI provider keys (OpenRouter, OpenAI, Anthropic, Google)                         |
+| `workspace_agents`                                                                                                                | Legacy MCP token agents (routes disabled)                                                  |
+| `mcp_oauth_clients`, `mcp_oauth_consents`, `mcp_oauth_authorization_codes`, `mcp_oauth_access_tokens`, `mcp_oauth_refresh_tokens` | MCP OAuth server                                                                           |
+| `github_installations`                                                                                                            | GitHub App installations verified for a user                                               |
+| `webhook_deliveries`                                                                                                              | Processed GitHub delivery ids (dedupe, 7-day retention)                                    |
+| `integration_oauth_states`                                                                                                        | Session-bound state nonces for GitHub/Slack installs                                       |
+| `jobs`                                                                                                                            | Postgres job queue                                                                         |
+| `outgoing_webhooks`, `outgoing_webhook_deliveries`                                                                                | Outgoing webhooks and their delivery log                                                   |
+| `rate_limit_counters`                                                                                                             | Fixed-window rate limits (UNLOGGED)                                                        |
 
 ## Code Conventions
 
 ### TypeScript
 
-- Strict mode enabled
-- **NEVER use `unknown` or `any` types** - always use proper typed interfaces, type guards, or generics
-- Use Zod for runtime validation (schemas in `packages/shared`)
-- Prefer explicit types over inference for function signatures
-- Use `type` for object shapes, `interface` for extendable contracts
-- Import from `.js` extensions for ES module compatibility
-- When narrowing types, use type guards (`function isX(val): val is X`) instead of type assertions
+- Strict mode.
+- **Never use `unknown` or `any` types**: use typed interfaces, type guards or generics. ESLint enforces `@typescript-eslint/no-explicit-any` as an error (`eslint.config.mjs`, typescript-eslint type-checked rules); `unknown` is a review rule, so narrow it at the boundary with a type guard when a library hands you one.
+- When narrowing, write type guards (`function isX(val): val is X`) instead of type assertions.
+- Zod for runtime validation; shared schemas live in `packages/shared/src/types/`.
+- Explicit types on function signatures. `type` for object shapes, `interface` for extendable contracts.
+- Relative imports use `.js` extensions.
+- Prettier formats the repo (`bun run format`); CI runs `bun run format:check` and `bun run lint`.
 
-### Bun-Specific Patterns
+### API routes
+
+- Routers live in `apps/api/src/routes/` and are mounted in `apps/api/src/app.ts`. Routers mounted before `app.use('/api/*', authMiddleware)` handle their own auth.
+- Validate with `zValidator` and shared Zod schemas, authorize with the `require*` guards, delegate to a domain service, return `{ success: true, data }`.
+- Keep handlers thin; business logic goes in `apps/api/src/domain/`.
 
 ```typescript
-// Server startup (apps/api/src/index.ts)
-const server = Bun.serve({
-  port: 3001,
-  fetch: app.fetch, // Hono app
-});
-
-// WebSocket server (apps/api/src/websocket/handler.ts)
-Bun.serve({
-  port: 3002,
-  fetch(req, server) {
-    if (url.pathname === '/ws') {
-      server.upgrade(req, { data: { userId: '', workspaceIds: new Set() } });
-    }
-  },
-  websocket: {
-    open(ws) {
-      /* ... */
-    },
-    message(ws, message) {
-      /* ... */
-    },
-    close(ws) {
-      /* ... */
-    },
-  },
+// apps/api/src/routes/projects.ts
+projects.get('/:projectId', async (c) => {
+  const { project } = await requireProject(c, c.req.param('projectId'), 'project:read');
+  const full = fromResult(await projectService.getById(project.id), {
+    code: 'FETCH_FAILED',
+    message: 'Failed to load project',
+  });
+  return c.json({ success: true, data: full });
 });
 ```
 
-### API Routes
+### Domain services
 
-Routes are organized in `apps/api/src/routes/`:
+- Classes constructed with the Drizzle client (`new TaskService(db)`), returning `Result<T, E>` (`ok`/`err` from `@flowtask/shared`).
+- Emit domain events after commit; `TaskService.transaction()` groups several task writes and emits once committed.
 
-- Use Hono's router with method chaining
-- Validate input with Zod schemas
-- Return consistent response format: `{ data: T }` or `{ error: string }`
-- Use middleware for auth: `authMiddleware` injects `c.get('user')`
+### Frontend
 
-Example:
-
-```typescript
-// apps/api/src/routes/tasks.ts
-app.post('/', authMiddleware, async (c) => {
-  const user = c.get('user');
-  const body = await c.req.json();
-  const validated = createTaskSchema.parse(body);
-  const task = await taskService.create(validated, user.id);
-  return c.json({ data: task });
-});
-```
-
-### Frontend Components
-
-- React functional components with hooks
-- Zustand for global state (`apps/web/src/stores/`)
-- TanStack Query for server state
-- Tailwind CSS for styling
-- Component files use PascalCase: `KanbanBoard.tsx`
-
-### Services (Domain Layer)
-
-Business logic lives in `packages/domain/src/`:
-
-- Services are classes instantiated with database client
-- Methods handle validation, authorization, and database operations
-- Emit events for real-time updates
-
-Example:
-
-```typescript
-// packages/domain/src/task/service.ts
-class TaskService {
-  constructor(private db: DrizzleClient) {}
-
-  async create(data: CreateTaskInput, userId: string): Promise<Task> {
-    // Validation, position calculation, database insert, event logging
-  }
-}
-```
+- React function components, Zustand stores (`apps/web/src/stores/`), TanStack Query hooks (`apps/web/src/hooks/queries/`), API client in `apps/web/src/api/`.
+- Tailwind CSS. The SPA runs under a strict CSP (no inline styles or scripts).
+- Component files use PascalCase: `GroupedKanbanBoard.tsx`.
+- Import zod-free subpaths of `@flowtask/shared` (`/constants`, `/utils`, `/json`) where you can; `/types` pulls in zod.
 
 ## Common Tasks
 
-### Adding a New API Endpoint
+### Adding an API endpoint
 
-1. Define Zod schema in `packages/shared/src/types.ts`
-2. Add route handler in `apps/api/src/routes/`
-3. Implement service method in `packages/domain/src/`
-4. Update API client in `apps/web/src/api/client.ts`
+1. Add the request schema to `packages/shared/src/types/` and export it.
+2. Add the service method in `apps/api/src/domain/<area>/service.ts`.
+3. Add the handler in `apps/api/src/routes/<area>.ts` (guard, validate, delegate). New routers are mounted in `apps/api/src/app.ts`.
+4. Add the client call in `apps/web/src/api/` and a query hook in `apps/web/src/hooks/queries/`.
+5. Regenerate `docs/api.md` from `bun apps/api/scripts/list-routes.ts`.
 
-### Adding a Database Table
+### Adding a table or column
 
-1. Define table in `packages/database/src/schema.ts`
-2. Add relations in `packages/database/src/relations.ts`
-3. Run `bun run db:generate` to create migration
-4. Run `bun run db:migrate` to apply
+1. Edit `apps/api/src/db/schema.ts` (and `apps/api/src/db/relations.ts`).
+2. Run `bun run db:generate`. Commit the single generated migration in `apps/api/drizzle/` with its `meta/` snapshot. Never hand-edit SQL or `meta/`.
+3. Run `bun run db:migrate` (or just restart `bun run dev`: the API migrates on boot).
+4. CI's `migration drift` job runs `drizzle-kit generate` and fails if it produces anything, so schema and migrations must match.
 
-### Adding a New Integration
+### Adding an MCP tool
 
-1. Create provider in `packages/integrations/src/{name}/`
-2. Implement `IntegrationProvider` interface
-3. Register in `packages/integrations/src/registry.ts`
-4. Add webhook handler in `apps/api/src/routes/webhooks.ts`
-5. Add UI in `apps/web/src/routes/settings.tsx`
+1. Add the name to `AgentToolSchema` in `packages/shared/src/types/agent.ts`.
+2. Add the definition (description, JSON Schema `parameters`, `outputSchema`, `annotations` with an honest `readOnlyHint`/`destructiveHint`) to `AGENT_TOOLS` in `apps/api/src/domain/agent/tools.ts`.
+3. Add its permission to `TOOL_PERMISSIONS` in `apps/api/src/lib/mcp/tool-permissions.ts`.
+4. Implement the handler in `apps/api/src/services/agent-tools/task-tools.ts` or `workspace-tools.ts`. Resolve every id through the `ToolContext` and wrap user-written text with `untrusted()`. `executeAgentTool` picks it up for both MCP and the in-app chat.
+5. Add the label to `AGENT_TOOL_LABELS` in `apps/web/src/components/settings/AgentSettings.tsx`.
+6. Run `bun test apps/api/src/domain/agent/types.test.ts` (AGENT_TOOLS ↔ AgentToolSchema parity) and `bun test apps/api/src/services/agent-tool-runtime.test.ts`.
 
-### Adding a Smart View Filter Field
+The `Record<AgentTool, …>` types make steps 3–5 compile errors when skipped.
 
-1. Add field mapping in `packages/domain/src/smart-view/filter-engine.ts`
-2. Update filter UI in `apps/web/src/components/smart-views/`
+### Adding a Smart View filter field
 
-### Adding a New MCP Tool
+1. Add the field to `FIELD_MAP` in `apps/api/src/domain/smart-view/filter-engine.ts` and a case in `filter-engine.test.ts`.
+2. Add it to the filter builder in `apps/web/src/components/smart-views/filter-builder/` (`constants.ts`, `FilterValueInput.tsx`).
 
-1. Add tool name to `AgentToolSchema` enum in `packages/shared/src/types/agent.ts`
-2. Add tool definition to `AGENT_TOOLS` array in `packages/domain/src/agent/types.ts`
-3. Implement tool handler in `apps/api/src/routes/mcp-sse.ts` (switch case in `executeMcpTool`)
-4. Implement tool handler in `apps/api/src/routes/mcp.ts` (for REST API compatibility)
-5. **Add permission to frontend UI** in `apps/web/src/components/settings/AgentSettings.tsx` (`AVAILABLE_PERMISSIONS` array)
+### Adding an integration
 
-### MCP OAuth Notes
-
-- MCP endpoints are OAuth-only (Authorization Code + PKCE + dynamic client registration).
-- OAuth metadata endpoints:
-  - `/.well-known/oauth-protected-resource/api/mcp/sse`
-  - `/api/mcp/.well-known/oauth-authorization-server`
-- Only workspace `owner` and `admin` roles can authorize MCP OAuth access.
+Integrations live in `apps/api/src/integrations/<name>/` and register in `apps/api/src/integrations/registry.ts`. Webhook receivers go in `apps/api/src/routes/webhooks.ts`, background work goes through `scheduleBackgroundJob`/`registerBackgroundJob` (`apps/api/src/integrations/background.ts`), and the settings UI is in `apps/web/src/components/settings/IntegrationSettings.tsx`.
 
 ## Testing
 
+Test files sit next to the code (`service.ts` → `service.test.ts`).
+
 ```bash
-# Run all tests
-bun test
-
-# Run tests for specific package
-bun test packages/domain
-
-# Run with watch mode
-bun test --watch
-
-# Run with coverage
-bun test --coverage
+bun run test                  # every suite; database suites skip themselves
+TEST_DATABASE_URL=postgresql://flowtask:flowtask@localhost:5432/flowtask_test \
+  bun run test:integration    # apps/api suites against a real Postgres
+bun test apps/api/src/domain/smart-view   # one directory
 ```
 
-Test files are colocated with source: `service.ts` → `service.test.ts`
+- `bunfig.toml` preloads `apps/api/src/test/preload.ts`: with `TEST_DATABASE_URL` set it applies the migrations once before any suite runs.
+- `apps/api/src/test/harness.ts` mounts `createApp()` with real Better Auth sessions and truncates and re-seeds the database for each suite. Never point `TEST_DATABASE_URL` at a database you care about.
+- Create the test database once: `docker compose exec postgres createdb -U flowtask flowtask_test`.
 
 ## Debugging
 
-### API Issues
-
-1. Check logs: `docker-compose logs -f api`
-2. Use Drizzle Studio: `bun run db:studio`
-3. Check Redis: `docker-compose exec redis redis-cli`
-
-### Frontend Issues
-
-1. React DevTools for component state
-2. Network tab for API calls
-3. Check Zustand stores in React DevTools
-
-### WebSocket Issues
-
-1. Check browser console for connection errors
-2. Verify Redis is running: `docker-compose ps`
-3. Check API logs for subscription messages
-4. Note: WebSocket runs on port 3002 (separate from API port 3001)
+- **API**: logs go to stdout (`bun run dev`, or `docker compose logs -f tasksflow-api` in production). `GET /health` (database reachable) and `GET /ready` (and not draining).
+- **Database**: `bun run db:studio`, or `docker compose exec postgres psql -U flowtask flowtask`.
+- **Jobs**: `SELECT type, attempts, last_error, run_at FROM jobs WHERE done_at IS NULL ORDER BY run_at;`
+- **Realtime**: the browser's EventSource on `/api/events/stream`; the API logs `SSE manager initialized with Postgres LISTEN/NOTIFY` at boot. `initSSE()` reads `DATABASE_URL` only: without it (for example when the URL is built from `POSTGRES_*`) it logs `DATABASE_URL not set; realtime events stay on this instance` and there is no cross-instance fan-out.
+- **Frontend**: React DevTools, the Network tab, Zustand stores.
 
 ## Environment Setup
 
-Required for development:
-
-```env
-DATABASE_URL=postgresql://flowtask:flowtask@localhost:5432/flowtask
-REDIS_URL=redis://localhost:6379
-BETTER_AUTH_SECRET=dev-secret-min-32-characters-long
-BETTER_AUTH_URL=http://localhost:3001
-```
-
-Start infrastructure and dev servers:
-
 ```bash
-docker-compose up -d
-bun run db:migrate
-bun run dev
+docker compose up -d   # Postgres 16 on 127.0.0.1:5432 (flowtask/flowtask)
+cp .env.example .env   # set BETTER_AUTH_SECRET, API_KEY_ENCRYPTION_KEY, an OAuth provider
+bun install
+bun run dev            # API :3001 (migrates on boot) + web :3000
 ```
+
+Sign-up is GitHub/Google only, so local login needs `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` (callback `http://localhost:3001/api/auth/callback/github`) or the Google pair, plus `VITE_GITHUB_CLIENT_ID`/`VITE_GOOGLE_CLIENT_ID` to show the button. Every variable is documented in `.env.example` and the README.
 
 ## Important Files
 
-| File                                                          | Purpose                            |
-| ------------------------------------------------------------- | ---------------------------------- |
-| `packages/database/src/schema.ts`                             | All database table definitions     |
-| `packages/domain/src/task/service.ts`                         | Core task business logic           |
-| `packages/domain/src/smart-view/filter-engine.ts`             | JSON filter → SQL conversion       |
-| `apps/api/src/index.ts`                                       | API server entry point (Bun.serve) |
-| `apps/api/src/websocket/handler.ts`                           | Bun WebSocket handling             |
-| `apps/web/src/components/task-display/GroupedKanbanBoard.tsx` | Main kanban UI                     |
-| `apps/web/src/stores/workspace.ts`                            | Workspace/project state management |
-
-## Performance Considerations
-
-- Task queries are paginated (default 50 per request)
-- Smart View filters compile to indexed SQL queries
-- WebSocket connections are pooled per workspace
-- Static assets are cached with 1-year expiry in production
-- Bun's native performance is significantly faster than Node.js
-
-## Security Notes
-
-- User API keys (OpenRouter) are encrypted at rest using `ENCRYPTION_KEY`
-- GitHub webhooks are verified using `GITHUB_WEBHOOK_SECRET`
-- Slack requests are verified using `SLACK_SIGNING_SECRET`
-- Public shares use UUID tokens, optionally with bcrypt-hashed passwords
-- CORS is restricted to `CORS_ORIGIN` in production
+| File                                                                 | Purpose                                                                   |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `apps/api/src/index.ts`                                              | Boot: migrations, `Bun.serve`, SSE, background, graceful shutdown         |
+| `apps/api/src/app.ts`                                                | `createApp()`: middleware, health, discovery, router mounts, SPA fallback |
+| `apps/api/src/db/schema.ts`                                          | All tables                                                                |
+| `apps/api/src/domain/task/service.ts`                                | Core task logic (transactions, positions, events)                         |
+| `apps/api/src/domain/workspace/authorization.ts`                     | `AuthorizationService`                                                    |
+| `apps/api/src/lib/authorize.ts`                                      | Route guards                                                              |
+| `apps/api/src/domain/smart-view/filter-engine.ts`                    | JSON filter → SQL                                                         |
+| `apps/api/src/background/domain-bridges.ts`                          | Domain events → SSE, Slack, GitHub                                        |
+| `apps/api/src/sse/hub.ts`                                            | Realtime hub                                                              |
+| `apps/api/src/domain/jobs/runner.ts`                                 | Job runner                                                                |
+| `apps/api/src/domain/agent/tools.ts`                                 | `AGENT_TOOLS`                                                             |
+| `apps/api/src/services/agent-tool-runtime.ts`                        | `executeAgentTool`                                                        |
+| `apps/api/src/routes/mcp-sse.ts`, `apps/api/src/routes/mcp-oauth.ts` | MCP server and OAuth endpoints                                            |
+| `apps/api/src/integrations/github/`                                  | GitHub App sync and reverse sync                                          |
+| `apps/web/src/components/task-display/GroupedKanbanBoard.tsx`        | Kanban board                                                              |
+| `apps/web/src/stores/workspace.ts`                                   | Workspace/project state                                                   |
 
 ## Quick Reference
 
 ```bash
-# Development
-bun install          # Install dependencies
-bun run dev          # Start all services
-bun run build        # Build all packages
-bun run typecheck    # Type check
-bun test             # Run tests
+bun install
+bun run dev              # API + web
+bun run build            # shared, then web, then API bundle
+bun run typecheck
+bun run lint             # ESLint
+bun run format           # Prettier write
+bun run format:check
+bun run test
+bun run test:integration # needs TEST_DATABASE_URL
 
-# Database
-bun run db:generate  # Generate migration
-bun run db:migrate   # Apply migrations
-bun run db:studio    # Open Drizzle Studio
+bun run db:generate      # migration from schema.ts
+bun run db:migrate       # apply migrations
+bun run db:studio
+bun run db:rekey         # re-key task positions (see apps/api/scripts/rekey-positions.ts)
 
-# Docker
-docker-compose up -d              # Start infrastructure
-docker-compose logs -f            # View logs
-docker-compose down               # Stop infrastructure
+bun apps/api/scripts/list-routes.ts   # route table for docs/api.md
+
+docker compose up -d     # dev Postgres
+docker compose down
 ```
+
+More: `docs/architecture.md`, `docs/api.md`, `docs/mcp.md`, `docs/deploy.md`.
