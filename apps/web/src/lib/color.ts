@@ -111,3 +111,26 @@ export function projectColor(projectId: string): string {
   }
   return PROJECT_COLORS[hash % PROJECT_COLORS.length] ?? PROJECT_COLORS[0];
 }
+
+// Dark enough for white initials at 9–10px (≥ 4.5:1).
+const AVATAR_COLORS = [
+  '#6d28d9',
+  '#0e7490',
+  '#c2410c',
+  '#15803d',
+  '#1d4ed8',
+  '#be185d',
+  '#4338ca',
+  '#0f766e',
+];
+
+/** Stable initials-avatar background for a user id. */
+export function avatarColor(id: string): string {
+  // FNV-1a: spreads similar ids (sequential uuids) across the palette.
+  let hash = 2166136261;
+  for (let i = 0; i < id.length; i++) {
+    hash ^= id.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return AVATAR_COLORS[(hash >>> 0) % AVATAR_COLORS.length] ?? AVATAR_COLORS[0];
+}

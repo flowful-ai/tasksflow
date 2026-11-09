@@ -8,7 +8,7 @@ import { TaskContextMenu, type ContextMenuState } from '../tasks/TaskContextMenu
 import { ColorDot } from '../ui/ColorDot';
 import { PriorityIcon, priorityLabel } from '../board/PriorityIcon';
 import { isOverdue } from '../board/filters';
-import { projectColor } from '../../lib/color';
+import { avatarColor, projectColor } from '../../lib/color';
 
 /** Modifier keys of the click/keypress that opened a card (ctrl/⌘ toggles selection, shift selects a range). */
 export type TaskOpenEvent = { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean };
@@ -76,28 +76,6 @@ interface TaskCardProps {
 
 export function taskKeyOf(task: Pick<TaskCardTask, 'key' | 'project' | 'sequenceNumber'>): string {
   return task.key ?? `${task.project.identifier}-${task.sequenceNumber}`;
-}
-
-// Dark enough for white initials at 9–10px (≥ 4.5:1).
-const AVATAR_COLORS = [
-  '#6d28d9',
-  '#0e7490',
-  '#c2410c',
-  '#15803d',
-  '#1d4ed8',
-  '#be185d',
-  '#4338ca',
-  '#0f766e',
-];
-
-function avatarColor(id: string): string {
-  // FNV-1a: spreads similar ids (sequential uuids) across the palette.
-  let hash = 2166136261;
-  for (let i = 0; i < id.length; i++) {
-    hash ^= id.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return AVATAR_COLORS[(hash >>> 0) % AVATAR_COLORS.length];
 }
 
 function initials(name: string | null, email: string): string {
