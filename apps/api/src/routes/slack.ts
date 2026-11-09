@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { and, eq } from 'drizzle-orm';
 import { getDatabase, projectIntegrations } from '../db/index.js';
-import { getCurrentSession, getCurrentUser } from '../auth/index.js';
+import { getCurrentSession } from '../auth/index.js';
 import { UpdateSlackIntegrationSchema, parseSlackConfig, type SlackConfig } from '@flowtask/shared';
 import {
   buildSlackAuthorizeUrl,
@@ -12,13 +12,15 @@ import {
   getSlackOAuthCredentials,
   readSecretEnv,
 } from '../integrations/index.js';
-import { apiError, authorizeProjectIntegration } from '../services/integration-access.js';
+import { requireProject, requireUser } from '../lib/authorize.js';
+import { AppError, isAppError, handleRouteError } from '../lib/responses.js';
 
 /**
  * Slack project settings (FlowTask → Slack notifications only).
  * Mounted from github.ts under /api/projects.
  */
 const slack = new Hono();
+slack.onError(handleRouteError);
 const db = getDatabase();
 
 /** Where Slack redirects after OAuth. Must match the Slack app's configured redirect URL. */
@@ -63,28 +65,20 @@ function botTokenFor(config: SlackConfig): string | undefined {
 }
 
 slack.get('/:projectId/slack', async (c) => {
-  const user = getCurrentUser(c);
   const projectId = c.req.param('projectId');
-  const access = await authorizeProjectIntegration(projectId, user.id, 'project:read');
-  if (!access.ok) return apiError(c, access.status, access.code, access.message);
+  await requireProject(c, projectId, 'project:read');
   return c.json({ success: true, data: publicView(await getSlackIntegration(projectId)) });
 });
 
 // Start the Slack OAuth install; the installer picks the channel in Slack's dialog.
 slack.post('/:projectId/slack/install/start', async (c) => {
-  const user = getCurrentUser(c);
+  const user = requireUser(c);
   const projectId = c.req.param('projectId');
-  const access = await authorizeProjectIntegration(
-    projectId,
-    user.id,
-    'project:manage_integrations'
-  );
-  if (!access.ok) return apiError(c, access.status, access.code, access.message);
+  await requireProject(c, projectId, 'project:manage_integrations');
 
   const credentials = getSlackOAuthCredentials();
   if (!credentials)
-    return apiError(
-      c,
+    throw new AppError(
       400,
       'NOT_CONFIGURED',
       'Slack is not configured (SLACK_CLIENT_ID / SLACK_CLIENT_SECRET)'
@@ -94,7 +88,7 @@ slack.post('/:projectId/slack/install/start', async (c) => {
   try {
     sessionId = getCurrentSession(c).id;
   } catch {
-    return apiError(c, 401, 'UNAUTHORIZED', 'A browser session is required');
+    throw new AppError(401, 'UNAUTHORIZED', 'A browser session is required');
   }
 
   const state = await createOAuthState(db, {
@@ -116,37 +110,25 @@ slack.post('/:projectId/slack/install/start', async (c) => {
 });
 
 slack.get('/:projectId/slack/channels', async (c) => {
-  const user = getCurrentUser(c);
   const projectId = c.req.param('projectId');
-  const access = await authorizeProjectIntegration(
-    projectId,
-    user.id,
-    'project:manage_integrations'
-  );
-  if (!access.ok) return apiError(c, access.status, access.code, access.message);
+  await requireProject(c, projectId, 'project:manage_integrations');
 
   const integration = await getSlackIntegration(projectId);
   const token = integration?.config ? botTokenFor(integration.config) : undefined;
-  if (!token) return apiError(c, 404, 'NOT_CONNECTED', 'Slack is not connected for this project');
+  if (!token) throw new AppError(404, 'NOT_CONNECTED', 'Slack is not connected for this project');
 
   try {
     const channels = await createSlackClient(token).listChannels();
     return c.json({ success: true, data: { channels } });
   } catch (error) {
     console.error('Slack channel listing failed:', error);
-    return apiError(c, 502, 'SLACK_ERROR', 'Failed to list Slack channels');
+    throw new AppError(502, 'SLACK_ERROR', 'Failed to list Slack channels');
   }
 });
 
 slack.patch('/:projectId/slack', async (c) => {
-  const user = getCurrentUser(c);
   const projectId = c.req.param('projectId');
-  const access = await authorizeProjectIntegration(
-    projectId,
-    user.id,
-    'project:manage_integrations'
-  );
-  if (!access.ok) return apiError(c, access.status, access.code, access.message);
+  await requireProject(c, projectId, 'project:manage_integrations');
 
   let body: unknown = null;
   try {
@@ -155,11 +137,11 @@ slack.patch('/:projectId/slack', async (c) => {
     // handled by the schema check below
   }
   const parsed = UpdateSlackIntegrationSchema.safeParse(body);
-  if (!parsed.success) return apiError(c, 400, 'INVALID_BODY', 'Invalid Slack settings');
+  if (!parsed.success) throw new AppError(400, 'INVALID_BODY', 'Invalid Slack settings');
 
   const integration = await getSlackIntegration(projectId);
   if (!integration?.config)
-    return apiError(c, 404, 'NOT_CONNECTED', 'Slack is not connected for this project');
+    throw new AppError(404, 'NOT_CONNECTED', 'Slack is not connected for this project');
   const config = integration.config;
   const next: SlackConfig = {
     ...config,
@@ -169,13 +151,12 @@ slack.patch('/:projectId/slack', async (c) => {
   if (parsed.data.channelId && parsed.data.channelId !== config.channelId) {
     const token = botTokenFor(config);
     if (!token)
-      return apiError(c, 400, 'NOT_CONNECTED', 'Slack bot token missing; reconnect Slack');
+      throw new AppError(400, 'NOT_CONNECTED', 'Slack bot token missing; reconnect Slack');
     try {
       const client = createSlackClient(token);
       const channel = (await client.listChannels()).find((ch) => ch.id === parsed.data.channelId);
       if (!channel)
-        return apiError(
-          c,
+        throw new AppError(
           400,
           'INVALID_CHANNEL',
           'Channel not found or not visible to the FlowTask app'
@@ -184,8 +165,9 @@ slack.patch('/:projectId/slack', async (c) => {
       next.channelId = channel.id;
       next.channelName = channel.name;
     } catch (error) {
+      if (isAppError(error)) throw error;
       console.error('Slack channel update failed:', error);
-      return apiError(c, 502, 'SLACK_ERROR', 'Failed to verify the Slack channel');
+      throw new AppError(502, 'SLACK_ERROR', 'Failed to verify the Slack channel');
     }
   }
 
@@ -202,14 +184,8 @@ slack.patch('/:projectId/slack', async (c) => {
 });
 
 slack.delete('/:projectId/slack', async (c) => {
-  const user = getCurrentUser(c);
   const projectId = c.req.param('projectId');
-  const access = await authorizeProjectIntegration(
-    projectId,
-    user.id,
-    'project:manage_integrations'
-  );
-  if (!access.ok) return apiError(c, access.status, access.code, access.message);
+  await requireProject(c, projectId, 'project:manage_integrations');
 
   await db
     .delete(projectIntegrations)

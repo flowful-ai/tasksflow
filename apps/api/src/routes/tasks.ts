@@ -25,6 +25,7 @@ import {
   fromResult,
   handleRouteError,
   toAppError,
+  AppError,
 } from '../lib/responses.js';
 
 // Validates and coerces task-list query params. Keeps invalid values out of the
@@ -123,21 +124,12 @@ tasks.get('/', async (c) => {
 });
 
 // Map TaskGitHubLinkService errors to the API error shape.
-function githubLinkErrorResponse(error: unknown): {
-  body: { success: false; error: { code: string; message: string } };
-  status: 400 | 404 | 409 | 500;
-} {
+function githubLinkError(error: unknown): AppError {
   if (error instanceof TaskGitHubLinkError) {
-    return {
-      body: { success: false, error: { code: error.code, message: error.message } },
-      status: error.status,
-    };
+    return new AppError(error.status, error.code, error.message);
   }
   console.error('[GITHUB_ERROR]', error);
-  return {
-    body: { success: false, error: { code: 'GITHUB_ERROR', message: 'GitHub request failed' } },
-    status: 500,
-  };
+  return new AppError(500, 'GITHUB_ERROR', 'GitHub request failed');
 }
 
 // Create task
@@ -375,8 +367,7 @@ tasks.post('/:taskId/github-issue', zValidator('json', GitHubRepoRefSchema), asy
     });
     return c.json({ success: true, data: issue }, 201);
   } catch (error) {
-    const { body, status } = githubLinkErrorResponse(error);
-    return c.json(body, status);
+    throw githubLinkError(error);
   }
 });
 
@@ -397,8 +388,7 @@ tasks.post(
       });
       return c.json({ success: true, data: issue }, 201);
     } catch (error) {
-      const { body, status } = githubLinkErrorResponse(error);
-      return c.json(body, status);
+      throw githubLinkError(error);
     }
   }
 );
@@ -417,8 +407,7 @@ tasks.post('/:taskId/github-pr', zValidator('json', LinkTaskGitHubPrSchema), asy
     });
     return c.json({ success: true, data: linkResult }, 201);
   } catch (error) {
-    const { body, status } = githubLinkErrorResponse(error);
-    return c.json(body, status);
+    throw githubLinkError(error);
   }
 });
 

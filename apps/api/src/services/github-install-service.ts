@@ -6,7 +6,7 @@ import {
   verifyUserInstallation,
   type FetchLike,
 } from '../integrations/index.js';
-import { authorizeProjectIntegration } from './integration-access.js';
+import { getAuthz } from '../lib/authorize.js';
 
 const db = getDatabase();
 
@@ -72,7 +72,7 @@ export async function completeGitHubInstallation(
     );
   }
 
-  const access = await authorizeProjectIntegration(
+  const access = await getAuthz().authorizeProject(
     binding.projectId,
     input.userId,
     'project:manage_integrations'

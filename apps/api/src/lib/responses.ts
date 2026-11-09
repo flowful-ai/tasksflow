@@ -1,4 +1,4 @@
-import type { Context } from 'hono';
+import type { Context, Env } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { HTTPException } from 'hono/http-exception';
 import { isDomainError, isTaskError, type DomainErrorCode } from '../domain/index.js';
@@ -76,6 +76,21 @@ export function fromResult<T>(result: Result<T, Error>, fallback: ResultFallback
 
 export function errorBody(code: string, message: string) {
   return { success: false as const, error: { code, message } };
+}
+
+/**
+ * `zValidator` hook: a failed parse answers 400 VALIDATION_ERROR with the
+ * first issue's message, in the standard error envelope.
+ */
+export function validationHook<E extends Env, P extends string>(
+  result: { success: boolean; error?: { issues: ReadonlyArray<{ message: string }> } },
+  c: Context<E, P>
+): Response | undefined {
+  if (result.success) return undefined;
+  return c.json(
+    errorBody('VALIDATION_ERROR', result.error?.issues[0]?.message ?? 'Invalid request'),
+    400
+  );
 }
 
 export function respondError(c: Context, error: AppError): Response {

@@ -20,7 +20,7 @@ import {
   type WebhookTargetResult,
 } from '../integrations/index.js';
 import { publishEvent } from '../sse/manager.js';
-import { authorizeProjectIntegration } from '../services/integration-access.js';
+import { getAuthz } from '../lib/authorize.js';
 import { getSlackRedirectUri } from './slack.js';
 
 const webhooks = new Hono();
@@ -287,7 +287,7 @@ webhooks.get('/slack/oauth', authMiddleware, async (c) => {
   if (binding.userId !== user.id || binding.sessionId !== sessionId)
     return fail('session_mismatch', binding.projectId);
 
-  const access = await authorizeProjectIntegration(
+  const access = await getAuthz().authorizeProject(
     binding.projectId,
     user.id,
     'project:manage_integrations'

@@ -1,74 +1,69 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { getDatabase } from '../db/index.js';
-import { InvitationService, WorkspaceService, isDomainError } from '../domain/index.js';
-import { getCurrentUser, hasPermission } from '../auth/index.js';
+import { InvitationService, isDomainError } from '../domain/index.js';
 import { CreateInvitationSchema } from '@flowtask/shared';
+import { getWebUrl } from '../integrations/index.js';
+import { requireUser, requireWorkspace } from '../lib/authorize.js';
+import {
+  AppError,
+  badRequest,
+  fromResult,
+  notFound,
+  validationHook,
+  handleRouteError,
+} from '../lib/responses.js';
 
 const invitations = new Hono();
+invitations.onError(handleRouteError);
 const db = getDatabase();
 const invitationService = new InvitationService(db);
-const workspaceService = new WorkspaceService(db);
+
+const INVITATION_STATUSES = ['pending', 'accepted', 'revoked'] as const;
+type InvitationStatusFilter = (typeof INVITATION_STATUSES)[number];
+
+function isInvitationStatus(value: string | undefined): value is InvitationStatusFilter {
+  return INVITATION_STATUSES.some((status) => status === value);
+}
+
+function inviteUrl(token: string): string {
+  return `${getWebUrl()}/invite/${token}`;
+}
 
 // === Workspace-scoped routes (require auth and workspace membership) ===
 
 // Create invitation
 invitations.post(
   '/workspaces/:workspaceId/invitations',
-  zValidator('json', CreateInvitationSchema),
+  zValidator('json', CreateInvitationSchema, validationHook),
   async (c) => {
-    const user = getCurrentUser(c);
-    const workspaceId = c.req.param('workspaceId');
     const data = c.req.valid('json');
-
-    // Check permission
-    const roleResult = await workspaceService.getMemberRole(workspaceId, user.id);
-    if (!roleResult.ok || !roleResult.value) {
-      return c.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Not a workspace member' } },
-        403
-      );
-    }
-
-    if (!hasPermission(roleResult.value, 'workspace:manage_members')) {
-      return c.json(
-        { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-        403
-      );
-    }
+    const { user, workspaceId } = await requireWorkspace(
+      c,
+      c.req.param('workspaceId'),
+      'workspace:manage_members'
+    );
 
     // For email-specific invitations, default maxUses to 1
     // For generic links (no email), use the provided maxUses or null (unlimited)
     const isGeneric = !data.email;
     const maxUses = data.maxUses !== undefined ? data.maxUses : isGeneric ? null : 1;
 
-    const result = await invitationService.create({
-      workspaceId,
-      email: data.email ?? null,
-      role: data.role,
-      invitedBy: user.id,
-      maxUses,
-    });
-
-    if (!result.ok) {
-      return c.json(
-        { success: false, error: { code: 'CREATE_FAILED', message: result.error.message } },
-        400
-      );
-    }
-
-    // Generate the invite URL
-    const baseUrl = process.env.WEB_URL || 'http://localhost:5173';
-    const inviteUrl = `${baseUrl}/invite/${result.value.token}`;
+    const invitation = fromResult(
+      await invitationService.create({
+        workspaceId,
+        email: data.email ?? null,
+        role: data.role,
+        invitedBy: user.id,
+        maxUses,
+      }),
+      { status: 400, code: 'CREATE_FAILED', message: 'Failed to create invitation' }
+    );
 
     return c.json(
       {
         success: true,
-        data: {
-          ...result.value,
-          inviteUrl,
-          isGeneric,
-        },
+        data: { ...invitation, inviteUrl: inviteUrl(invitation.token), isGeneric },
       },
       201
     );
@@ -77,43 +72,22 @@ invitations.post(
 
 // List invitations for a workspace
 invitations.get('/workspaces/:workspaceId/invitations', async (c) => {
-  const user = getCurrentUser(c);
-  const workspaceId = c.req.param('workspaceId');
-  const status = c.req.query('status') as 'pending' | 'accepted' | 'revoked' | undefined;
+  const { workspaceId } = await requireWorkspace(
+    c,
+    c.req.param('workspaceId'),
+    'workspace:manage_members'
+  );
+  const statusQuery = c.req.query('status');
+  const status = isInvitationStatus(statusQuery) ? statusQuery : undefined;
 
-  // Check permission
-  const roleResult = await workspaceService.getMemberRole(workspaceId, user.id);
-  if (!roleResult.ok || !roleResult.value) {
-    return c.json(
-      { success: false, error: { code: 'FORBIDDEN', message: 'Not a workspace member' } },
-      403
-    );
-  }
-
-  if (!hasPermission(roleResult.value, 'workspace:manage_members')) {
-    return c.json(
-      { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-      403
-    );
-  }
-
-  const result = await invitationService.listByWorkspace({
-    workspaceId,
-    status,
+  const list = fromResult(await invitationService.listByWorkspace({ workspaceId, status }), {
+    code: 'LIST_FAILED',
+    message: 'Failed to list invitations',
   });
 
-  if (!result.ok) {
-    return c.json(
-      { success: false, error: { code: 'LIST_FAILED', message: result.error.message } },
-      500
-    );
-  }
-
-  // Add invite URLs and computed fields to each invitation
-  const baseUrl = process.env.WEB_URL || 'http://localhost:5173';
-  const invitationsWithUrls = result.value.map((inv) => ({
+  const invitationsWithUrls = list.map((inv) => ({
     ...inv,
-    inviteUrl: `${baseUrl}/invite/${inv.token}`,
+    inviteUrl: inviteUrl(inv.token),
     isGeneric: inv.email === null,
   }));
 
@@ -122,56 +96,24 @@ invitations.get('/workspaces/:workspaceId/invitations', async (c) => {
 
 // Revoke invitation
 invitations.delete('/workspaces/:workspaceId/invitations/:invitationId', async (c) => {
-  const user = getCurrentUser(c);
-  const workspaceId = c.req.param('workspaceId');
+  const { user, workspaceId } = await requireWorkspace(
+    c,
+    c.req.param('workspaceId'),
+    'workspace:manage_members'
+  );
   const invitationId = c.req.param('invitationId');
 
-  // Check permission
-  const roleResult = await workspaceService.getMemberRole(workspaceId, user.id);
-  if (!roleResult.ok || !roleResult.value) {
-    return c.json(
-      { success: false, error: { code: 'FORBIDDEN', message: 'Not a workspace member' } },
-      403
-    );
-  }
-
-  if (!hasPermission(roleResult.value, 'workspace:manage_members')) {
-    return c.json(
-      { success: false, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } },
-      403
-    );
-  }
-
-  // Verify the invitation belongs to this workspace
+  // The invitation must belong to this workspace.
   const invResult = await invitationService.getById(invitationId);
-  if (!invResult.ok) {
-    return c.json(
-      { success: false, error: { code: 'NOT_FOUND', message: 'Invitation not found' } },
-      404
-    );
+  if (!invResult.ok || invResult.value.workspaceId !== workspaceId) {
+    throw notFound('Invitation');
   }
 
-  if (invResult.value.workspaceId !== workspaceId) {
-    return c.json(
-      {
-        success: false,
-        error: { code: 'FORBIDDEN', message: 'Invitation does not belong to this workspace' },
-      },
-      403
-    );
-  }
-
-  const result = await invitationService.revoke({
-    invitationId,
-    revokedBy: user.id,
+  fromResult(await invitationService.revoke({ invitationId, revokedBy: user.id }), {
+    status: 400,
+    code: 'REVOKE_FAILED',
+    message: 'Failed to revoke invitation',
   });
-
-  if (!result.ok) {
-    return c.json(
-      { success: false, error: { code: 'REVOKE_FAILED', message: result.error.message } },
-      400
-    );
-  }
 
   return c.json({ success: true, data: null });
 });
@@ -181,45 +123,21 @@ export { invitations as invitationRoutes };
 // === Public routes (require token but no auth) ===
 
 const publicInvitations = new Hono();
+publicInvitations.onError(handleRouteError);
 
 // Get invitation by token (public - no auth required)
 publicInvitations.get('/invitations/:token', async (c) => {
   const token = c.req.param('token');
 
   const result = await invitationService.getByToken(token);
-
-  if (!result.ok) {
-    return c.json(
-      { success: false, error: { code: 'NOT_FOUND', message: result.error.message } },
-      404
-    );
-  }
-
+  if (!result.ok) throw notFound('Invitation');
   const invitation = result.value;
 
-  // Check if expired
   if (new Date() > new Date(invitation.expiresAt)) {
-    return c.json(
-      {
-        success: false,
-        error: { code: 'EXPIRED', message: 'This invitation has expired' },
-      },
-      410
-    );
+    throw new AppError(410, 'EXPIRED', 'This invitation has expired');
   }
-
-  // Check if already accepted or revoked
   if (invitation.status !== 'pending') {
-    return c.json(
-      {
-        success: false,
-        error: {
-          code: 'INVALID',
-          message: `This invitation has already been ${invitation.status}`,
-        },
-      },
-      410
-    );
+    throw new AppError(410, 'INVALID', `This invitation has already been ${invitation.status}`);
   }
 
   // Return public-safe invitation data
@@ -243,30 +161,19 @@ publicInvitations.get('/invitations/:token', async (c) => {
 
 // Accept invitation (requires auth)
 const acceptInvitations = new Hono();
+acceptInvitations.onError(handleRouteError);
 
 acceptInvitations.post('/invitations/:token/accept', async (c) => {
-  const user = getCurrentUser(c);
+  const user = requireUser(c);
   const token = c.req.param('token');
 
-  const result = await invitationService.accept({
-    token,
-    userId: user.id,
-  });
-
+  const result = await invitationService.accept({ token, userId: user.id });
   if (!result.ok) {
     // Business failures (expired, exhausted, wrong email, already a member) are
     // DomainErrors with a client-safe message; anything else is logged.
-    if (isDomainError(result.error)) {
-      return c.json(
-        { success: false, error: { code: 'ACCEPT_FAILED', message: result.error.message } },
-        400
-      );
-    }
+    if (isDomainError(result.error)) throw badRequest(result.error.message, 'ACCEPT_FAILED');
     console.error('[invitations] accept failed:', result.error);
-    return c.json(
-      { success: false, error: { code: 'ACCEPT_FAILED', message: 'Failed to accept invitation' } },
-      500
-    );
+    throw new AppError(500, 'ACCEPT_FAILED', 'Failed to accept invitation');
   }
 
   // Get the invitation to return workspace info

@@ -100,18 +100,6 @@ export async function requireAuth(ctx: Context, next: Next) {
 }
 
 /**
- * Helper to get the current user from context.
- * Throws if not authenticated.
- */
-export function getCurrentUser(ctx: Context): AuthUser {
-  const auth = ctx.get('auth') as AuthContext;
-  if (!auth?.user) {
-    throw new HTTPException(401, { message: 'Authentication required' });
-  }
-  return auth.user;
-}
-
-/**
  * Helper to get the current session from context.
  * Throws if not authenticated.
  */

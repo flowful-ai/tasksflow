@@ -9,28 +9,19 @@
  * project ACL) and validated on its own, and reported as updated / unchanged
  * / not_found / forbidden / invalid. All tasks must be in one workspace.
  */
-import { Hono, type Context } from 'hono';
-import { z } from 'zod';
+import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { getDatabase } from '../db/index.js';
 import { TaskBulkService, lookupTaskProjects } from '../domain/index.js';
-import { getCurrentUser, type WorkspacePermission } from '../auth/index.js';
-import { getAuthz } from '../lib/authorize.js';
+import type { WorkspacePermission } from '../auth/index.js';
+import { getAuthz, requireUser } from '../lib/authorize.js';
+import { badRequest, fromResult, validationHook, handleRouteError } from '../lib/responses.js';
 import { BulkTaskRequestSchema, type BulkTaskOperation } from '@flowtask/shared';
 
 const taskBulkRoutes = new Hono();
+taskBulkRoutes.onError(handleRouteError);
 const db = getDatabase();
 const bulkService = new TaskBulkService(db);
-
-function fail(c: Context, status: 400 | 403 | 500, code: string, message: string) {
-  return c.json({ success: false, error: { code, message } }, status);
-}
-
-const validationHook = (result: { success: boolean; error?: z.ZodError }, c: Context) => {
-  if (!result.success) {
-    return fail(c, 400, 'VALIDATION_ERROR', result.error?.issues[0]?.message ?? 'Invalid request');
-  }
-};
 
 /** Permissions needed to apply an op (same mapping as the single-task routes). */
 export function requiredBulkPermissions(op: BulkTaskOperation): WorkspacePermission[] {
@@ -46,31 +37,40 @@ taskBulkRoutes.post(
   '/bulk',
   zValidator('json', BulkTaskRequestSchema, validationHook),
   async (c) => {
-    const user = getCurrentUser(c);
+    const user = requireUser(c);
     const { taskIds, op } = c.req.valid('json');
 
     const located = await lookupTaskProjects(db, taskIds);
     const workspaceIds = new Set([...located.values()].map((v) => v.workspaceId));
-    if (workspaceIds.size > 1)
-      return fail(c, 400, 'MIXED_WORKSPACES', 'All tasks must belong to one workspace');
-
-    const needed = requiredBulkPermissions(op);
-    const authz = getAuthz();
-    const allowedProjectIds = new Set<string>();
-    for (const projectId of new Set([...located.values()].map((v) => v.projectId))) {
-      const grant = await authz.authorizeProject(projectId, user.id, 'task:read');
-      if (grant.ok && needed.every((p) => authz.hasPermission(grant.role, p)))
-        allowedProjectIds.add(projectId);
+    if (workspaceIds.size > 1) {
+      throw badRequest('All tasks must belong to one workspace', 'MIXED_WORKSPACES');
     }
 
-    const result = await bulkService.apply({ taskIds, op, actorId: user.id, allowedProjectIds });
-    if (!result.ok) {
-      console.error('[tasks-bulk]', result.error);
-      return fail(c, 500, 'BULK_FAILED', 'Bulk operation failed');
+    // One role lookup and one ACL query for the whole request.
+    const allowedProjectIds = new Set<string>();
+    const [workspaceId] = workspaceIds;
+    if (workspaceId) {
+      const authz = getAuthz();
+      const role = await authz.getRole(workspaceId, user.id);
+      const needed: WorkspacePermission[] = ['task:read', ...requiredBulkPermissions(op)];
+      if (role && needed.every((p) => authz.hasPermission(role, p))) {
+        const candidates = [...new Set([...located.values()].map((v) => v.projectId))];
+        for (const id of await authz.filterAccessibleProjectIds(
+          workspaceId,
+          user.id,
+          role,
+          candidates
+        )) {
+          allowedProjectIds.add(id);
+        }
+      }
     }
 
     // Realtime, Slack and GitHub sync run off the domain events TaskBulkService emits.
-    const { results, tasks } = result.value;
+    const { results, tasks } = fromResult(
+      await bulkService.apply({ taskIds, op, actorId: user.id, allowedProjectIds }),
+      { code: 'BULK_FAILED', message: 'Bulk operation failed' }
+    );
     return c.json({ success: true, data: { results, tasks } });
   }
 );
