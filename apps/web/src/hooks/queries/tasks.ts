@@ -15,7 +15,6 @@ import type {
   CreateTaskInput,
   MoveTaskInput,
   TaskDetailDto,
-  TaskDto,
   TaskListFilters,
   UpdateTaskInput,
 } from '../../api/types';
@@ -187,13 +186,14 @@ export function useMoveTask() {
       applyMoveEverywhere(queryClient, input);
       return snapshot;
     },
-    onError: (_error, _input, snapshot) => restoreTaskCaches(queryClient, snapshot),
+    onError: (_error, input, snapshot) => {
+      const projectId = findCachedTask(queryClient, input.taskId)?.projectId;
+      restoreTaskCaches(queryClient, snapshot);
+      return invalidateAfterTaskChange(queryClient, { id: input.taskId, projectId });
+    },
+    // Trust the response: the task:moved SSE event refreshes smart views,
+    // activity and history, and tasks:rekeyed refetches a re-keyed column.
     onSuccess: (task) => upsertTaskEverywhere(queryClient, task),
-    onSettled: (task, _error, input) =>
-      invalidateAfterTaskChange(queryClient, {
-        id: input.taskId,
-        projectId: task?.projectId ?? findCachedTask(queryClient, input.taskId)?.projectId,
-      }),
     meta: { errorMessage: 'Could not move the task' },
   });
 }
@@ -280,20 +280,14 @@ export function useBulkTasks() {
           upsertTaskEverywhere(queryClient, task, { created: Boolean(op.restore) });
       }
     },
-    onSettled: (response) => {
-      const projectIds = new Set((response?.tasks ?? []).map((t: TaskDto) => t.projectId));
-      return Promise.all([
-        projectIds.size > 0
-          ? Promise.all(
-              [...projectIds].map((id) =>
-                queryClient.invalidateQueries({ queryKey: queryKeys.tasks.project(id) })
-              )
-            )
-          : queryClient.invalidateQueries({ queryKey: queryKeys.tasks.lists() }),
+    // On success the response and the task:* SSE events keep lists, smart
+    // views and activity current; refetch broadly only when the request failed.
+    onError: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.tasks.lists() }),
         queryClient.invalidateQueries({ queryKey: queryKeys.smartViews.executions() }),
         queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.activities() }),
-      ]);
-    },
+      ]),
     meta: { errorMessage: 'Bulk action failed' },
   });
 }
