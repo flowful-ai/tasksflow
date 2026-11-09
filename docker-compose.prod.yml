@@ -132,7 +132,7 @@ services:
   # (Dokploy volume backups, rsync, restic) for real disaster recovery.
   # Restore: gunzip -c <dump>.sql.gz | docker compose exec -T postgres psql -U <user> <db>
   tasksflow-backup:
-    image: prodrigestivill/postgres-backup-local:16-alpine-d257e5d
+    image: prodrigestivill/postgres-backup-local:18-alpine-d257e5d
     restart: always
     deploy:
       resources:
