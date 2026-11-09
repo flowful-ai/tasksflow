@@ -2,8 +2,8 @@
  * Integration test harness: a real Postgres database, the real Hono routers
  * and real Better Auth sessions.
  *
- * Enabled only when TEST_DATABASE_URL is set. The database is pushed from
- * packages/database/src/schema.ts (drizzle-kit push) once per process and
+ * Enabled only when TEST_DATABASE_URL is set. The database is migrated with
+ * packages/database/drizzle (the production migrations) once per process and
  * truncated + re-seeded by every `setupHarness()` call. DO NOT point
  * TEST_DATABASE_URL at a database whose data you care about.
  *
@@ -84,24 +84,21 @@ function configureEnv(): void {
   process.env.TRUSTED_PROXY_HOPS = '1';
 }
 
-function pushSchema(): void {
+/** Apply the real migrations (same SQL as production, incl. data steps and collations). */
+async function migrateSchema(): Promise<void> {
   if (schemaPushed) return;
-  const cwd = join(import.meta.dir, '..', '..', '..', '..', 'packages', 'database');
-  const result = Bun.spawnSync(['bunx', 'drizzle-kit', 'push', '--force'], {
-    cwd,
-    env: { ...process.env, DATABASE_URL: TEST_DATABASE_URL },
-    stdout: 'pipe',
-    stderr: 'pipe',
-  });
-  if (result.exitCode !== 0) {
-    throw new Error(`drizzle-kit push failed:\n${result.stdout.toString()}\n${result.stderr.toString()}`);
-  }
+  const { runMigrations } = await import('@flowtask/database');
+  await runMigrations(join(import.meta.dir, '..', '..', '..', '..', 'packages', 'database', 'drizzle'), TEST_DATABASE_URL);
   schemaPushed = true;
 }
 
 /** The production app (src/app.ts), so tests exercise the real mounting and middleware. */
 async function buildApp(): Promise<Hono> {
   const { createApp } = await import('../app.js');
+  const { getDatabase } = await import('@flowtask/database');
+  const { registerDomainEventBridges } = await import('../background/domain-bridges.js');
+  // As in index.ts: realtime (and Slack/GitHub side effects) follow domain events.
+  registerDomainEventBridges(getDatabase());
   return createApp().app;
 }
 
@@ -261,7 +258,7 @@ function isApiBody(value: unknown): value is ApiBody {
 
 export async function setupHarness(): Promise<Harness> {
   configureEnv();
-  pushSchema();
+  await migrateSchema();
 
   const database = await import('@flowtask/database');
   const db = database.getDatabase();

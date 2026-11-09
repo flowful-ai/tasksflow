@@ -5,7 +5,7 @@ import { applyClientIp, parseTrustedProxyHops, resolveClientIp } from './lib/cli
 import { resolveMigrationsDir, shouldRunMigrations } from './lib/migrations.js';
 import { markShuttingDown, registerShutdownHook, runShutdownHooks, withTimeout } from './lib/shutdown.js';
 import { initSSE, shutdownSSE } from './sse/manager.js';
-import { checkApiKeyEncryptionConfig } from '@flowtask/domain';
+import { checkApiKeyEncryptionConfig, rekeyTaskPositions } from '@flowtask/domain';
 
 const { app, webDistDir } = createApp();
 
@@ -23,6 +23,20 @@ async function applyMigrations(): Promise<void> {
   }
   console.log(`Applying database migrations from ${dir}`);
   await runMigrations(dir);
+}
+
+/**
+ * Repair task position keys written by the pre-v2 generator. A read-only scan
+ * when every column is healthy; runs in the background so boot isn't delayed.
+ */
+function repairTaskPositions(): void {
+  rekeyTaskPositions(getDatabase(), { onlyInvalid: true })
+    .then((report) => {
+      if (report.columnsRekeyed > 0) {
+        console.log(`Re-keyed ${report.columnsRekeyed} task column(s), ${report.tasksUpdated} task(s) updated`);
+      }
+    })
+    .catch((error: Error) => console.error('Task position repair failed:', error.message));
 }
 
 function startServer(): ReturnType<typeof Bun.serve> {
@@ -76,6 +90,7 @@ if (import.meta.main) {
     console.error('Database migration failed:', error);
     process.exit(1);
   }
+  repairTaskPositions();
   const server = startServer();
   installShutdownHandlers(server);
   console.log(
@@ -90,5 +105,6 @@ if (import.meta.main) {
   registerShutdownHook(() => background.stop());
 }
 
-export default app;
+// No default export: Bun would treat a default export with `fetch` as a
+// server config and start a second listener on port 3000.
 export { app };

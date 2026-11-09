@@ -109,13 +109,10 @@ jobs:
         env:
           DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
         run: bunx drizzle-kit migrate
+      # Every suite, with TEST_DATABASE_URL set: the API isolation/realtime/share
+      # suites plus the domain and integrations database tests.
       - name: Integration tests
-        run: |
-          if grep -q '"test:integration"' package.json; then
-            bun run test:integration
-          else
-            bun test
-          fi
+        run: bun test --timeout 60000
 
   migration-drift:
     name: migration drift
