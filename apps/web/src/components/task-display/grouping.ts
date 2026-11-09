@@ -1,4 +1,5 @@
 import type { TaskCardTask } from './TaskCard';
+import { sortColumnTasks } from '../board/ordering';
 
 export type GroupBy = 'state' | 'assignee' | 'project' | 'priority' | 'label' | 'none';
 
@@ -28,39 +29,19 @@ export const priorityOrder: Record<string, number> = {
 };
 
 /**
- * Sorts tasks by priority (urgent first) then by last modification date (most recent first)
+ * Column order: by position (code-unit order, id tiebreak, as the server);
+ * Done columns put the most recently completed first.
  */
-export function sortTasksByPriorityAndDate<T extends { priority: string | null; updatedAt?: string | null }>(tasks: T[]): T[] {
-  return [...tasks].sort((a, b) => {
-    const aPrio = priorityOrder[a.priority || 'none'] ?? 4;
-    const bPrio = priorityOrder[b.priority || 'none'] ?? 4;
-    if (aPrio !== bPrio) return aPrio - bPrio;
-    const aDate = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-    const bDate = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-    return bDate - aDate;
-  });
-}
-
-/**
- * Sorts tasks based on column category:
- * - 'done' columns: sort by last modification date only (most recent first)
- * - Other columns: sort by priority then last modification date
- */
-export function sortTasksForColumn<T extends { priority: string | null; updatedAt?: string | null }>(
+export function sortTasksForColumn<T extends { id: string; position?: string; updatedAt?: string | null }>(
   tasks: T[],
   category?: string
 ): T[] {
-  if (category === 'done') {
-    return [...tasks].sort((a, b) => {
-      const aDate = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
-      const bDate = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
-      return bDate - aDate;
-    });
-  }
-  return sortTasksByPriorityAndDate(tasks);
+  return sortColumnTasks(tasks, category);
 }
 
 export const DONE_COLUMN_INITIAL_LIMIT = 20;
+/** Cards rendered per column before a "Show more" button (no virtualiser installed). */
+export const COLUMN_RENDER_LIMIT = 150;
 
 const stateCategoryOrder: Record<string, number> = {
   backlog: 0,
@@ -141,6 +122,7 @@ export function groupTasks(
           id: state.id,
           name: state.name,
           color: state.color,
+          category: state.category,
           tasks: [],
         });
       }

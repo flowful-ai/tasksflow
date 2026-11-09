@@ -72,6 +72,22 @@ describe('moveTaskInList', () => {
     expect(result[3]!.position > 'a1').toBe(true);
   });
 
+  test('the key goes between the named neighbours even when the cached order differs', () => {
+    const x = task('x', todo, 'a2');
+    // Cached order is not key order (e.g. after realtime appends).
+    const result = moveTaskInList([b, a, x], { taskId: 'x', stateId: todo.id, afterTaskId: 'a', beforeTaskId: 'b' }, todo);
+    const moved = result.find((t) => t.id === 'x')!;
+    expect(moved.position > 'a0' && moved.position < 'a1').toBe(true);
+  });
+
+  test('a state change bumps updatedAt (Done columns sort by it); a reorder does not', () => {
+    const moved = moveTaskInList([a, b, c], { taskId: 'a', stateId: doing.id, afterTaskId: null, beforeTaskId: 'c' }, doing);
+    expect(moved.find((t) => t.id === 'a')!.updatedAt).toBeDefined();
+    const reordered = moveTaskInList([a, b], { taskId: 'a', stateId: todo.id, afterTaskId: 'b', beforeTaskId: null }, todo);
+    expect(reordered.find((t) => t.id === 'a')!.updatedAt).toBeUndefined();
+    expect(reordered.find((t) => t.id === 'a')!.position > 'a1').toBe(true);
+  });
+
   test('unknown task is a no-op', () => {
     const list = [a, b];
     expect(moveTaskInList(list, { taskId: 'zz', stateId: todo.id }, todo)).toBe(list);
