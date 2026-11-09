@@ -27,7 +27,7 @@ import {
   Textarea,
   toast,
 } from '../ui';
-import { AVAILABLE_PERMISSIONS } from './AgentSettings';
+import { AVAILABLE_PERMISSIONS } from '../../lib/agent-tools';
 
 const API_KEY_PROVIDERS: {
   provider: ApiKeyProvider;

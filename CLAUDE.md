@@ -250,7 +250,7 @@ projects.get('/:projectId', async (c) => {
 2. Add the definition (description, JSON Schema `parameters`, `outputSchema`, `annotations` with an honest `readOnlyHint`/`destructiveHint`) to `AGENT_TOOLS` in `apps/api/src/domain/agent/tools.ts`.
 3. Add its permission to `TOOL_PERMISSIONS` in `apps/api/src/lib/mcp/tool-permissions.ts`.
 4. Implement the handler in `apps/api/src/services/agent-tools/task-tools.ts` or `workspace-tools.ts`. Resolve every id through the `ToolContext` and wrap user-written text with `untrusted()`. `executeAgentTool` picks it up for both MCP and the in-app chat.
-5. Add the label to `AGENT_TOOL_LABELS` in `apps/web/src/components/settings/AgentSettings.tsx`.
+5. Add the label to `AGENT_TOOL_LABELS` in `apps/web/src/lib/agent-tools.ts` (settings and the chat's "Using …" line read it).
 6. Run `bun test apps/api/src/domain/agent/types.test.ts` (AGENT_TOOLS ↔ AgentToolSchema parity) and `bun test apps/api/src/services/agent-tool-runtime.test.ts`.
 
 The `Record<AgentTool, …>` types make steps 3–5 compile errors when skipped.
