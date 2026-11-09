@@ -246,7 +246,7 @@ tasks.post('/:taskId/move', zValidator('json', MoveTaskSchema, validationHook), 
   const data = c.req.valid('json');
 
   // TaskService.move rejects a state from another project (no cross-project moves).
-  const result = await taskService.move(task.id, { ...data, movedBy: user.id, project });
+  const result = await taskService.moveDetailed(task.id, { ...data, movedBy: user.id, project });
   if (!result.ok) {
     throw withRouteMessages(
       toAppError(result.error, {
@@ -257,9 +257,12 @@ tasks.post('/:taskId/move', zValidator('json', MoveTaskSchema, validationHook), 
       MOVE_VALIDATION_ERRORS
     );
   }
-  const moved = result.value;
-
-  return c.json({ success: true, data: moved });
+  // meta.rekeyed: other tasks of the column got new keys; refetch the list.
+  return c.json({
+    success: true,
+    data: result.value.task,
+    meta: { rekeyed: result.value.rekeyed },
+  });
 });
 
 // Delete task (soft delete)

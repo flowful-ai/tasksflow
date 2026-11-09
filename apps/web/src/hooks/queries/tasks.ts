@@ -14,6 +14,7 @@ import type {
   BulkTaskResponseDto,
   CreateTaskInput,
   MoveTaskInput,
+  MoveTaskResultDto,
   TaskDetailDto,
   TaskListFilters,
   UpdateTaskInput,
@@ -23,6 +24,7 @@ import {
   applyMoveEverywhere,
   cancelTaskQueries,
   findCachedTask,
+  invalidateRekeyedLists,
   removeTaskEverywhere,
   restoreTaskCaches,
   snapshotTaskCaches,
@@ -173,12 +175,15 @@ export function useUpdateTask() {
  *   move.mutate({ taskId, stateId, afterTaskId, beforeTaskId })
  *
  * onMutate cancels list fetches, snapshots every cache, then reorders the task
- * locally; onError rolls back (and the global handler toasts); onSettled
- * refetches so the server's position wins.
+ * locally; onError rolls back (and the global handler toasts) and refetches.
+ * On success the returned task is written to the caches; when the server
+ * re-keyed the column (`rekeyed`), the project's task lists are refetched too,
+ * whether or not the tasks:rekeyed SSE event arrives. The task:moved event
+ * refreshes smart views, activity and history.
  */
 export function useMoveTask() {
   const queryClient = useQueryClient();
-  return useMutation<TaskDetailDto, Error, MoveTaskInput, TaskCacheSnapshot>({
+  return useMutation<MoveTaskResultDto, Error, MoveTaskInput, TaskCacheSnapshot>({
     mutationFn: (input) => tasksApi.move(input),
     onMutate: async (input) => {
       await cancelTaskQueries(queryClient, input.taskId);
@@ -191,9 +196,10 @@ export function useMoveTask() {
       restoreTaskCaches(queryClient, snapshot);
       return invalidateAfterTaskChange(queryClient, { id: input.taskId, projectId });
     },
-    // Trust the response: the task:moved SSE event refreshes smart views,
-    // activity and history, and tasks:rekeyed refetches a re-keyed column.
-    onSuccess: (task) => upsertTaskEverywhere(queryClient, task),
+    onSuccess: ({ task, rekeyed }) => {
+      upsertTaskEverywhere(queryClient, task);
+      return invalidateRekeyedLists(queryClient, rekeyed, [task.projectId]);
+    },
     meta: { errorMessage: 'Could not move the task' },
   });
 }
@@ -279,9 +285,16 @@ export function useBulkTasks() {
         for (const task of response.tasks)
           upsertTaskEverywhere(queryClient, task, { created: Boolean(op.restore) });
       }
+      // A re-keyed column changed other tasks' positions: refetch those lists.
+      return invalidateRekeyedLists(
+        queryClient,
+        response.rekeyed,
+        response.tasks.map((task) => task.projectId)
+      );
     },
-    // On success the response and the task:* SSE events keep lists, smart
-    // views and activity current; refetch broadly only when the request failed.
+    // On success the response (plus a refetch after a re-key) and the task:*
+    // SSE events keep lists, smart views and activity current; refetch broadly
+    // only when the request failed.
     onError: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.tasks.lists() }),

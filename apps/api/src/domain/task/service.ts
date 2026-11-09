@@ -737,6 +737,18 @@ export class TaskService {
    * invalid neighbour triggers a re-key of the column.
    */
   async move(taskId: string, input: TaskMoveInput): Promise<Result<TaskDetail, Error>> {
+    const result = await this.moveDetailed(taskId, input);
+    return result.ok ? ok(result.value.task) : result;
+  }
+
+  /**
+   * `move`, also reporting whether placing the task re-keyed its column
+   * (other tasks' positions changed, so a client must refetch that column).
+   */
+  async moveDetailed(
+    taskId: string,
+    input: TaskMoveInput
+  ): Promise<Result<{ task: TaskDetail; rekeyed: boolean }, Error>> {
     try {
       const outcome = await this.db.transaction(async (tx) => {
         const current = await lockTask(tx, taskId);
@@ -797,7 +809,7 @@ export class TaskService {
         });
         if (outcome.rekeyed) this.emitRekeyed(outcome.project, input.stateId);
       }
-      return result;
+      return result.ok ? ok({ task: result.value, rekeyed: outcome.rekeyed }) : result;
     } catch (error) {
       return err(toError(error));
     }

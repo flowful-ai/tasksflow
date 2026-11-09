@@ -175,7 +175,10 @@ describe.skipIf(!TEST_DATABASE_URL)('workstream-B routes (integration)', () => {
       op: { stateId: fx.doneStateId, priority: 'high' },
     });
     expect(ok.status).toBe(200);
-    expect(ok.body.data).toMatchObject({ results: [{ status: 'updated' }, { status: 'updated' }] });
+    expect(ok.body.data).toMatchObject({
+      results: [{ status: 'updated' }, { status: 'updated' }],
+      rekeyed: false,
+    });
 
     // Members cannot delete (task:delete is owner/admin only).
     const memberDelete = await call('POST', '/api/tasks/bulk', fx.member.id, {

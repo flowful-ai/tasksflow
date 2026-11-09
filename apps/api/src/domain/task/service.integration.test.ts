@@ -364,13 +364,23 @@ describe.skipIf(!TEST_DATABASE_URL)('TaskService (integration)', () => {
         if (e.projectId === p.projectId) rekeyed.push(e);
       });
       // Drop D between B and C (two equal invalid keys).
-      unwrap(
-        await service.move(created[3]!.id, {
+      const moved = unwrap(
+        await service.moveDetailed(created[3]!.id, {
           stateId: p.states.backlog,
           afterTaskId: created[1]!.id,
           movedBy: ws.owner.id,
         })
       );
+      expect(moved.rekeyed).toBe(true);
+      // The column is healthy now: the next move does not re-key it.
+      const again = unwrap(
+        await service.moveDetailed(created[3]!.id, {
+          stateId: p.states.backlog,
+          afterTaskId: created[1]!.id,
+          movedBy: ws.owner.id,
+        })
+      );
+      expect(again.rekeyed).toBe(false);
       await domainEvents.idle();
       off();
       const rows = await testDb()
@@ -416,7 +426,7 @@ describe.skipIf(!TEST_DATABASE_URL)('TaskService (integration)', () => {
       const off = domainEvents.on('tasks.rekeyed', (e) => {
         if (e.projectId === p.projectId) rekeyed.push(e);
       });
-      unwrap(
+      const bulk = unwrap(
         await new TaskBulkService(testDb()).apply({
           taskIds: [mover.id],
           op: { stateId: p.states.progress },
@@ -426,6 +436,7 @@ describe.skipIf(!TEST_DATABASE_URL)('TaskService (integration)', () => {
       );
       await domainEvents.idle();
       off();
+      expect(bulk.rekeyed).toBe(true);
       expect(rekeyed).toEqual([
         { workspaceId: ws.workspaceId, projectId: p.projectId, stateId: p.states.progress },
       ]);

@@ -162,3 +162,25 @@ export function applyMoveEverywhere(queryClient: QueryClient, input: MoveTaskInp
     detail ? { ...detail, stateId: input.stateId, state: state ?? detail.state } : detail
   );
 }
+
+/**
+ * A move or bulk state change re-keyed a column: other tasks' positions
+ * changed, so refetch the affected projects' task lists (independent of the
+ * tasks:rekeyed SSE event, which may be missed while reconnecting).
+ */
+export function invalidateRekeyedLists(
+  queryClient: QueryClient,
+  rekeyed: boolean,
+  projectIds: Iterable<string>
+): Promise<void> {
+  if (!rekeyed) return Promise.resolve();
+  const unique = [...new Set(projectIds)];
+  if (unique.length === 0) {
+    return queryClient.invalidateQueries({ queryKey: queryKeys.tasks.lists() });
+  }
+  return Promise.all(
+    unique.map((projectId) =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.project(projectId) })
+    )
+  ).then(() => undefined);
+}

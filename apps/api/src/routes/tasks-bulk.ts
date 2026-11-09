@@ -3,7 +3,10 @@
  * POST /api/tasks/bulk is never captured by a /:taskId route.
  *
  *   POST /bulk  { taskIds: uuid[1..200], op: BulkTaskOperation }
- *     → { results: BulkTaskItemResult[], tasks: TaskWithRelations[] }
+ *     → { results: BulkTaskItemResult[], tasks: TaskWithRelations[], rekeyed: boolean }
+ *
+ * `rekeyed` is true when a state change re-keyed a target column (other
+ * tasks' positions changed), so the client refetches those task lists.
  *
  * One transaction; each task is access-checked (workspace role permission +
  * project ACL) and validated on its own, and reported as updated / unchanged
@@ -67,11 +70,11 @@ taskBulkRoutes.post(
     }
 
     // Realtime, Slack and GitHub sync run off the domain events TaskBulkService emits.
-    const { results, tasks } = fromResult(
+    const { results, tasks, rekeyed } = fromResult(
       await bulkService.apply({ taskIds, op, actorId: user.id, allowedProjectIds }),
       { code: 'BULK_FAILED', message: 'Bulk operation failed' }
     );
-    return c.json({ success: true, data: { results, tasks } });
+    return c.json({ success: true, data: { results, tasks, rekeyed } });
   }
 );
 

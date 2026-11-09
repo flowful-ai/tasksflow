@@ -195,6 +195,14 @@ export interface UpdateTaskInput {
 export interface BulkTaskResponseDto {
   results: BulkTaskItemResult[];
   tasks: TaskDto[];
+  /** A state change re-keyed a target column: other tasks' positions changed too. */
+  rekeyed: boolean;
+}
+
+/** POST /api/tasks/:id/move: the moved task, and whether its column was re-keyed. */
+export interface MoveTaskResultDto {
+  task: TaskDetailDto;
+  rekeyed: boolean;
 }
 
 export interface CommentDto {

@@ -51,6 +51,8 @@ export interface BulkApplyResult {
   tasks: TaskWithRelations[];
   /** Workspace of the affected tasks (for realtime fan-out); null when nothing matched. */
   workspaceId: string | null;
+  /** A state change re-keyed a target column: other tasks' positions changed too. */
+  rekeyed: boolean;
 }
 
 interface BulkTaskRow {
@@ -350,7 +352,8 @@ export class TaskBulkService {
         if (listed.ok) fresh = listed.value.tasks;
       }
       this.emit(outcomes, fresh, input);
-      return ok({ results, tasks: fresh, workspaceId });
+      const rekeyed = outcomes.some((o) => o.rekeyed);
+      return ok({ results, tasks: fresh, workspaceId, rekeyed });
     } catch (error) {
       return err(toError(error));
     }

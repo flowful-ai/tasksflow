@@ -324,6 +324,7 @@ Re-run it after changing routes and paste the tables below the "Endpoints" headi
 - `routes/github.ts` is mounted under both `/api/github` and `/api/projects`, and it mounts the Slack router (`routes/slack.ts`), so its routes answer on both prefixes. The web app uses `/api/projects/:projectId/github…`, `/api/projects/:projectId/slack…`, `/api/github/my-installations` and `/api/github/installations/:installationId/repos`.
 - `POST …/github/install` and `GET /api/github/callback` check the session-bound state nonce, the user's GitHub OAuth code and `project:manage_integrations` inside `completeGitHubInstallation` (`apps/api/src/services/github-install-service.ts`), which the script does not see.
 - `GET /api/github/installations/:installationId/repos` requires an installation verified for the caller; `GET /api/github/my-installations` lists only the caller's.
+- `POST /api/tasks/:taskId/move` takes `stateId` and optional `afterTaskId`/`beforeTaskId` (a `position` field is rejected with 400). It answers with the task in `data` and `meta.rekeyed`; `POST /api/tasks/bulk` returns `rekeyed` in `data`. `rekeyed: true` means the column was re-keyed and other tasks' positions changed, so refetch the column.
 - Notifications, `GET /api/workspaces` and `POST /api/workspaces` act on the signed-in user's own data.
 - `POST /api/workspaces/:workspaceId/transfer-ownership` additionally requires the caller to be an owner.
 - `GET /` redirects GitHub installation callbacks (`?installation_id=…&setup_action=…`) to `/api/github/callback`, and otherwise serves the SPA.

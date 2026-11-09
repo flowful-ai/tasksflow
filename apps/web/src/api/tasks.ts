@@ -7,6 +7,7 @@ import type {
   CommentDto,
   CreateTaskInput,
   MoveTaskInput,
+  MoveTaskResultDto,
   TaskDetailDto,
   TaskDto,
   TaskHistoryItemDto,
@@ -34,8 +35,14 @@ export const tasksApi = {
   create: (input: CreateTaskInput): Promise<TaskDetailDto> => http.post('/api/tasks', input),
   update: (taskId: string, input: UpdateTaskInput): Promise<TaskDetailDto> =>
     http.patch(`/api/tasks/${taskId}`, input),
-  move: ({ taskId, ...body }: MoveTaskInput): Promise<TaskDetailDto> =>
-    http.post(`/api/tasks/${taskId}/move`, body),
+  /** `rekeyed` (from `meta`) means other tasks of the column got new positions. */
+  move: async ({ taskId, ...body }: MoveTaskInput): Promise<MoveTaskResultDto> => {
+    const response = await api.post<ApiEnvelope<TaskDetailDto, { rekeyed?: boolean }>>(
+      `/api/tasks/${taskId}/move`,
+      body
+    );
+    return { task: response.data, rekeyed: response.meta?.rekeyed === true };
+  },
   /** Soft delete (restorable from the trash). */
   delete: (taskId: string): Promise<null> => http.delete(`/api/tasks/${taskId}`),
   addAssignee: (taskId: string, userId: string): Promise<null> =>
