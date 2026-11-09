@@ -55,6 +55,55 @@ describe.skipIf(!TEST_DB)('job queue (integration)', () => {
     expect(inTx).toBeString();
   });
 
+  it('coalesces into the pending job: merged payload, earliest run, fresh attempts', async () => {
+    const key = `${prefix}:coalesce`;
+    const later = new Date(Date.now() + 60 * 60 * 1000);
+    const first = await enqueueJob(
+      db,
+      t('coalesce'),
+      { id: 'x', title: true },
+      { key, coalesce: true, runAt: later }
+    );
+    if (!first) throw new Error('enqueue failed');
+    await db.update(jobs).set({ attempts: 3 }).where(eq(jobs.id, first));
+    const second = await enqueueJob(
+      db,
+      t('coalesce'),
+      { id: 'x', labels: true },
+      { key, coalesce: true }
+    );
+    expect(second).toBe(first);
+    const row = await getJob(first);
+    expect(row.payload).toEqual({ id: 'x', title: true, labels: true });
+    expect(row.runAt.getTime()).toBeLessThan(later.getTime());
+    expect(row.attempts).toBe(0);
+  });
+
+  it('runs a keyed job again when a coalescing enqueue lands while it runs', async () => {
+    const key = `${prefix}:mid-run`;
+    const type = t('midrun');
+    const seen: string[] = [];
+    const id = await enqueueJob(db, type, { rev: 'a' }, { key, coalesce: true });
+    if (!id) throw new Error('enqueue failed');
+    const handlers: JobHandlers = {
+      [type]: async (job) => {
+        seen.push(String(job.payload.rev));
+        if (job.payload.rev === 'a') {
+          // A newer change arrives while this run has already read its input.
+          expect(await enqueueJob(db, type, { rev: 'b' }, { key, coalesce: true })).toBe(id);
+        }
+      },
+    };
+    const runner = createJobRunner(db, handlers);
+    expect(await runner.runOnce()).toBe(1);
+    const pending = await getJob(id);
+    expect(pending.doneAt).toBeNull();
+    expect(pending.attempts).toBe(0);
+    expect(await runner.runOnce()).toBe(1);
+    expect(seen).toEqual(['a', 'b']);
+    expect((await getJob(id)).doneAt).not.toBeNull();
+  });
+
   it('claims, runs and marks jobs done; leaves unknown types alone', async () => {
     const seen: string[] = [];
     const id = await enqueueJob(db, t('ok'), { value: 'x' });

@@ -43,8 +43,8 @@ export function startApiBackground(db: Database): ApiBackground {
   // otherwise it would sit unprocessed. Without the queue it runs in-process.
   if (runJobs) {
     useDurableJobQueue({
-      enqueue: async (type, payload) => {
-        await enqueueJob(db, type, payload);
+      enqueue: async (type, payload, options) => {
+        await enqueueJob(db, type, payload, options);
       },
     });
   }

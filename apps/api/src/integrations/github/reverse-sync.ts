@@ -1,5 +1,13 @@
 import type { Database } from '../../db/index.js';
-import { comments, externalLinks, labels, projectIntegrations, users } from '../../db/index.js';
+import {
+  comments,
+  externalLinks,
+  labels,
+  projectIntegrations,
+  taskLabels,
+  tasks,
+  users,
+} from '../../db/index.js';
 import {
   findInstallationForRepo,
   isJsonValue,
@@ -7,25 +15,35 @@ import {
   resolveGitHubLinkRef,
   type GitHubItemRef,
 } from '@flowtask/shared';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
+import { randomUUID } from 'node:crypto';
 import {
   NonRetryableError,
   registerBackgroundJob,
   scheduleBackgroundJob,
   type BackgroundJobPayload,
 } from '../background.js';
-import { createGitHubClientForInstallation, type GitHubClient } from './client.js';
+import type { GitHubRepoRef } from '../types.js';
+import { createGitHubClientForInstallation } from './client.js';
 import { computeIssueSyncHash } from './sync-hash.js';
 import { getStateCategory } from './task-lookup.js';
-import { issueContentFrom } from './webhook.js';
+import { issueContentFrom, type IssueContent } from './webhook.js';
 
+/**
+ * Which kinds of task change a reverse-sync job pushes. Only the kinds are
+ * queued, never the values: the job reads the task's current title,
+ * description, state and labels when it runs, so retries and out-of-order
+ * runs can never push an older value over a newer one.
+ */
 export interface TaskChangesForGitHub {
-  title?: string;
-  description?: string;
-  stateId?: string | null;
-  priority?: string | null;
-  labelIds?: string[];
+  title?: boolean;
+  description?: boolean;
+  /** Open/closed, from the task's current state category (and deletion). */
+  state?: boolean;
+  labels?: boolean;
 }
+
+const CHANGE_KINDS = ['title', 'description', 'state', 'labels'] as const;
 
 export interface CommentForGitHub {
   content: string;
@@ -40,17 +58,40 @@ export interface ReverseSyncResult {
   reason?: string;
 }
 
+/** The GitHub calls reverse sync makes (GitHubClient implements it; tests pass a fake). */
+export interface ReverseSyncGitHubClient {
+  getIssue(issueNumber: number): Promise<Parameters<typeof issueContentFrom>[0]>;
+  updateIssue(
+    issueNumber: number,
+    updates: { title?: string; body?: string; state?: 'open' | 'closed' }
+  ): Promise<object>;
+  setIssueLabels(issueNumber: number, labels: string[]): Promise<object>;
+  addIssueComment(issueNumber: number, body: string): Promise<{ id: number }>;
+}
+
+export type ReverseSyncClientFactory = (
+  installationId: number,
+  repo: GitHubRepoRef
+) => Promise<ReverseSyncGitHubClient>;
+
 interface ResolvedIssueLink {
   linkId: string;
+  syncHash: string | null;
   ref: GitHubItemRef;
-  client: GitHubClient;
+  client: ReverseSyncGitHubClient;
 }
 
 export const REVERSE_SYNC_JOBS = {
   task: 'github.reverse_sync.task',
   comment: 'github.reverse_sync.comment',
+  /** Legacy job type (queued before task jobs carried only kinds); handled as a state sync. */
   closeIssue: 'github.reverse_sync.close_issue',
 } as const;
+
+/** One pending task reverse-sync job per task: later changes coalesce into it. */
+export function reverseSyncJobKey(taskId: string): string {
+  return `${REVERSE_SYNC_JOBS.task}:${taskId}`;
+}
 
 function optionalString(value: BackgroundJobPayload[string] | undefined): string | undefined {
   return typeof value === 'string' ? value : undefined;
@@ -62,18 +103,21 @@ function payloadTaskId(payload: BackgroundJobPayload): string {
   return taskId;
 }
 
-function changesFromPayload(value: BackgroundJobPayload[string] | undefined): TaskChangesForGitHub {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-  const changes: TaskChangesForGitHub = {};
-  if (typeof value.title === 'string') changes.title = value.title;
-  if (typeof value.description === 'string') changes.description = value.description;
-  if (typeof value.stateId === 'string' || value.stateId === null) changes.stateId = value.stateId;
-  if (typeof value.priority === 'string' || value.priority === null)
-    changes.priority = value.priority;
-  if (Array.isArray(value.labelIds)) {
-    changes.labelIds = value.labelIds.filter((id): id is string => typeof id === 'string');
+/** Change kinds from a job payload (flags at the top level, so coalescing merges them). */
+export function changeKindsFromPayload(payload: BackgroundJobPayload): TaskChangesForGitHub {
+  const kinds: TaskChangesForGitHub = {};
+  for (const kind of CHANGE_KINDS) {
+    if (payload[kind] === true) kinds[kind] = true;
   }
-  return changes;
+  // Jobs queued by the previous version carried a `changes` snapshot: keep its kinds only.
+  const legacy = payload.changes;
+  if (legacy && typeof legacy === 'object' && !Array.isArray(legacy)) {
+    if ('title' in legacy) kinds.title = true;
+    if ('description' in legacy) kinds.description = true;
+    if ('stateId' in legacy) kinds.state = true;
+    if ('labelIds' in legacy) kinds.labels = true;
+  }
+  return kinds;
 }
 
 function commentFromPayload(value: BackgroundJobPayload[string] | undefined): CommentForGitHub {
@@ -93,9 +137,9 @@ function commentFromPayload(value: BackgroundJobPayload[string] | undefined): Co
   };
 }
 
-function toPayload(value: TaskChangesForGitHub | CommentForGitHub): BackgroundJobPayload {
+function commentPayload(comment: CommentForGitHub): BackgroundJobPayload {
   const payload: BackgroundJobPayload = {};
-  for (const [key, entry] of Object.entries(value)) {
+  for (const [key, entry] of Object.entries(comment)) {
     if (isJsonValue(entry)) payload[key] = entry;
   }
   return payload;
@@ -108,45 +152,56 @@ function toPayload(value: TaskChangesForGitHub | CommentForGitHub): BackgroundJo
  * or unlinked repository returns `{ synced: false, reason }`.
  */
 export class GitHubReverseSyncService {
-  constructor(private readonly db: Database) {
+  private readonly createClient: ReverseSyncClientFactory;
+
+  constructor(
+    private readonly db: Database,
+    options: { createClient?: ReverseSyncClientFactory } = {}
+  ) {
+    this.createClient = options.createClient ?? createGitHubClientForInstallation;
     registerBackgroundJob(REVERSE_SYNC_JOBS.task, async (payload) => {
-      await this.syncTaskToGitHub(payloadTaskId(payload), changesFromPayload(payload.changes));
+      await this.syncTaskToGitHub(payloadTaskId(payload), changeKindsFromPayload(payload));
     });
     registerBackgroundJob(REVERSE_SYNC_JOBS.comment, async (payload) => {
       await this.syncCommentToGitHub(payloadTaskId(payload), commentFromPayload(payload.comment));
     });
     registerBackgroundJob(REVERSE_SYNC_JOBS.closeIssue, async (payload) => {
-      await this.closeGitHubIssue(payloadTaskId(payload));
+      await this.syncTaskToGitHub(payloadTaskId(payload), { state: true });
     });
   }
 
   /**
-   * Push task changes to the linked issue. After writing, the fresh issue
-   * content is hashed and stored on the link, so the webhook echo is skipped
-   * while genuine GitHub edits still apply.
-   *
-   * @param _options accepted for backward compatibility; the old 5-second
-   *   `skipIfRecentSync` window is gone (it dropped genuine edits).
+   * Push the task's CURRENT values for the given kinds to the linked issue.
+   * A deleted (or missing) task closes the issue; otherwise the open/closed
+   * state follows the current state category. Nothing is pushed when the
+   * task's content already hashes to the link's sync hash (GitHub has it).
+   * After writing, the fresh issue content is hashed and stored on the link,
+   * so the webhook echo is skipped while genuine GitHub edits still apply.
    */
-  async syncTaskToGitHub(
-    taskId: string,
-    changes: TaskChangesForGitHub,
-    _options?: { skipIfRecentSync?: boolean }
-  ): Promise<ReverseSyncResult> {
+  async syncTaskToGitHub(taskId: string, kinds: TaskChangesForGitHub): Promise<ReverseSyncResult> {
     const resolved = await this.resolveIssueLink(taskId);
     if ('reason' in resolved) return { synced: false, reason: resolved.reason };
     const { client, ref, linkId } = resolved;
 
+    const current = await this.loadTaskForGitHub(taskId);
     const updates: { title?: string; body?: string; state?: 'open' | 'closed' } = {};
-    if (changes.title !== undefined) updates.title = changes.title;
-    if (changes.description !== undefined) updates.body = changes.description || '';
-    if (changes.stateId !== undefined) {
-      const category = await getStateCategory(this.db, changes.stateId);
-      if (category) updates.state = category === 'done' ? 'closed' : 'open';
+    let labelNames: string[] | null = null;
+
+    if (!current || current.deleted) {
+      updates.state = 'closed';
+    } else {
+      if (current.content.state && resolved.syncHash !== null) {
+        const full: IssueContent = { ...current.content, state: current.content.state };
+        if (computeIssueSyncHash(full) === resolved.syncHash) {
+          return { synced: false, reason: 'Already in sync' };
+        }
+      }
+      if (kinds.title) updates.title = current.content.title;
+      if (kinds.description) updates.body = current.content.body;
+      if (kinds.state && current.content.state) updates.state = current.content.state;
+      if (kinds.labels) labelNames = current.content.labels;
     }
 
-    const labelNames =
-      changes.labelIds !== undefined ? await this.getLabelNames(changes.labelIds) : null;
     if (Object.keys(updates).length === 0 && labelNames === null) {
       return { synced: false, reason: 'No GitHub-relevant changes' };
     }
@@ -209,41 +264,47 @@ export class GitHubReverseSyncService {
     return { synced: false, reason: 'GitHub username mapping not implemented' };
   }
 
-  /** Close the linked GitHub issue (used when a task is deleted). */
+  /** Bring the linked issue's open/closed state in line with the task (deleted → closed). */
   async closeGitHubIssue(taskId: string): Promise<ReverseSyncResult> {
-    const resolved = await this.resolveIssueLink(taskId);
-    if ('reason' in resolved) return { synced: false, reason: resolved.reason };
-    await resolved.client.updateIssue(resolved.ref.number, { state: 'closed' });
-    await this.recordSyncedContent(resolved.client, resolved.ref.number, resolved.linkId);
-    return { synced: true };
+    return this.syncTaskToGitHub(taskId, { state: true });
   }
 
   // ============ Background entry points (single retry seam) ============
 
-  scheduleTaskSync(taskId: string, changes: TaskChangesForGitHub): void {
-    scheduleBackgroundJob(
-      REVERSE_SYNC_JOBS.task,
-      { taskId, changes: toPayload(changes) },
-      { context: { taskId } }
-    );
+  /**
+   * Queue a push of the given kinds of change. Only the kinds are queued; the
+   * job reads the current task when it runs. One pending job per task: a
+   * later change merges its kinds into it (and re-runs it if it is running).
+   */
+  scheduleTaskSync(taskId: string, kinds: TaskChangesForGitHub): void {
+    const payload: BackgroundJobPayload = { taskId, rev: randomUUID() };
+    for (const kind of CHANGE_KINDS) {
+      if (kinds[kind]) payload[kind] = true;
+    }
+    scheduleBackgroundJob(REVERSE_SYNC_JOBS.task, payload, {
+      key: reverseSyncJobKey(taskId),
+      coalesce: true,
+      context: { taskId },
+    });
   }
 
   scheduleCommentSync(taskId: string, comment: CommentForGitHub): void {
     scheduleBackgroundJob(
       REVERSE_SYNC_JOBS.comment,
-      { taskId, comment: toPayload(comment) },
+      { taskId, comment: commentPayload(comment) },
       { context: { taskId, commentId: comment.commentId } }
     );
   }
 
-  scheduleIssueClose(taskId: string): void {
-    scheduleBackgroundJob(REVERSE_SYNC_JOBS.closeIssue, { taskId }, { context: { taskId } });
+  /** The task was deleted or restored: close or reopen the issue, decided when the job runs. */
+  scheduleIssueStateSync(taskId: string): void {
+    this.scheduleTaskSync(taskId, { state: true });
   }
 
   // ============ Helpers ============
 
   private async recordSyncedContent(
-    client: GitHubClient,
+    client: ReverseSyncGitHubClient,
     issueNumber: number,
     linkId: string
   ): Promise<void> {
@@ -258,6 +319,7 @@ export class GitHubReverseSyncService {
     const [row] = await this.db
       .select({
         linkId: externalLinks.id,
+        syncHash: externalLinks.syncHash,
         externalId: externalLinks.externalId,
         externalUrl: externalLinks.externalUrl,
         config: projectIntegrations.config,
@@ -280,19 +342,39 @@ export class GitHubReverseSyncService {
     );
     if (!installationId) return { reason: 'Repository is no longer linked to this project' };
 
-    const client = await createGitHubClientForInstallation(installationId, {
-      owner: ref.owner,
-      repo: ref.repo,
-    });
-    return { linkId: row.linkId, ref, client };
+    const client = await this.createClient(installationId, { owner: ref.owner, repo: ref.repo });
+    return { linkId: row.linkId, syncHash: row.syncHash, ref, client };
   }
 
-  private async getLabelNames(labelIds: string[]): Promise<string[]> {
-    if (labelIds.length === 0) return [];
-    const rows = await this.db
+  /** The task as GitHub would show it, read now (deleted tasks included). */
+  private async loadTaskForGitHub(taskId: string): Promise<{
+    deleted: boolean;
+    content: Omit<IssueContent, 'state'> & { state: IssueContent['state'] | null };
+  } | null> {
+    const [task] = await this.db
+      .select({
+        title: tasks.title,
+        description: tasks.description,
+        stateId: tasks.stateId,
+        deletedAt: tasks.deletedAt,
+      })
+      .from(tasks)
+      .where(eq(tasks.id, taskId));
+    if (!task) return null;
+    const category = await getStateCategory(this.db, task.stateId);
+    const labelRows = await this.db
       .select({ name: labels.name })
-      .from(labels)
-      .where(inArray(labels.id, labelIds));
-    return rows.map((l) => l.name);
+      .from(taskLabels)
+      .innerJoin(labels, eq(taskLabels.labelId, labels.id))
+      .where(eq(taskLabels.taskId, taskId));
+    return {
+      deleted: task.deletedAt !== null,
+      content: {
+        title: task.title,
+        body: task.description ?? '',
+        state: category ? (category === 'done' ? 'closed' : 'open') : null,
+        labels: labelRows.map((label) => label.name).sort(),
+      },
+    };
   }
 }

@@ -45,17 +45,16 @@ function stringOrNull(value: TaskFieldChange['to']): string | null {
   return typeof value === 'string' ? value : null;
 }
 
-/** The fields GitHub mirrors, from an update event (labels sent as the full current set). */
+/** The kinds of change GitHub mirrors in an update event (values are read when the job runs). */
 function githubChanges(event: TaskUpdatedEvent): TaskChangesForGitHub | null {
   const changes: TaskChangesForGitHub = {};
   for (const change of event.changes) {
-    if (change.field === 'title' && typeof change.to === 'string') changes.title = change.to;
-    if (change.field === 'description') changes.description = stringOrNull(change.to) ?? '';
-    if (change.field === 'stateId') changes.stateId = stringOrNull(change.to);
-    if (change.field === 'priority') changes.priority = stringOrNull(change.to);
+    if (change.field === 'title') changes.title = true;
+    if (change.field === 'description') changes.description = true;
+    if (change.field === 'stateId') changes.state = true;
   }
   if (event.addedLabelIds.length > 0 || event.removedLabelIds.length > 0) {
-    changes.labelIds = event.task.labels.map((label) => label.id);
+    changes.labels = true;
   }
   return Object.keys(changes).length > 0 ? changes : null;
 }
@@ -125,7 +124,7 @@ export function registerDomainEventBridges(db: Database): () => void {
         ...slackActor(event),
       });
       if (event.origin !== 'github' && hasGitHubIssue(event.task)) {
-        reverseSync.scheduleTaskSync(event.task.id, { stateId: event.toStateId });
+        reverseSync.scheduleTaskSync(event.task.id, { state: true });
       }
     }),
 
@@ -135,7 +134,7 @@ export function registerDomainEventBridges(db: Database): () => void {
         projectId: event.projectId,
       });
       if (event.origin !== 'github' && (await taskHasGitHubIssue(event.taskId))) {
-        reverseSync.scheduleIssueClose(event.taskId);
+        reverseSync.scheduleIssueStateSync(event.taskId);
       }
     }),
 
@@ -144,6 +143,10 @@ export function registerDomainEventBridges(db: Database): () => void {
       publishEvent(event.workspaceId, REALTIME_EVENTS.TASK_CREATED, event.task, {
         projectId: event.projectId,
       });
+      // Deleting closed the issue; reopen it unless the task is done (decided at run time).
+      if (event.origin !== 'github' && hasGitHubIssue(event.task)) {
+        reverseSync.scheduleIssueStateSync(event.task.id);
+      }
     }),
 
     domainEvents.on('tasks.rekeyed', (event) => {

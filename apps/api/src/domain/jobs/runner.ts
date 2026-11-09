@@ -81,6 +81,8 @@ export function createJobRunner(
   const types = Object.keys(handlers);
 
   const inFlight = new Set<Promise<void>>();
+  // Payload of each claimed keyed job as stored, to detect a change while it runs.
+  const claimedPayloads = new Map<string, string>();
   let running = false;
   let stopping: Promise<void> | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -110,12 +112,23 @@ export function createJobRunner(
       .set({ lockedAt: sql`now()`, lockedBy: workerId, attempts: sql`${jobs.attempts} + 1` })
       .where(inArray(jobs.id, candidates))
       .returning();
+    for (const row of rows) {
+      if (row.key) claimedPayloads.set(row.id, JSON.stringify(row.payload));
+    }
     return rows.map(toClaimedJob);
   }
 
   async function finishSuccess(job: ClaimedJob, outcome: JobOutcome | void): Promise<void> {
     await db.transaction(async (tx) => {
-      await tx
+      const owned = and(eq(jobs.id, job.id), eq(jobs.lockedBy, workerId));
+      // A keyed job whose payload changed while it ran (a coalescing enqueue,
+      // see queue.ts) is not done: it runs again right away with the new payload.
+      const claimedPayload = claimedPayloads.get(job.id);
+      const unchanged =
+        job.key && claimedPayload !== undefined
+          ? sql`${jobs.payload} = ${claimedPayload}::jsonb`
+          : undefined;
+      const finished = await tx
         .update(jobs)
         .set({
           doneAt: sql`now()`,
@@ -123,7 +136,21 @@ export function createJobRunner(
           lockedBy: null,
           lastError: outcome?.error ? truncate(outcome.error) : null,
         })
-        .where(and(eq(jobs.id, job.id), eq(jobs.lockedBy, workerId)));
+        .where(and(owned, unchanged))
+        .returning({ id: jobs.id });
+
+      if (finished.length === 0 && unchanged) {
+        await tx
+          .update(jobs)
+          .set({
+            runAt: sql`now()`,
+            attempts: sql`greatest(${jobs.attempts} - 1, 0)`,
+            lockedAt: null,
+            lockedBy: null,
+          })
+          .where(owned);
+        return;
+      }
 
       if (outcome?.reschedule && job.key) {
         await tx
@@ -180,6 +207,14 @@ export function createJobRunner(
   }
 
   async function execute(job: ClaimedJob): Promise<void> {
+    try {
+      await executeClaimed(job);
+    } finally {
+      claimedPayloads.delete(job.id);
+    }
+  }
+
+  async function executeClaimed(job: ClaimedJob): Promise<void> {
     const handler = handlers[job.type];
     try {
       if (!handler) throw new Error(`No handler for job type "${job.type}"`);

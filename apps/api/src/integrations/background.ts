@@ -104,9 +104,22 @@ export async function runInBackground(
 
 export type BackgroundJobPayload = JsonObject;
 
-export interface DurableJobQueue {
-  enqueue(type: string, payload: BackgroundJobPayload): Promise<void>;
+export interface DurableEnqueueOptions {
+  /** One pending job per key. */
+  key?: string;
+  /** With `key`: merge into the pending job instead of skipping (see enqueueJob). */
+  coalesce?: boolean;
 }
+
+export interface DurableJobQueue {
+  enqueue(
+    type: string,
+    payload: BackgroundJobPayload,
+    options?: DurableEnqueueOptions
+  ): Promise<void>;
+}
+
+export type ScheduleBackgroundJobOptions = BackgroundTaskOptions & DurableEnqueueOptions;
 
 export type BackgroundJobRunner = (payload: BackgroundJobPayload) => Promise<void>;
 
@@ -138,7 +151,7 @@ export function getBackgroundJobRunners(): ReadonlyMap<string, BackgroundJobRunn
 export function scheduleBackgroundJob(
   type: string,
   payload: BackgroundJobPayload,
-  options: BackgroundTaskOptions = {}
+  options: ScheduleBackgroundJobOptions = {}
 ): void {
   const run = jobRunners.get(type);
   if (!run) {
@@ -152,18 +165,20 @@ export function scheduleBackgroundJob(
     inProcess();
     return;
   }
-  durableQueue.enqueue(type, payload).catch((error: unknown) => {
-    console.error(
-      JSON.stringify({
-        level: 'warn',
-        msg: 'background_job_enqueue_failed',
-        task: type,
-        ...options.context,
-        ...errorFields(error),
-      })
-    );
-    inProcess();
-  });
+  durableQueue
+    .enqueue(type, payload, { key: options.key, coalesce: options.coalesce })
+    .catch((error: unknown) => {
+      console.error(
+        JSON.stringify({
+          level: 'warn',
+          msg: 'background_job_enqueue_failed',
+          task: type,
+          ...options.context,
+          ...errorFields(error),
+        })
+      );
+      inProcess();
+    });
 }
 
 /** True when an error should not be retried by a durable queue either. */

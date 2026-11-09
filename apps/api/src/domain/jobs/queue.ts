@@ -15,12 +15,21 @@ export interface EnqueueJobOptions {
    * enqueueing another one is a no-op and returns null.
    */
   key?: string;
+  /**
+   * With `key`: instead of a no-op, fold this enqueue into the pending job.
+   * Its payload is shallow-merged (`pending || new`), it runs no later than
+   * this enqueue asked for, and a job waiting in retry backoff gets a fresh
+   * attempt budget. When the pending job is already running, the runner sees
+   * the payload changed and runs it once more after it finishes (see
+   * runner.ts), so a change made mid-run is never lost.
+   */
+  coalesce?: boolean;
 }
 
 /**
  * Enqueue a job. Pass a transaction to make the enqueue part of a larger
  * atomic write. Returns the new job id, or null when a pending job with the
- * same `key` already exists.
+ * same `key` already exists (with `coalesce`, that pending job's id).
  */
 export async function enqueueJob(
   db: JobExecutor,
@@ -37,16 +46,31 @@ export async function enqueueJob(
     ...(runAt ? { runAt } : {}),
   };
 
-  const rows = opts.key
-    ? await db
-        .insert(jobs)
-        .values(values)
-        .onConflictDoNothing({
-          target: jobs.key,
-          where: sql`${jobs.key} IS NOT NULL AND ${jobs.doneAt} IS NULL AND ${jobs.failedAt} IS NULL`,
-        })
-        .returning({ id: jobs.id })
-    : await db.insert(jobs).values(values).returning({ id: jobs.id });
+  const pendingKey = sql`${jobs.key} IS NOT NULL AND ${jobs.doneAt} IS NULL AND ${jobs.failedAt} IS NULL`;
+  let rows: { id: string }[];
+  if (opts.key && opts.coalesce) {
+    rows = await db
+      .insert(jobs)
+      .values(values)
+      .onConflictDoUpdate({
+        target: jobs.key,
+        targetWhere: pendingKey,
+        set: {
+          payload: sql`${jobs.payload} || excluded.payload`,
+          runAt: sql`least(${jobs.runAt}, excluded.run_at)`,
+          attempts: sql`CASE WHEN ${jobs.lockedAt} IS NULL THEN 0 ELSE ${jobs.attempts} END`,
+        },
+      })
+      .returning({ id: jobs.id });
+  } else if (opts.key) {
+    rows = await db
+      .insert(jobs)
+      .values(values)
+      .onConflictDoNothing({ target: jobs.key, where: pendingKey })
+      .returning({ id: jobs.id });
+  } else {
+    rows = await db.insert(jobs).values(values).returning({ id: jobs.id });
+  }
 
   return rows[0]?.id ?? null;
 }
