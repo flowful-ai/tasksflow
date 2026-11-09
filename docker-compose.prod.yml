@@ -41,7 +41,7 @@ services:
     volumes:
       - tasksflow_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-flowtask}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-flowtask}']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -110,7 +110,7 @@ services:
       JOBS_DISABLED: ${JOBS_DISABLED:-false}
       OPENROUTER_TIMEOUT_MS: ${OPENROUTER_TIMEOUT_MS:-}
     expose:
-      - "3001"
+      - '3001'
     healthcheck:
       test:
         - CMD
@@ -144,7 +144,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-flowtask}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       POSTGRES_EXTRA_OPTS: --clean --if-exists --no-owner -Z 6
-      SCHEDULE: "@daily"
+      SCHEDULE: '@daily'
       BACKUP_KEEP_DAYS: 7
       BACKUP_KEEP_WEEKS: 4
       BACKUP_KEEP_MONTHS: 6
