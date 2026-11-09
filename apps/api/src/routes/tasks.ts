@@ -51,6 +51,32 @@ const db = getDatabase();
 const taskService = new TaskService(db);
 const taskGitHubLinkService = new TaskGitHubLinkService(db);
 
+type RouteErrorOverrides = Partial<Record<string, { code: string; message: string }>>;
+
+/**
+ * TaskService validates foreign ids itself; these keep the codes and messages
+ * the routes answered with when they ran the same checks first.
+ */
+const CREATE_VALIDATION_ERRORS: RouteErrorOverrides = {
+  INVALID_STATE: { code: 'INVALID_STATE', message: 'Invalid state for this project' },
+  INVALID_LABEL: { code: 'INVALID_LABEL', message: 'Invalid labels for this project' },
+  INVALID_ASSIGNEE: {
+    code: 'INVALID_ASSIGNEE',
+    message: 'Assignees must be members with access to this project',
+  },
+};
+const MOVE_VALIDATION_ERRORS: RouteErrorOverrides = {
+  INVALID_STATE: {
+    code: 'CROSS_PROJECT_MOVE',
+    message: 'Cannot move task to a state from a different project',
+  },
+};
+
+function withRouteMessages(error: AppError, overrides: RouteErrorOverrides): AppError {
+  const override = overrides[error.code];
+  return override ? badRequest(override.message, override.code) : error;
+}
+
 async function assertStateInProject(stateId: string | undefined, projectId: string): Promise<void> {
   if (stateId && !(await getAuthz().stateBelongsToProject(stateId, projectId))) {
     throw badRequest('Invalid state for this project', 'INVALID_STATE');
@@ -137,37 +163,30 @@ tasks.post(
   zValidator('json', CreateTaskSchema.extend({ projectId: z.string().uuid() })),
   async (c) => {
     const data = c.req.valid('json');
-    const { project, role, user } = await requireProject(c, data.projectId, 'task:create');
-    const authz = getAuthz();
+    const { role, user } = await requireProject(c, data.projectId, 'task:create');
 
-    await assertStateInProject(data.stateId, project.id);
-    if (data.labelIds && !(await authz.labelsBelongToProject(data.labelIds, project.id))) {
-      throw badRequest('Invalid labels for this project', 'INVALID_LABEL');
-    }
     if (data.assigneeIds && data.assigneeIds.length > 0) {
       const onlySelf = data.assigneeIds.every((id) => id === user.id);
       if (!onlySelf && !hasPermission(role, 'task:assign')) {
         throw forbidden('Insufficient permissions to assign other users');
       }
-      if (!(await authz.usersCanAccessProject(project, data.assigneeIds))) {
-        throw badRequest(
-          'Assignees must be members with access to this project',
-          'INVALID_ASSIGNEE'
-        );
-      }
     }
 
+    // TaskService.create validates the state, labels and assignees.
     const result = await taskService.create({
       ...data,
       createdBy: user.id,
     });
 
     if (!result.ok) {
-      throw toAppError(result.error, {
-        status: 400,
-        code: 'CREATE_FAILED',
-        message: 'Failed to create task',
-      });
+      throw withRouteMessages(
+        toAppError(result.error, {
+          status: 400,
+          code: 'CREATE_FAILED',
+          message: 'Failed to create task',
+        }),
+        CREATE_VALIDATION_ERRORS
+      );
     }
 
     // Optionally create a linked GitHub issue in the background (retried; the
@@ -222,19 +241,22 @@ tasks.patch('/:taskId', zValidator('json', UpdateTaskSchema), async (c) => {
 
 // Move task (change state and/or position)
 tasks.post('/:taskId/move', zValidator('json', MoveTaskSchema), async (c) => {
-  const { task, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
+  const { task, project, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
   const data = c.req.valid('json');
 
-  // The target state must belong to the task's project (no cross-project moves).
-  if (!(await getAuthz().stateBelongsToProject(data.stateId, task.projectId))) {
-    throw badRequest('Cannot move task to a state from a different project', 'CROSS_PROJECT_MOVE');
+  // TaskService.move rejects a state from another project (no cross-project moves).
+  const result = await taskService.move(task.id, { ...data, movedBy: user.id, project });
+  if (!result.ok) {
+    throw withRouteMessages(
+      toAppError(result.error, {
+        status: 400,
+        code: 'MOVE_FAILED',
+        message: 'Failed to move task',
+      }),
+      MOVE_VALIDATION_ERRORS
+    );
   }
-
-  const moved = fromResult(await taskService.move(task.id, { ...data, movedBy: user.id }), {
-    status: 400,
-    code: 'MOVE_FAILED',
-    message: 'Failed to move task',
-  });
+  const moved = result.value;
 
   return c.json({ success: true, data: moved });
 });

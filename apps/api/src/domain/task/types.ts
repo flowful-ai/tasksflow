@@ -1,3 +1,4 @@
+import type { ProjectScope } from './validation.js';
 import type { SQL } from 'drizzle-orm';
 import type { Task, TaskState, User, Label } from '../../db/index.js';
 import type {
@@ -91,6 +92,11 @@ export interface TaskUpdateInput extends UpdateTask {
 export interface TaskMoveInput extends MoveTask {
   movedBy: string | null;
   mcpClientId?: string | null;
+  /**
+   * The task's project when the caller already loaded it (route guards);
+   * skips a lookup. Ignored unless its id matches the task's project.
+   */
+  project?: ProjectScope;
   /** Skip reverse sync to GitHub (used when update comes from GitHub webhook) */
   skipGitHubSync?: boolean;
 }

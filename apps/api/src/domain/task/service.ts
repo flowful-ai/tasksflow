@@ -45,6 +45,7 @@ import {
   assertLabelsInProject,
   assertStateInProject,
   assertValidParent,
+  loadMoveStates,
   loadProjectScope,
   type ProjectScope,
 } from './validation.js';
@@ -750,8 +751,11 @@ export class TaskService {
     try {
       const outcome = await this.db.transaction(async (tx) => {
         const current = await lockTask(tx, taskId);
-        const project = await loadProjectScope(tx, current.projectId);
-        await assertStateInProject(tx, project.id, input.stateId);
+        const project =
+          input.project?.id === current.projectId
+            ? input.project
+            : await loadProjectScope(tx, current.projectId);
+        const states = await loadMoveStates(tx, project.id, input.stateId, current.stateId);
 
         const placement = await placeTask(tx, {
           projectId: project.id,
@@ -766,14 +770,13 @@ export class TaskService {
           .set({
             stateId: input.stateId,
             position: placement.position,
-            completedAt: await completedAtFor(tx, input.stateId, current.completedAt),
+            completedAt: completedAtForCategory(states.to.category, current.completedAt),
             updatedAt: new Date(),
           })
           .where(eq(tasks.id, taskId));
 
         const stateChanged = current.stateId !== input.stateId;
         if (stateChanged) {
-          const snapshots = await stateSnapshots(tx, [current.stateId, input.stateId]);
           await recordTaskEvents(tx, [
             {
               taskId,
@@ -783,7 +786,7 @@ export class TaskService {
               fieldName: 'stateId',
               oldValue: current.stateId,
               newValue: input.stateId,
-              metadata: stateMetadata(snapshots, current.stateId, input.stateId),
+              metadata: stateMetadata(states.snapshots, current.stateId, input.stateId),
             },
           ]);
         }

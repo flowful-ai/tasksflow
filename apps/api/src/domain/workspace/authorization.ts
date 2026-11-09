@@ -171,9 +171,7 @@ export class AuthorizationService<P extends string> {
     project: Pick<Project, 'id' | 'access' | 'workspaceId'>,
     userId: string
   ): Promise<boolean> {
-    const role = await this.getRole(project.workspaceId, userId);
-    if (!role) return false;
-    return this.canAccessProject(project, userId, role);
+    return this.usersCanAccessProject(project, [userId]);
   }
 
   /**
@@ -254,8 +252,37 @@ export class AuthorizationService<P extends string> {
     const unique = [...new Set(userIds)];
     if (unique.length === 0) return true;
     if (!unique.every((id) => isUuid(id))) return false;
-    const results = await Promise.all(unique.map((id) => this.userCanAccessProject(project, id)));
-    return results.every(Boolean);
+    // One query: each user's workspace role and project membership.
+    const rows = await this.db
+      .select({
+        userId: workspaceMembers.userId,
+        role: workspaceMembers.role,
+        projectMemberId: projectMembers.id,
+      })
+      .from(workspaceMembers)
+      .leftJoin(
+        projectMembers,
+        and(
+          eq(projectMembers.userId, workspaceMembers.userId),
+          eq(projectMembers.projectId, project.id)
+        )
+      )
+      .where(
+        and(
+          eq(workspaceMembers.workspaceId, project.workspaceId),
+          inArray(workspaceMembers.userId, unique)
+        )
+      );
+    const allowed = new Set(
+      rows
+        .filter(
+          (row) =>
+            isWorkspaceRole(row.role) &&
+            projectAclAllows(project.access, row.role, row.projectMemberId !== null)
+        )
+        .map((row) => row.userId)
+    );
+    return unique.every((id) => allowed.has(id));
   }
 
   /** Whether all `userIds` are members of the workspace. */

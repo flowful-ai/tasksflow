@@ -45,6 +45,41 @@ function unique(ids: readonly string[]): string[] {
   return [...new Set(ids)];
 }
 
+export interface StateSnapshot {
+  id: string;
+  name: string;
+  category: string;
+}
+
+/**
+ * Load the target state and the task's current one in one query. The target
+ * must belong to the project (INVALID_STATE otherwise).
+ */
+export async function loadMoveStates(
+  db: DbExecutor,
+  projectId: string,
+  toStateId: string,
+  fromStateId: string | null
+): Promise<{ to: StateSnapshot; snapshots: Map<string, StateSnapshot> }> {
+  const ids = fromStateId && fromStateId !== toStateId ? [toStateId, fromStateId] : [toStateId];
+  const rows = await db
+    .select({
+      id: taskStates.id,
+      name: taskStates.name,
+      category: taskStates.category,
+      projectId: taskStates.projectId,
+    })
+    .from(taskStates)
+    .where(inArray(taskStates.id, ids));
+  const target = rows.find((row) => row.id === toStateId);
+  if (!target || target.projectId !== projectId)
+    throw new TaskError('INVALID_STATE', 'State does not belong to this project', [toStateId]);
+  const snapshots = new Map<string, StateSnapshot>(
+    rows.map((row) => [row.id, { id: row.id, name: row.name, category: row.category }])
+  );
+  return { to: { id: target.id, name: target.name, category: target.category }, snapshots };
+}
+
 /** The state must belong to the project. Returns its category. */
 export async function assertStateInProject(
   db: DbExecutor,
