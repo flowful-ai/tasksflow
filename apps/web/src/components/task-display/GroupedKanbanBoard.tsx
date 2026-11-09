@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -7,23 +7,35 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  DragStartEvent,
-  DragEndEvent,
+  type Announcements,
+  type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
+  type UniqueIdentifier,
 } from '@dnd-kit/core';
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { TaskCard, type TaskCardTask, type TaskOpenEvent } from './TaskCard';
+import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { KeyboardCode } from '@dnd-kit/core';
+import { TaskCard, TaskCardOverlay, taskKeyOf, type TaskCardTask, type TaskOpenEvent } from './TaskCard';
 import { GroupedKanbanColumn } from './GroupedKanbanColumn';
-import { groupTasks, taskMatchesGroup, sortTasksForColumn, DONE_COLUMN_INITIAL_LIMIT, type GroupBy, type AvailableState, type TaskGroup } from './grouping';
+import {
+  COLUMN_RENDER_LIMIT,
+  DONE_COLUMN_INITIAL_LIMIT,
+  groupTasks,
+  sortTasksForColumn,
+  taskMatchesGroup,
+  type AvailableState,
+  type GroupBy,
+  type TaskGroup,
+} from './grouping';
+import { isDoneCategory, moveItem, neighboursAt } from '../board/ordering';
+import type { ContextMenuState } from '../tasks/TaskContextMenu';
 import type { MoveTaskInput } from '../../api/types';
 
 interface GroupedKanbanBoardProps {
   tasks: TaskCardTask[];
   groupBy: GroupBy;
   secondaryGroupBy?: GroupBy;
+  /** Keep this stable (useCallback): every card receives it. */
   onTaskClick: (taskId: string, event: TaskOpenEvent) => void;
   /** Called on drop with the target state and the neighbours the task lands between. */
   onTaskMove?: (move: MoveTaskInput) => void | Promise<void>;
@@ -33,7 +45,39 @@ interface GroupedKanbanBoardProps {
   availableStates?: AvailableState[];
   mergeStatesByCategory?: boolean;
   selectedTaskIds?: Set<string>;
+  /** Column header "+": quick-create pre-set to that state (project boards). */
+  onAddTask?: (stateId: string) => void;
+  /** Inline "+ Add task" at the column bottom (project boards). */
+  onQuickAdd?: (stateId: string, title: string) => Promise<void>;
 }
+
+/** A droppable list of cards: a column, or a cell of the grouped (rows × columns) layout. */
+interface BoardContainer {
+  id: string;
+  column: TaskGroup;
+  row: TaskGroup | null;
+  /** Category of the state dimension ('done' sorts by recency, no reordering). */
+  category: string | undefined;
+  taskIds: string[];
+}
+
+type Items = Record<string, string[]>;
+
+const CELL_SEPARATOR = '::';
+
+function findContainer(items: Items, id: string): string | undefined {
+  if (id in items) return id;
+  return Object.keys(items).find((key) => items[key]!.includes(id));
+}
+
+function sameOrder(a: readonly string[] | undefined, b: readonly string[]): boolean {
+  return !!a && a.length === b.length && a.every((id, i) => id === b[i]);
+}
+
+const screenReaderInstructions = {
+  draggable:
+    'To pick up a task, press Space. While dragging, use the arrow keys to move it within and across columns. Press Space again to drop it, or Escape to cancel.',
+};
 
 export function GroupedKanbanBoard({
   tasks,
@@ -47,395 +91,354 @@ export function GroupedKanbanBoard({
   availableStates,
   mergeStatesByCategory,
   selectedTaskIds,
+  onAddTask,
+  onQuickAdd,
 }: GroupedKanbanBoardProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [dragItems, setDragItems] = useState<Items | null>(null);
+  // Order shown between the drop and the optimistic cache update (no snap-back flicker).
+  const [settlingItems, setSettlingItems] = useState<Items | null>(null);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [limits, setLimits] = useState<Record<string, number>>({});
 
-  // Allow drag when state is primary OR secondary grouping
   const isStateGrouping = groupBy === 'state' || secondaryGroupBy === 'state';
-  const dragEnabled = allowDragDrop && isStateGrouping;
-
-  // Helper to find the actual state ID for a project within a category
-  const findStateForProject = useCallback((projectId: string, category: string): string | null => {
-    if (!availableStates) return null;
-    const state = availableStates.find(
-      s => s.projectId === projectId && s.category === category
-    );
-    return state?.id || null;
-  }, [availableStates]);
+  const dragEnabled = allowDragDrop && isStateGrouping && Boolean(onTaskMove);
+  const showState = !isStateGrouping;
+  const effectiveShowProject = showProject && groupBy !== 'project' && secondaryGroupBy !== 'project';
+  const canCreateInColumn = groupBy === 'state' && !secondaryGroupBy && !mergeStatesByCategory;
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
+      // Enter opens a card; only Space picks it up.
+      keyboardCodes: {
+        start: [KeyboardCode.Space],
+        cancel: [KeyboardCode.Esc],
+        end: [KeyboardCode.Space, KeyboardCode.Enter],
+      },
     })
   );
 
-  // TODO(board): sort columns by `position` (fractional key) instead of priority/date
-  // so a drop sticks after reload; the move API already stores neighbours' order.
-  const groups = useMemo(() => {
-    const grouped = groupTasks(tasks, groupBy, availableStates, mergeStatesByCategory);
-    for (const group of grouped) {
-      group.tasks = sortTasksForColumn(group.tasks, group.category);
+  const taskById = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
+
+  const statesByProject = useMemo(() => {
+    const map = new Map<string, ContextMenuState[]>();
+    for (const state of availableStates ?? []) {
+      if (!state.projectId) continue;
+      map.set(state.projectId, [...(map.get(state.projectId) ?? []), state]);
     }
-    return grouped;
-  }, [tasks, groupBy, availableStates, mergeStatesByCategory]);
-  const rowGroups = useMemo(
+    return map;
+  }, [availableStates]);
+
+  const columns = useMemo(
+    () => groupTasks(tasks, groupBy, availableStates, mergeStatesByCategory),
+    [tasks, groupBy, availableStates, mergeStatesByCategory]
+  );
+  const rows = useMemo(
     () => (secondaryGroupBy ? groupTasks(tasks, secondaryGroupBy, undefined, mergeStatesByCategory) : null),
     [tasks, secondaryGroupBy, mergeStatesByCategory]
   );
-  const activeTask = activeId ? tasks.find((t) => t.id === activeId) : null;
 
-  // Determine which task fields to show based on groupBy
-  const showState = groupBy !== 'state' && secondaryGroupBy !== 'state';
-  const effectiveShowProject = showProject && groupBy !== 'project' && secondaryGroupBy !== 'project';
+  const containers = useMemo<BoardContainer[]>(() => {
+    const build = (column: TaskGroup, row: TaskGroup | null, columnTasks: TaskCardTask[]): BoardContainer => {
+      const category = groupBy === 'state' ? column.category : secondaryGroupBy === 'state' ? row?.category : undefined;
+      return {
+        id: row ? `${row.id}${CELL_SEPARATOR}${column.id}` : column.id,
+        column,
+        row,
+        category,
+        taskIds: sortTasksForColumn(columnTasks, category).map((t) => t.id),
+      };
+    };
+    if (!rows || !secondaryGroupBy) return columns.map((column) => build(column, null, column.tasks));
+    return rows.flatMap((row) =>
+      columns.map((column) =>
+        build(
+          column,
+          row,
+          row.tasks.filter((t) => taskMatchesGroup(t, groupBy, column.id, mergeStatesByCategory))
+        )
+      )
+    );
+  }, [columns, rows, groupBy, secondaryGroupBy, mergeStatesByCategory]);
+
+  const containerById = useMemo(() => new Map(containers.map((c) => [c.id, c])), [containers]);
+  const baseItems = useMemo<Items>(() => Object.fromEntries(containers.map((c) => [c.id, c.taskIds])), [containers]);
+  const items = dragItems ?? settlingItems ?? baseItems;
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+
+  // The optimistic update (or a rollback) replaced the tasks: show them as they are.
+  useEffect(() => setSettlingItems(null), [tasks]);
+  useEffect(() => {
+    if (!settlingItems) return;
+    const timer = window.setTimeout(() => setSettlingItems(null), 2000);
+    return () => window.clearTimeout(timer);
+  }, [settlingItems]);
+
+  const findStateForProject = useCallback(
+    (projectId: string, category: string): string | null =>
+      availableStates?.find((s) => s.projectId === projectId && s.category === category)?.id ?? null,
+    [availableStates]
+  );
+
+  /** The state a task gets in a container, or why it can't go there. */
+  const resolveTarget = useCallback(
+    (container: BoardContainer, task: TaskCardTask): { stateId: string } | { error: string } => {
+      const stateGroup = groupBy === 'state' ? container.column : container.row;
+      const otherGroup = groupBy === 'state' ? container.row : container.column;
+      const otherBy = groupBy === 'state' ? secondaryGroupBy : groupBy;
+      if (!stateGroup || stateGroup.id === 'no-state') return { error: 'Tasks need a status' };
+      if (otherGroup && otherBy && !taskMatchesGroup(task, otherBy, otherGroup.id, mergeStatesByCategory)) {
+        return { error: otherBy === 'project' ? 'Cannot move task to a different project' : 'Dragging only changes the status' };
+      }
+      if (mergeStatesByCategory) {
+        const category = stateGroup.category ?? stateGroup.id;
+        const stateId = findStateForProject(task.project.id, category);
+        return stateId ? { stateId } : { error: `No ${stateGroup.name} state found for project ${task.project.name}` };
+      }
+      const state = availableStates?.find((s) => s.id === stateGroup.id);
+      if (state?.projectId && state.projectId !== task.project.id) return { error: 'Cannot move to a state from another project' };
+      return { stateId: stateGroup.id };
+    },
+    [groupBy, secondaryGroupBy, mergeStatesByCategory, availableStates, findStateForProject]
+  );
+
+  const visibleLimit = useCallback(
+    (container: BoardContainer) =>
+      limits[container.id] ?? (isDoneCategory(container.category) ? DONE_COLUMN_INITIAL_LIMIT : COLUMN_RENDER_LIMIT),
+    [limits]
+  );
+
+  const containerName = (container: BoardContainer) =>
+    container.row ? `${container.column.name} (${container.row.name})` : container.column.name;
+
+  // ---- Drag and drop -------------------------------------------------------
+
+  const lastAnnouncement = useRef<string | null>(null);
 
   const handleDragStart = (event: DragStartEvent) => {
     if (!dragEnabled) return;
     setActiveId(String(event.active.id));
+    setDragItems(itemsRef.current);
+    setSettlingItems(null);
   };
 
-  const handleDragEnd = async (event: DragEndEvent) => {
-    if (!dragEnabled || !onTaskMove) {
-      setActiveId(null);
-      return;
-    }
-
-    const { active, over } = event;
-    setActiveId(null);
-
-    if (!over) return;
-
-    const taskId = String(active.id);
-    const overId = String(over.id);
-
-    const draggedTask = tasks.find(t => t.id === taskId);
-    if (!draggedTask) return;
-
-    let targetStateId: string | null = null;
-    let targetTasks: TaskCardTask[] = [];
-
-    // Case 1: State is PRIMARY grouping (state columns)
-    if (groupBy === 'state') {
-      // Check if dropped on a column
-      const targetGroup = groups.find((g) => g.id === overId);
-      if (targetGroup) {
-        if (mergeStatesByCategory && targetGroup.category) {
-          // Merged by category: resolve to actual state for task's project
-          targetStateId = findStateForProject(draggedTask.project.id, targetGroup.category);
-          if (!targetStateId) {
-            onInvalidDrop?.(`No ${targetGroup.name} state found for project ${draggedTask.project.name}`);
-            return;
-          }
-        } else {
-          // Direct state grouping: validate same project
-          const targetState = availableStates?.find(s => s.id === targetGroup.id);
-          if (targetState && targetState.projectId !== draggedTask.project.id) {
-            onInvalidDrop?.('Cannot move to a state from another project');
-            return;
-          }
-          targetStateId = targetGroup.id;
-        }
-        targetTasks = targetGroup.tasks;
+  const handleDragOver = ({ active, over }: DragOverEvent) => {
+    if (!over || !dragEnabled) return;
+    const dragged = taskById.get(String(active.id));
+    if (!dragged) return;
+    const activeKey = String(active.id);
+    const overKey = String(over.id);
+    setDragItems((previous) => {
+      if (!previous) return previous;
+      const from = findContainer(previous, activeKey);
+      const to = findContainer(previous, overKey);
+      if (!from || !to || from === to) return previous;
+      const target = containerById.get(to);
+      if (!target || 'error' in resolveTarget(target, dragged)) return previous;
+      const toItems = previous[to]!.filter((id) => id !== activeKey);
+      let index: number;
+      if (isDoneCategory(target.category)) {
+        index = 0; // lands as the most recently completed
+      } else if (overKey === to) {
+        index = Math.min(toItems.length, visibleLimit(target));
       } else {
-        // Check if dropped on a task
-        const targetTask = tasks.find((t) => t.id === overId);
-        if (targetTask) {
-          const taskGroup = groups.find((g) => g.tasks.some((t) => t.id === overId));
-          if (taskGroup) {
-            if (mergeStatesByCategory && taskGroup.category) {
-              targetStateId = findStateForProject(draggedTask.project.id, taskGroup.category);
-              if (!targetStateId) {
-                onInvalidDrop?.(`No ${taskGroup.name} state found for project ${draggedTask.project.name}`);
-                return;
-              }
-            } else {
-              const targetState = availableStates?.find(s => s.id === taskGroup.id);
-              if (targetState && targetState.projectId !== draggedTask.project.id) {
-                onInvalidDrop?.('Cannot move to a state from another project');
-                return;
-              }
-              targetStateId = taskGroup.id;
-            }
-            targetTasks = taskGroup.tasks;
-          }
-        }
+        const overIndex = toItems.indexOf(overKey);
+        const translated = active.rect.current.translated;
+        const isBelow = translated ? translated.top > over.rect.top + over.rect.height / 2 : false;
+        index = overIndex < 0 ? toItems.length : overIndex + (isBelow ? 1 : 0);
       }
-    }
-
-    // Case 2: State is SECONDARY grouping (state rows)
-    else if (secondaryGroupBy === 'state') {
-      // Parse compound ID: "stateCategory:primaryGroupId"
-      const [stateCategory, primaryGroupId] = overId.includes(':')
-        ? overId.split(':')
-        : [null, overId];
-
-      if (stateCategory) {
-        // Find the row (state category) and validate
-        const targetRowGroup = rowGroups?.find(g => g.id === stateCategory);
-        if (!targetRowGroup) return;
-
-        // When primary is 'project', the primaryGroupId IS the projectId
-        if (groupBy === 'project') {
-          if (primaryGroupId !== draggedTask.project.id) {
-            onInvalidDrop?.('Cannot move task to a different project');
-            return;
-          }
-        }
-
-        // Resolve actual state ID for this category in the task's project
-        targetStateId = findStateForProject(draggedTask.project.id, stateCategory);
-        if (!targetStateId) {
-          onInvalidDrop?.(`No ${targetRowGroup.name} state found for project ${draggedTask.project.name}`);
-          return;
-        }
-
-        // Find target tasks for position calculation
-        const rowTasks = tasks.filter(t => taskMatchesGroup(t, secondaryGroupBy, stateCategory, mergeStatesByCategory));
-        targetTasks = rowTasks.filter(t => taskMatchesGroup(t, groupBy, primaryGroupId, mergeStatesByCategory));
-      } else {
-        // Dropped on a task without compound ID - find its group
-        const targetTask = tasks.find((t) => t.id === overId);
-        const targetCategory = targetTask?.state?.category;
-        if (targetTask && targetCategory) {
-          // Validate same project
-          if (targetTask.project.id !== draggedTask.project.id) {
-            onInvalidDrop?.('Cannot move task to a different project');
-            return;
-          }
-
-          targetStateId = findStateForProject(draggedTask.project.id, targetCategory);
-          if (!targetStateId) {
-            onInvalidDrop?.(`No ${targetTask.state?.name || targetCategory} state found for project ${draggedTask.project.name}`);
-            return;
-          }
-
-          // Find target tasks for position calculation
-          // secondaryGroupBy is guaranteed to be 'state' here (checked in parent if)
-          const rowTasks = tasks.filter(t => taskMatchesGroup(t, secondaryGroupBy!, targetCategory, mergeStatesByCategory));
-          targetTasks = rowTasks.filter(t => taskMatchesGroup(t, groupBy, getGroupId(targetTask, groupBy), mergeStatesByCategory));
-        }
-      }
-    }
-
-    if (!targetStateId) return;
-
-    // Neighbours in the target column, without the dragged task itself.
-    const columnTasks = targetTasks.filter((t) => t.id !== taskId);
-    const targetIndex = columnTasks.findIndex((t) => t.id === overId);
-    let afterTaskId: string | null;
-    let beforeTaskId: string | null;
-    if (targetIndex >= 0) {
-      // Dropped on a task: insert before it.
-      afterTaskId = columnTasks[targetIndex - 1]?.id ?? null;
-      beforeTaskId = columnTasks[targetIndex]?.id ?? null;
-    } else if (overId === taskId) {
-      return; // dropped on itself
-    } else {
-      // Dropped on the column: append.
-      afterTaskId = columnTasks[columnTasks.length - 1]?.id ?? null;
-      beforeTaskId = null;
-    }
-
-    await onTaskMove({ taskId, stateId: targetStateId, afterTaskId, beforeTaskId });
-  };
-
-  // Helper to get the primary group ID for a task
-  function getGroupId(task: TaskCardTask, group: GroupBy): string {
-    switch (group) {
-      case 'project':
-        return task.project.id;
-      case 'state':
-        return task.state?.id || 'no-state';
-      case 'priority':
-        return task.priority || 'none';
-      case 'assignee':
-        return task.assignees[0]?.id || 'unassigned';
-      case 'label':
-        return task.labels[0]?.id || 'no-label';
-      default:
-        return 'all';
-    }
-  }
-
-  if (groups.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-64 text-gray-500">
-        No tasks found
-      </div>
-    );
-  }
-
-  const buildRowColumns = (rowTasks: TaskCardTask[]): TaskGroup[] => {
-    const rowGroups = groupTasks(rowTasks, groupBy, availableStates, mergeStatesByCategory);
-    for (const group of rowGroups) {
-      group.tasks = sortTasksForColumn(group.tasks, group.category);
-    }
-    return groups.map((column) => {
-      const match = rowGroups.find((g) => g.id === column.id);
-      return (
-        match ?? {
-          id: column.id,
-          name: column.name,
-          color: column.color,
-          category: column.category,
-          tasks: [],
-        }
-      );
+      toItems.splice(index, 0, activeKey);
+      return { ...previous, [from]: previous[from]!.filter((id) => id !== activeKey), [to]: toItems };
     });
   };
+
+  const handleDragCancel = () => {
+    setActiveId(null);
+    setDragItems(null);
+  };
+
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    const current = dragItems;
+    setActiveId(null);
+    setDragItems(null);
+    lastAnnouncement.current = null;
+    if (!dragEnabled || !onTaskMove || !over || !current) return;
+
+    const taskId = String(active.id);
+    const overKey = String(over.id);
+    const dragged = taskById.get(taskId);
+    const containerId = findContainer(current, taskId);
+    const container = containerId ? containerById.get(containerId) : undefined;
+    if (!dragged || !containerId || !container) return;
+
+    const isDone = isDoneCategory(container.category);
+    let list = current[containerId]!;
+    if (!isDone && overKey !== taskId && overKey !== containerId && list.includes(overKey)) {
+      list = moveItem(list, list.indexOf(taskId), list.indexOf(overKey));
+    }
+    const originalContainer = findContainer(baseItems, taskId);
+    if (originalContainer === containerId && (isDone || sameOrder(baseItems[containerId], list))) return;
+
+    const target = resolveTarget(container, dragged);
+    if ('error' in target) {
+      onInvalidDrop?.(target.error);
+      return;
+    }
+    const neighbours = neighboursAt(list, taskId, (id) => {
+      const other = taskById.get(id);
+      return !!other && other.state?.id === target.stateId && other.project.id === dragged.project.id;
+    });
+    lastAnnouncement.current = `Moved ${taskKeyOf(dragged)} to ${containerName(container)}, position ${neighbours.index + 1} of ${neighbours.count}`;
+    setSettlingItems({ ...current, [containerId]: list });
+    void onTaskMove({
+      taskId,
+      stateId: target.stateId,
+      afterTaskId: neighbours.afterTaskId,
+      beforeTaskId: neighbours.beforeTaskId,
+    });
+  };
+
+  const describePosition = (activeKey: UniqueIdentifier, overKey: UniqueIdentifier | undefined): string => {
+    const task = taskById.get(String(activeKey));
+    const label = task ? taskKeyOf(task) : 'Task';
+    if (overKey === undefined) return `${label} is no longer over a column`;
+    const snapshot = itemsRef.current;
+    const containerId = findContainer(snapshot, String(overKey));
+    const container = containerId ? containerById.get(containerId) : undefined;
+    if (!containerId || !container) return `${label} is over an unknown area`;
+    const list = snapshot[containerId]!;
+    const index = list.indexOf(String(overKey));
+    const position = index >= 0 ? index + 1 : list.length + 1;
+    const count = list.includes(String(activeKey)) ? list.length : list.length + 1;
+    return `${label} is over ${containerName(container)}, position ${Math.min(position, count)} of ${count}`;
+  };
+
+  const announcements: Announcements = {
+    onDragStart: ({ active }) => {
+      const task = taskById.get(String(active.id));
+      return `Picked up ${task ? taskKeyOf(task) : 'task'}${task?.state ? ` in ${task.state.name}` : ''}`;
+    },
+    onDragOver: ({ active, over }) => describePosition(active.id, over?.id),
+    onDragEnd: ({ active }) => {
+      const task = taskById.get(String(active.id));
+      return lastAnnouncement.current ?? `${task ? taskKeyOf(task) : 'Task'} dropped, no change`;
+    },
+    onDragCancel: ({ active }) => {
+      const task = taskById.get(String(active.id));
+      return `Cancelled moving ${task ? taskKeyOf(task) : 'task'}`;
+    },
+  };
+
+  // ---- Rendering -----------------------------------------------------------
+
+  const toggleCollapsed = useCallback((id: string) => {
+    setCollapsed((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const renderContainer = (container: BoardContainer, compact: boolean) => {
+    const ids = items[container.id] ?? [];
+    const limit = visibleLimit(container);
+    const visibleIds = ids.slice(0, limit);
+    // Keep the dragged card rendered (as the placeholder) even past the cap.
+    if (activeId && ids.includes(activeId) && !visibleIds.includes(activeId)) visibleIds.push(activeId);
+    const hiddenCount = ids.length - visibleIds.length;
+    const stateId = container.column.id;
+    const isDone = isDoneCategory(container.category);
+    const isCollapsed = !container.row && collapsed.has(container.id);
+
+    return (
+      <SortableContext key={container.id} id={container.id} items={visibleIds} strategy={verticalListSortingStrategy}>
+        <GroupedKanbanColumn
+          id={container.id}
+          name={container.column.name}
+          color={container.column.color}
+          taskCount={ids.length}
+          compact={compact}
+          droppable={dragEnabled}
+          collapsible={isDone && !container.row}
+          collapsed={isCollapsed}
+          onToggleCollapsed={() => toggleCollapsed(container.id)}
+          onAddTask={canCreateInColumn && onAddTask ? () => onAddTask(stateId) : undefined}
+          onQuickAdd={canCreateInColumn && onQuickAdd ? (title) => onQuickAdd(stateId, title) : undefined}
+          emptyText={isDone ? 'Nothing done yet' : 'No tasks'}
+        >
+          {visibleIds.map((id) => {
+            const task = taskById.get(id);
+            if (!task) return null;
+            return (
+              <TaskCard
+                key={id}
+                task={task}
+                onOpen={onTaskClick}
+                showProject={effectiveShowProject}
+                showState={showState}
+                draggable={dragEnabled}
+                isSelected={selectedTaskIds?.has(id) ?? false}
+                states={statesByProject.get(task.project.id)}
+              />
+            );
+          })}
+          {hiddenCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setLimits((previous) => ({ ...previous, [container.id]: limit + COLUMN_RENDER_LIMIT }))}
+              className="w-full rounded-lg px-2 py-1.5 text-left text-[12.5px] text-neutral-500 hover:bg-white hover:text-neutral-700"
+            >
+              Show {Math.min(hiddenCount, COLUMN_RENDER_LIMIT)} more
+            </button>
+          )}
+        </GroupedKanbanColumn>
+      </SortableContext>
+    );
+  };
+
+  if (containers.length === 0) {
+    return <div className="flex h-64 items-center justify-center text-neutral-500">No tasks found</div>;
+  }
+
+  const activeTask = activeId ? taskById.get(activeId) : undefined;
 
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={closestCorners}
       onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+      accessibility={{ announcements, screenReaderInstructions }}
     >
-      {rowGroups ? (
-        <div className="flex h-full flex-col gap-4 overflow-x-auto pb-4">
-          {rowGroups.map((rowGroup) => {
-            const rowTasks = tasks.filter((task) =>
-              taskMatchesGroup(task, secondaryGroupBy!, rowGroup.id, mergeStatesByCategory)
-            );
-            const rowColumns = buildRowColumns(rowTasks);
-            return (
-              <div key={rowGroup.id} className="flex gap-4">
-                <div className="flex-shrink-0 w-48">
-                  <div className="flex items-center gap-2 px-2 py-1.5">
-                    {rowGroup.color && (
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: rowGroup.color }}
-                      />
-                    )}
-                    <span className="font-medium text-gray-900">{rowGroup.name}</span>
-                    <span className="text-sm text-gray-500">({rowGroup.tasks.length})</span>
-                  </div>
-                </div>
-                {rowColumns.map((group) => {
-                  // Use compound ID when state is secondary grouping: "stateCategory:primaryGroupId"
-                  const columnId = secondaryGroupBy === 'state'
-                    ? `${rowGroup.id}:${group.id}`
-                    : group.id;
-                  return (
-                    <SortableContext
-                      key={`${rowGroup.id}-${group.id}`}
-                      items={(() => {
-                        const isDone = group.category === 'done';
-                        const groupKey = `${rowGroup.id}-${group.id}`;
-                        const isExp = expandedGroups.has(groupKey);
-                        const visible = isDone && !isExp ? group.tasks.slice(0, DONE_COLUMN_INITIAL_LIMIT) : group.tasks;
-                        return visible.map((t) => t.id);
-                      })()}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      <GroupedKanbanColumn
-                        id={columnId}
-                        name={group.name}
-                        color={group.color}
-                        taskCount={group.tasks.length}
-                      >
-                        {(() => {
-                          const isDone = group.category === 'done';
-                          const groupKey = `${rowGroup.id}-${group.id}`;
-                          const isExp = expandedGroups.has(groupKey);
-                          const visible = isDone && !isExp ? group.tasks.slice(0, DONE_COLUMN_INITIAL_LIMIT) : group.tasks;
-                          const hiddenCount = group.tasks.length - visible.length;
-                          return (
-                            <>
-                              {visible.map((task) => (
-                                <TaskCard
-                                  key={task.id}
-                                  task={task}
-                                  onClick={(event) => onTaskClick(task.id, event)}
-                                  showProject={effectiveShowProject}
-                                  showState={showState}
-                                  draggable={dragEnabled}
-                                  isSelected={selectedTaskIds?.has(task.id)}
-                                  states={availableStates?.filter((s) => s.projectId === task.project.id)}
-                                />
-                              ))}
-                              {hiddenCount > 0 && (
-                                <button
-                                  onClick={() => setExpandedGroups((prev) => new Set([...prev, groupKey]))}
-                                  className="w-full py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded transition-colors"
-                                >
-                                  Show {hiddenCount} more tasks
-                                </button>
-                              )}
-                            </>
-                          );
-                        })()}
-                      </GroupedKanbanColumn>
-                    </SortableContext>
-                  );
-                })}
+      {rows ? (
+        <div data-dragging={activeId ? 'true' : undefined} className="flex flex-col gap-6 overflow-x-auto pb-4">
+          {rows.map((row) => (
+            <section key={row.id} aria-label={`${row.name}, ${row.tasks.length} tasks`} className="flex flex-col gap-2">
+              <h3 className="flex items-center gap-2 px-1 text-[13px] font-semibold text-neutral-900">
+                {row.color && <span aria-hidden className="h-2 w-2 rounded-full" style={{ backgroundColor: row.color }} />}
+                {row.name}
+                <span className="font-medium text-neutral-400">{row.tasks.length}</span>
+              </h3>
+              <div className="flex gap-3">
+                {containers.filter((c) => c.row?.id === row.id).map((container) => renderContainer(container, true))}
               </div>
-            );
-          })}
+            </section>
+          ))}
         </div>
       ) : (
-        <div className="flex h-full gap-4 overflow-x-auto pb-4">
-          {groups.map((group) => {
-            const isDone = group.category === 'done';
-            const isExp = expandedGroups.has(group.id);
-            const visibleTasks = isDone && !isExp ? group.tasks.slice(0, DONE_COLUMN_INITIAL_LIMIT) : group.tasks;
-            const hiddenCount = group.tasks.length - visibleTasks.length;
-            return (
-              <SortableContext
-                key={group.id}
-                items={visibleTasks.map((t) => t.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <GroupedKanbanColumn
-                  id={group.id}
-                  name={group.name}
-                  color={group.color}
-                  taskCount={group.tasks.length}
-                >
-                  {visibleTasks.map((task) => (
-                    <TaskCard
-                      key={task.id}
-                      task={task}
-                      onClick={(event) => onTaskClick(task.id, event)}
-                      showProject={effectiveShowProject}
-                      showState={showState}
-                      draggable={dragEnabled}
-                      isSelected={selectedTaskIds?.has(task.id)}
-                      states={availableStates?.filter((s) => s.projectId === task.project.id)}
-                    />
-                  ))}
-                  {hiddenCount > 0 && (
-                    <button
-                      onClick={() => setExpandedGroups((prev) => new Set([...prev, group.id]))}
-                      className="w-full py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded transition-colors"
-                    >
-                      Show {hiddenCount} more tasks
-                    </button>
-                  )}
-                </GroupedKanbanColumn>
-              </SortableContext>
-            );
-          })}
+        <div data-dragging={activeId ? 'true' : undefined} className="flex min-h-[60vh] items-stretch gap-3 overflow-x-auto pb-4">
+          {containers.map((container) => renderContainer(container, false))}
         </div>
       )}
 
       <DragOverlay>
-        {activeTask ? (
-          <TaskCard
-            task={activeTask}
-            onClick={() => {}}
-            showProject={effectiveShowProject}
-            showState={showState}
-            isDragging
-            draggable={false}
-          />
-        ) : null}
+        {activeTask ? <TaskCardOverlay task={activeTask} showProject={effectiveShowProject} showState={showState} /> : null}
       </DragOverlay>
     </DndContext>
   );

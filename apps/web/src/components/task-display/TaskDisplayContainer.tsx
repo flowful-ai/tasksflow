@@ -19,108 +19,33 @@ interface TaskDisplayContainerProps {
   availableStates?: AvailableState[];
   mergeStatesByCategory?: boolean;
   selectedTaskIds?: Set<string>;
+  onAddTask?: (stateId: string) => void;
+  onQuickAdd?: (stateId: string, title: string) => Promise<void>;
 }
 
+/** Board for 'kanban'; the grouped list for every other display type (table and calendar are not built yet). */
 export function TaskDisplayContainer({
-  tasks,
   displayType,
-  groupBy,
   secondaryGroupBy,
-  onTaskClick,
   onTaskMove,
   onInvalidDrop,
-  showProject = true,
   allowDragDrop = false,
-  availableStates,
-  mergeStatesByCategory,
-  selectedTaskIds,
+  onQuickAdd,
+  showProject = true,
+  ...shared
 }: TaskDisplayContainerProps) {
-  switch (displayType) {
-    case 'kanban':
-      return (
-        <GroupedKanbanBoard
-          tasks={tasks}
-          groupBy={groupBy}
-          secondaryGroupBy={secondaryGroupBy ?? undefined}
-          onTaskClick={onTaskClick}
-          onTaskMove={onTaskMove}
-          onInvalidDrop={onInvalidDrop}
-          showProject={showProject}
-          allowDragDrop={allowDragDrop}
-          availableStates={availableStates}
-          mergeStatesByCategory={mergeStatesByCategory}
-          selectedTaskIds={selectedTaskIds}
-        />
-      );
-
-    case 'list':
-      return (
-        <TaskListView
-          tasks={tasks}
-          groupBy={groupBy}
-          secondaryGroupBy={secondaryGroupBy ?? undefined}
-          onTaskClick={onTaskClick}
-          showProject={showProject}
-          availableStates={availableStates}
-          mergeStatesByCategory={mergeStatesByCategory}
-          selectedTaskIds={selectedTaskIds}
-        />
-      );
-
-    case 'table':
-      // Future: implement table view
-      return (
-        <div className="text-center py-12 text-gray-500">
-          <p>Table view coming soon</p>
-          <p className="text-sm mt-2">Showing list view instead</p>
-          <div className="mt-6">
-            <TaskListView
-              tasks={tasks}
-              groupBy={groupBy}
-              secondaryGroupBy={secondaryGroupBy ?? undefined}
-              onTaskClick={onTaskClick}
-              showProject={showProject}
-              availableStates={availableStates}
-              mergeStatesByCategory={mergeStatesByCategory}
-              selectedTaskIds={selectedTaskIds}
-            />
-          </div>
-        </div>
-      );
-
-    case 'calendar':
-      // Future: implement calendar view
-      return (
-        <div className="text-center py-12 text-gray-500">
-          <p>Calendar view coming soon</p>
-          <p className="text-sm mt-2">Showing list view instead</p>
-          <div className="mt-6">
-            <TaskListView
-              tasks={tasks}
-              groupBy={groupBy}
-              secondaryGroupBy={secondaryGroupBy ?? undefined}
-              onTaskClick={onTaskClick}
-              showProject={showProject}
-              availableStates={availableStates}
-              mergeStatesByCategory={mergeStatesByCategory}
-              selectedTaskIds={selectedTaskIds}
-            />
-          </div>
-        </div>
-      );
-
-    default:
-      return (
-        <TaskListView
-          tasks={tasks}
-          groupBy={groupBy}
-          secondaryGroupBy={secondaryGroupBy ?? undefined}
-          onTaskClick={onTaskClick}
-          showProject={showProject}
-          availableStates={availableStates}
-          mergeStatesByCategory={mergeStatesByCategory}
-          selectedTaskIds={selectedTaskIds}
-        />
-      );
+  if (displayType === 'kanban') {
+    return (
+      <GroupedKanbanBoard
+        {...shared}
+        showProject={showProject}
+        secondaryGroupBy={secondaryGroupBy ?? undefined}
+        onTaskMove={onTaskMove}
+        onInvalidDrop={onInvalidDrop}
+        allowDragDrop={allowDragDrop}
+        onQuickAdd={onQuickAdd}
+      />
+    );
   }
+  return <TaskListView {...shared} showProject={showProject} secondaryGroupBy={secondaryGroupBy ?? undefined} />;
 }

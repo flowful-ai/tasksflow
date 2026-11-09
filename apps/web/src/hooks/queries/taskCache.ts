@@ -8,7 +8,7 @@
  *  - smart views:   InfiniteData<SmartViewExecuteDto>                (useSmartViewTasks)
  */
 import type { InfiniteData } from '@tanstack/react-query';
-import { generatePosition } from '@flowtask/shared';
+import { comparePositions, generatePosition } from '@flowtask/shared';
 import type { ApiEnvelope, PageMeta } from '../../api/http';
 import type { MoveTaskInput, SmartViewExecuteDto, TaskDto, TaskStateDto } from '../../api/types';
 
@@ -143,16 +143,35 @@ export function moveTaskInList(tasks: TaskDto[], input: MoveTaskInput, state: Ta
     index = lastInColumn >= 0 ? lastInColumn + 1 : rest.length;
   }
 
-  const sameColumn = (t: TaskDto) => t.stateId === input.stateId;
-  const above = rest.slice(0, index).filter(sameColumn).at(-1);
-  const below = rest.slice(index).find(sameColumn);
+  // The key goes between the named neighbours (the board sorts by key, so the
+  // card shows where it was dropped); without neighbours, after the column's
+  // last key, as the server does.
+  const sameColumn = (t: TaskDto) => t.stateId === input.stateId && t.projectId === current.projectId;
+  const byId = (id: string | null | undefined) => (id ? rest.find((t) => t.id === id && sameColumn(t)) : undefined);
+  let above = byId(input.afterTaskId);
+  let below = byId(input.beforeTaskId);
+  if (!input.afterTaskId && !input.beforeTaskId) {
+    above = rest.filter(sameColumn).reduce<TaskDto | undefined>(
+      (last, t) => (!last || comparePositions(last.position, t.position) < 0 ? t : last),
+      undefined
+    );
+  } else if (above && !below && input.beforeTaskId === undefined) {
+    // Only afterTaskId given: the next key in the column is the upper bound.
+    const anchor = above.position;
+    below = rest
+      .filter((t) => sameColumn(t) && comparePositions(anchor, t.position) < 0)
+      .reduce<TaskDto | undefined>((first, t) => (!first || comparePositions(t.position, first.position) < 0 ? t : first), undefined);
+  }
   const position = positionBetweenNeighbours(above, below) ?? current.position;
 
+  const changedState = current.stateId !== input.stateId;
   const moved: TaskDto = {
     ...current,
     stateId: input.stateId,
     state: state ?? (current.state ? { ...current.state, id: input.stateId } : null),
     position,
+    // A move bumps updatedAt server-side; Done columns sort by it.
+    ...(changedState ? { updatedAt: new Date().toISOString() } : {}),
   };
   return [...rest.slice(0, index), moved, ...rest.slice(index)];
 }
