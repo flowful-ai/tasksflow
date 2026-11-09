@@ -12,7 +12,7 @@ Settings from the compose file:
 | `BACKUP_KEEP_DAYS`    | `7`                              | Daily dumps kept for 7 days.                                                                |
 | `BACKUP_KEEP_WEEKS`   | `4`                              | Weekly dumps kept for 4 weeks.                                                              |
 | `BACKUP_KEEP_MONTHS`  | `6`                              | Monthly dumps kept for 6 months.                                                            |
-| `POSTGRES_EXTRA_OPTS` | `--clean --if-exists --no-owner` | Each dump drops and recreates objects when restored, and does not depend on role ownership. |
+| `POSTGRES_EXTRA_OPTS` | `--clean --if-exists --no-owner -Z 6` | Each dump drops and recreates objects when restored, does not depend on role ownership, and is gzip-compressed (the image only compresses when `-Z` is passed). |
 | `HEALTHCHECK_PORT`    | `8080`                           | The image's healthcheck endpoint.                                                           |
 
 Inside the volume the image keeps `daily/`, `weekly/`, `monthly/` and `last/` folders; `last/` holds the newest dump as `<db>-latest.sql.gz` (for the default database, `flowtask-latest.sql.gz`).
