@@ -1,8 +1,8 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { Database } from '../db/index.js';
 import { externalLinks, tasks } from '../db/index.js';
 import { formatGitHubExternalId } from '@flowtask/shared';
-import { TaskService } from '../domain/index.js';
+import { TaskService, isTaskError } from '../domain/index.js';
 import {
   NonRetryableError,
   computeIssueSyncHash,
@@ -11,6 +11,7 @@ import {
   issueContentFrom,
   registerBackgroundJob,
   scheduleBackgroundJob,
+  type GitHubClient,
   type GitHubRepoTarget,
 } from '../integrations/index.js';
 
@@ -94,11 +95,27 @@ async function callGitHub<T>(fallbackMessage: string, fn: () => Promise<T>): Pro
  */
 const CREATE_ISSUE_JOB = 'github.create_issue_for_task';
 
+/** The GitHub calls linking makes (GitHubClient implements it; tests pass a fake). */
+export type TaskGitHubLinkClient = Pick<
+  GitHubClient,
+  'getIssue' | 'createIssue' | 'getPullRequest'
+>;
+
+export type TaskGitHubLinkClientFactory = (
+  installationId: number,
+  repo: { owner: string; repo: string }
+) => Promise<TaskGitHubLinkClient>;
+
 export class TaskGitHubLinkService {
   private readonly tasks: TaskService;
+  private readonly createClient: TaskGitHubLinkClientFactory;
 
-  constructor(private readonly db: Database) {
+  constructor(
+    private readonly db: Database,
+    options: { createClient?: TaskGitHubLinkClientFactory } = {}
+  ) {
     this.tasks = new TaskService(db);
+    this.createClient = options.createClient ?? createGitHubClientForInstallation;
     registerBackgroundJob(CREATE_ISSUE_JOB, async (payload) => {
       const { taskId, projectId, owner, repo } = payload;
       if (
@@ -130,6 +147,7 @@ export class TaskGitHubLinkService {
     return target;
   }
 
+  /** The live (not trashed) task in this project; checked before any GitHub call. */
   private async assertTaskInProject(
     taskId: string,
     projectId: string
@@ -137,7 +155,7 @@ export class TaskGitHubLinkService {
     const [task] = await this.db
       .select({ title: tasks.title, description: tasks.description, projectId: tasks.projectId })
       .from(tasks)
-      .where(eq(tasks.id, taskId));
+      .where(and(eq(tasks.id, taskId), isNull(tasks.deletedAt)));
     if (!task || task.projectId !== projectId) {
       throw new TaskGitHubLinkError('TASK_NOT_FOUND', 'Task not found in this project', 404);
     }
@@ -165,10 +183,7 @@ export class TaskGitHubLinkService {
     }
 
     const issue = await callGitHub('Failed to fetch GitHub issue', async () => {
-      const client = await createGitHubClientForInstallation(
-        target.repo.installationId,
-        target.repo
-      );
+      const client = await this.createClient(target.repo.installationId, target.repo);
       return client.getIssue(input.issueNumber);
     });
     if (issue.pull_request) {
@@ -204,24 +219,37 @@ export class TaskGitHubLinkService {
     }
 
     const issue = await callGitHub('Failed to create GitHub issue', async () => {
-      const client = await createGitHubClientForInstallation(
-        target.repo.installationId,
-        target.repo
-      );
+      const client = await this.createClient(target.repo.installationId, target.repo);
       return client.createIssue({ title: task.title, body: task.description ?? '' });
     });
 
     // The `opened` webhook for this issue is skipped (created by our app), so
     // this insert is the only writer; the hash makes later echoes no-ops.
-    await this.insertLink({
-      target,
-      taskId: input.taskId,
-      actorId: input.actorId ?? null,
-      externalType: 'github_issue',
-      number: issue.number,
-      url: issue.html_url,
-      syncHash: computeIssueSyncHash(issueContentFrom(issue)),
-    });
+    try {
+      await this.insertLink({
+        target,
+        taskId: input.taskId,
+        actorId: input.actorId ?? null,
+        externalType: 'github_issue',
+        number: issue.number,
+        url: issue.html_url,
+        syncHash: computeIssueSyncHash(issueContentFrom(issue)),
+      });
+    } catch (error) {
+      // The task was trashed between the check above and the link: the issue
+      // stays on GitHub unlinked. Say so, since a retry cannot fix it.
+      if (error instanceof TaskGitHubLinkError && error.code === 'TASK_NOT_FOUND') {
+        console.warn(
+          JSON.stringify({
+            level: 'warn',
+            msg: 'github_issue_created_for_missing_task',
+            taskId: input.taskId,
+            issueUrl: issue.html_url,
+          })
+        );
+      }
+      throw error;
+    }
     return { url: issue.html_url, number: issue.number };
   }
 
@@ -237,6 +265,11 @@ export class TaskGitHubLinkService {
     );
   }
 
+  /**
+   * A missing or trashed task (TASK_NOT_FOUND, checked before GitHub is
+   * called) and other 4xx outcomes are not retried: a retry would open
+   * another issue that cannot be linked.
+   */
   private async runIssueCreation(input: TaskRepoInput): Promise<void> {
     try {
       await this.createIssueForTask(input);
@@ -281,10 +314,7 @@ export class TaskGitHubLinkService {
     }
 
     const pullRequest = await callGitHub('Failed to fetch GitHub pull request', async () => {
-      const client = await createGitHubClientForInstallation(
-        target.repo.installationId,
-        target.repo
-      );
+      const client = await this.createClient(target.repo.installationId, target.repo);
       return client.getPullRequest(input.prNumber);
     });
 
@@ -317,7 +347,13 @@ export class TaskGitHubLinkService {
       syncHash: link.syncHash ?? null,
       actorId: link.actorId,
     });
-    if (!result.ok) throw result.error;
+    if (!result.ok) {
+      // linkExternal locks the live task: a trashed or deleted one is TASK_NOT_FOUND.
+      if (isTaskError(result.error) && result.error.code === 'TASK_NOT_FOUND') {
+        throw new TaskGitHubLinkError('TASK_NOT_FOUND', 'Task not found in this project', 404);
+      }
+      throw result.error;
+    }
     if (!result.value.linked) {
       throw link.externalType === 'github_pr'
         ? new TaskGitHubLinkError(

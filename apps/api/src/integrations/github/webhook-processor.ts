@@ -1,6 +1,6 @@
 import type { Database } from '../../db/index.js';
 import { accounts, externalLinks, workspaceMembers } from '../../db/index.js';
-import type { CommentService, TaskService } from '../../domain/index.js';
+import { isTaskError, type CommentService, type TaskService } from '../../domain/index.js';
 import { formatGitHubExternalId, parseTaskReferences } from '@flowtask/shared';
 import { and, eq } from 'drizzle-orm';
 import { getGitHubAppId } from './client.js';
@@ -202,7 +202,18 @@ export class GitHubWebhookProcessor {
         actorId: null,
         origin: 'github',
       });
-      if (!linked.ok) throw linked.error;
+      if (!linked.ok) {
+        // Trashed since the reference was resolved: nothing to link, and a
+        // redelivery would not change that.
+        if (isTaskError(linked.error) && linked.error.code === 'TASK_NOT_FOUND') {
+          return {
+            status: 'ignored',
+            reason: 'Referenced task not found',
+            taskId: firstReferenced,
+          };
+        }
+        throw linked.error;
+      }
       if (linked.value.linked) {
         return { status: 'processed', action: 'pr_linked', taskId: firstReferenced };
       }
