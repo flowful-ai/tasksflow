@@ -1,10 +1,15 @@
 import { eq, and, or, sql, desc, asc, like, inArray, lt, SQL } from 'drizzle-orm';
-
-function escapeLike(value: string): string {
-  return value.replace(/[%_\\]/g, '\\$&');
-}
 import type { Database } from '@flowtask/database';
-import { workspaces, workspaceMembers, users, projects, tasks, taskEvents, mcpOAuthClients } from '@flowtask/database';
+import {
+  workspaces,
+  workspaceMembers,
+  users,
+  projects,
+  projectMembers,
+  tasks,
+  taskEvents,
+  mcpOAuthClients,
+} from '@flowtask/database';
 import type { Result, WorkspaceRole, WorkspaceAiSettings, UpdateWorkspaceAiSettings } from '@flowtask/shared';
 import { AIModelSchema } from '@flowtask/shared';
 import { ok, err } from '@flowtask/shared';
@@ -16,11 +21,29 @@ import type {
   AddMemberInput,
   UpdateMemberInput,
   RemoveMemberInput,
+  TransferOwnershipInput,
   WorkspaceListOptions,
   WorkspaceActivityListOptions,
   WorkspaceActivityCursorInput,
   WorkspaceActivityItem,
 } from './types.js';
+import { DomainError, toError } from './errors.js';
+import { canChangeRole, canGrantRole, canRemoveMember, isWorkspaceRole } from './role-policy.js';
+import { isUuid } from './authorization.js';
+
+type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
+
+function escapeLike(value: string): string {
+  return value.replace(/[%_\\]/g, '\\$&');
+}
+
+function countOwners(members: Map<string, WorkspaceRole>): number {
+  let owners = 0;
+  for (const role of members.values()) {
+    if (role === 'owner') owners += 1;
+  }
+  return owners;
+}
 
 export class WorkspaceService {
   constructor(private db: Database) {}
@@ -57,7 +80,7 @@ export class WorkspaceService {
         .where(eq(workspaces.slug, input.slug));
 
       if (existing) {
-        return err(new Error(`Workspace with slug "${input.slug}" already exists`));
+        return err(new DomainError('CONFLICT', `Workspace with slug "${input.slug}" already exists`));
       }
 
       // Create the workspace
@@ -94,7 +117,7 @@ export class WorkspaceService {
       const [workspace] = await this.db.select().from(workspaces).where(eq(workspaces.id, workspaceId));
 
       if (!workspace) {
-        return err(new Error('Workspace not found'));
+        return err(new DomainError('NOT_FOUND', 'Workspace not found'));
       }
 
       // Get members with user info
@@ -109,7 +132,7 @@ export class WorkspaceService {
 
       // Get project count
       const [countResult] = await this.db
-        .select({ count: sql<number>`COUNT(*)` })
+        .select({ count: sql<number>`COUNT(*)::int` })
         .from(projects)
         .where(eq(projects.workspaceId, workspaceId));
 
@@ -136,7 +159,7 @@ export class WorkspaceService {
       const [workspace] = await this.db.select().from(workspaces).where(eq(workspaces.slug, slug));
 
       if (!workspace) {
-        return err(new Error('Workspace not found'));
+        return err(new DomainError('NOT_FOUND', 'Workspace not found'));
       }
 
       return this.getById(workspace.id);
@@ -251,8 +274,9 @@ export class WorkspaceService {
           .innerJoin(users, eq(workspaceMembers.userId, users.id))
           .where(inArray(workspaceMembers.workspaceId, wsIds)),
         this.db
-          .select({ workspaceId: projects.workspaceId, count: sql<number>`COUNT(*)` })
+          .select({ workspaceId: projects.workspaceId, count: sql<number>`COUNT(*)::int` })
           .from(projects)
+          .where(inArray(projects.workspaceId, wsIds))
           .groupBy(projects.workspaceId),
       ]);
 
@@ -294,7 +318,7 @@ export class WorkspaceService {
         .where(eq(workspaces.id, workspaceId));
 
       if (!workspace) {
-        return err(new Error('Workspace not found'));
+        return err(new DomainError('NOT_FOUND', 'Workspace not found'));
       }
 
       const sanitizedModels = this.normalizeAllowedModels(workspace.allowedAgentModels);
@@ -323,7 +347,7 @@ export class WorkspaceService {
         .returning({ id: workspaces.id });
 
       if (!updated) {
-        return err(new Error('Workspace not found'));
+        return err(new DomainError('NOT_FOUND', 'Workspace not found'));
       }
 
       return this.getAgentAiSettings(workspaceId);
@@ -342,6 +366,13 @@ export class WorkspaceService {
     try {
       const limit = Math.max(1, Math.min(100, options.limit ?? 20));
       const conditions: SQL[] = [eq(projects.workspaceId, workspaceId)];
+
+      if (options.projectIds) {
+        if (options.projectIds.length === 0) {
+          return ok({ items: [], nextCursor: null });
+        }
+        conditions.push(inArray(projects.id, [...options.projectIds]));
+      }
 
       if (options.cursor) {
         conditions.push(
@@ -431,120 +462,179 @@ export class WorkspaceService {
   }
 
   // === Member Management ===
+  //
+  // Role changes are authorized here (not only in routes) so every caller gets
+  // the owner-escalation rules: only an owner may grant/revoke `owner` or touch
+  // an owner, and everyone else may only assign roles at or below their own.
+  // Each mutation runs in a transaction that locks the workspace's member rows,
+  // so concurrent demotions/removals cannot leave a workspace without an owner.
 
   /**
-   * Add a member to a workspace.
+   * Add a member to a workspace. `addedBy` must be a member allowed to grant `role`.
    */
   async addMember(input: AddMemberInput): Promise<Result<WorkspaceMemberWithUser, Error>> {
     try {
-      const [member] = await this.db
-        .insert(workspaceMembers)
-        .values({
-          workspaceId: input.workspaceId,
-          userId: input.userId,
-          role: input.role,
-        })
-        .onConflictDoNothing()
-        .returning();
+      return await this.db.transaction(async (tx) => {
+        const members = await this.lockMembers(tx, input.workspaceId);
+        const actorRole = members.get(input.addedBy) ?? null;
+        if (!actorRole) {
+          return err(new DomainError('FORBIDDEN', 'Not a workspace member'));
+        }
+        const decision = canGrantRole(actorRole, input.role);
+        if (!decision.allowed) {
+          return err(new DomainError('FORBIDDEN', decision.reason));
+        }
+        if (members.has(input.userId)) {
+          return err(new DomainError('CONFLICT', 'User is already a member'));
+        }
 
-      if (!member) {
-        return err(new Error('User is already a member or failed to add'));
-      }
+        const [user] = await tx.select().from(users).where(eq(users.id, input.userId));
+        if (!user) {
+          return err(new DomainError('NOT_FOUND', 'User not found'));
+        }
 
-      // Get the user info
-      const [user] = await this.db.select().from(users).where(eq(users.id, input.userId));
-
-      if (!user) {
-        return err(new Error('User not found'));
-      }
-
-      return ok({ ...member, user });
+        const [member] = await tx
+          .insert(workspaceMembers)
+          .values({ workspaceId: input.workspaceId, userId: input.userId, role: input.role })
+          .onConflictDoNothing()
+          .returning();
+        if (!member) {
+          return err(new DomainError('CONFLICT', 'User is already a member'));
+        }
+        return ok({ ...member, user });
+      });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
   /**
-   * Update a member's role.
+   * Change a member's role. `updatedBy` must be allowed to make the change.
    */
   async updateMember(input: UpdateMemberInput): Promise<Result<WorkspaceMemberWithUser, Error>> {
     try {
-      // Prevent demoting the last owner
-      if (input.role !== 'owner') {
-        const [ownerCount] = await this.db
-          .select({ count: sql<number>`COUNT(*)` })
-          .from(workspaceMembers)
-          .where(and(eq(workspaceMembers.workspaceId, input.workspaceId), eq(workspaceMembers.role, 'owner')));
-
-        const [currentMember] = await this.db
-          .select()
-          .from(workspaceMembers)
-          .where(
-            and(eq(workspaceMembers.workspaceId, input.workspaceId), eq(workspaceMembers.userId, input.userId))
-          );
-
-        if (currentMember?.role === 'owner' && (ownerCount?.count ?? 0) <= 1) {
-          return err(new Error('Cannot demote the last owner'));
+      return await this.db.transaction(async (tx) => {
+        const members = await this.lockMembers(tx, input.workspaceId);
+        const actorRole = members.get(input.updatedBy) ?? null;
+        if (!actorRole) {
+          return err(new DomainError('FORBIDDEN', 'Not a workspace member'));
         }
-      }
+        const targetRole = members.get(input.userId);
+        if (!targetRole) {
+          return err(new DomainError('NOT_FOUND', 'Member not found'));
+        }
+        const decision = canChangeRole(actorRole, targetRole, input.role);
+        if (!decision.allowed) {
+          return err(new DomainError('FORBIDDEN', decision.reason));
+        }
+        if (targetRole === 'owner' && input.role !== 'owner' && countOwners(members) <= 1) {
+          return err(new DomainError('CONFLICT', 'Cannot demote the last owner'));
+        }
 
-      const [updated] = await this.db
-        .update(workspaceMembers)
-        .set({ role: input.role })
-        .where(
-          and(eq(workspaceMembers.workspaceId, input.workspaceId), eq(workspaceMembers.userId, input.userId))
-        )
-        .returning();
-
-      if (!updated) {
-        return err(new Error('Failed to update member'));
-      }
-
-      // Get the user info
-      const [user] = await this.db.select().from(users).where(eq(users.id, input.userId));
-
-      if (!user) {
-        return err(new Error('User not found'));
-      }
-
-      return ok({ ...updated, user });
+        const [updated] = await tx
+          .update(workspaceMembers)
+          .set({ role: input.role })
+          .where(and(eq(workspaceMembers.workspaceId, input.workspaceId), eq(workspaceMembers.userId, input.userId)))
+          .returning();
+        const [user] = await tx.select().from(users).where(eq(users.id, input.userId));
+        if (!updated || !user) {
+          return err(new DomainError('NOT_FOUND', 'Member not found'));
+        }
+        return ok({ ...updated, user });
+      });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
   /**
-   * Remove a member from a workspace.
+   * Remove a member (or leave, when `removedBy === userId`).
    */
   async removeMember(input: RemoveMemberInput): Promise<Result<void, Error>> {
     try {
-      // Prevent removing the last owner
-      const [ownerCount] = await this.db
-        .select({ count: sql<number>`COUNT(*)` })
-        .from(workspaceMembers)
-        .where(and(eq(workspaceMembers.workspaceId, input.workspaceId), eq(workspaceMembers.role, 'owner')));
+      return await this.db.transaction(async (tx) => {
+        const members = await this.lockMembers(tx, input.workspaceId);
+        const targetRole = members.get(input.userId);
+        if (!targetRole) {
+          return err(new DomainError('NOT_FOUND', 'Member not found'));
+        }
+        const isSelf = input.removedBy === input.userId;
+        const decision = canRemoveMember(members.get(input.removedBy) ?? null, targetRole, isSelf);
+        if (!decision.allowed) {
+          return err(new DomainError('FORBIDDEN', decision.reason));
+        }
+        if (targetRole === 'owner' && countOwners(members) <= 1) {
+          return err(new DomainError('CONFLICT', 'Cannot remove the last owner'));
+        }
 
-      const [member] = await this.db
-        .select()
-        .from(workspaceMembers)
-        .where(
-          and(eq(workspaceMembers.workspaceId, input.workspaceId), eq(workspaceMembers.userId, input.userId))
-        );
-
-      if (member?.role === 'owner' && (ownerCount?.count ?? 0) <= 1) {
-        return err(new Error('Cannot remove the last owner'));
-      }
-
-      await this.db
-        .delete(workspaceMembers)
-        .where(
-          and(eq(workspaceMembers.workspaceId, input.workspaceId), eq(workspaceMembers.userId, input.userId))
-        );
-
-      return ok(undefined);
+        await tx
+          .delete(workspaceMembers)
+          .where(and(eq(workspaceMembers.workspaceId, input.workspaceId), eq(workspaceMembers.userId, input.userId)));
+        // Project-level ACL entries are meaningless without workspace membership.
+        const workspaceProjectIds = tx
+          .select({ id: projects.id })
+          .from(projects)
+          .where(eq(projects.workspaceId, input.workspaceId));
+        await tx
+          .delete(projectMembers)
+          .where(and(eq(projectMembers.userId, input.userId), inArray(projectMembers.projectId, workspaceProjectIds)));
+        return ok(undefined);
+      });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
+  }
+
+  /**
+   * Hand ownership to another member. Only an owner may do this; the previous
+   * owner becomes an admin.
+   */
+  async transferOwnership(input: TransferOwnershipInput): Promise<Result<WorkspaceMemberWithUser, Error>> {
+    try {
+      return await this.db.transaction(async (tx) => {
+        const members = await this.lockMembers(tx, input.workspaceId);
+        if (members.get(input.fromUserId) !== 'owner') {
+          return err(new DomainError('FORBIDDEN', 'Only an owner can transfer ownership'));
+        }
+        if (input.fromUserId === input.toUserId) {
+          return err(new DomainError('BAD_REQUEST', 'You already own this workspace'));
+        }
+        if (!members.has(input.toUserId)) {
+          return err(new DomainError('NOT_FOUND', 'The new owner must be a workspace member'));
+        }
+
+        const [promoted] = await tx
+          .update(workspaceMembers)
+          .set({ role: 'owner' })
+          .where(and(eq(workspaceMembers.workspaceId, input.workspaceId), eq(workspaceMembers.userId, input.toUserId)))
+          .returning();
+        await tx
+          .update(workspaceMembers)
+          .set({ role: 'admin' })
+          .where(and(eq(workspaceMembers.workspaceId, input.workspaceId), eq(workspaceMembers.userId, input.fromUserId)));
+        const [user] = await tx.select().from(users).where(eq(users.id, input.toUserId));
+        if (!promoted || !user) {
+          return err(new DomainError('NOT_FOUND', 'Member not found'));
+        }
+        return ok({ ...promoted, user });
+      });
+    } catch (error) {
+      return err(toError(error));
+    }
+  }
+
+  /** Lock and return the workspace's members (userId -> role) for a mutation. */
+  private async lockMembers(tx: Transaction, workspaceId: string): Promise<Map<string, WorkspaceRole>> {
+    const rows = await tx
+      .select({ userId: workspaceMembers.userId, role: workspaceMembers.role })
+      .from(workspaceMembers)
+      .where(eq(workspaceMembers.workspaceId, workspaceId))
+      .for('update');
+    const members = new Map<string, WorkspaceRole>();
+    for (const row of rows) {
+      if (isWorkspaceRole(row.role)) members.set(row.userId, row.role);
+    }
+    return members;
   }
 
   /**
@@ -552,12 +642,15 @@ export class WorkspaceService {
    */
   async getMemberRole(workspaceId: string, userId: string): Promise<Result<WorkspaceRole | null, Error>> {
     try {
+      if (!isUuid(workspaceId) || !isUuid(userId)) {
+        return ok(null);
+      }
       const [member] = await this.db
         .select({ role: workspaceMembers.role })
         .from(workspaceMembers)
         .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)));
 
-      return ok((member?.role as WorkspaceRole) || null);
+      return ok(member && isWorkspaceRole(member.role) ? member.role : null);
     } catch (error) {
       return err(error instanceof Error ? error : new Error('Unknown error'));
     }
