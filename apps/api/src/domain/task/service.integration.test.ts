@@ -21,7 +21,7 @@ import { TaskRelationService } from './relations.js';
 import { TaskService } from './service.js';
 import { placeTask, type PlacementRequest } from './positions.js';
 import { purgeTrash } from './trash.js';
-import { rekeyTaskPositions } from './rekey.js';
+import { rekeyTaskPositions, validPositionSql } from './rekey.js';
 import { ProjectService } from '../project/service.js';
 import { SearchService } from '../search/service.js';
 import {
@@ -523,6 +523,51 @@ describe.skipIf(!TEST_DATABASE_URL)('TaskService (integration)', () => {
         .orderBy(sql`${tasks.position} COLLATE "C"`, asc(tasks.id));
       expect(rows.map((r) => r.title)).toEqual(['R1', 'R2', 'R3']);
       expect(arePositionsHealthy(rows.map((r) => r.position))).toBe(true);
+    });
+
+    it('validPositionSql agrees with isValidPosition', async () => {
+      const alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz:@_ ';
+      let seed = 42;
+      const next = () => {
+        seed = (seed * 1103515245 + 12345) % 2 ** 31;
+        return seed;
+      };
+      const keys = [
+        'a0',
+        'a1',
+        'a0V',
+        'a00',
+        'a0V0',
+        'b0',
+        'b00',
+        'b000',
+        'Zz',
+        'Z',
+        'z',
+        'zzzzzzzzzzzzzzzzzzzzzzzzzzz',
+        `A${'0'.repeat(26)}`,
+        `A${'0'.repeat(26)}V`,
+        `A${'0'.repeat(25)}1`,
+        '000',
+        'a',
+        'a:',
+        'a0@',
+        ...generatePositions(50),
+        ...Array.from({ length: 400 }, () =>
+          Array.from({ length: 1 + (next() % 5) }, () => alphabet[next() % alphabet.length]).join(
+            ''
+          )
+        ),
+      ];
+      const rows = await testDb().execute<{ k: string; valid: boolean }>(
+        sql`SELECT k, ${validPositionSql(sql`k`)} AS valid FROM unnest(${sql.raw(
+          `ARRAY[${keys.map((k) => `'${k}'`).join(',')}]`
+        )}::text[]) AS k`
+      );
+      const mismatches = rows.filter((r) => r.valid !== isValidPosition(r.k)).map((r) => r.k);
+      expect(mismatches).toEqual([]);
+      expect(rows.some((r) => r.valid)).toBe(true);
+      expect(rows.some((r) => !r.valid)).toBe(true);
     });
 
     it('orders positions in Postgres exactly like JS code-unit order', async () => {
