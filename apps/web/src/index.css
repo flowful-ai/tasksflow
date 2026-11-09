@@ -61,6 +61,14 @@ body {
   @apply bg-transparent text-neutral-600 hover:bg-neutral-100 active:scale-[0.98];
 }
 
+.btn-danger {
+  @apply bg-primary-600 text-white hover:bg-primary-700 active:scale-[0.98];
+}
+
+.btn:disabled {
+  @apply opacity-60 cursor-not-allowed active:scale-100;
+}
+
 /* Input base */
 .input {
   @apply w-full px-4 py-2.5 text-base md:text-sm border border-neutral-200 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200;
