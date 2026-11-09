@@ -25,6 +25,15 @@ import { githubRoutes, githubPublicRoutes } from './routes/github.js';
 import { invitationRoutes, publicInvitationRoutes, acceptInvitationRoutes } from './routes/invitations.js';
 import { appAdminRoutes } from './routes/app-admin.js';
 import { McpOAuthService } from './services/mcp-oauth-service.js';
+import { notificationRoutes } from './routes/notifications.js';
+import { searchRoutes } from './routes/search.js';
+import { taskBulkRoutes } from './routes/tasks-bulk.js';
+import { taskRelationRoutes } from './routes/task-relations.js';
+import { taskHistoryRoutes } from './routes/task-history.js';
+import { trashRoutes } from './routes/trash.js';
+import { outgoingWebhookRoutes } from './routes/outgoing-webhooks.js';
+import { startBackgroundServices } from '@flowtask/domain';
+import { getDatabase } from '@flowtask/database';
 
 // Import SSE manager
 import { initSSE } from './sse/manager.js';
@@ -121,6 +130,16 @@ app.route('/api/events', eventRoutes);
 // Protected routes (require authentication)
 app.use('/api/*', authMiddleware);
 
+// Workstream-B routes. Mounted before the tasks/projects routers so
+// /api/tasks/bulk and the nested /:id/... paths are never shadowed.
+app.route('/api/tasks', taskBulkRoutes);
+app.route('/api/tasks', taskRelationRoutes);
+app.route('/api/tasks', taskHistoryRoutes);
+app.route('/api/projects', trashRoutes);
+app.route('/api/notifications', notificationRoutes);
+app.route('/api/search', searchRoutes);
+app.route('/api/outgoing-webhooks', outgoingWebhookRoutes);
+
 // API routes
 app.route('/api/workspaces', workspaceRoutes);
 app.route('/api/projects', projectRoutes);
@@ -183,6 +202,9 @@ console.log(`🚀 FlowTask API running at http://${hostname}:${server.port}`);
 
 // Initialize SSE manager (same port as API)
 initSSE();
+
+// Domain-event subscribers + Postgres job runner. Call backgroundServices.stop() on shutdown.
+export const backgroundServices = startBackgroundServices(getDatabase());
 
 export default app;
 export { app };
