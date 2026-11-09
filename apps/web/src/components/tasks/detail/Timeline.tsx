@@ -32,9 +32,9 @@ type TimelineEntry =
   | { kind: 'comment'; at: string; id: string; comment: CommentDto };
 
 const RELATION_TEXT: Record<string, { outgoing: string; incoming: string }> = {
-  blocks: { outgoing: 'blocks', incoming: 'is blocked by' },
-  relates: { outgoing: 'relates to', incoming: 'relates to' },
-  duplicates: { outgoing: 'duplicates', incoming: 'is duplicated by' },
+  blocks: { outgoing: 'blocking', incoming: 'blocked by' },
+  relates: { outgoing: 'related to', incoming: 'related to' },
+  duplicates: { outgoing: 'a duplicate of', incoming: 'duplicated by' },
 };
 
 function displayText(value: HistoryDisplayValueDto | null, field: string | null): ReactNode {
@@ -95,7 +95,7 @@ export function describeEvent(event: TaskHistoryItemDto): ReactNode | null {
     case 'relation_added':
     case 'relation_removed': {
       const relation = event.type === 'relation_added' ? event.to : event.from ?? event.to;
-      const verb = event.type === 'relation_added' ? 'marked this as' : 'removed';
+      const verb = event.type === 'relation_added' ? 'marked this as' : 'removed the relation:';
       if (relation?.kind === 'relation') {
         const text = RELATION_TEXT[relation.type]?.[relation.direction] ?? relation.type;
         return (

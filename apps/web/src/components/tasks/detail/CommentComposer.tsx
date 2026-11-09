@@ -3,7 +3,7 @@
  * the textarea and are encoded to `@[Name](user:<uuid>)` on submit, which
  * makes the backend notify the mentioned users. ⌘/Ctrl+Enter submits.
  */
-import { useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Send } from 'lucide-react';
 import clsx from 'clsx';
 import { IconButton, Kbd } from '../../ui';
@@ -42,7 +42,17 @@ export function CommentComposer({
   const [mention, setMention] = useState<{ query: string; start: number } | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  /** Caret position to restore right after a mention is inserted (before the next keystroke). */
+  const pendingCaret = useRef<number | null>(null);
   const listId = useId();
+
+  useLayoutEffect(() => {
+    const caret = pendingCaret.current;
+    if (caret === null || !textareaRef.current) return;
+    pendingCaret.current = null;
+    textareaRef.current.focus();
+    textareaRef.current.setSelectionRange(caret, caret);
+  }, [text]);
 
   const suggestions = useMemo(() => {
     if (!mention) return [];
@@ -70,11 +80,7 @@ export function CommentComposer({
     setText(value);
     setMentions((list) => [...list.filter((m) => m.userId !== member.user.id), { userId: member.user.id, name }]);
     setMention(null);
-    const position = before.length + inserted.length;
-    window.requestAnimationFrame(() => {
-      textareaRef.current?.focus();
-      textareaRef.current?.setSelectionRange(position, position);
-    });
+    pendingCaret.current = before.length + inserted.length;
   };
 
   const submit = async () => {
