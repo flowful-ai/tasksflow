@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import {
-  canAccess,
-  getPermissions,
-  hasPermission,
-  isWorkspacePermission,
-  type WorkspacePermission,
-} from './permissions.js';
+import { hasPermission, isWorkspacePermission, type WorkspacePermission } from './permissions.js';
 
 const OWNER_ONLY: WorkspacePermission[] = ['workspace:delete'];
 const ADMIN_AND_UP: WorkspacePermission[] = [
@@ -60,21 +54,16 @@ describe('hasPermission matrix', () => {
     for (const permission of EVERYONE) expect(hasPermission('member', permission)).toBe(true);
   });
 
-  it('covers every permission exactly once in the fixture lists', () => {
-    const listed = new Set([...OWNER_ONLY, ...ADMIN_AND_UP, ...EVERYONE]);
-    expect(new Set(getPermissions('owner'))).toEqual(listed);
+  it('lists each permission once, and only known ones', () => {
+    const all = [...OWNER_ONLY, ...ADMIN_AND_UP, ...EVERYONE];
+    expect(new Set(all).size).toBe(all.length);
+    for (const permission of all) expect(isWorkspacePermission(permission)).toBe(true);
   });
 });
 
-describe('canAccess / isWorkspacePermission', () => {
-  it('maps resource and action to a permission', () => {
-    expect(canAccess('member', 'task', 'read')).toBe(true);
-    expect(canAccess('member', 'task', 'delete')).toBe(false);
-    expect(canAccess('admin', 'workspace', 'manage_members')).toBe(true);
-  });
-
-  it('rejects unknown resource/action combinations instead of casting', () => {
+describe('isWorkspacePermission', () => {
+  it('rejects unknown resource/action combinations', () => {
+    expect(isWorkspacePermission('task:read')).toBe(true);
     expect(isWorkspacePermission('task:share')).toBe(false);
-    expect(canAccess('owner', 'task', 'share')).toBe(false);
   });
 });

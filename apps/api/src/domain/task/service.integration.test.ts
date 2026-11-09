@@ -444,33 +444,6 @@ describe.skipIf(!TEST_DATABASE_URL)('TaskService (integration)', () => {
       expect(arePositionsHealthy(rows.map((r) => r.position))).toBe(true);
     });
 
-    it('accepts a legacy client position and normalises an invalid one', async () => {
-      const p = await createProject(testDb(), ws.workspaceId);
-      const a = unwrap(
-        await service.create({ projectId: p.projectId, title: 'a', createdBy: ws.owner.id })
-      );
-      const b = unwrap(
-        await service.create({ projectId: p.projectId, title: 'b', createdBy: ws.owner.id })
-      );
-      const moved = unwrap(
-        await service.move(b.id, {
-          stateId: p.states.progress,
-          position: 'a5',
-          movedBy: ws.owner.id,
-        })
-      );
-      expect(moved.position).toBe('a5');
-      const bad = unwrap(
-        await service.move(a.id, {
-          stateId: p.states.progress,
-          position: 'a5:',
-          movedBy: ws.owner.id,
-        })
-      );
-      expect(isValidPosition(bad.position)).toBe(true);
-      expect(comparePositions(bad.position, 'a5')).toBe(1);
-    });
-
     it('orders positions in Postgres exactly like JS code-unit order', async () => {
       const keys = [
         'a0',

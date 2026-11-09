@@ -18,7 +18,7 @@ import {
 } from '../services/task-github-link-service.js';
 import { GitHubRepoRefSchema, LinkTaskGitHubIssueSchema } from '@flowtask/shared';
 import { VALID_TASK_SORT_BY, VALID_TASK_SORT_ORDER } from './smart-view-query-utils.js';
-import { getAuthz, requireProject, requireTask, requireUser } from '../lib/authorize.js';
+import { getAuthz, requireProject, requireTask } from '../lib/authorize.js';
 import {
   badRequest,
   forbidden,
@@ -359,31 +359,6 @@ tasks.delete('/:taskId/labels/:labelId', async (c) => {
 
   return c.json({ success: true, data: null });
 });
-
-// === Position calculation helper ===
-
-// Calculate position between two tasks
-tasks.post(
-  '/calculate-position',
-  zValidator(
-    'json',
-    z.object({
-      beforePosition: z.string().max(200).nullable().optional(),
-      afterPosition: z.string().max(200).nullable().optional(),
-    })
-  ),
-  async (c) => {
-    requireUser(c);
-    const data = c.req.valid('json');
-
-    const position = taskService.calculatePositionBetween(
-      data.beforePosition ?? null,
-      data.afterPosition ?? null
-    );
-
-    return c.json({ success: true, data: { position } });
-  }
-);
 
 // === GitHub links ===
 

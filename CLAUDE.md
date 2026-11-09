@@ -38,7 +38,7 @@ flowtask/
 │   │   │   ├── db/           # Drizzle schema, relations, client, migration runner
 │   │   │   ├── domain/       # business logic services, domain event bus, jobs queue
 │   │   │   ├── auth/         # Better Auth config, session middleware, role permissions
-│   │   │   ├── integrations/ # GitHub App, Slack, OpenRouter clients
+│   │   │   ├── integrations/ # GitHub App and Slack clients, shared integration plumbing
 │   │   │   ├── services/     # agent tool runtime, MCP OAuth server, GitHub install/link
 │   │   │   ├── routes/       # Hono routers, one file per area
 │   │   │   ├── sse/          # realtime hub (SSE + Postgres LISTEN/NOTIFY)
@@ -115,15 +115,15 @@ Smart Views store a JSON filter that `apps/api/src/domain/smart-view/filter-engi
 
 `apps/api/src/domain/jobs/` is a queue on the `jobs` table: claims with `FOR UPDATE SKIP LOCKED`, exponential backoff (5 s doubling, capped at 1 h), stale-lock reclaim, keyed singletons and recurring jobs. Job types:
 
-| Job                                                                                          | Kind                                                          |
-| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| `notifications.due_scan`                                                                     | recurring, hourly: due-soon and overdue reminders             |
-| `tasks.trash_purge`                                                                          | recurring, daily: deletes tasks trashed more than 30 days ago |
-| `webhooks.deliver`                                                                           | outgoing webhook delivery                                     |
-| `webhooks.delivery_cleanup`                                                                  | recurring, daily: prunes old delivery rows                    |
-| `jobs.cleanup`                                                                               | recurring, daily: prunes finished jobs                        |
-| `github.reverse_sync.task`, `github.reverse_sync.comment`, `github.reverse_sync.close_issue` | FlowTask → GitHub                                             |
-| `slack.notify_task_event`                                                                    | Slack notification                                            |
+| Job                                                       | Kind                                                          |
+| --------------------------------------------------------- | ------------------------------------------------------------- |
+| `notifications.due_scan`                                  | recurring, hourly: due-soon and overdue reminders             |
+| `tasks.trash_purge`                                       | recurring, daily: deletes tasks trashed more than 30 days ago |
+| `webhooks.deliver`                                        | outgoing webhook delivery                                     |
+| `webhooks.delivery_cleanup`                               | recurring, daily: prunes old delivery rows                    |
+| `jobs.cleanup`                                            | recurring, daily: prunes finished jobs                        |
+| `github.reverse_sync.task`, `github.reverse_sync.comment` | FlowTask → GitHub                                             |
+| `slack.notify_task_event`                                 | Slack notification                                            |
 
 `JOBS_DISABLED=true` turns the runner off in a process (integration work then runs in-process with retries).
 
@@ -262,7 +262,7 @@ The `Record<AgentTool, …>` types make steps 3–5 compile errors when skipped.
 
 ### Adding an integration
 
-Integrations live in `apps/api/src/integrations/<name>/` and register in `apps/api/src/integrations/registry.ts`. Webhook receivers go in `apps/api/src/routes/webhooks.ts`, background work goes through `scheduleBackgroundJob`/`registerBackgroundJob` (`apps/api/src/integrations/background.ts`), and the settings UI is in `apps/web/src/components/settings/IntegrationSettings.tsx`.
+Integrations live in `apps/api/src/integrations/<name>/` and are exported from `apps/api/src/integrations/index.ts`; there is no provider registry. Webhook receivers go in `apps/api/src/routes/webhooks.ts`, background work goes through `scheduleBackgroundJob`/`registerBackgroundJob` (`apps/api/src/integrations/background.ts`), and the settings UI is in `apps/web/src/components/settings/IntegrationSettings.tsx`.
 
 ## Testing
 

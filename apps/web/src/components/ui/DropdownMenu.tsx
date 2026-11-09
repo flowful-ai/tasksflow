@@ -33,9 +33,7 @@ import { Check, ChevronRight } from 'lucide-react';
 
 export const DropdownMenu = Radix.Root;
 export const DropdownMenuTrigger = Radix.Trigger;
-export const DropdownMenuGroup = Radix.Group;
 export const DropdownMenuSub = Radix.Sub;
-export const DropdownMenuRadioGroup = Radix.RadioGroup;
 
 export type MenuTone = 'light' | 'dark';
 
@@ -149,26 +147,6 @@ export const DropdownMenuCheckboxItem = forwardRef<
       </span>
       {children}
     </Radix.CheckboxItem>
-  );
-});
-
-export const DropdownMenuRadioItem = forwardRef<
-  ElementRef<typeof Radix.RadioItem>,
-  ComponentPropsWithoutRef<typeof Radix.RadioItem> & { tone?: MenuTone }
->(function DropdownMenuRadioItem({ className, children, tone = 'light', ...props }, ref) {
-  return (
-    <Radix.RadioItem
-      ref={ref}
-      className={clsx(ITEM_BASE, ITEM_TONES[tone], 'pl-8', className)}
-      {...props}
-    >
-      <span className="absolute left-2.5 flex h-4 w-4 items-center justify-center">
-        <Radix.ItemIndicator>
-          <Check className="h-4 w-4" aria-hidden />
-        </Radix.ItemIndicator>
-      </span>
-      {children}
-    </Radix.RadioItem>
   );
 });
 

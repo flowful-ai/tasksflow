@@ -22,7 +22,6 @@ import { createJobRunner, enqueueJob, type JobHandlers } from '../../domain/inde
 import { getBackgroundJobRunners, useDurableJobQueue } from '../background.js';
 import {
   GitHubReverseSyncService,
-  REVERSE_SYNC_JOBS,
   reverseSyncJobKey,
   type ReverseSyncGitHubClient,
 } from './reverse-sync.js';
@@ -191,15 +190,6 @@ describeDb('GitHub reverse sync (database)', () => {
     expect(issue.state).toBe('open');
   });
 
-  test('a stale retried job (old snapshot payload) still pushes the current state', async () => {
-    issue.state = 'closed';
-    await db.update(externalLinks).set({ syncHash: null }).where(eq(externalLinks.taskId, taskId));
-    // Shape queued by the previous version: a snapshot saying "Done".
-    await enqueueJob(db, REVERSE_SYNC_JOBS.task, { taskId, changes: { stateId: doneStateId } });
-    await runJobs();
-    expect(calls).toEqual([{ op: 'update', updates: { state: 'open' } }]);
-  });
-
   test('skips the push when GitHub already has the content (sync hash)', async () => {
     service.scheduleTaskSync(taskId, { title: true, state: true });
     await runJobs();
@@ -226,13 +216,5 @@ describeDb('GitHub reverse sync (database)', () => {
     service.scheduleIssueStateSync(taskId);
     await runJobs();
     expect(calls).toEqual([{ op: 'update', updates: { state: 'open' } }]);
-  });
-
-  test('a legacy close-issue job closes only when the task is deleted or done', async () => {
-    await enqueueJob(db, REVERSE_SYNC_JOBS.closeIssue, { taskId });
-    await runJobs();
-    // The task is live and in progress, and GitHub already shows it open.
-    expect(calls).toEqual([]);
-    expect(issue.state).toBe('open');
   });
 });

@@ -55,8 +55,14 @@ export interface TaskGitHubLinkResult {
   number: number;
 }
 
-/** @deprecated use TaskGitHubLinkResult */
-export type LinkTaskPullRequestResult = TaskGitHubLinkResult;
+interface NewLink {
+  target: GitHubRepoTarget;
+  taskId: string;
+  externalType: 'github_issue' | 'github_pr';
+  number: number;
+  url: string;
+  syncHash?: string;
+}
 
 function githubStatus(error: unknown): number | null {
   return error instanceof Error && 'status' in error && typeof error.status === 'number'
@@ -184,30 +190,14 @@ export class TaskGitHubLinkService {
       );
     }
 
-    const [inserted] = await this.db
-      .insert(externalLinks)
-      .values({
-        integrationId: target.integrationId,
-        taskId: input.taskId,
-        externalType: 'github_issue',
-        externalId: formatGitHubExternalId(target.repo.owner, target.repo.repo, issue.number),
-        externalUrl: issue.html_url,
-        syncHash: computeIssueSyncHash(issueContentFrom(issue)),
-        lastSyncedAt: new Date(),
-      })
-      .onConflictDoNothing({
-        target: [externalLinks.integrationId, externalLinks.externalType, externalLinks.externalId],
-      })
-      .returning({ id: externalLinks.id });
-    if (!inserted) {
-      throw new TaskGitHubLinkError(
-        'ISSUE_ALREADY_LINKED',
-        'This issue is already linked to another task',
-        409
-      );
-    }
-
-    await this.publishTaskUpdated(input.taskId);
+    await this.insertLink({
+      target,
+      taskId: input.taskId,
+      externalType: 'github_issue',
+      number: issue.number,
+      url: issue.html_url,
+      syncHash: computeIssueSyncHash(issueContentFrom(issue)),
+    });
     return { url: issue.html_url, number: issue.number };
   }
 
@@ -233,17 +223,14 @@ export class TaskGitHubLinkService {
 
     // The `opened` webhook for this issue is skipped (created by our app), so
     // this insert is the only writer; the hash makes later echoes no-ops.
-    await this.db.insert(externalLinks).values({
-      integrationId: target.integrationId,
+    await this.insertLink({
+      target,
       taskId: input.taskId,
       externalType: 'github_issue',
-      externalId: formatGitHubExternalId(target.repo.owner, target.repo.repo, issue.number),
-      externalUrl: issue.html_url,
+      number: issue.number,
+      url: issue.html_url,
       syncHash: computeIssueSyncHash(issueContentFrom(issue)),
-      lastSyncedAt: new Date(),
     });
-
-    await this.publishTaskUpdated(input.taskId);
     return { url: issue.html_url, number: issue.number };
   }
 
@@ -310,14 +297,34 @@ export class TaskGitHubLinkService {
       return client.getPullRequest(input.prNumber);
     });
 
+    await this.insertLink({
+      target,
+      taskId: input.taskId,
+      externalType: 'github_pr',
+      number: input.prNumber,
+      url: pullRequest.html_url,
+    });
+    return { url: pullRequest.html_url, number: pullRequest.number };
+  }
+
+  /**
+   * Insert the task ↔ issue/PR link and publish the task update. A link that
+   * already exists for another task is a 409.
+   */
+  private async insertLink(link: NewLink): Promise<void> {
     const [inserted] = await this.db
       .insert(externalLinks)
       .values({
-        integrationId: target.integrationId,
-        taskId: input.taskId,
-        externalType: 'github_pr',
-        externalId,
-        externalUrl: pullRequest.html_url,
+        integrationId: link.target.integrationId,
+        taskId: link.taskId,
+        externalType: link.externalType,
+        externalId: formatGitHubExternalId(
+          link.target.repo.owner,
+          link.target.repo.repo,
+          link.number
+        ),
+        externalUrl: link.url,
+        syncHash: link.syncHash ?? null,
         lastSyncedAt: new Date(),
       })
       .onConflictDoNothing({
@@ -325,19 +332,18 @@ export class TaskGitHubLinkService {
       })
       .returning({ id: externalLinks.id });
     if (!inserted) {
-      throw new TaskGitHubLinkError(
-        'PR_ALREADY_LINKED',
-        'This pull request is already linked to another task',
-        409
-      );
+      throw link.externalType === 'github_pr'
+        ? new TaskGitHubLinkError(
+            'PR_ALREADY_LINKED',
+            'This pull request is already linked to another task',
+            409
+          )
+        : new TaskGitHubLinkError(
+            'ISSUE_ALREADY_LINKED',
+            'This issue is already linked to another task',
+            409
+          );
     }
-
-    await this.publishTaskUpdated(input.taskId);
-    return { url: pullRequest.html_url, number: pullRequest.number };
-  }
-
-  /** @deprecated alias of linkPr, kept for the agent tool runtime. */
-  async linkPullRequestToTask(input: LinkTaskPullRequestInput): Promise<TaskGitHubLinkResult> {
-    return this.linkPr(input);
+    await this.publishTaskUpdated(link.taskId);
   }
 }

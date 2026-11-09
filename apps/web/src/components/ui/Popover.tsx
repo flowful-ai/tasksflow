@@ -13,8 +13,6 @@ import clsx from 'clsx';
 
 export const Popover = Radix.Root;
 export const PopoverTrigger = Radix.Trigger;
-export const PopoverAnchor = Radix.Anchor;
-export const PopoverClose = Radix.Close;
 
 export const PopoverContent = forwardRef<
   ElementRef<typeof Radix.Content>,

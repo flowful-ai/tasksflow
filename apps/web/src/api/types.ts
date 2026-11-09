@@ -155,7 +155,7 @@ export interface TaskListFilters {
   parentId?: string;
 }
 
-/** Body of POST /api/tasks/:id/move. Neighbours are preferred over `position`. */
+/** Body of POST /api/tasks/:id/move. The server computes the key from the neighbours. */
 export interface MoveTaskInput {
   taskId: string;
   stateId: string;

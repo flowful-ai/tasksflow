@@ -77,15 +77,15 @@ The queue is the `jobs` table (`apps/api/src/domain/jobs/`):
 - The runner (`runner.ts`) polls every second, claims up to its concurrency (4) with `FOR UPDATE SKIP LOCKED`, records `locked_by`, and reclaims locks older than 5 minutes. Failures retry with backoff `min(2^(n-1) × 5 s, 1 h)` ±20 %, up to `max_attempts` (default 5). Handlers can throw `JobRetryLater` to wait without spending an attempt.
 - Recurring jobs reschedule themselves in the same transaction that completes them; `ensureRecurringJob` creates the first occurrence at boot on every replica (the unique pending key keeps one chain).
 
-| Type                                                   | Schedule | What it does                                                                |
-| ------------------------------------------------------ | -------- | --------------------------------------------------------------------------- |
-| `notifications.due_scan`                               | hourly   | `due_soon` (within 24 h) and `overdue` inbox notifications                  |
-| `tasks.trash_purge`                                    | daily    | deletes tasks trashed more than 30 days ago                                 |
-| `webhooks.deliver`                                     | on event | signed POST to an outgoing webhook, logged in `outgoing_webhook_deliveries` |
-| `webhooks.delivery_cleanup`                            | daily    | prunes old delivery rows                                                    |
-| `jobs.cleanup`                                         | daily    | prunes finished jobs                                                        |
-| `github.reverse_sync.task`, `.comment`, `.close_issue` | on event | FlowTask → GitHub                                                           |
-| `slack.notify_task_event`                              | on event | posts to the project's Slack channel                                        |
+| Type                                   | Schedule | What it does                                                                |
+| -------------------------------------- | -------- | --------------------------------------------------------------------------- |
+| `notifications.due_scan`               | hourly   | `due_soon` (within 24 h) and `overdue` inbox notifications                  |
+| `tasks.trash_purge`                    | daily    | deletes tasks trashed more than 30 days ago                                 |
+| `webhooks.deliver`                     | on event | signed POST to an outgoing webhook, logged in `outgoing_webhook_deliveries` |
+| `webhooks.delivery_cleanup`            | daily    | prunes old delivery rows                                                    |
+| `jobs.cleanup`                         | daily    | prunes finished jobs                                                        |
+| `github.reverse_sync.task`, `.comment` | on event | FlowTask → GitHub                                                           |
+| `slack.notify_task_event`              | on event | posts to the project's Slack channel                                        |
 
 `JOBS_DISABLED=true` stops the runner in a process; integration work then runs in-process with retries (`runInBackground`).
 
@@ -110,7 +110,7 @@ Task order inside a column is a string key from the `fractional-indexing` packag
 
 - **GitHub App** (`apps/api/src/integrations/github/`): installation verified with a session-bound state nonce (`integration_oauth_states`) and the user's OAuth code checked against `GET /user/installations`. Webhooks are HMAC-verified, deduplicated on `X-GitHub-Delivery` (`webhook_deliveries`, 7 days) and applied to every project linked to the repository. Issues and PRs map to tasks through `external_links` (`owner/repo#N`); a content hash (`sync_hash`) prevents echo loops; `FLOW-123` references in PRs resolve to tasks. Reverse sync pushes title, description, state, priority, labels and comments of linked issues.
 - **Slack** (`apps/api/src/integrations/slack/`): OAuth install per project (bot token encrypted with `INTEGRATION_ENCRYPTION_KEY`), notifications only.
-- **AI** (`apps/api/src/routes/agents.ts`, `apps/api/src/integrations/openrouter/`): the in-app chat streams through the Vercel AI SDK with the workspace's provider key, using the tool set from `executeAgentTool`; mutating tools require approval.
+- **AI** (`apps/api/src/routes/agents.ts`): the in-app chat streams through the Vercel AI SDK with the workspace's provider key, using the tool set from `executeAgentTool`; mutating tools require approval.
 
 ## MCP
 

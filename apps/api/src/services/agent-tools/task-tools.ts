@@ -13,6 +13,7 @@ import {
   optionalInteger,
   parseDueDate,
   requiredString,
+  resolveMcpWriteReturnMode,
   resolveUpdateTaskGitHubPrArgs,
 } from '../../lib/mcp/tool-args.js';
 import {
@@ -21,7 +22,6 @@ import {
   projectTask,
   projectTaskList,
   resolveTaskProjectionArgs,
-  resolveWriteMode,
   type ToolOutput,
 } from '../../lib/mcp/response-shaping.js';
 import { nextCursorFor, pageNumber, resolvePageWindow } from '../../lib/mcp/cursor.js';
@@ -94,7 +94,7 @@ const createTask: ToolHandler = async (args, ctx, services) => {
     ctx,
     optionalBoolean(args, 'autoAssign') ? ['me'] : []
   );
-  const mode = resolveWriteMode(args);
+  const mode = resolveMcpWriteReturnMode(args);
 
   const task = unwrap(
     await services.tasks.create({
@@ -112,7 +112,7 @@ const createTask: ToolHandler = async (args, ctx, services) => {
 const bulkCreateTasks: ToolHandler = async (args, ctx, services) => {
   const project = await ctx.requireProject(requiredString(args, 'projectId'));
   const items = optionalRecordArray(args, 'tasks') ?? [];
-  const mode = resolveWriteMode(args);
+  const mode = resolveMcpWriteReturnMode(args);
   const created: TaskWithRelations[] = [];
   const failed: Array<{ index: number; error: string }> = [];
 
@@ -235,12 +235,12 @@ async function applyTaskUpdateIn(
 
 const updateTask: ToolHandler = async (args, ctx, services) => {
   const prLink = resolveUpdateTaskGitHubPrArgs(args);
-  const mode = resolveWriteMode(args);
+  const mode = resolveMcpWriteReturnMode(args);
   let { after } = await applyTaskUpdate(args, ctx, services);
 
   if (prLink) {
     try {
-      await services.githubLinks.linkPullRequestToTask({
+      await services.githubLinks.linkPr({
         taskId: after.id,
         projectId: after.projectId,
         owner: prLink.owner,
@@ -342,7 +342,7 @@ async function resolveTargetState(task: TaskWithRelations, args: JsonRecord, ctx
 const moveTask: ToolHandler = async (args, ctx, services) => {
   const task = await ctx.requireTask(requiredString(args, 'taskId'));
   const state = await resolveTargetState(task, args, ctx);
-  const mode = resolveWriteMode(args);
+  const mode = resolveMcpWriteReturnMode(args);
 
   // No position or neighbour: TaskService appends to the end of the target
   // column under the column lock, so concurrent moves get distinct keys.
@@ -361,7 +361,7 @@ const assignTask: ToolHandler = async (args, ctx, services) => {
   const task = await ctx.requireTask(requiredString(args, 'taskId'));
   const member = await ctx.resolveUser(requiredString(args, 'userId'));
   const action = requiredString(args, 'action');
-  const mode = resolveWriteMode(args);
+  const mode = resolveMcpWriteReturnMode(args);
   const options = { mcpClientId: ctx.mcpClientId };
 
   if (action === 'assign') {

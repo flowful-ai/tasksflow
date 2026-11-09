@@ -199,6 +199,3 @@ export function Dialog({
     </RadixDialog.Root>
   );
 }
-
-/** Closes the nearest Dialog when clicked (use with asChild around a button). */
-export const DialogClose = RadixDialog.Close;

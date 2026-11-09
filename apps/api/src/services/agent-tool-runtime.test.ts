@@ -307,7 +307,6 @@ describe('move_task', () => {
     );
     const move = calls.move[0];
     expect(move?.stateId).toBe(STATE_A_DOING);
-    expect(move?.position).toBeUndefined();
   });
 
   it('accepts a state category and rejects unknown states with the available list', async () => {

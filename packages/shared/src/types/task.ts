@@ -88,12 +88,9 @@ export type UpdateTask = z.infer<typeof UpdateTaskSchema>;
  * server compute the key (`afterTaskId` = the task that ends up directly
  * above, `beforeTaskId` = directly below; either may be omitted at the
  * column edges, both omitted = append to the end).
- * Legacy: pass a client-computed `position`; the server keeps it when it is a
- * valid, unused key and otherwise inserts the task where that key would sort.
  */
 export const MoveTaskSchema = z.object({
   stateId: z.string().uuid(),
-  position: z.string().max(200).optional(),
   afterTaskId: z.string().uuid().nullable().optional(),
   beforeTaskId: z.string().uuid().nullable().optional(),
 });

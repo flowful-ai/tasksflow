@@ -17,13 +17,13 @@ import {
   optionalRecord,
   optionalString,
   requiredString,
+  resolveMcpWriteReturnMode,
 } from '../../lib/mcp/tool-args.js';
 import {
   formatWriteCommentResult,
   projectComment,
   projectTaskList,
   resolveTaskProjectionArgs,
-  resolveWriteMode,
   untrusted,
   type ToolOutput,
 } from '../../lib/mcp/response-shaping.js';
@@ -138,7 +138,7 @@ const summarizeProject: ToolHandler = async (args, ctx, services) => {
 
 const addComment: ToolHandler = async (args, ctx, services) => {
   const task = await ctx.requireTask(requiredString(args, 'taskId'));
-  const mode = resolveWriteMode(args);
+  const mode = resolveMcpWriteReturnMode(args);
   const comment = unwrap(
     await services.comments.create({
       taskId: task.id,

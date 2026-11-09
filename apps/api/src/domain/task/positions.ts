@@ -34,7 +34,7 @@ export interface PlacementRequest {
   afterTaskId?: string | null;
   /** Task that should end up directly below. */
   beforeTaskId?: string | null;
-  /** Legacy client-computed key. */
+  /** Insert where this key would sort (task update with an explicit position). */
   position?: string;
 }
 
@@ -119,23 +119,9 @@ export function resolveInsertIndex(
  * Pure placement: returns the key for inserting at `index`, or null when the
  * neighbours require a re-key.
  */
-export function keyForIndex(
-  column: readonly ColumnTask[],
-  index: number,
-  requested?: string
-): string | null {
+export function keyForIndex(column: readonly ColumnTask[], index: number): string | null {
   const before = index > 0 ? column[index - 1]!.position : null;
   const after = index < column.length ? column[index]!.position : null;
-
-  // Legacy fast path: keep a client key that is valid and fits strictly.
-  if (
-    requested !== undefined &&
-    isValidPosition(requested) &&
-    (before === null || comparePositions(before, requested) < 0) &&
-    (after === null || comparePositions(requested, after) < 0)
-  ) {
-    return requested;
-  }
 
   // Any invalid neighbour (legacy generator output) means the column gets re-keyed.
   if ((before !== null && !isValidPosition(before)) || (after !== null && !isValidPosition(after)))
@@ -194,11 +180,7 @@ export async function placeTask(
   await lockColumn(db, request.projectId, request.stateId);
   const column = await loadColumn(db, request.projectId, request.stateId, request.taskId);
   const index = resolveInsertIndex(column, request);
-  const key = keyForIndex(
-    column,
-    index,
-    request.afterTaskId || request.beforeTaskId ? undefined : request.position
-  );
+  const key = keyForIndex(column, index);
   if (key !== null) return { position: key, rekeyed: false };
   return { position: await rekeyColumn(db, column, index), rekeyed: true };
 }

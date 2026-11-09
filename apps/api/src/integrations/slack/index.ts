@@ -5,7 +5,6 @@ export {
   type SlackBlock,
   type SlackChannel,
 } from './client.js';
-export { SlackProvider } from './provider.js';
 export {
   SlackNotifier,
   buildTaskNotificationMessage,

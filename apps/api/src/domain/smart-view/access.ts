@@ -50,19 +50,11 @@ export function canAccessSmartView(
 }
 
 /** Public-share fields safe to return to workspace members who manage shares. */
-export type PublicShareSummary = Omit<PublicShare, 'passwordHash'> & {
-  hasPassword: boolean;
-  /**
-   * @deprecated Never the real hash. Kept as a truthy marker for older web
-   * clients that test `share.passwordHash`; use `hasPassword` instead.
-   */
-  passwordHash: string | null;
-};
+export type PublicShareSummary = Omit<PublicShare, 'passwordHash'> & { hasPassword: boolean };
 
 export function toPublicShareSummary(share: PublicShare): PublicShareSummary {
   const { passwordHash, ...rest } = share;
-  const hasPassword = Boolean(passwordHash);
-  return { ...rest, hasPassword, passwordHash: hasPassword ? 'set' : null };
+  return { ...rest, hasPassword: Boolean(passwordHash) };
 }
 
 /**

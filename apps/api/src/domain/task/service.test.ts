@@ -79,10 +79,8 @@ describe('column placement (pure)', () => {
     ).toThrow(TaskError);
   });
 
-  it('keeps a valid client key that fits, otherwise generates one', () => {
-    const column = col('a0', 'a2');
-    expect(keyForIndex(column, 1, 'a1')).toBe('a1');
-    const generated = keyForIndex(column, 1, 'zz');
+  it('generates a key between the neighbours', () => {
+    const generated = keyForIndex(col('a0', 'a2'), 1);
     expect(generated! > 'a0' && generated! < 'a2').toBe(true);
   });
 

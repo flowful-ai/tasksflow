@@ -788,10 +788,6 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
 ];
 
-export function getToolDefinition(name: string): ToolDefinition | undefined {
-  return AGENT_TOOLS.find((tool) => tool.name === name);
-}
-
 /** Tools that change data; the in-app chat asks the user before running them. */
 export function isMutatingTool(tool: ToolDefinition): boolean {
   return tool.annotations.readOnlyHint !== true;

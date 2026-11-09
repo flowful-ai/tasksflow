@@ -23,7 +23,7 @@ export interface ToolServices {
   >;
   comments: Pick<CommentService, 'create' | 'list'>;
   smartViews: Pick<SmartViewService, 'create' | 'getById' | 'list'>;
-  githubLinks: Pick<TaskGitHubLinkService, 'linkPullRequestToTask'>;
+  githubLinks: Pick<TaskGitHubLinkService, 'linkPr'>;
   publish: (workspaceId: string, event: string, payload: object) => void;
   /**
    * Run task writes in one transaction (TaskService.transaction): all of them

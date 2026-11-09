@@ -24,7 +24,7 @@ import {
   projects,
   workspaceAgents,
 } from '../../db/index.js';
-import { generatePosition, parseTaskKey, ok, err } from '@flowtask/shared';
+import { parseTaskKey, ok, err } from '@flowtask/shared';
 import type { JsonValue, Result } from '@flowtask/shared';
 import { BufferedEventSink, domainEvents, type DomainEventSink } from '../events/bus.js';
 import type { TaskFieldChange } from '../events/types.js';
@@ -739,7 +739,7 @@ export class TaskService {
   /**
    * Move a task to a state and/or position. The target state must belong to
    * the task's project. The key is computed server-side from afterTaskId /
-   * beforeTaskId (or a legacy client position) inside the transaction; an
+   * beforeTaskId inside the transaction; an
    * invalid neighbour triggers a re-key of the column.
    */
   async move(taskId: string, input: TaskMoveInput): Promise<Result<TaskDetail, Error>> {
@@ -755,7 +755,6 @@ export class TaskService {
           taskId,
           afterTaskId: input.afterTaskId,
           beforeTaskId: input.beforeTaskId,
-          position: input.position,
         });
 
         await tx
@@ -1135,25 +1134,6 @@ export class TaskService {
       return ok(undefined);
     } catch (error) {
       return err(toError(error));
-    }
-  }
-
-  /**
-   * Calculate a position between two keys (legacy helper for clients that
-   * compute positions themselves). Invalid neighbours are stepped over where
-   * possible; prefer TaskService.move with afterTaskId/beforeTaskId.
-   */
-  calculatePositionBetween(beforePosition: string | null, afterPosition: string | null): string {
-    try {
-      return generatePosition(beforePosition, afterPosition);
-    } catch {
-      // Neighbours are invalid or out of order: fall back to "after before".
-      // The move endpoint re-keys the column when this key does not fit.
-      try {
-        return generatePosition(beforePosition, null);
-      } catch {
-        return generatePosition(null, null);
-      }
     }
   }
 

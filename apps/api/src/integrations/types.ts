@@ -11,25 +11,6 @@ export interface GitHubRepoRef {
 export type PublishRealtimeEvent = (workspaceId: string, event: string, data: object) => void;
 
 /**
- * Interface that integration providers implement for config validation.
- * Webhook handling and notifications live in dedicated services
- * (GitHubWebhookProcessor, notifySlackForTaskEvent).
- */
-export interface IntegrationProvider<TConfig> {
-  /** Unique identifier for this integration type */
-  type: string;
-
-  /** Human-readable name */
-  name: string;
-
-  /** Validate a stored configuration */
-  validateConfig(config: unknown): config is TConfig;
-
-  /** Check if the integration is usable (config valid and credentials present) */
-  isConfigured(config: TConfig): boolean;
-}
-
-/**
  * Task notification data for external services.
  */
 export interface TaskNotification {

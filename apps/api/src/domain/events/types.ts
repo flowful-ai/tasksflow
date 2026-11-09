@@ -86,13 +86,3 @@ export interface DomainEventMap {
 }
 
 export type DomainEventName = keyof DomainEventMap;
-
-export const DOMAIN_EVENT_NAMES: readonly DomainEventName[] = [
-  'task.created',
-  'task.updated',
-  'task.moved',
-  'task.deleted',
-  'task.restored',
-  'tasks.rekeyed',
-  'comment.created',
-];

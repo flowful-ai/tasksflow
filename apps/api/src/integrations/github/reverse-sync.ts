@@ -84,8 +84,6 @@ interface ResolvedIssueLink {
 export const REVERSE_SYNC_JOBS = {
   task: 'github.reverse_sync.task',
   comment: 'github.reverse_sync.comment',
-  /** Legacy job type (queued before task jobs carried only kinds); handled as a state sync. */
-  closeIssue: 'github.reverse_sync.close_issue',
 } as const;
 
 /** One pending task reverse-sync job per task: later changes coalesce into it. */
@@ -108,14 +106,6 @@ export function changeKindsFromPayload(payload: BackgroundJobPayload): TaskChang
   const kinds: TaskChangesForGitHub = {};
   for (const kind of CHANGE_KINDS) {
     if (payload[kind] === true) kinds[kind] = true;
-  }
-  // Jobs queued by the previous version carried a `changes` snapshot: keep its kinds only.
-  const legacy = payload.changes;
-  if (legacy && typeof legacy === 'object' && !Array.isArray(legacy)) {
-    if ('title' in legacy) kinds.title = true;
-    if ('description' in legacy) kinds.description = true;
-    if ('stateId' in legacy) kinds.state = true;
-    if ('labelIds' in legacy) kinds.labels = true;
   }
   return kinds;
 }
@@ -164,9 +154,6 @@ export class GitHubReverseSyncService {
     });
     registerBackgroundJob(REVERSE_SYNC_JOBS.comment, async (payload) => {
       await this.syncCommentToGitHub(payloadTaskId(payload), commentFromPayload(payload.comment));
-    });
-    registerBackgroundJob(REVERSE_SYNC_JOBS.closeIssue, async (payload) => {
-      await this.syncTaskToGitHub(payloadTaskId(payload), { state: true });
     });
   }
 

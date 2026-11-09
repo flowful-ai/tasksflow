@@ -4,7 +4,6 @@ import { ToolExecutionError } from './errors.js';
 import type { JsonRecord } from './json-schema-zod.js';
 import {
   resolveMcpTaskViewArgs,
-  resolveMcpWriteReturnMode,
   type McpTaskViewArgs,
   type McpWriteReturnMode,
 } from './tool-args.js';
@@ -104,10 +103,6 @@ export function resolveTaskProjectionArgs(args: JsonRecord): TaskProjectionOptio
     validateCustomRelationFlags(viewArgs.fields, viewArgs);
   }
   return viewArgs;
-}
-
-export function resolveWriteMode(args: JsonRecord): McpWriteReturnMode {
-  return resolveMcpWriteReturnMode(args);
 }
 
 export function taskKey(task: Pick<TaskWithRelations, 'project' | 'sequenceNumber'>): string {

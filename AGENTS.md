@@ -43,7 +43,7 @@
 - Business/domain logic: `apps/api/src/domain`.
 - Authorization guards: `apps/api/src/lib/authorize.ts` over `AuthorizationService` (`apps/api/src/domain/workspace/authorization.ts`).
 - Agent/MCP tools: definitions in `apps/api/src/domain/agent/tools.ts`, handlers in `apps/api/src/services/agent-tools/`, dispatcher `apps/api/src/services/agent-tool-runtime.ts`.
-- Integrations (GitHub App, Slack, OpenRouter): `apps/api/src/integrations`.
+- Integrations (GitHub App, Slack): `apps/api/src/integrations`.
 - Realtime (SSE): `apps/api/src/sse`; side effects of domain events: `apps/api/src/background`.
 - Shared types/schemas/contracts: `packages/shared/src/types`.
 - Database tables/relations/client config: `apps/api/src/db`.

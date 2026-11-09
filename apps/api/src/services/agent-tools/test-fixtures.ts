@@ -154,7 +154,7 @@ export function createScopeDeps(tasks: TaskWithRelations[] = createTasks()): Too
 
 export interface RecordedCalls {
   list: TaskListOptions[];
-  move: Array<{ taskId: string; stateId: string; position: string | undefined }>;
+  move: Array<{ taskId: string; stateId: string }>;
   delete: string[];
   addAssignee: Array<{ taskId: string; userId: string }>;
   published: string[];
@@ -201,11 +201,9 @@ export function createServices(tasks: TaskWithRelations[] = createTasks()): {
         return ok({ tasks: rows.slice((page - 1) * limit, page * limit), total: rows.length });
       },
       move: async (taskId, input) => {
-        calls.move.push({ taskId, stateId: input.stateId, position: input.position });
+        calls.move.push({ taskId, stateId: input.stateId });
         const found = byId(taskId);
-        return found
-          ? ok({ ...found, stateId: input.stateId, position: input.position ?? found.position })
-          : err(new Error('Task not found'));
+        return found ? ok({ ...found, stateId: input.stateId }) : err(new Error('Task not found'));
       },
       delete: async (taskId) => {
         calls.delete.push(taskId);
@@ -222,7 +220,7 @@ export function createServices(tasks: TaskWithRelations[] = createTasks()): {
     comments: { create: unsupported, list: async () => ok({ comments: [], total: 0 }) },
     smartViews: { create: unsupported, getById: unsupported, list: async () => ok([]) },
     githubLinks: {
-      linkPullRequestToTask: async () => {
+      linkPr: async () => {
         throw new Error('not supported in this fake');
       },
     },

@@ -8,7 +8,6 @@ export {
   type GitHubAppCredentials,
   type InstallationRepository,
 } from './client.js';
-export { GitHubProvider } from './provider.js';
 export {
   parseGitHubWebhook,
   mapLabelsToPriority,

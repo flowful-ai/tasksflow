@@ -1,9 +1,6 @@
 // Types
 export * from './types.js';
 
-// Registry
-export * from './registry.js';
-
 // Shared plumbing
 export * from './background.js';
 export * from './env.js';
@@ -16,6 +13,3 @@ export * from './github/index.js';
 
 // Slack integration
 export * from './slack/index.js';
-
-// OpenRouter integration
-export * from './openrouter/index.js';

@@ -2,7 +2,7 @@
  * Shared UI primitives. Import from here:
  *   import { Dialog, ConfirmDialog, IconButton, toastUndo } from '../components/ui';
  */
-export { Dialog, DialogClose, type DialogProps, type DialogSize } from './Dialog';
+export { Dialog, type DialogProps, type DialogSize } from './Dialog';
 export { ConfirmDialog, type ConfirmDialogProps } from './ConfirmDialog';
 export {
   DropdownMenu,
@@ -10,9 +10,6 @@ export {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuCheckboxItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuGroup,
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
@@ -21,7 +18,7 @@ export {
   type DropdownMenuItemProps,
   type MenuTone,
 } from './DropdownMenu';
-export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor, PopoverClose } from './Popover';
+export { Popover, PopoverTrigger, PopoverContent } from './Popover';
 export { Tooltip, TooltipProvider, type TooltipProps } from './Tooltip';
 export {
   IconButton,
