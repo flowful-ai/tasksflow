@@ -1,10 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MessageSquare, X, Send, Bot, Wrench, Loader2 } from 'lucide-react';
+import { MessageSquare, X, Send, Bot, Wrench, Loader2, ShieldAlert } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
 import { useChat } from '@ai-sdk/react';
-import { DefaultChatTransport, type UIMessage, type UIMessagePart } from 'ai';
+import {
+  DefaultChatTransport,
+  getToolName,
+  isToolUIPart,
+  lastAssistantMessageIsCompleteWithApprovalResponses,
+  type DynamicToolUIPart,
+  type ToolUIPart,
+  type UIMessage,
+} from 'ai';
+import type { Components } from 'react-markdown';
 import { agentApi, workspaceAiSettingsApi, type AgentSummary } from '../../api/client';
 import { useWorkspaceStore } from '../../stores/workspace';
 import { useAuthStore } from '../../stores/auth';
@@ -25,31 +34,42 @@ function stringifyJson(value: unknown): string {
   }
 }
 
-function isToolPart(part: UIMessagePart<Record<string, never>, Record<string, { input: unknown; output: unknown }>>): boolean {
-  return part.type === 'dynamic-tool' || part.type.startsWith('tool-');
-}
+type AnyToolPart = ToolUIPart | DynamicToolUIPart;
 
-function getToolName(part: UIMessagePart<Record<string, never>, Record<string, { input: unknown; output: unknown }>>): string {
-  if (part.type === 'dynamic-tool') {
-    return part.toolName;
-  }
-  return part.type.replace(/^tool-/, '');
-}
-
-function getToolStatusLabel(state: string | undefined): string {
-  switch (state) {
+function getToolStatusLabel(part: AnyToolPart): string {
+  switch (part.state) {
     case 'input-streaming':
       return 'Preparing...';
     case 'input-available':
-      return 'Queued';
+      return 'Running';
+    case 'approval-requested':
+      return 'Needs approval';
+    case 'approval-responded':
+      return part.approval.approved ? 'Approved' : 'Denied';
     case 'output-available':
       return 'Completed';
     case 'output-error':
       return 'Failed';
-    default:
-      return state ?? 'Running';
+    case 'output-denied':
+      return 'Denied';
   }
 }
+
+/**
+ * Remote images are never loaded: an image URL chosen by the model (or by
+ * injected task text) could carry workspace data to a third party.
+ */
+const MarkdownImage: Components['img'] = ({ src, alt }) => {
+  const label = alt?.trim() ? alt : 'image';
+  if (typeof src !== 'string' || !src) {
+    return <span className="italic text-gray-500">[{label}]</span>;
+  }
+  return (
+    <a href={src} className="text-primary-600 underline" target="_blank" rel="noopener noreferrer nofollow">
+      [image: {label}]
+    </a>
+  );
+};
 
 function getUserMessageText(message: UIMessage): string {
   return message.parts
@@ -103,8 +123,11 @@ export function GlobalAgentChat() {
     []
   );
 
-  const { messages, status, sendMessage, stop, error: chatError } = useChat({
+  const { messages, status, sendMessage, stop, addToolApprovalResponse, error: chatError } = useChat({
     transport,
+    // After the user approves or denies every pending tool call, send the
+    // decisions back so the server can run (or skip) the approved calls.
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
     onError: (error) => {
       setErrorMessage(error.message);
     },
@@ -162,9 +185,7 @@ export function GlobalAgentChat() {
 
   const lastAssistantMessage = [...messages].reverse().find((message) => message.role === 'assistant');
   const lastAssistantHasVisibleOutput = !!lastAssistantMessage?.parts.some(
-    (part) =>
-      (part.type === 'text' && part.text.trim().length > 0) ||
-      isToolPart(part as UIMessagePart<Record<string, never>, Record<string, { input: unknown; output: unknown }>>)
+    (part) => (part.type === 'text' && part.text.trim().length > 0) || isToolUIPart(part)
   );
   const showThinking = isStreaming && !lastAssistantHasVisibleOutput;
   const currentError = errorMessage || chatError?.message || null;
@@ -275,9 +296,7 @@ export function GlobalAgentChat() {
 
                 const assistantParts = message.parts;
                 const hasText = assistantParts.some((part) => part.type === 'text' && part.text.trim().length > 0);
-                const hasToolOutput = assistantParts.some((part) =>
-                  isToolPart(part as UIMessagePart<Record<string, never>, Record<string, { input: unknown; output: unknown }>>)
-                );
+                const hasToolOutput = assistantParts.some((part) => isToolUIPart(part));
 
                 return (
                   <div key={message.id} className="mr-8 rounded-xl bg-gray-100 px-3 py-2 text-sm text-gray-800">
@@ -317,6 +336,7 @@ export function GlobalAgentChat() {
                                 tr: ({ children }) => <tr className="border-b border-gray-300 last:border-b-0">{children}</tr>,
                                 th: ({ children }) => <th className="px-2 py-1 font-semibold text-gray-900">{children}</th>,
                                 td: ({ children }) => <td className="px-2 py-1 align-top">{children}</td>,
+                                img: MarkdownImage,
                               }}
                             >
                               {part.text}
@@ -324,47 +344,74 @@ export function GlobalAgentChat() {
                           );
                         }
 
-                        if (
-                          part.type === 'dynamic-tool' ||
-                          part.type.startsWith('tool-')
-                        ) {
-                          const toolPart = part as UIMessagePart<Record<string, never>, Record<string, { input: unknown; output: unknown }>>;
-                          const hasInput = 'input' in toolPart && toolPart.input !== undefined;
-                          const hasOutput = 'output' in toolPart && toolPart.output !== undefined;
-                          const hasErrorText = 'errorText' in toolPart && typeof toolPart.errorText === 'string' && toolPart.errorText.length > 0;
+                        if (isToolUIPart(part)) {
+                          const hasInput = part.input !== undefined;
+                          const hasOutput = part.state === 'output-available';
+                          const hasErrorText = part.state === 'output-error' && part.errorText.length > 0;
 
                           return (
                             <div key={`${message.id}-tool-${index}`} className="rounded-lg border border-gray-300 bg-white p-2 text-xs text-gray-700">
                               <div className="flex items-center justify-between gap-2">
                                 <div className="inline-flex items-center gap-1.5 font-medium text-gray-900">
                                   <Wrench className="h-3.5 w-3.5" />
-                                  {getToolName(toolPart)}
+                                  {getToolName(part)}
                                 </div>
                                 <span className="rounded bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600">
-                                  {'state' in toolPart ? getToolStatusLabel(toolPart.state) : 'Running'}
+                                  {getToolStatusLabel(part)}
                                 </span>
                               </div>
 
                               {hasInput && (
-                                <details className="mt-2">
+                                <details className="mt-2" open={part.state === 'approval-requested'}>
                                   <summary className="cursor-pointer text-gray-600">Input</summary>
                                   <pre className="mt-1 overflow-x-auto rounded bg-gray-100 p-2 text-[11px] text-gray-800">
-                                    {stringifyJson(toolPart.input)}
+                                    {stringifyJson(part.input)}
                                   </pre>
                                 </details>
+                              )}
+
+                              {part.state === 'approval-requested' && (
+                                <div className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-amber-900">
+                                  <div className="mb-2 inline-flex items-center gap-1.5 font-medium">
+                                    <ShieldAlert className="h-3.5 w-3.5" />
+                                    This action changes workspace data. Allow it?
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      className="rounded bg-neutral-900 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-neutral-800"
+                                      onClick={() => void addToolApprovalResponse({ id: part.approval.id, approved: true })}
+                                    >
+                                      Approve
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="rounded border border-gray-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-800 hover:bg-gray-100"
+                                      onClick={() =>
+                                        void addToolApprovalResponse({
+                                          id: part.approval.id,
+                                          approved: false,
+                                          reason: 'The user denied this action.',
+                                        })
+                                      }
+                                    >
+                                      Deny
+                                    </button>
+                                  </div>
+                                </div>
                               )}
 
                               {hasOutput && (
                                 <details className="mt-2">
                                   <summary className="cursor-pointer text-gray-600">Output</summary>
                                   <pre className="mt-1 overflow-x-auto rounded bg-gray-100 p-2 text-[11px] text-gray-800">
-                                    {stringifyJson(toolPart.output)}
+                                    {stringifyJson(part.output)}
                                   </pre>
                                 </details>
                               )}
 
                               {hasErrorText && (
-                                <div className="mt-2 rounded bg-red-50 px-2 py-1 text-red-700">{toolPart.errorText}</div>
+                                <div className="mt-2 rounded bg-red-50 px-2 py-1 text-red-700">{part.errorText}</div>
                               )}
                             </div>
                           );
