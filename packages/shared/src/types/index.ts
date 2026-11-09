@@ -6,6 +6,5 @@ export * from './user.js';
 export * from './smart-view.js';
 export * from './integration.js';
 export * from './agent.js';
-export * from './api-token.js';
 export * from './invitation.js';
 export * from './app.js';
