@@ -94,9 +94,11 @@ export function Card({
   );
 }
 
-export interface PanelProps extends HTMLAttributes<HTMLDivElement> {
+export interface PanelProps extends HTMLAttributes<HTMLElement> {
   tone?: 'default' | 'danger' | 'muted';
   padding?: 'none' | 'sm' | 'md';
+  /** Element to render (a list row, a section). */
+  as?: 'div' | 'li' | 'section';
 }
 
 const PANEL_TONES = {
@@ -110,16 +112,17 @@ const PANEL_PADDING = { none: '', sm: 'p-3', md: 'p-4' } as const;
 export function Panel({
   tone = 'default',
   padding = 'md',
+  as: Tag = 'div',
   className,
   children,
   ...props
 }: PanelProps) {
   return (
-    <div
+    <Tag
       className={clsx('rounded-lg border', PANEL_TONES[tone], PANEL_PADDING[padding], className)}
       {...props}
     >
       {children}
-    </div>
+    </Tag>
   );
 }

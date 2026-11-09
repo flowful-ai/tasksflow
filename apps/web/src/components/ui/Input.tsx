@@ -9,11 +9,12 @@
  *     <option value="member">Member</option>
  *   </Select>
  *
- * `md` is the `.input` class from index.css; `sm` is the compact variant.
- * Read-only inputs render greyed. Select is a native <select> with the
- * browser arrow removed and a ChevronDown inset 12px from the right edge;
- * its `className` goes on the wrapper (width, margins), `selectClassName`
- * on the <select> itself.
+ * `md` is the `.input` class from index.css; `sm` is the compact variant;
+ * `bare` drops the chrome for inline editors. Read-only inputs render greyed.
+ *
+ * Select is a native <select> with the browser arrow removed and a
+ * ChevronDown inset 12px from the right edge; its `className` goes on the
+ * wrapper (width, margins), `selectClassName` on the <select> itself.
  */
 import {
   forwardRef,
@@ -23,30 +24,22 @@ import {
 } from 'react';
 import { ChevronDown } from 'lucide-react';
 import clsx from 'clsx';
+import { controlClasses, type ControlSize } from './control-classes';
 import { isInvalid, useFieldControl } from './field-context';
 
-export type ControlSize = 'sm' | 'md';
+export type { ControlSize };
 
-const SIZES: Record<ControlSize, string> = {
-  md: 'input',
-  sm: 'w-full rounded-lg border border-neutral-200 bg-white px-3 py-1.5 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500',
-};
-
-/** Classes shared by every text control; exported for the rare non-native control. */
-export function controlClasses(size: ControlSize = 'md', invalid = false): string {
-  return clsx(
-    SIZES[size],
-    'read-only:bg-neutral-50 read-only:text-neutral-500',
-    invalid && '!border-red-300 focus:!border-red-500 focus:!ring-red-500/20'
-  );
-}
+// Inputs and textareas only: a <select> always matches :read-only.
+const READ_ONLY = 'read-only:bg-neutral-50 read-only:text-neutral-500';
 
 export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
   size?: ControlSize;
+  /** No border, padding or focus ring: inline editors that sit inside their own box. */
+  bare?: boolean;
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { size = 'md', className, type = 'text', ...rest },
+  { size = 'md', bare = false, className, type = 'text', ...rest },
   ref
 ) {
   const props = useFieldControl(rest);
@@ -54,7 +47,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     <input
       ref={ref}
       type={type}
-      className={clsx(controlClasses(size, isInvalid(props)), className)}
+      className={clsx(!bare && [controlClasses(size, isInvalid(props)), READ_ONLY], className)}
       {...props}
     />
   );
@@ -62,17 +55,19 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
 
 export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   size?: ControlSize;
+  /** No border, padding or focus ring: inline editors that sit inside their own box. */
+  bare?: boolean;
 }
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function Textarea(
-  { size = 'md', className, ...rest },
+  { size = 'md', bare = false, className, ...rest },
   ref
 ) {
   const props = useFieldControl(rest);
   return (
     <textarea
       ref={ref}
-      className={clsx(controlClasses(size, isInvalid(props)), className)}
+      className={clsx(!bare && [controlClasses(size, isInvalid(props)), READ_ONLY], className)}
       {...props}
     />
   );
