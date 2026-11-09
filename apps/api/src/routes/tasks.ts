@@ -24,6 +24,7 @@ import {
   fromResult,
   handleRouteError,
   toAppError,
+  validationHook,
   AppError,
 } from '../lib/responses.js';
 
@@ -240,7 +241,7 @@ tasks.patch('/:taskId', zValidator('json', UpdateTaskSchema), async (c) => {
 });
 
 // Move task (change state and/or position)
-tasks.post('/:taskId/move', zValidator('json', MoveTaskSchema), async (c) => {
+tasks.post('/:taskId/move', zValidator('json', MoveTaskSchema, validationHook), async (c) => {
   const { task, project, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
   const data = c.req.valid('json');
 

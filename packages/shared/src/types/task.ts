@@ -93,6 +93,17 @@ export const MoveTaskSchema = z.object({
   stateId: z.string().uuid(),
   afterTaskId: z.string().uuid().nullable().optional(),
   beforeTaskId: z.string().uuid().nullable().optional(),
+  /**
+   * Removed: clients used to send a precomputed key. Rejected rather than
+   * silently stripped, so an old client fails loudly instead of its task
+   * landing at the end of the column.
+   */
+  position: z
+    .never({
+      invalid_type_error:
+        '`position` is no longer accepted: pass afterTaskId and/or beforeTaskId and the server computes the position',
+    })
+    .optional(),
 });
 
 export type MoveTask = z.infer<typeof MoveTaskSchema>;

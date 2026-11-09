@@ -13,6 +13,7 @@ v2 is a rewrite of the backend's security model and infrastructure, plus a redes
 - **GitHub App installs require user authorization.** Enable "Request user authorization (OAuth) during installation", set the callback to `<url>/api/github/callback`, and set `GITHUB_APP_CLIENT_ID`/`GITHUB_APP_CLIENT_SECRET`.
 - **Slack uses OAuth installs.** `SLACK_CLIENT_ID`/`SLACK_CLIENT_SECRET` replace `SLACK_APP_TOKEN`; bot tokens are stored per project, encrypted.
 - **MCP is OAuth-only.** The MCP endpoint is `/api/mcp` (Streamable HTTP; `/api/mcp/sse` still works). The split SSE endpoints (`/api/mcp/sse/stream`, `/api/mcp/sse/message`), the REST tool executor and the legacy `ft_v1_*` workspace agent tokens are removed (410).
+- **Task moves take neighbours, not keys.** `POST /api/tasks/:taskId/move` takes `stateId` plus optional `afterTaskId`/`beforeTaskId` and the server computes the position. A `position` field is rejected with a 400 `VALIDATION_ERROR` (it used to be accepted), and `POST /api/tasks/calculate-position` is removed.
 - **Error responses** are `{ success: false, error: { code, message } }` everywhere, including 401s.
 - **Migration `0016_v2`** normalises task priorities and state categories, pins `tasks.position` to `COLLATE "C"`, rewrites GitHub external ids to `owner/repo#N` and deletes ACL rows, labels and states that point across workspaces or projects. Invalid position keys are re-keyed on boot.
 - **Layout.** `packages/{database,domain,auth,integrations}` moved into `apps/api/src`; migrations live in `apps/api/drizzle`. turbo is gone.

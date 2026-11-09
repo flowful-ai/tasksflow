@@ -158,16 +158,16 @@ Re-run it after changing routes and paste the tables below the "Endpoints" headi
 
 ### `routes/notifications.ts`
 
-| Method | Path                               | Auth    | Permission | Body                         |
-| ------ | ---------------------------------- | ------- | ---------- | ---------------------------- |
-| GET    | `/api/notifications`               | session | -          | -                            |
-| GET    | `/api/notifications/unread-count`  | session | -          | -                            |
-| POST   | `/api/notifications/read-all`      | session | -          | `ReadAllNotificationsSchema` |
-| POST   | `/api/notifications/:id/read`      | session | -          | -                            |
-| POST   | `/api/notifications/:id/unread`    | session | -          | -                            |
-| POST   | `/api/notifications/:id/archive`   | session | -          | -                            |
-| POST   | `/api/notifications/:id/unarchive` | session | -          | -                            |
-| POST   | `/api/notifications/:id/snooze`    | session | -          | `SnoozeNotificationSchema`   |
+| Method | Path                               | Auth    | Permission       | Body                         |
+| ------ | ---------------------------------- | ------- | ---------------- | ---------------------------- |
+| GET    | `/api/notifications`               | session | `workspace:read` | -                            |
+| GET    | `/api/notifications/unread-count`  | session | `workspace:read` | -                            |
+| POST   | `/api/notifications/read-all`      | session | -                | `ReadAllNotificationsSchema` |
+| POST   | `/api/notifications/:id/read`      | session | -                | -                            |
+| POST   | `/api/notifications/:id/unread`    | session | -                | -                            |
+| POST   | `/api/notifications/:id/archive`   | session | -                | -                            |
+| POST   | `/api/notifications/:id/unarchive` | session | -                | -                            |
+| POST   | `/api/notifications/:id/snooze`    | session | -                | `SnoozeNotificationSchema`   |
 
 ### `routes/search.ts`
 
@@ -177,15 +177,15 @@ Re-run it after changing routes and paste the tables below the "Endpoints" headi
 
 ### `routes/outgoing-webhooks.ts`
 
-| Method | Path                                    | Auth    | Permission       | Body                          |
-| ------ | --------------------------------------- | ------- | ---------------- | ----------------------------- |
-| GET    | `/api/outgoing-webhooks`                | session | `owner or admin` | -                             |
-| POST   | `/api/outgoing-webhooks`                | session | `owner or admin` | `CreateOutgoingWebhookSchema` |
-| GET    | `/api/outgoing-webhooks/:id`            | session | `owner or admin` | -                             |
-| PATCH  | `/api/outgoing-webhooks/:id`            | session | `owner or admin` | `UpdateOutgoingWebhookSchema` |
-| DELETE | `/api/outgoing-webhooks/:id`            | session | `owner or admin` | -                             |
-| POST   | `/api/outgoing-webhooks/:id/test`       | session | `owner or admin` | -                             |
-| GET    | `/api/outgoing-webhooks/:id/deliveries` | session | `owner or admin` | -                             |
+| Method | Path                                    | Auth    | Permission | Body                          |
+| ------ | --------------------------------------- | ------- | ---------- | ----------------------------- |
+| GET    | `/api/outgoing-webhooks`                | session | -          | -                             |
+| POST   | `/api/outgoing-webhooks`                | session | -          | `CreateOutgoingWebhookSchema` |
+| GET    | `/api/outgoing-webhooks/:id`            | session | -          | -                             |
+| PATCH  | `/api/outgoing-webhooks/:id`            | session | -          | `UpdateOutgoingWebhookSchema` |
+| DELETE | `/api/outgoing-webhooks/:id`            | session | -          | -                             |
+| POST   | `/api/outgoing-webhooks/:id/test`       | session | -          | -                             |
+| GET    | `/api/outgoing-webhooks/:id/deliveries` | session | -          | -                             |
 
 ### `routes/workspaces.ts`
 
@@ -234,22 +234,22 @@ Re-run it after changing routes and paste the tables below the "Endpoints" headi
 
 ### `routes/workspace-api-keys.ts`
 
-| Method | Path                                              | Auth    | Permission       | Body                              |
-| ------ | ------------------------------------------------- | ------- | ---------------- | --------------------------------- |
-| POST   | `/api/workspaces/:workspaceId/api-keys`           | session | `owner or admin` | `inline zod schema`               |
-| GET    | `/api/workspaces/:workspaceId/api-keys`           | session | `owner or admin` | -                                 |
-| GET    | `/api/workspaces/:workspaceId/api-keys/:provider` | session | `owner or admin` | -                                 |
-| DELETE | `/api/workspaces/:workspaceId/api-keys/:provider` | session | `owner or admin` | -                                 |
-| GET    | `/api/workspaces/:workspaceId/ai-settings`        | session | `agent:execute`  | -                                 |
-| PATCH  | `/api/workspaces/:workspaceId/ai-settings`        | session | `owner or admin` | `UpdateWorkspaceAiSettingsSchema` |
+| Method | Path                                              | Auth    | Permission                  | Body                              |
+| ------ | ------------------------------------------------- | ------- | --------------------------- | --------------------------------- |
+| POST   | `/api/workspaces/:workspaceId/api-keys`           | session | `workspace:manage_settings` | `inline zod schema`               |
+| GET    | `/api/workspaces/:workspaceId/api-keys`           | session | `workspace:manage_settings` | -                                 |
+| GET    | `/api/workspaces/:workspaceId/api-keys/:provider` | session | `workspace:manage_settings` | -                                 |
+| DELETE | `/api/workspaces/:workspaceId/api-keys/:provider` | session | `workspace:manage_settings` | -                                 |
+| GET    | `/api/workspaces/:workspaceId/ai-settings`        | session | `agent:execute`             | -                                 |
+| PATCH  | `/api/workspaces/:workspaceId/ai-settings`        | session | `workspace:manage_settings` | `UpdateWorkspaceAiSettingsSchema` |
 
 ### `routes/mcp-connections.ts`
 
-| Method | Path                                                             | Auth    | Permission       | Body                |
-| ------ | ---------------------------------------------------------------- | ------- | ---------------- | ------------------- |
-| GET    | `/api/workspaces/:workspaceId/mcp-connections`                   | session | `owner or admin` | -                   |
-| PATCH  | `/api/workspaces/:workspaceId/mcp-connections/:consentId/scopes` | session | `owner or admin` | `inline zod schema` |
-| DELETE | `/api/workspaces/:workspaceId/mcp-connections/:consentId`        | session | `owner or admin` | -                   |
+| Method | Path                                                             | Auth    | Permission                  | Body                |
+| ------ | ---------------------------------------------------------------- | ------- | --------------------------- | ------------------- |
+| GET    | `/api/workspaces/:workspaceId/mcp-connections`                   | session | `workspace:manage_settings` | -                   |
+| PATCH  | `/api/workspaces/:workspaceId/mcp-connections/:consentId/scopes` | session | `workspace:manage_settings` | `inline zod schema` |
+| DELETE | `/api/workspaces/:workspaceId/mcp-connections/:consentId`        | session | `workspace:manage_settings` | -                   |
 
 ### `routes/tasks.ts`
 
@@ -266,7 +266,6 @@ Re-run it after changing routes and paste the tables below the "Endpoints" headi
 | DELETE | `/api/tasks/:taskId/assignees/:userId` | session | `task:assign`                | -                             |
 | POST   | `/api/tasks/:taskId/labels`            | session | `task:update`                | `inline zod schema`           |
 | DELETE | `/api/tasks/:taskId/labels/:labelId`   | session | `task:update`                | -                             |
-| POST   | `/api/tasks/calculate-position`        | session | -                            | `inline zod schema`           |
 | POST   | `/api/tasks/:taskId/github-issue`      | session | `task:update`                | `GitHubRepoRefSchema`         |
 | POST   | `/api/tasks/:taskId/github-issue/link` | session | `task:update`                | `LinkTaskGitHubIssueSchema`   |
 | POST   | `/api/tasks/:taskId/github-pr`         | session | `task:update`                | `LinkTaskGitHubPrSchema`      |
@@ -318,7 +317,7 @@ Re-run it after changing routes and paste the tables below the "Endpoints" headi
 | GET    | `/api/app/users`              | session (app manager) | -          | -                         |
 | PATCH  | `/api/app/users/:userId/role` | session (app manager) | -          | `UpdateAppUserRoleSchema` |
 
-163 routes.
+162 routes.
 
 ## Notes
 

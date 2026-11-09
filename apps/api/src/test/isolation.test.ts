@@ -125,7 +125,7 @@ function workspaceAEndpoints(s: Seed, foreignUserId: string): EndpointCase[] {
       name: 'move task',
       method: 'POST',
       path: `/api/tasks/${t}/move`,
-      body: { stateId: p.otherStateId, position: 'a5' },
+      body: { stateId: p.otherStateId },
     },
     { name: 'delete task', method: 'DELETE', path: `/api/tasks/${t}` },
     { name: 'restore task', method: 'POST', path: `/api/tasks/${t}/restore` },
@@ -325,6 +325,21 @@ describe.skipIf(!integrationEnabled)('cross-workspace isolation', () => {
     expect(results[1]?.body.error?.code).toBe('INVALID_STATE');
     expect(results[1]?.body.error?.message).toBe('Invalid state for this project');
     expect(results.map((r) => r.text).join('')).not.toContain(h.seed.users.memberA.email);
+  });
+
+  it('rejects a legacy position key on move instead of ignoring it', async () => {
+    const own = h.seed.taskB;
+    const res = await h.request('ownerB', 'POST', `/api/tasks/${own}/move`, {
+      stateId: h.seed.projectB.otherStateId,
+      position: 'a1',
+    });
+    expect(res.status).toBe(400);
+    expect(res.text).toContain('afterTaskId');
+    const [row] = await h.db
+      .select({ stateId: tasks.stateId })
+      .from(tasks)
+      .where(eq(tasks.id, own));
+    expect(row?.stateId).toBe(h.seed.projectB.stateId);
   });
 
   it('returns 404, not 500, for malformed ids', async () => {
