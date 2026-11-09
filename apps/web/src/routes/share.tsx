@@ -1,103 +1,39 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Lock } from 'lucide-react';
-import { api, ApiError } from '../api/client';
-import { TaskDisplayContainer, type DisplayType } from '../components/task-display/TaskDisplayContainer';
-import type { GroupBy } from '../components/task-display/grouping';
+import { ApiError } from '../api/http';
+import { publicShareApi, type PublicTaskDto } from '../api/smartViews';
+import { queryKeys } from '../api/queryKeys';
+import { usePublicShare } from '../hooks/queries';
+import { TaskDisplayContainer } from '../components/task-display/TaskDisplayContainer';
 import type { TaskCardTask } from '../components/task-display/TaskCard';
 import { TaskDetailSheet } from '../components/tasks/TaskDetailSheet';
-
-interface PublicTaskState {
-  id: string;
-  name: string;
-  color: string | null;
-  category?: string;
-}
-
-interface PublicTask {
-  id: string;
-  title: string;
-  priority: string | null;
-  dueDate: string | null;
-  sequenceNumber: number;
-  state: PublicTaskState | null;
-  assignees: {
-    id: string;
-    name: string | null;
-    email: string;
-  }[];
-  labels: {
-    id: string;
-    name: string;
-    color: string | null;
-  }[];
-  project: {
-    id: string;
-    identifier: string;
-    name: string;
-  };
-  description: string | null;
-  stateId: string | null;
-  externalLinks?: {
-    id: string;
-    externalType: 'github_issue' | 'github_pr';
-    externalId: string;
-    externalUrl: string;
-  }[];
-  createdAt: string;
-  updatedAt: string | null;
-}
-
-interface PublicView {
-  name: string;
-  displayType: DisplayType;
-  groupBy?: GroupBy;
-  secondaryGroupBy?: GroupBy | null;
-}
-
-interface PublicShareData {
-  requiresPassword?: boolean;
-  view?: PublicView;
-  tasks?: PublicTask[];
-}
+import { EmptyState, ErrorState, PageSpinner } from '../components/ui';
 
 export function PublicSharePage() {
   const { token } = useParams<{ token: string }>();
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
-  const [selectedTask, setSelectedTask] = useState<PublicTask | null>(null);
+  const [selectedTask, setSelectedTask] = useState<PublicTaskDto | null>(null);
 
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['public-share', token],
-    queryFn: async () => {
-      const response = await api.get<{ data: PublicShareData }>(`/api/public/share/${token}`);
-      return response.data;
-    },
-    enabled: !!token,
-    retry: false,
-  });
-
-  const shareErrorMessage = error instanceof ApiError ? error.message : 'This share link may have expired or been disabled.';
+  const queryClient = useQueryClient();
+  const { data, isLoading, error } = usePublicShare(token);
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!token) return;
     setPasswordError('');
-
     try {
-      await api.post<{ data: PublicShareData }>(`/api/public/share/${token}/verify`, { password });
-      // Update the query data
-      refetch();
+      const unlocked = await publicShareApi.verify(token, password);
+      queryClient.setQueryData(queryKeys.publicShares.byToken(token), unlocked);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.publicShares.byToken(token) });
     } catch (err) {
-      if (err instanceof ApiError) {
-        setPasswordError(err.message);
-      } else {
-        setPasswordError('Invalid password');
-      }
+      setPasswordError(err instanceof ApiError ? err.message : 'Invalid password');
     }
   };
 
-  const handleTaskClick = (taskId: string, _event: React.MouseEvent<HTMLDivElement>) => {
+  const handleTaskClick = (taskId: string) => {
     const task = data?.tasks?.find((t) => t.id === taskId);
     if (task) {
       setSelectedTask(task);
@@ -105,28 +41,26 @@ export function PublicSharePage() {
   };
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
-      </div>
-    );
+    return <PageSpinner className="min-h-screen bg-gray-50" label="Loading shared view" />;
   }
 
   if (error || !data) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Share not found</h1>
-          <p className="text-gray-600">{shareErrorMessage}</p>
-        </div>
-      </div>
+      <main className="min-h-screen flex items-center justify-center bg-gray-50">
+        <ErrorState
+          error={error}
+          resource="share link"
+          onRetry={() => window.location.reload()}
+          notFoundAction={<p className="text-sm text-gray-500">The link may have expired or been disabled.</p>}
+        />
+      </main>
     );
   }
 
   // Password required
   if (data.requiresPassword) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
+      <main className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
         <div className="max-w-md w-full">
           <div className="text-center mb-8">
             <div className="mx-auto w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4">
@@ -138,7 +72,7 @@ export function PublicSharePage() {
 
           <form onSubmit={handlePasswordSubmit} className="card p-6">
             {passwordError && (
-              <div className="p-3 mb-4 text-sm text-red-600 bg-red-50 rounded-lg">
+              <div role="alert" className="p-3 mb-4 text-sm text-red-600 bg-red-50 rounded-lg">
                 {passwordError}
               </div>
             )}
@@ -163,7 +97,7 @@ export function PublicSharePage() {
             </button>
           </form>
         </div>
-      </div>
+      </main>
     );
   }
 
@@ -182,6 +116,7 @@ export function PublicSharePage() {
     dueDate: task.dueDate,
     updatedAt: task.updatedAt,
     state: task.state,
+    agent: null,
     assignees: task.assignees,
     labels: task.labels,
     project: task.project,
@@ -194,7 +129,7 @@ export function PublicSharePage() {
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
+            <div aria-hidden className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
               <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M5 12l5 5L19 7" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -215,9 +150,7 @@ export function PublicSharePage() {
 
         <div className="card p-4">
           {taskCards.length === 0 ? (
-            <div className="p-12 text-center">
-              <p className="text-gray-500">No tasks to display</p>
-            </div>
+            <EmptyState title="No tasks to display" body="This view has no matching tasks right now." />
           ) : (
             <TaskDisplayContainer
               tasks={taskCards}
@@ -257,7 +190,7 @@ export function PublicSharePage() {
             project: selectedTask.project,
             assignees: selectedTask.assignees,
             labels: selectedTask.labels,
-            externalLinks: selectedTask.externalLinks || [],
+            externalLinks: selectedTask.externalLinks ?? [],
             sequenceNumber: selectedTask.sequenceNumber,
             dueDate: selectedTask.dueDate,
             startDate: null,

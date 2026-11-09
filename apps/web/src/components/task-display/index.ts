@@ -1,4 +1,4 @@
-export { TaskCard, type TaskCardTask } from './TaskCard';
+export { TaskCard, type TaskCardTask, type TaskOpenEvent } from './TaskCard';
 export {
   BulkTaskToolbar,
   type BulkAssignMode,

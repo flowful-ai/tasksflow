@@ -7,7 +7,7 @@ import {
   Check,
   Calendar,
   Trash2,
-  X,
+  GitBranch,
   Hash,
   Link as LinkIcon,
   Eye,
@@ -15,22 +15,11 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 
-// Public share type matching the database schema
-export interface PublicShare {
-  id: string;
-  smartViewId: string;
-  token: string;
-  displayTypeOverride: string | null;
-  hideFields: string[] | null;
-  hasPassword: boolean;
-  expiresAt: string | null;
-  maxAccessCount: number | null;
-  accessCount: number;
-  lastAccessedAt: string | null;
-  isActive: boolean;
-  createdBy: string | null;
-  createdAt: string;
-}
+import type { CreatePublicShareInput, PublicShareDto } from '../../api/types';
+import { ConfirmDialog, Dialog, IconButton } from '../ui';
+
+/** A public share as returned to its owner. */
+export type PublicShare = PublicShareDto;
 
 interface ShareButtonProps {
   hasActiveShares: boolean;
@@ -173,11 +162,8 @@ interface ShareDialogProps {
   onDelete: (shareId: string) => void;
 }
 
-export interface CreateShareData {
-  password?: string;
-  expiresAt?: string;
-  maxAccessCount?: number;
-}
+/** What the create form submits (a subset of CreatePublicShareInput). */
+export type CreateShareData = Pick<CreatePublicShareInput, 'password' | 'expiresAt' | 'maxAccessCount' | 'showExternalLinks'>;
 
 export function ShareDialog({
   viewName,
@@ -195,6 +181,7 @@ export function ShareDialog({
   const [showPassword, setShowPassword] = useState(false);
   const [expiresAt, setExpiresAt] = useState('');
   const [maxAccessCount, setMaxAccessCount] = useState('');
+  const [showExternalLinks, setShowExternalLinks] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
@@ -211,6 +198,9 @@ export function ShareDialog({
     }
     if (maxAccessCount && parseInt(maxAccessCount, 10) > 0) {
       data.maxAccessCount = parseInt(maxAccessCount, 10);
+    }
+    if (showExternalLinks) {
+      data.showExternalLinks = true;
     }
     onCreate(data);
   };
@@ -231,22 +221,61 @@ export function ShareDialog({
     share.maxAccessCount !== null && share.accessCount >= share.maxAccessCount;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative w-full max-w-lg bg-white rounded-lg shadow-xl max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            <Share2 className="w-5 h-5 text-gray-600" />
-            <h2 className="text-lg font-semibold text-gray-900">Share "{viewName}"</h2>
-          </div>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-gray-100">
-            <X className="w-5 h-5" />
-          </button>
+    <>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      title={
+        <span className="flex items-center gap-2">
+          <Share2 className="w-5 h-5 text-gray-600" aria-hidden />
+          Share "{viewName}"
+        </span>
+      }
+      size="lg"
+      bodyClassName="space-y-4"
+      footer={
+        <div className="flex w-full items-center justify-between gap-3">
+          {!showCreateForm && activeShares.length > 0 ? (
+            <>
+              <button
+                onClick={() => setShowCreateForm(true)}
+                className="text-sm text-primary-600 hover:text-primary-700"
+              >
+                + Create another link
+              </button>
+              <button onClick={onClose} className="btn btn-secondary">
+                Close
+              </button>
+            </>
+          ) : (
+            <>
+              {publicShares.length > 0 && (
+                <button
+                  onClick={() => setShowCreateForm(false)}
+                  className="text-sm text-gray-600 hover:text-gray-700"
+                >
+                  Back to shares
+                </button>
+              )}
+              <div className="flex gap-3 ml-auto">
+                <button onClick={onClose} className="btn btn-secondary">
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreate}
+                  disabled={isCreating}
+                  className="btn btn-primary"
+                >
+                  {isCreating ? 'Creating...' : 'Create share link'}
+                </button>
+              </div>
+            </>
+          )}
         </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      }
+    >
           {/* Active shares list */}
           {activeShares.length > 0 && !showCreateForm && (
             <div className="space-y-3">
@@ -281,8 +310,12 @@ export function ShareDialog({
                                 : 'Public link'}
                           </span>
                           {share.hasPassword && (
-                            <span title="Password protected">
-                              <Lock className="w-3.5 h-3.5 text-gray-500" />
+                            <Lock className="w-3.5 h-3.5 text-gray-500" aria-label="Password protected" />
+                          )}
+                          {share.showExternalLinks && (
+                            <span className="inline-flex items-center gap-1 text-xs text-gray-600">
+                              <GitBranch className="w-3.5 h-3.5" aria-hidden />
+                              GitHub links shown
                             </span>
                           )}
                         </div>
@@ -372,13 +405,13 @@ export function ShareDialog({
                         {new Date(share.createdAt).toLocaleDateString()}
                       </div>
                     </div>
-                    <button
+                    <IconButton
+                      label="Delete share link"
+                      variant="danger"
+                      icon={<Trash2 />}
                       onClick={() => setConfirmDeleteId(share.id)}
                       disabled={isDeleting}
-                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    />
                   </div>
                 </div>
               ))}
@@ -393,34 +426,36 @@ export function ShareDialog({
               </p>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <Lock className="w-4 h-4 inline mr-1" />
+                <label htmlFor="share-password" className="block text-sm font-medium text-gray-700 mb-1">
+                  <Lock className="w-4 h-4 inline mr-1" aria-hidden />
                   Password (optional)
                 </label>
                 <div className="relative">
                   <input
+                    id="share-password"
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="input pr-10"
                     placeholder="Leave empty for no password"
                   />
-                  <button
-                    type="button"
+                  <IconButton
+                    label={showPassword ? 'Hide password' : 'Show password'}
+                    size="xs"
+                    icon={showPassword ? <EyeOff /> : <Eye />}
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+                    className="absolute right-2 top-1/2 -translate-y-1/2"
+                  />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <Calendar className="w-4 h-4 inline mr-1" />
+                <label htmlFor="share-expires" className="block text-sm font-medium text-gray-700 mb-1">
+                  <Calendar className="w-4 h-4 inline mr-1" aria-hidden />
                   Expiration date (optional)
                 </label>
                 <input
+                  id="share-expires"
                   type="date"
                   value={expiresAt}
                   onChange={(e) => setExpiresAt(e.target.value)}
@@ -430,11 +465,12 @@ export function ShareDialog({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  <Hash className="w-4 h-4 inline mr-1" />
+                <label htmlFor="share-max" className="block text-sm font-medium text-gray-700 mb-1">
+                  <Hash className="w-4 h-4 inline mr-1" aria-hidden />
                   Maximum access count (optional)
                 </label>
                 <input
+                  id="share-max"
                   type="number"
                   value={maxAccessCount}
                   onChange={(e) => setMaxAccessCount(e.target.value)}
@@ -443,78 +479,38 @@ export function ShareDialog({
                   placeholder="Leave empty for unlimited"
                 />
               </div>
+
+              <label className="flex items-start gap-2 rounded-lg border border-gray-200 p-3">
+                <input
+                  type="checkbox"
+                  checked={showExternalLinks}
+                  onChange={(e) => setShowExternalLinks(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-gray-900">Show GitHub links</span>
+                  <span className="block text-xs text-gray-600">
+                    Expose linked GitHub issue and pull request URLs on the public page.
+                  </span>
+                </span>
+              </label>
             </div>
           )}
-        </div>
+    </Dialog>
 
-        {/* Footer */}
-        <div className="flex justify-between items-center gap-3 p-4 border-t border-gray-200">
-          {!showCreateForm && activeShares.length > 0 ? (
-            <>
-              <button
-                onClick={() => setShowCreateForm(true)}
-                className="text-sm text-primary-600 hover:text-primary-700"
-              >
-                + Create another link
-              </button>
-              <button onClick={onClose} className="btn btn-secondary">
-                Close
-              </button>
-            </>
-          ) : (
-            <>
-              {publicShares.length > 0 && (
-                <button
-                  onClick={() => setShowCreateForm(false)}
-                  className="text-sm text-gray-600 hover:text-gray-700"
-                >
-                  Back to shares
-                </button>
-              )}
-              <div className="flex gap-3 ml-auto">
-                <button onClick={onClose} className="btn btn-secondary">
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreate}
-                  disabled={isCreating}
-                  className="btn btn-primary"
-                >
-                  {isCreating ? 'Creating...' : 'Create share link'}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Delete confirmation dialog */}
-      {confirmDeleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setConfirmDeleteId(null)} />
-          <div className="relative bg-white rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete share link</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Are you sure you want to delete this share link? Anyone using this link will no longer
-              be able to access the view.
-            </p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setConfirmDeleteId(null)} className="btn btn-secondary">
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  onDelete(confirmDeleteId);
-                  setConfirmDeleteId(null);
-                }}
-                className="btn bg-red-600 text-white hover:bg-red-700"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    <ConfirmDialog
+      open={confirmDeleteId !== null}
+      onOpenChange={(open) => {
+        if (!open) setConfirmDeleteId(null);
+      }}
+      variant="danger"
+      title="Delete share link?"
+      description="Anyone using this link will no longer be able to access the view."
+      confirmLabel="Delete"
+      onConfirm={() => {
+        if (confirmDeleteId) onDelete(confirmDeleteId);
+      }}
+    />
+    </>
   );
 }

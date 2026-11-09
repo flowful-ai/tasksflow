@@ -1,14 +1,11 @@
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ExternalLink, Plus, Loader2, GitBranch, Link2 } from 'lucide-react';
-import { api, githubApi } from '../../api/client';
-
-interface ExternalLinkData {
-  id: string;
-  externalType: 'github_issue' | 'github_pr';
-  externalId: string;
-  externalUrl: string;
-}
+import { tasksApi } from '../../api/tasks';
+import { queryKeys } from '../../api/queryKeys';
+import type { TaskExternalLinkDto as ExternalLinkData } from '../../api/types';
+import { useGitHubIntegration } from '../../hooks/queries';
+import { IconButton } from '../ui/IconButton';
 
 // External ids are `owner/repo#N`; older links may still hold a bare number.
 function formatGitHubRef(externalId: string): string {
@@ -29,32 +26,24 @@ export function GitHubLinkSection({ taskId, projectId, externalLinks, onUpdated 
   const [selectedPrRepo, setSelectedPrRepo] = useState('');
   const [prNumber, setPrNumber] = useState('');
 
-  const { data: integration } = useQuery({
-    queryKey: ['github-integration', projectId],
-    queryFn: () => githubApi.getIntegration(projectId),
-  });
+  const { data: integration } = useGitHubIntegration(projectId);
 
+  // Errors are shown inline next to the form, so no global toast.
   const createIssueMutation = useMutation({
-    mutationFn: (repo: { owner: string; repo: string }) =>
-      api.post<{ success: boolean; data: { url: string; number: number } }>(
-        `/api/tasks/${taskId}/github-issue`,
-        repo
-      ),
+    mutationFn: (repo: { owner: string; repo: string }) => tasksApi.createGitHubIssue(taskId, repo),
+    meta: { silentError: true },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(taskId) });
       setShowIssueRepoSelector(false);
       onUpdated?.();
     },
   });
 
   const linkPrMutation = useMutation({
-    mutationFn: (payload: { owner: string; repo: string; prNumber: number }) =>
-      api.post<{ success: boolean; data: { url: string; number: number } }>(
-        `/api/tasks/${taskId}/github-pr`,
-        payload
-      ),
+    mutationFn: (payload: { owner: string; repo: string; prNumber: number }) => tasksApi.linkGitHubPr(taskId, payload),
+    meta: { silentError: true },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['task', taskId] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(taskId) });
       setShowPrLinker(false);
       setSelectedPrRepo('');
       setPrNumber('');
@@ -80,22 +69,10 @@ export function GitHubLinkSection({ taskId, projectId, externalLinks, onUpdated 
         {hasIntegration && (
           <div className="flex items-center gap-1">
             {!hasLinkedIssue && !showIssueRepoSelector && (
-              <button
-                onClick={() => setShowIssueRepoSelector(true)}
-                className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-                title="Create GitHub issue"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
+              <IconButton label="Create GitHub issue" size="xs" icon={<Plus />} onClick={() => setShowIssueRepoSelector(true)} />
             )}
             {!showPrLinker && (
-              <button
-                onClick={() => setShowPrLinker(true)}
-                className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-                title="Link pull request"
-              >
-                <Link2 className="w-4 h-4" />
-              </button>
+              <IconButton label="Link pull request" size="xs" icon={<Link2 />} onClick={() => setShowPrLinker(true)} />
             )}
           </div>
         )}
@@ -155,8 +132,8 @@ export function GitHubLinkSection({ taskId, projectId, externalLinks, onUpdated 
             ))}
           </div>
           {createIssueMutation.isError && (
-            <p className="mt-2 text-xs text-red-600">
-              {createIssueMutation.error instanceof Error ? createIssueMutation.error.message : 'Failed to create issue'}
+            <p role="alert" className="mt-2 text-xs text-red-600">
+              {createIssueMutation.error.message || 'Failed to create issue'}
             </p>
           )}
           <button
@@ -222,8 +199,8 @@ export function GitHubLinkSection({ taskId, projectId, externalLinks, onUpdated 
             </button>
           </div>
           {linkPrMutation.isError && (
-            <p className="mt-2 text-xs text-red-600">
-              {linkPrMutation.error instanceof Error ? linkPrMutation.error.message : 'Failed to link pull request'}
+            <p role="alert" className="mt-2 text-xs text-red-600">
+              {linkPrMutation.error.message || 'Failed to link pull request'}
             </p>
           )}
           <button

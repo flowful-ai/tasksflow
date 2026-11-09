@@ -1,15 +1,26 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Pencil, Check, Clock, MessageSquare, Send, Maximize2, Minimize2, Trash2, AlertTriangle } from 'lucide-react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { X, Pencil, Check, Clock, MessageSquare, Send, Maximize2, Minimize2, Trash2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
-import { api } from '../../api/client';
 import clsx from 'clsx';
 import { AssigneePicker } from './AssigneePicker';
 import { LabelPicker } from './LabelPicker';
 import { DueDatePicker } from './DueDatePicker';
 import { GitHubLinkSection } from './GitHubLinkSection';
+import { isTaskPriority } from './TaskModal';
 import { useAuthStore } from '../../stores/auth';
+import type { TaskExternalLinkDto, UpdateTaskInput } from '../../api/types';
+import {
+  useAddComment,
+  useDeleteTask,
+  useProject,
+  useTask,
+  useTaskComments,
+  useTaskRelationsMutations,
+  useUpdateTask,
+  useWorkspace,
+} from '../../hooks/queries';
+import { ColorDot, Dialog, IconButton, PageSpinner, Spinner } from '../ui';
 
 interface TaskState {
   id: string;
@@ -29,6 +40,10 @@ interface TaskDetailSheetProps {
   initialTask?: TaskDetail;
 }
 
+/**
+ * The fields the sheet displays. Both TaskDetailDto (authenticated) and the
+ * public share task satisfy it.
+ */
 export interface TaskDetail {
   id: string;
   title: string;
@@ -39,58 +54,12 @@ export interface TaskDetail {
   project: { id: string; identifier: string; name: string };
   assignees: { id: string; name: string | null; email: string; avatarUrl?: string | null }[];
   labels: { id: string; name: string; color: string | null }[];
-  externalLinks: {
-    id: string;
-    externalType: 'github_issue' | 'github_pr';
-    externalId: string;
-    externalUrl: string;
-  }[];
+  externalLinks?: TaskExternalLinkDto[];
   sequenceNumber: number;
   dueDate: string | null;
-  startDate: string | null;
+  startDate?: string | null;
   createdAt: string;
-  updatedAt: string | null;
-}
-
-interface ProjectDetail {
-  id: string;
-  workspaceId: string;
-  name: string;
-  labels: { id: string; name: string; color: string | null }[];
-}
-
-interface WorkspaceDetail {
-  id: string;
-  name: string;
-  members: {
-    userId: string;
-    role: string;
-    user: {
-      id: string;
-      name: string | null;
-      email: string;
-    };
-  }[];
-}
-
-interface Comment {
-  id: string;
-  taskId: string;
-  userId: string | null;
-  agentId: string | null;
-  content: string;
-  createdAt: string;
-  updatedAt: string;
-  user: {
-    id: string;
-    name: string | null;
-    email: string;
-    avatarUrl: string | null;
-  } | null;
-  agent: {
-    id: string;
-    name: string;
-  } | null;
+  updatedAt?: string | null;
 }
 
 export function TaskDetailSheet({
@@ -102,7 +71,6 @@ export function TaskDetailSheet({
   readOnly = false,
   initialTask,
 }: TaskDetailSheetProps) {
-  const queryClient = useQueryClient();
   const currentUserId = useAuthStore((state) => state.user?.id);
 
   // Edit states
@@ -112,58 +80,23 @@ export function TaskDetailSheet({
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [newComment, setNewComment] = useState('');
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const titleInputRef = useRef<HTMLInputElement>(null);
   const descriptionInputRef = useRef<HTMLTextAreaElement>(null);
   const commentInputRef = useRef<HTMLTextAreaElement>(null);
 
   // Fetch task details (skip if initialTask is provided or in readOnly mode)
-  const { data: fetchedTask, isLoading } = useQuery({
-    queryKey: ['task', taskId],
-    queryFn: async () => {
-      const response = await api.get<{ data: TaskDetail }>(`/api/tasks/${taskId}`);
-      return response.data;
-    },
+  const { data: fetchedTask, isLoading, error: taskError, refetch } = useTask(taskId, {
     enabled: !initialTask && !readOnly,
   });
 
   // Use initialTask if provided, otherwise use fetched data
-  const task = initialTask || fetchedTask;
+  const task: TaskDetail | undefined = initialTask || fetchedTask;
 
-  // Fetch project details (includes labels and workspaceId) - skip in readOnly mode
-  const { data: projectDetail } = useQuery({
-    queryKey: ['project', projectId],
-    queryFn: async () => {
-      const response = await api.get<{ data: ProjectDetail }>(`/api/projects/${projectId}`);
-      return response.data;
-    },
-    enabled: !!projectId && !readOnly,
-  });
-
-  // Fetch workspace members - skip in readOnly mode
-  const { data: workspaceDetail } = useQuery({
-    queryKey: ['workspace', projectDetail?.workspaceId],
-    queryFn: async () => {
-      const response = await api.get<{ data: WorkspaceDetail }>(
-        `/api/workspaces/${projectDetail!.workspaceId}`
-      );
-      return response.data;
-    },
-    enabled: !!projectDetail?.workspaceId && !readOnly,
-  });
-
-  // Fetch comments for the task - skip in readOnly mode
-  const { data: comments = [], isLoading: isLoadingComments } = useQuery({
-    queryKey: ['comments', taskId],
-    queryFn: async () => {
-      const response = await api.get<{ success: boolean; data: Comment[] }>(
-        `/api/tasks/${taskId}/comments`
-      );
-      return response.data;
-    },
-    enabled: !!taskId && !readOnly,
-  });
+  // Project (labels, workspaceId), members and comments: skipped in readOnly mode
+  const { data: projectDetail } = useProject(readOnly ? null : projectId);
+  const { data: workspaceDetail } = useWorkspace(readOnly ? null : projectDetail?.workspaceId);
+  const { data: comments = [], isLoading: isLoadingComments } = useTaskComments(readOnly ? null : taskId);
 
   // Initialize edit values when task loads
   useEffect(() => {
@@ -187,106 +120,38 @@ export function TaskDetailSheet({
     }
   }, [isEditingDescription]);
 
-  // Helper to invalidate all task-related queries including smart views
-  const invalidateTaskQueries = () => {
-    queryClient.invalidateQueries({ queryKey: ['task', taskId] });
-    queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
-    // Invalidate all smart view execute queries since task changes may affect filter results
-    queryClient.invalidateQueries({ queryKey: ['smart-view-execute'] });
+  const updateMutation = useUpdateTask();
+  const relations = useTaskRelationsMutations(taskId, projectId);
+  const createCommentMutation = useAddComment(taskId);
+  const deleteMutation = useDeleteTask();
+
+  /** Update the task; failures are toasted globally and leave the field as it was. */
+  const update = async (input: Omit<UpdateTaskInput, 'assigneeIds' | 'labelIds'>) => {
+    try {
+      await updateMutation.mutateAsync({ taskId, ...input });
+      onUpdated?.();
+    } catch {
+      // toasted by the MutationCache handler
+    }
   };
 
-  // Update mutation
-  const updateMutation = useMutation({
-    mutationFn: async (data: {
-      title?: string;
-      description?: string;
-      stateId?: string;
-      priority?: string;
-      dueDate?: string | null;
-    }) => {
-      return api.patch(`/api/tasks/${taskId}`, data);
-    },
-    onSuccess: () => {
-      invalidateTaskQueries();
-      onUpdated?.();
-    },
-  });
-
-  // Add assignee mutation
-  const addAssigneeMutation = useMutation({
-    mutationFn: async (userId: string) => {
-      return api.post(`/api/tasks/${taskId}/assignees`, { userId });
-    },
-    onSuccess: () => {
-      invalidateTaskQueries();
-      onUpdated?.();
-    },
-  });
-
-  // Remove assignee mutation
-  const removeAssigneeMutation = useMutation({
-    mutationFn: async (userId: string) => {
-      return api.delete(`/api/tasks/${taskId}/assignees/${userId}`);
-    },
-    onSuccess: () => {
-      invalidateTaskQueries();
-      onUpdated?.();
-    },
-  });
-
-  // Add label mutation
-  const addLabelMutation = useMutation({
-    mutationFn: async (labelId: string) => {
-      return api.post(`/api/tasks/${taskId}/labels`, { labelId });
-    },
-    onSuccess: () => {
-      invalidateTaskQueries();
-      onUpdated?.();
-    },
-  });
-
-  // Remove label mutation
-  const removeLabelMutation = useMutation({
-    mutationFn: async (labelId: string) => {
-      return api.delete(`/api/tasks/${taskId}/labels/${labelId}`);
-    },
-    onSuccess: () => {
-      invalidateTaskQueries();
-      onUpdated?.();
-    },
-  });
-
-  // Create comment mutation
-  const createCommentMutation = useMutation({
-    mutationFn: async (content: string) => {
-      return api.post(`/api/tasks/${taskId}/comments`, { content });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['comments', taskId] });
-      setNewComment('');
-    },
-  });
-
-  // Delete mutation
-  const deleteMutation = useMutation({
-    mutationFn: async () => {
-      return api.delete(`/api/tasks/${taskId}`);
-    },
-    onSuccess: () => {
-      invalidateTaskQueries();
-      onUpdated?.();
-      onClose();
-    },
-  });
+  const withUpdated = { onSuccess: () => onUpdated?.() };
 
   // Check if current user can delete (owner or admin role)
   const currentMember = workspaceDetail?.members.find((m) => m.userId === currentUserId);
   const canDelete = !readOnly && (currentMember?.role === 'owner' || currentMember?.role === 'admin');
-  const hasGitHubLinks = (task?.externalLinks || []).some((l) => l.externalType === 'github_issue');
+
+  /** Soft delete with an undo toast (no confirm); the sheet closes immediately. */
+  const handleDelete = () => {
+    if (!task) return;
+    const label = `${task.project.identifier}-${task.sequenceNumber}`;
+    deleteMutation.mutate({ taskId, projectId, label }, withUpdated);
+    onClose();
+  };
 
   const handleSaveTitle = async () => {
     if (editTitle.trim() && editTitle !== task?.title) {
-      await updateMutation.mutateAsync({ title: editTitle.trim() });
+      await update({ title: editTitle.trim() });
     }
     setIsEditingTitle(false);
   };
@@ -294,30 +159,34 @@ export function TaskDetailSheet({
   const handleSaveDescription = async () => {
     const newDesc = editDescription.trim();
     if (newDesc !== (task?.description || '')) {
-      await updateMutation.mutateAsync({ description: newDesc || undefined });
+      await update({ description: newDesc });
     }
     setIsEditingDescription(false);
   };
 
   const handleStatusChange = async (newStateId: string) => {
     if (newStateId && newStateId !== task?.stateId) {
-      await updateMutation.mutateAsync({ stateId: newStateId });
+      await update({ stateId: newStateId });
     }
   };
 
   const handlePriorityChange = async (newPriority: string) => {
-    if (newPriority !== task?.priority) {
-      await updateMutation.mutateAsync({ priority: newPriority || undefined });
+    if (newPriority !== (task?.priority ?? '')) {
+      await update({ priority: isTaskPriority(newPriority) ? newPriority : null });
     }
   };
 
   const handleDueDateChange = async (date: string | null) => {
-    await updateMutation.mutateAsync({ dueDate: date });
+    await update({ dueDate: date });
   };
 
   const handleSubmitComment = async () => {
-    if (newComment.trim()) {
+    if (!newComment.trim()) return;
+    try {
       await createCommentMutation.mutateAsync(newComment.trim());
+      setNewComment('');
+    } catch {
+      // toasted globally; keep the draft
     }
   };
 
@@ -338,74 +207,61 @@ export function TaskDetailSheet({
     { value: 'low', label: 'Low', className: 'text-green-600' },
   ];
 
-  if (isLoading) {
-    return (
-      <div className="fixed inset-0 z-50 flex">
-        <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-        <div className="relative z-10 ml-auto w-full max-w-xl bg-white shadow-xl animate-slide-in-right">
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!task) {
-    return (
-      <div className="fixed inset-0 z-50 flex">
-        <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-        <div className="relative z-10 ml-auto w-full max-w-xl bg-white shadow-xl">
-          <div className="p-6 text-center">
-            <p className="text-gray-500">Task not found</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const taskKey = task ? `${task.project.identifier}-${task.sequenceNumber}` : 'Task';
 
   return (
-    <div className="fixed inset-0 z-50 flex">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-
-      {/* Sheet */}
-      <div className={clsx(
-        "relative z-10 ml-auto bg-white shadow-xl flex flex-col animate-slide-in-right",
-        isFullscreen ? "w-full" : "w-full max-w-xl"
-      )}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      variant="sheet"
+      size={isFullscreen ? 'full' : 'lg'}
+      title={task ? `${taskKey}: ${task.title}` : 'Task'}
+      bare
+      className="animate-slide-in-right"
+    >
+      {isLoading && !task ? (
+        <PageSpinner label="Loading task" />
+      ) : !task ? (
+        <div className="p-6 text-center">
+          <p className="text-gray-500">{taskError ? "Couldn't load this task." : 'Task not found'}</p>
+          {taskError && (
+            <button type="button" className="btn btn-secondary mt-3" onClick={() => void refetch()}>
+              Retry
+            </button>
+          )}
+          <button type="button" className="btn btn-ghost mt-3 ml-2" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      ) : (
+        <>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+        <header className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <div className="flex items-center space-x-2 text-sm text-gray-500">
-            <span className="font-medium text-gray-700">
-              {task.project.identifier}-{task.sequenceNumber}
-            </span>
+            <span className="font-medium text-gray-700">{taskKey}</span>
           </div>
           <div className="flex items-center space-x-1">
-            <button
+            <IconButton
+              label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+              size="md"
+              icon={isFullscreen ? <Minimize2 /> : <Maximize2 />}
               onClick={() => setIsFullscreen(!isFullscreen)}
-              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
-              title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
-            >
-              {isFullscreen ? <Minimize2 className="w-5 h-5" /> : <Maximize2 className="w-5 h-5" />}
-            </button>
+            />
             {canDelete && (
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                className="p-1.5 rounded-lg hover:bg-red-50 text-gray-500 hover:text-red-600 transition-colors"
-                title="Delete task"
-              >
-                <Trash2 className="w-5 h-5" />
-              </button>
+              <IconButton
+                label="Delete task"
+                variant="danger"
+                size="md"
+                icon={<Trash2 />}
+                onClick={handleDelete}
+                disabled={deleteMutation.isPending}
+              />
             )}
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <IconButton label="Close" size="md" icon={<X />} onClick={onClose} />
           </div>
-        </div>
+        </header>
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
@@ -417,6 +273,7 @@ export function TaskDetailSheet({
                   <input
                     ref={titleInputRef}
                     type="text"
+                    aria-label="Task title"
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
                     onBlur={handleSaveTitle}
@@ -429,25 +286,24 @@ export function TaskDetailSheet({
                     className="flex-1 text-xl font-semibold text-gray-900 px-2 py-1 border border-primary-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     disabled={updateMutation.isPending}
                   />
-                  <button
+                  <IconButton
+                    label="Save title"
+                    variant="solid"
+                    icon={<Check />}
                     onClick={handleSaveTitle}
                     disabled={updateMutation.isPending}
-                    className="p-1.5 rounded-lg bg-primary-600 text-white hover:bg-primary-700 disabled:opacity-50"
-                  >
-                    <Check className="w-4 h-4" />
-                  </button>
+                  />
                 </div>
               ) : (
                 <div className="flex items-start space-x-2">
-                  <h1 className="flex-1 text-xl font-semibold text-gray-900">{task.title}</h1>
+                  <h2 className="flex-1 text-xl font-semibold text-gray-900">{task.title}</h2>
                   {!readOnly && (
-                    <button
+                    <IconButton
+                      label="Edit title"
+                      icon={<Pencil />}
                       onClick={() => setIsEditingTitle(true)}
-                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Edit title"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
+                      className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                    />
                   )}
                 </div>
               )}
@@ -457,19 +313,15 @@ export function TaskDetailSheet({
             <div className="grid grid-cols-2 gap-4">
               {/* Status */}
               <div>
-                <label className="block text-sm font-medium text-gray-500 mb-1.5">Status</label>
+                <label htmlFor="sheet-status" className="block text-sm font-medium text-gray-500 mb-1.5">Status</label>
                 {readOnly ? (
-                  <div
-                    className="w-full px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg"
-                    style={{
-                      borderLeftColor: task.state?.color || undefined,
-                      borderLeftWidth: task.state?.color ? '4px' : undefined,
-                    }}
-                  >
+                  <div className="flex w-full items-center gap-2 px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-lg">
+                    {task.state && <ColorDot color={task.state.color} />}
                     {task.state?.name || 'No status'}
                   </div>
                 ) : (
                   <select
+                    id="sheet-status"
                     value={task.stateId || ''}
                     onChange={(e) => handleStatusChange(e.target.value)}
                     disabled={updateMutation.isPending}
@@ -490,7 +342,7 @@ export function TaskDetailSheet({
 
               {/* Priority */}
               <div>
-                <label className="block text-sm font-medium text-gray-500 mb-1.5">Priority</label>
+                <label htmlFor="sheet-priority" className="block text-sm font-medium text-gray-500 mb-1.5">Priority</label>
                 {readOnly ? (
                   <div
                     className={clsx(
@@ -502,6 +354,7 @@ export function TaskDetailSheet({
                   </div>
                 ) : (
                   <select
+                    id="sheet-priority"
                     value={task.priority || ''}
                     onChange={(e) => handlePriorityChange(e.target.value)}
                     disabled={updateMutation.isPending}
@@ -523,21 +376,22 @@ export function TaskDetailSheet({
             {/* Description */}
             <div className="group">
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-sm font-medium text-gray-500">Description</label>
+                <span id="sheet-description-label" className="text-sm font-medium text-gray-500">Description</span>
                 {!isEditingDescription && !readOnly && (
-                  <button
+                  <IconButton
+                    label="Edit description"
+                    size="xs"
+                    icon={<Pencil />}
                     onClick={() => setIsEditingDescription(true)}
-                    className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Edit description"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
+                    className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+                  />
                 )}
               </div>
               {isEditingDescription && !readOnly ? (
                 <div className="space-y-2">
                   <textarea
                     ref={descriptionInputRef}
+                    aria-labelledby="sheet-description-label"
                     value={editDescription}
                     onChange={(e) => setEditDescription(e.target.value)}
                     onKeyDown={(e) => {
@@ -683,9 +537,9 @@ export function TaskDetailSheet({
                   currentAssignees={task.assignees}
                   workspaceMembers={workspaceDetail?.members || []}
                   currentUserId={currentUserId}
-                  onAdd={(userId) => addAssigneeMutation.mutate(userId)}
-                  onRemove={(userId) => removeAssigneeMutation.mutate(userId)}
-                  isLoading={addAssigneeMutation.isPending || removeAssigneeMutation.isPending}
+                  onAdd={(userId) => relations.addAssignee.mutate(userId, withUpdated)}
+                  onRemove={(userId) => relations.removeAssignee.mutate(userId, withUpdated)}
+                  isLoading={relations.addAssignee.isPending || relations.removeAssignee.isPending}
                 />
               )}
 
@@ -701,12 +555,9 @@ export function TaskDetailSheet({
                       {task.labels.map((label) => (
                         <span
                           key={label.id}
-                          className="inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full"
-                          style={{
-                            backgroundColor: label.color ? `${label.color}20` : '#e5e7eb',
-                            color: label.color || '#374151',
-                          }}
+                          className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-700"
                         >
+                          <ColorDot color={label.color} />
                           {label.name}
                         </span>
                       ))}
@@ -719,9 +570,9 @@ export function TaskDetailSheet({
                 <LabelPicker
                   currentLabels={task.labels}
                   projectLabels={projectDetail?.labels || []}
-                  onAdd={(labelId) => addLabelMutation.mutate(labelId)}
-                  onRemove={(labelId) => removeLabelMutation.mutate(labelId)}
-                  isLoading={addLabelMutation.isPending || removeLabelMutation.isPending}
+                  onAdd={(labelId) => relations.addLabel.mutate(labelId, withUpdated)}
+                  onRemove={(labelId) => relations.removeLabel.mutate(labelId, withUpdated)}
+                  isLoading={relations.addLabel.isPending || relations.removeLabel.isPending}
                 />
               )}
 
@@ -759,7 +610,7 @@ export function TaskDetailSheet({
                   taskId={taskId}
                   projectId={projectId}
                   externalLinks={task.externalLinks || []}
-                  onUpdated={() => queryClient.invalidateQueries({ queryKey: ['task', taskId] })}
+                  onUpdated={onUpdated}
                 />
               )}
 
@@ -802,6 +653,7 @@ export function TaskDetailSheet({
                     <div className="flex space-x-2">
                       <textarea
                         ref={commentInputRef}
+                        aria-label="New comment"
                         value={newComment}
                         onChange={(e) => setNewComment(e.target.value)}
                         onKeyDown={(e) => {
@@ -815,14 +667,16 @@ export function TaskDetailSheet({
                         className="flex-1 px-3 py-2 text-base md:text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none"
                         disabled={createCommentMutation.isPending}
                       />
-                      <button
-                        onClick={handleSubmitComment}
+                      <IconButton
+                        label="Post comment"
+                        shortcut="⌘↵"
+                        variant="solid"
+                        size="md"
+                        icon={<Send />}
+                        onClick={() => void handleSubmitComment()}
                         disabled={!newComment.trim() || createCommentMutation.isPending}
-                        className="self-end px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        title="Submit comment (Cmd+Enter)"
-                      >
-                        <Send className="w-4 h-4" />
-                      </button>
+                        className="self-end"
+                      />
                     </div>
                     <p className="mt-1 text-xs text-gray-400">Press Cmd+Enter to submit</p>
                   </div>
@@ -831,7 +685,7 @@ export function TaskDetailSheet({
               <div className="space-y-4">
                 {isLoadingComments ? (
                   <div className="flex items-center justify-center py-4">
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600" />
+                    <Spinner size="sm" label="Loading comments" />
                   </div>
                 ) : comments.length === 0 ? (
                   <p className="text-sm text-gray-400 italic">No comments yet</p>
@@ -848,7 +702,7 @@ export function TaskDetailSheet({
                             {avatarUrl ? (
                               <img
                                 src={avatarUrl}
-                                alt={authorName}
+                                alt=""
                                 className="w-6 h-6 rounded-full object-cover flex-shrink-0"
                               />
                             ) : (
@@ -936,47 +790,8 @@ export function TaskDetailSheet({
             )}
           </div>
         </div>
-      </div>
-
-      {/* Delete confirmation dialog */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowDeleteConfirm(false)} />
-          <div className="relative z-10 bg-white rounded-xl shadow-2xl max-w-sm w-full mx-4 p-6">
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900">Delete task</h3>
-            </div>
-            <p className="text-sm text-gray-600 mb-2">
-              Are you sure you want to delete this task? This action cannot be undone.
-            </p>
-            {hasGitHubLinks && (
-              <p className="text-sm text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-4">
-                The linked GitHub issue will also be closed.
-              </p>
-            )}
-            {!hasGitHubLinks && <div className="mb-4" />}
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                disabled={deleteMutation.isPending}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => deleteMutation.mutate()}
-                disabled={deleteMutation.isPending}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
-              >
-                {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
+        </>
       )}
-    </div>
+    </Dialog>
   );
 }

@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { Ban, CheckCircle2, Tag, Trash2, UserPlus, X } from 'lucide-react';
 import clsx from 'clsx';
 import { LabelPicker } from '../tasks/LabelPicker';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { Dialog } from '../ui/Dialog';
 
 export type BulkAssignMode = 'add' | 'replace';
 
@@ -85,7 +87,7 @@ export function BulkTaskToolbar({
 
   return (
     <>
-      <div className="sticky top-0 z-30 mb-4 rounded-lg border border-primary-200 bg-primary-50/95 px-4 py-3 shadow-sm backdrop-blur">
+      <div role="toolbar" aria-label="Bulk actions" className="sticky top-0 z-30 mb-4 rounded-lg border border-primary-200 bg-primary-50/95 px-4 py-3 shadow-sm backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-sm">
             <span className="font-semibold text-primary-900">{selectedCount} selected</span>
@@ -154,14 +156,24 @@ export function BulkTaskToolbar({
         </div>
       </div>
 
-      {isAssignOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setIsAssignOpen(false)} />
-          <div className="relative z-10 w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
-            <h3 className="text-lg font-semibold text-gray-900">Bulk assign</h3>
-            <p className="mt-1 text-sm text-gray-600">Apply assignment to {selectedCount} selected tasks.</p>
-
-            <div className="mt-4 space-y-4">
+      <Dialog
+        open={isAssignOpen}
+        onOpenChange={setIsAssignOpen}
+        title="Bulk assign"
+        description={`Apply assignment to ${selectedCount} selected tasks.`}
+        dismissible={!isLoading}
+        footer={
+          <>
+            <button type="button" onClick={() => setIsAssignOpen(false)} className="btn btn-secondary" disabled={isLoading}>
+              Cancel
+            </button>
+            <button type="button" onClick={handleAssign} className="btn btn-primary" disabled={isLoading || !selectedUserId}>
+              {isLoading ? 'Applying...' : 'Apply'}
+            </button>
+          </>
+        }
+      >
+            <div className="space-y-4">
               <div>
                 <label htmlFor="bulk-assign-member" className="mb-1 block text-sm font-medium text-gray-700">
                   Member
@@ -212,82 +224,49 @@ export function BulkTaskToolbar({
               </div>
             </div>
 
-            <div className="mt-6 flex justify-end gap-2">
-              <button type="button" onClick={() => setIsAssignOpen(false)} className="btn btn-secondary" disabled={isLoading}>
-                Cancel
-              </button>
-              <button type="button" onClick={handleAssign} className="btn btn-primary" disabled={isLoading || !selectedUserId}>
-                {isLoading ? 'Applying...' : 'Apply'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </Dialog>
 
-      {isLabelsOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setIsLabelsOpen(false)} />
-          <div className="relative z-10 w-full max-w-xl rounded-xl bg-white p-6 shadow-2xl">
-            <h3 className="text-lg font-semibold text-gray-900">Set labels</h3>
-            <p className="mt-1 text-sm text-gray-600">
-              Select labels to apply to {selectedCount} selected tasks. Leave empty to clear labels.
-            </p>
+      <Dialog
+        open={isLabelsOpen}
+        onOpenChange={setIsLabelsOpen}
+        title="Set labels"
+        description={`Select labels to apply to ${selectedCount} selected tasks. Leave empty to clear labels.`}
+        size="lg"
+        dismissible={!isLoading}
+        footer={
+          <>
+            <button type="button" onClick={() => setIsLabelsOpen(false)} className="btn btn-secondary" disabled={isLoading}>
+              Cancel
+            </button>
+            <button type="button" onClick={handleSetLabels} className="btn btn-primary" disabled={isLoading}>
+              {isLoading ? 'Applying...' : 'Apply'}
+            </button>
+          </>
+        }
+      >
+        <LabelPicker
+          currentLabels={selectedLabels}
+          projectLabels={sortedLabels}
+          onAdd={(labelId) => {
+            setSelectedLabelIds((previous) => (previous.includes(labelId) ? previous : [...previous, labelId]));
+          }}
+          onRemove={(labelId) => {
+            setSelectedLabelIds((previous) => previous.filter((id) => id !== labelId));
+          }}
+          isLoading={isLoading}
+        />
+      </Dialog>
 
-            <div className="mt-4">
-              <LabelPicker
-                currentLabels={selectedLabels}
-                projectLabels={sortedLabels}
-                onAdd={(labelId) => {
-                  setSelectedLabelIds((previous) =>
-                    previous.includes(labelId) ? previous : [...previous, labelId]
-                  );
-                }}
-                onRemove={(labelId) => {
-                  setSelectedLabelIds((previous) => previous.filter((id) => id !== labelId));
-                }}
-                isLoading={isLoading}
-              />
-            </div>
-
-            <div className="mt-6 flex justify-end gap-2">
-              <button type="button" onClick={() => setIsLabelsOpen(false)} className="btn btn-secondary" disabled={isLoading}>
-                Cancel
-              </button>
-              <button type="button" onClick={handleSetLabels} className="btn btn-primary" disabled={isLoading}>
-                {isLoading ? 'Applying...' : 'Apply'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isDeleteOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setIsDeleteOpen(false)} />
-          <div className="relative z-10 w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl">
-            <h3 className="text-lg font-semibold text-gray-900">Delete selected tasks</h3>
-            <p className="mt-2 text-sm text-gray-600">
-              This will delete {selectedCount} selected task{selectedCount === 1 ? '' : 's'}. This action cannot be undone.
-            </p>
-            <div className="mt-6 flex justify-end gap-2">
-              <button type="button" onClick={() => setIsDeleteOpen(false)} className="btn btn-secondary" disabled={isLoading}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  await onDelete();
-                  setIsDeleteOpen(false);
-                }}
-                className="btn border border-red-200 bg-red-600 text-white hover:bg-red-700"
-                disabled={isLoading}
-              >
-                {isLoading ? 'Deleting...' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={isDeleteOpen}
+        onOpenChange={setIsDeleteOpen}
+        variant="danger"
+        title="Delete selected tasks?"
+        description={`${selectedCount} task${selectedCount === 1 ? '' : 's'} will move to the project trash, where they can be restored for 30 days.`}
+        confirmLabel="Delete"
+        isLoading={isLoading}
+        onConfirm={() => onDelete()}
+      />
     </>
   );
 }

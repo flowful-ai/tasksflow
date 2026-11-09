@@ -1,124 +1,27 @@
 import { useEffect, useState, useMemo } from 'react';
-import type { MouseEvent } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Pencil, LayoutGrid, List, Table, Calendar } from 'lucide-react';
-import clsx from 'clsx';
-import { api, ApiError } from '../api/client';
+import { Pencil, LayoutGrid, List, Table, Calendar, Filter } from 'lucide-react';
 import {
   BulkTaskToolbar,
-  type BulkAssignMode,
   type BulkAssigneeOption,
   type BulkLabelOption,
   TaskDisplayContainer,
   type DisplayType,
-  type GroupBy,
-  type TaskCardTask,
+  type TaskOpenEvent,
 } from '../components/task-display';
+import type { TaskStateDto } from '../api/types';
 import { TaskDetailSheet } from '../components/tasks/TaskDetailSheet';
+import { ShareButton, ShareDialog, ActiveShareBanner } from '../components/smart-views/ShareDialog';
+import { LiveIndicator } from '../components/realtime/ConnectionStatus';
+import { EmptyState, ErrorState, PageSpinner, Spinner, toast } from '../components/ui';
 import {
-  ShareButton,
-  ShareDialog,
-  ActiveShareBanner,
-  type PublicShare,
-  type CreateShareData,
-} from '../components/smart-views/ShareDialog';
-
-interface SmartViewTask {
-  id: string;
-  title: string;
-  description: string | null;
-  priority: string | null;
-  position: string;
-  dueDate: string | null;
-  startDate: string | null;
-  sequenceNumber: number;
-  stateId: string | null;
-  state: {
-    id: string;
-    name: string;
-    color: string | null;
-    category: string;
-  } | null;
-  assignees: {
-    id: string;
-    name: string | null;
-    email: string;
-    avatarUrl?: string | null;
-  }[];
-  labels: {
-    id: string;
-    name: string;
-    color: string | null;
-  }[];
-  project: {
-    id: string;
-    identifier: string;
-    name: string;
-  };
-  agent: {
-    id: string;
-    name: string;
-  } | null;
-  externalLinks: {
-    id: string;
-    externalType: 'github_issue' | 'github_pr';
-    externalId: string;
-    externalUrl: string;
-  }[];
-  createdAt: string;
-  updatedAt: string | null;
-}
-
-interface SmartViewData {
-  id: string;
-  workspaceId: string;
-  name: string;
-  description: string | null;
-  displayType: DisplayType;
-  groupBy: GroupBy;
-  secondaryGroupBy?: GroupBy | null;
-  sortBy: string;
-  sortOrder: 'asc' | 'desc';
-  visibleFields: string[] | null;
-  publicShares?: PublicShare[];
-}
-
-interface TaskState {
-  id: string;
-  name: string;
-  color: string | null;
-  category: string;
-}
-
-interface WorkspaceDetail {
-  members: {
-    userId: string;
-    user: {
-      id: string;
-      name: string | null;
-      email: string;
-      avatarUrl: string | null;
-    };
-  }[];
-}
-
-interface ProjectDetail {
-  id: string;
-  identifier: string;
-  labels: {
-    id: string;
-    name: string;
-    color: string | null;
-  }[];
-}
-
-type NoticeType = 'success' | 'warning' | 'error';
-
-interface BulkNotice {
-  type: NoticeType;
-  message: string;
-}
+  useMoveTask,
+  useProjectsById,
+  usePublicShareMutations,
+  useSmartViewTasks,
+  useWorkspace,
+} from '../hooks/queries';
+import { useBulkTaskActions } from '../hooks/useBulkTaskActions';
 
 const displayTypeIcons: Record<DisplayType, React.ComponentType<{ className?: string }>> = {
   kanban: LayoutGrid,
@@ -127,500 +30,125 @@ const displayTypeIcons: Record<DisplayType, React.ComponentType<{ className?: st
   calendar: Calendar,
 };
 
-interface AvailableState extends TaskState {
-  projectId: string;
-}
-
-interface AvailableLabel {
-  id: string;
-  name: string;
-  color: string | null;
-  projectId: string;
-  projectIdentifier: string;
-}
-
-function resolveDoneStateId(states: AvailableState[]): string | null {
-  const doneStates = states.filter((state) => state.category === 'done');
-  const exactDone = doneStates.find((state) => state.name.trim().toLowerCase() === 'done');
-  if (exactDone) return exactDone.id;
-
-  const nonCancelDone = doneStates.find((state) => !/cancel/i.test(state.name));
-  if (nonCancelDone) return nonCancelDone.id;
-
-  return doneStates[0]?.id ?? null;
-}
-
-function resolveCancelStateId(states: AvailableState[]): string | null {
-  const cancelState = states.find((state) => state.category === 'done' && /cancel/i.test(state.name));
-  return cancelState?.id ?? null;
-}
-
-function summarizeBulkAction(action: string, success: number, skipped: number, failed: number): BulkNotice {
-  const suffix = [
-    `${success} succeeded`,
-    skipped > 0 ? `${skipped} skipped` : null,
-    failed > 0 ? `${failed} failed` : null,
-  ]
-    .filter(Boolean)
-    .join(', ');
-
-  if (failed > 0) {
-    return { type: 'error', message: `${action}: ${suffix}.` };
+/** Label option ids in a multi-project view are "projectId:labelId". */
+function parseCompositeLabelIds(ids: string[]): Map<string, string[]> {
+  const byProject = new Map<string, string[]>();
+  for (const compositeId of ids) {
+    const [projectId, labelId] = compositeId.split(':');
+    if (!projectId || !labelId) continue;
+    byProject.set(projectId, [...(byProject.get(projectId) ?? []), labelId]);
   }
-  if (skipped > 0) {
-    return { type: 'warning', message: `${action}: ${suffix}.` };
-  }
-  return { type: 'success', message: `${action}: ${suffix}.` };
-}
-
-async function settleOperations(operations: Array<Promise<unknown>>): Promise<{ success: number; failed: number }> {
-  if (operations.length === 0) {
-    return { success: 0, failed: 0 };
-  }
-
-  const settled = await Promise.allSettled(operations);
-  const failed = settled.filter((result) => result.status === 'rejected').length;
-  return { success: settled.length - failed, failed };
+  return byProject;
 }
 
 export function SmartViewPage() {
   const { viewId } = useParams<{ viewId: string }>();
-  const queryClient = useQueryClient();
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [showShareDialog, setShowShareDialog] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [bulkNotice, setBulkNotice] = useState<BulkNotice | null>(null);
-  const [isBulkActionPending, setIsBulkActionPending] = useState(false);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['smart-view-execute', viewId],
-    queryFn: async () => {
-      const response = await api.get<{
-        data: {
-          view: SmartViewData;
-          tasks: SmartViewTask[];
-          meta: { total: number; page: number; limit: number };
-        };
-      }>(`/api/smart-views/${viewId}/execute`);
-      return response.data;
-    },
-    enabled: !!viewId,
-  });
+  const viewQuery = useSmartViewTasks(viewId);
+  const { view, tasks, total } = viewQuery;
+  const { data: workspaceDetail } = useWorkspace(view?.workspaceId);
+  const shares = usePublicShareMutations(viewId ?? '');
+  const moveTask = useMoveTask();
 
-  const { data: workspaceDetail } = useQuery({
-    queryKey: ['workspace', data?.view.workspaceId],
-    queryFn: async () => {
-      const response = await api.get<{ data: WorkspaceDetail }>(`/api/workspaces/${data!.view.workspaceId}`);
-      return response.data;
-    },
-    enabled: !!data?.view.workspaceId,
-  });
+  const projectIds = useMemo(() => [...new Set(tasks.map((task) => task.project.id))], [tasks]);
+  const { projects } = useProjectsById(projectIds);
 
-  const createShareMutation = useMutation({
-    mutationFn: async (shareData: CreateShareData) => {
-      const response = await api.post<{
-        success: boolean;
-        data: PublicShare & { shareUrl: string };
-      }>(`/api/smart-views/${viewId}/public`, shareData);
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['smart-view-execute', viewId] });
-      setShowShareDialog(false);
-    },
-    onError: (error) => {
-      const message = error instanceof ApiError ? error.message : 'Failed to create public share';
-      setErrorMessage(message);
-      setTimeout(() => setErrorMessage(null), 4000);
-    },
-  });
-
-  const disableShareMutation = useMutation({
-    mutationFn: async (shareId: string) => {
-      await api.post(`/api/smart-views/${viewId}/public/${shareId}/disable`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['smart-view-execute', viewId] });
-    },
-  });
-
-  const deleteShareMutation = useMutation({
-    mutationFn: async (shareId: string) => {
-      await api.delete(`/api/smart-views/${viewId}/public/${shareId}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['smart-view-execute', viewId] });
-    },
-  });
-
-  const projectIds = useMemo(() => {
-    if (!data?.tasks) return [];
-    return [...new Set(data.tasks.map((task) => task.project.id))];
-  }, [data?.tasks]);
-
-  const { data: allProjectStates = [] } = useQuery({
-    queryKey: ['projects-states', projectIds],
-    queryFn: async (): Promise<AvailableState[]> => {
-      const results = await Promise.all(
-        projectIds.map((pid) =>
-          api
-            .get<{ data: TaskState[] }>(`/api/projects/${pid}/states`)
-            .then((response) => response.data.map((state) => ({ ...state, projectId: pid })))
-        )
-      );
-      return results.flat();
-    },
-    enabled: projectIds.length > 0,
-  });
-
-  const { data: allProjectLabels = [] } = useQuery({
-    queryKey: ['projects-labels', projectIds],
-    queryFn: async (): Promise<AvailableLabel[]> => {
-      const results = await Promise.all(
-        projectIds.map((pid) =>
-          api.get<{ data: ProjectDetail }>(`/api/projects/${pid}`).then((response) => response.data)
-        )
-      );
-
-      return results.flatMap((project) =>
-        project.labels.map((label) => ({
-          id: label.id,
-          name: label.name,
-          color: label.color,
-          projectId: project.id,
-          projectIdentifier: project.identifier,
-        }))
-      );
-    },
-    enabled: projectIds.length > 0,
-  });
-
-  const moveMutation = useMutation({
-    mutationFn: async ({ taskId, stateId, position }: { taskId: string; stateId: string; position: string }) => {
-      await api.post(`/api/tasks/${taskId}/move`, { stateId, position });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['smart-view-execute', viewId] });
-    },
-  });
-
-  const tasks: TaskCardTask[] = useMemo(() => {
-    if (!data?.tasks) return [];
-    return data.tasks.map((task) => ({
-      id: task.id,
-      title: task.title,
-      priority: task.priority,
-      dueDate: task.dueDate,
-      updatedAt: task.updatedAt,
-      position: task.position,
-      state: task.state,
-      assignees: task.assignees,
-      labels: task.labels,
-      project: task.project,
-      agent: task.agent,
-      sequenceNumber: task.sequenceNumber,
-    }));
-  }, [data?.tasks]);
-
-  const selectedTasks = useMemo(() => {
-    if (selectedTaskIds.size === 0) return [];
-    return tasks.filter((task) => selectedTaskIds.has(task.id));
-  }, [tasks, selectedTaskIds]);
-
-  const selectedProjectIds = useMemo(
-    () => [...new Set(selectedTasks.map((task) => task.project.id))],
-    [selectedTasks]
+  const allProjectStates = useMemo<TaskStateDto[]>(
+    () => projects.flatMap((project) => project.taskStates),
+    [projects]
   );
 
-  const statesByProject = useMemo(() => {
-    const grouped = new Map<string, AvailableState[]>();
-    allProjectStates.forEach((state) => {
-      const existing = grouped.get(state.projectId) || [];
-      existing.push(state);
-      grouped.set(state.projectId, existing);
-    });
-    return grouped;
-  }, [allProjectStates]);
+  const selectedTasks = useMemo(
+    () => (selectedTaskIds.size === 0 ? [] : tasks.filter((task) => selectedTaskIds.has(task.id))),
+    [tasks, selectedTaskIds]
+  );
+  const bulk = useBulkTaskActions(selectedTasks, allProjectStates, () => setSelectedTaskIds(new Set()));
 
-  const assigneeOptions = useMemo<BulkAssigneeOption[]>(() => {
-    return (workspaceDetail?.members || []).map((member) => ({
-      id: member.user.id,
-      name: member.user.name,
-      email: member.user.email,
-      avatarUrl: member.user.avatarUrl,
-    }));
-  }, [workspaceDetail?.members]);
+  const selectedProjectIds = useMemo(() => [...new Set(selectedTasks.map((task) => task.project.id))], [selectedTasks]);
+
+  const assigneeOptions = useMemo<BulkAssigneeOption[]>(
+    () =>
+      (workspaceDetail?.members || []).map((member) => ({
+        id: member.user.id,
+        name: member.user.name,
+        email: member.user.email,
+        avatarUrl: member.user.avatarUrl,
+      })),
+    [workspaceDetail?.members]
+  );
 
   const labelOptions = useMemo<BulkLabelOption[]>(() => {
-    const isMultiProjectSelection = selectedProjectIds.length > 1;
-    const visibleProjectIds = new Set(selectedProjectIds);
+    const isMultiProject = selectedProjectIds.length > 1;
+    const visible = new Set(selectedProjectIds);
+    return projects
+      .filter((project) => visible.has(project.id))
+      .flatMap((project) =>
+        project.labels.map((label) => ({
+          id: `${project.id}:${label.id}`,
+          name: isMultiProject ? `${project.identifier} · ${label.name}` : label.name,
+          color: label.color,
+        }))
+      );
+  }, [projects, selectedProjectIds]);
 
-    return allProjectLabels
-      .filter((label) => visibleProjectIds.has(label.projectId))
-      .map((label) => ({
-        id: `${label.projectId}:${label.id}`,
-        name: isMultiProjectSelection ? `${label.projectIdentifier} · ${label.name}` : label.name,
-        color: label.color,
-      }));
-  }, [allProjectLabels, selectedProjectIds]);
+  const selectedTask = useMemo(
+    () => (selectedTaskId ? tasks.find((task) => task.id === selectedTaskId) ?? null : null),
+    [selectedTaskId, tasks]
+  );
+  const selectedTaskStates = useMemo(
+    () => projects.find((project) => project.id === selectedTask?.project.id)?.taskStates ?? [],
+    [projects, selectedTask?.project.id]
+  );
 
-  const selectedTask = useMemo(() => {
-    if (!selectedTaskId || !data?.tasks) return null;
-    return data.tasks.find((task) => task.id === selectedTaskId) || null;
-  }, [selectedTaskId, data?.tasks]);
-
-  const activePublicShares = useMemo(() => {
-    return data?.view.publicShares?.filter((share) => share.isActive) || [];
-  }, [data?.view.publicShares]);
-
+  const activePublicShares = useMemo(() => view?.publicShares?.filter((share) => share.isActive) ?? [], [view?.publicShares]);
   const primaryActiveShare = activePublicShares[0];
 
-  const { data: projectStates = [] } = useQuery({
-    queryKey: ['project-states', selectedTask?.project.id],
-    queryFn: async () => {
-      if (!selectedTask?.project.id) return [];
-      const response = await api.get<{ data: TaskState[] }>(`/api/projects/${selectedTask.project.id}/states`);
-      return response.data;
-    },
-    enabled: !!selectedTask?.project.id,
-  });
-
-  useEffect(() => {
-    if (!bulkNotice) return;
-
-    const timeoutId = window.setTimeout(() => setBulkNotice(null), 4500);
-    return () => window.clearTimeout(timeoutId);
-  }, [bulkNotice]);
-
+  // Drop selections for tasks that left the view.
   useEffect(() => {
     setSelectedTaskIds((previous) => {
-      if (previous.size === 0) {
-        return previous;
-      }
-
-      const availableTaskIds = new Set(tasks.map((task) => task.id));
-      const next = new Set([...previous].filter((taskId) => availableTaskIds.has(taskId)));
-
-      if (next.size === previous.size) {
-        return previous;
-      }
-
-      return next;
+      if (previous.size === 0) return previous;
+      const available = new Set(tasks.map((task) => task.id));
+      const next = new Set([...previous].filter((taskId) => available.has(taskId)));
+      return next.size === previous.size ? previous : next;
     });
   }, [tasks]);
 
-  const refreshSmartView = async () => {
-    await queryClient.invalidateQueries({ queryKey: ['smart-view-execute', viewId] });
-  };
-
-  const runBulkAction = async (
-    actionLabel: string,
-    operationBuilder: () => { operations: Array<Promise<unknown>>; skipped: number }
-  ) => {
-    if (selectedTasks.length === 0) {
-      return;
-    }
-
-    setIsBulkActionPending(true);
-
-    try {
-      const { operations, skipped } = operationBuilder();
-      const { success, failed } = await settleOperations(operations);
-
-      await refreshSmartView();
-
-      if (failed === 0 && skipped === 0) {
-        setSelectedTaskIds(new Set());
-      }
-
-      setBulkNotice(summarizeBulkAction(actionLabel, success, skipped, failed));
-    } finally {
-      setIsBulkActionPending(false);
-    }
-  };
-
-  const handleTaskClick = (taskId: string, event: MouseEvent<HTMLDivElement>) => {
+  const handleTaskClick = (taskId: string, event: TaskOpenEvent) => {
     if (event.ctrlKey || event.metaKey) {
       setSelectedTaskIds((previous) => {
         const next = new Set(previous);
-        if (next.has(taskId)) {
-          next.delete(taskId);
-        } else {
-          next.add(taskId);
-        }
+        if (next.has(taskId)) next.delete(taskId);
+        else next.add(taskId);
         return next;
       });
       return;
     }
-
     setSelectedTaskIds(new Set());
     setSelectedTaskId(taskId);
   };
 
-  const handleTaskUpdated = () => {
-    queryClient.invalidateQueries({ queryKey: ['smart-view-execute', viewId] });
-  };
+  if (viewQuery.isLoading) {
+    return <PageSpinner label="Loading view" />;
+  }
 
-  const handleTaskMove = async (taskId: string, stateId: string, position: string) => {
-    await moveMutation.mutateAsync({ taskId, stateId, position });
-  };
-
-  const handleBulkAssign = async (userId: string, mode: BulkAssignMode) => {
-    await runBulkAction('Assign', () => {
-      let skipped = 0;
-
-      const operations = selectedTasks.flatMap((task) => {
-        const alreadyAssigned = task.assignees.some((assignee) => assignee.id === userId);
-
-        if (mode === 'add') {
-          if (alreadyAssigned) {
-            skipped += 1;
-            return [];
-          }
-
-          return [api.post(`/api/tasks/${task.id}/assignees`, { userId })];
-        }
-
-        const assigneesToRemove = task.assignees.filter((assignee) => assignee.id !== userId);
-
-        if (assigneesToRemove.length === 0 && alreadyAssigned) {
-          skipped += 1;
-          return [];
-        }
-
-        return [
-          (async () => {
-            await Promise.all(
-              assigneesToRemove.map((assignee) => api.delete(`/api/tasks/${task.id}/assignees/${assignee.id}`))
-            );
-
-            if (!alreadyAssigned) {
-              await api.post(`/api/tasks/${task.id}/assignees`, { userId });
-            }
-          })(),
-        ];
-      });
-
-      return { operations, skipped };
-    });
-  };
-
-  const handleBulkMoveToDone = async () => {
-    await runBulkAction('Move to Done', () => {
-      let skipped = 0;
-
-      const operations = selectedTasks.flatMap((task) => {
-        const projectStates = statesByProject.get(task.project.id) || [];
-        const targetStateId = resolveDoneStateId(projectStates);
-
-        if (!targetStateId) {
-          skipped += 1;
-          return [];
-        }
-
-        return [api.patch(`/api/tasks/${task.id}`, { stateId: targetStateId })];
-      });
-
-      return { operations, skipped };
-    });
-  };
-
-  const handleBulkCancel = async () => {
-    await runBulkAction('Cancel', () => {
-      let skipped = 0;
-
-      const operations = selectedTasks.flatMap((task) => {
-        const projectStates = statesByProject.get(task.project.id) || [];
-        const targetStateId = resolveCancelStateId(projectStates);
-
-        if (!targetStateId) {
-          skipped += 1;
-          return [];
-        }
-
-        return [api.patch(`/api/tasks/${task.id}`, { stateId: targetStateId })];
-      });
-
-      return { operations, skipped };
-    });
-  };
-
-  const handleBulkDelete = async () => {
-    await runBulkAction('Delete', () => ({
-      operations: selectedTasks.map((task) => api.delete(`/api/tasks/${task.id}`)),
-      skipped: 0,
-    }));
-  };
-
-  const handleBulkSetLabels = async (selectedCompositeLabelIds: string[]) => {
-    await runBulkAction('Set labels', () => {
-      let skipped = 0;
-      const hasLabelSelection = selectedCompositeLabelIds.length > 0;
-      const targetLabelsByProject = new Map<string, string[]>();
-
-      selectedCompositeLabelIds.forEach((compositeId) => {
-        const [projectId, labelId] = compositeId.split(':');
-        if (!projectId || !labelId) return;
-        const existing = targetLabelsByProject.get(projectId) || [];
-        existing.push(labelId);
-        targetLabelsByProject.set(projectId, existing);
-      });
-
-      const operations = selectedTasks.flatMap((task) => {
-        const targetLabelIds = targetLabelsByProject.get(task.project.id) || [];
-        const currentLabelIds = task.labels.map((label) => label.id);
-
-        // In multi-project selections, if no labels were selected for this task's project, skip instead of clearing.
-        if (hasLabelSelection && targetLabelIds.length === 0) {
-          skipped += 1;
-          return [];
-        }
-
-        const labelsToAdd = targetLabelIds.filter((labelId) => !currentLabelIds.includes(labelId));
-        const labelsToRemove = currentLabelIds.filter((labelId) => !targetLabelIds.includes(labelId));
-
-        if (labelsToAdd.length === 0 && labelsToRemove.length === 0) {
-          skipped += 1;
-          return [];
-        }
-
-        return [
-          (async () => {
-            await Promise.all([
-              ...labelsToAdd.map((labelId) => api.post(`/api/tasks/${task.id}/labels`, { labelId })),
-              ...labelsToRemove.map((labelId) => api.delete(`/api/tasks/${task.id}/labels/${labelId}`)),
-            ]);
-          })(),
-        ];
-      });
-
-      return { operations, skipped };
-    });
-  };
-
-  const handleInvalidDrop = (message: string) => {
-    setErrorMessage(message);
-    setTimeout(() => setErrorMessage(null), 3000);
-  };
-
-  if (isLoading) {
+  if (!view) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
-      </div>
+      <ErrorState
+        error={viewQuery.error}
+        resource="view"
+        onRetry={() => void viewQuery.refetch()}
+        notFoundAction={
+          <Link to="/views" className="btn btn-secondary">
+            Back to views
+          </Link>
+        }
+      />
     );
   }
 
-  if (!data) {
-    return (
-      <div className="text-center py-12">
-        <h2 className="text-xl font-semibold text-gray-900">View not found</h2>
-      </div>
-    );
-  }
-
-  const view = data.view;
   const displayType = view.displayType || 'list';
   const groupBy = view.groupBy || 'state';
   const secondaryGroupBy = view.secondaryGroupBy || undefined;
@@ -629,25 +157,29 @@ export function SmartViewPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-start justify-between mb-6">
+      <header className="flex flex-wrap items-start justify-between gap-3 mb-6">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold text-gray-900">{view.name}</h1>
-            <DisplayIcon className="w-5 h-5 text-gray-400" />
+            <DisplayIcon className="w-5 h-5 text-gray-400" aria-hidden />
+            <span className="sr-only">{displayType} view</span>
           </div>
           {view.description && <p className="text-gray-600 mt-1">{view.description}</p>}
-          <p className="text-sm text-gray-500 mt-2">
-            {data.meta.total} task{data.meta.total !== 1 ? 's' : ''} found
-          </p>
+          <div className="mt-2 flex items-center gap-2">
+            <LiveIndicator suffix={`${total} task${total !== 1 ? 's' : ''}`} />
+            {(!viewQuery.isComplete || (viewQuery.isFetching && !viewQuery.isFetchingNextPage)) && (
+              <Spinner size="sm" label="Updating tasks" />
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <ShareButton hasActiveShares={activePublicShares.length > 0} onClick={() => setShowShareDialog(true)} />
           <Link to={`/settings/views/${viewId}/edit`} className="btn btn-secondary inline-flex items-center">
-            <Pencil className="w-4 h-4 mr-2" />
+            <Pencil className="w-4 h-4 mr-2" aria-hidden />
             Edit
           </Link>
         </div>
-      </div>
+      </header>
 
       {primaryActiveShare && (
         <ActiveShareBanner
@@ -664,58 +196,51 @@ export function SmartViewPage() {
         selectedCount={selectedTaskIds.size}
         members={assigneeOptions}
         labels={labelOptions}
-        isLoading={isBulkActionPending}
+        isLoading={bulk.isPending}
         onClearSelection={() => setSelectedTaskIds(new Set())}
-        onAssign={handleBulkAssign}
-        onSetLabels={handleBulkSetLabels}
-        onMoveToDone={handleBulkMoveToDone}
-        onCancel={handleBulkCancel}
-        onDelete={handleBulkDelete}
+        onAssign={bulk.assign}
+        onSetLabels={(ids) => bulk.setLabelsByProject(parseCompositeLabelIds(ids))}
+        onMoveToDone={bulk.moveToDone}
+        onCancel={bulk.cancel}
+        onDelete={bulk.remove}
       />
 
       <div className="flex-1 min-h-0">
-        <TaskDisplayContainer
-          tasks={tasks}
-          displayType={displayType}
-          groupBy={groupBy}
-          secondaryGroupBy={secondaryGroupBy}
-          onTaskClick={handleTaskClick}
-          onTaskMove={isStateGrouping ? handleTaskMove : undefined}
-          onInvalidDrop={handleInvalidDrop}
-          showProject={true}
-          allowDragDrop={displayType === 'kanban' && isStateGrouping}
-          availableStates={allProjectStates}
-          mergeStatesByCategory={true}
-          selectedTaskIds={selectedTaskIds}
-        />
+        {tasks.length === 0 && viewQuery.isComplete ? (
+          <EmptyState
+            icon={<Filter />}
+            title="No tasks match this view"
+            body="Edit the view's filters to widen it."
+            action={
+              <Link to={`/settings/views/${viewId}/edit`} className="btn btn-secondary">
+                Edit filters
+              </Link>
+            }
+          />
+        ) : (
+          <TaskDisplayContainer
+            tasks={tasks}
+            displayType={displayType}
+            groupBy={groupBy}
+            secondaryGroupBy={secondaryGroupBy}
+            onTaskClick={handleTaskClick}
+            onTaskMove={isStateGrouping ? (move) => moveTask.mutateAsync(move).then(() => undefined, () => undefined) : undefined}
+            onInvalidDrop={(message) => toast.warning(message)}
+            showProject={true}
+            allowDragDrop={displayType === 'kanban' && isStateGrouping}
+            availableStates={allProjectStates}
+            mergeStatesByCategory={true}
+            selectedTaskIds={selectedTaskIds}
+          />
+        )}
       </div>
-
-      {errorMessage && (
-        <div className="fixed bottom-4 right-4 bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-in fade-in slide-in-from-bottom-2">
-          {errorMessage}
-        </div>
-      )}
-
-      {bulkNotice && (
-        <div
-          className={clsx(
-            'fixed bottom-4 left-4 z-50 rounded-lg px-4 py-2 text-sm font-medium shadow-lg',
-            bulkNotice.type === 'success' && 'bg-green-600 text-white',
-            bulkNotice.type === 'warning' && 'bg-amber-500 text-white',
-            bulkNotice.type === 'error' && 'bg-red-600 text-white'
-          )}
-        >
-          {bulkNotice.message}
-        </div>
-      )}
 
       {selectedTaskId && selectedTask && (
         <TaskDetailSheet
           taskId={selectedTaskId}
           projectId={selectedTask.project.id}
-          states={projectStates}
+          states={selectedTaskStates}
           onClose={() => setSelectedTaskId(null)}
-          onUpdated={handleTaskUpdated}
         />
       )}
 
@@ -723,13 +248,13 @@ export function SmartViewPage() {
         <ShareDialog
           viewName={view.name}
           publicShares={view.publicShares || []}
-          isCreating={createShareMutation.isPending}
-          isDisabling={disableShareMutation.isPending}
-          isDeleting={deleteShareMutation.isPending}
+          isCreating={shares.create.isPending}
+          isDisabling={shares.disable.isPending}
+          isDeleting={shares.remove.isPending}
           onClose={() => setShowShareDialog(false)}
-          onCreate={(shareData) => createShareMutation.mutate(shareData)}
-          onDisable={(shareId) => disableShareMutation.mutate(shareId)}
-          onDelete={(shareId) => deleteShareMutation.mutate(shareId)}
+          onCreate={(shareData) => shares.create.mutate(shareData, { onSuccess: () => setShowShareDialog(false) })}
+          onDisable={(shareId) => shares.disable.mutate(shareId)}
+          onDelete={(shareId) => shares.remove.mutate(shareId)}
         />
       )}
     </div>

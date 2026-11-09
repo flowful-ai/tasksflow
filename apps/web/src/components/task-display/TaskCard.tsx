@@ -2,8 +2,12 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import clsx from 'clsx';
 import { Calendar } from 'lucide-react';
-import type { MouseEvent } from 'react';
+import type { KeyboardEvent } from 'react';
 import { TaskContextMenu, type ContextMenuState } from '../tasks/TaskContextMenu';
+import { ColorDot } from '../ui/ColorDot';
+
+/** Modifier keys of the click/keypress that opened a card (ctrl/⌘ toggles selection). */
+export type TaskOpenEvent = { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean };
 
 interface TaskCardTask {
   id: string;
@@ -43,7 +47,7 @@ interface TaskCardTask {
 
 interface TaskCardProps {
   task: TaskCardTask;
-  onClick: (event: MouseEvent<HTMLDivElement>) => void;
+  onClick: (event: TaskOpenEvent) => void;
   showProject?: boolean;
   showState?: boolean;
   isDragging?: boolean;
@@ -52,6 +56,13 @@ interface TaskCardProps {
   states?: ContextMenuState[];
   onContextMenuAction?: () => void;
 }
+
+const PRIORITY_LABELS: Record<string, string> = {
+  urgent: 'Urgent',
+  high: 'High',
+  medium: 'Medium',
+  low: 'Low',
+};
 
 const priorityColors: Record<string, string> = {
   urgent: 'border-l-red-500',
@@ -85,13 +96,34 @@ export function TaskCard({
   };
 
   const isOverdue = task.dueDate && new Date(task.dueDate) < new Date();
+  const priorityLabel = task.priority ? PRIORITY_LABELS[task.priority] : undefined;
+  const taskKey = `${task.project.identifier}-${task.sequenceNumber}`;
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    // dnd-kit's keyboard sensor uses Space to pick up a card; Enter opens it.
+    // Without drag, Space opens too.
+    if (event.target !== event.currentTarget) return;
+    if (event.key === 'Enter' || (!draggable && event.key === ' ')) {
+      event.preventDefault();
+      onClick(event);
+      return;
+    }
+    if (draggable) listeners?.onKeyDown?.(event);
+  };
 
   const card = (
     <div
       ref={setNodeRef}
       style={style}
-      {...(draggable ? { ...attributes, ...listeners } : {})}
+      {...(draggable ? attributes : {})}
+      {...(draggable ? listeners : {})}
+      role="button"
+      tabIndex={0}
+      aria-label={`${taskKey}: ${task.title}${priorityLabel ? `, ${priorityLabel} priority` : ''}`}
+      aria-pressed={isSelected || undefined}
+      aria-roledescription={draggable ? 'draggable task' : undefined}
       onClick={onClick}
+      onKeyDown={handleKeyDown}
       className={clsx(
         'p-3 bg-white rounded-lg border border-gray-200 cursor-pointer',
         'hover:border-primary-300 hover:shadow-sm transition-all',
@@ -103,24 +135,18 @@ export function TaskCard({
       {/* Title row with optional project identifier */}
       <div className="flex items-start gap-2">
         {showProject && (
-          <span className="flex-shrink-0 text-xs font-medium text-gray-400">
-            {task.project.identifier}-{task.sequenceNumber}
-          </span>
+          <span className="flex-shrink-0 text-xs font-medium text-gray-500">{taskKey}</span>
         )}
         <p className="flex-1 text-sm text-gray-900 font-medium line-clamp-2">{task.title}</p>
+        {priorityLabel && <span className="sr-only">Priority: {priorityLabel}</span>}
       </div>
 
       {/* Metadata row */}
       <div className="mt-2 flex items-center flex-wrap gap-2">
         {/* State badge */}
         {showState && task.state && (
-          <span
-            className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium"
-            style={{
-              backgroundColor: task.state.color ? `${task.state.color}20` : '#f3f4f6',
-              color: task.state.color || '#6b7280',
-            }}
-          >
+          <span className="inline-flex items-center gap-1 rounded border border-gray-200 px-1.5 py-0.5 text-xs font-medium text-gray-700">
+            <ColorDot color={task.state.color} size="xs" />
             {task.state.name}
           </span>
         )}
@@ -136,12 +162,9 @@ export function TaskCard({
         {task.labels.slice(0, 2).map((label) => (
           <span
             key={label.id}
-            className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium"
-            style={{
-              backgroundColor: label.color ? `${label.color}20` : '#f3f4f6',
-              color: label.color || '#6b7280',
-            }}
+            className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-1.5 py-0.5 text-xs font-medium text-gray-700"
           >
+            <ColorDot color={label.color} size="xs" />
             {label.name}
           </span>
         ))}
@@ -157,7 +180,8 @@ export function TaskCard({
               isOverdue ? 'text-red-600' : 'text-gray-500'
             )}
           >
-            <Calendar className="w-3 h-3" />
+            <Calendar className="w-3 h-3" aria-hidden />
+            <span className="sr-only">{isOverdue ? 'Overdue, due' : 'Due'}</span>
             {new Date(task.dueDate).toLocaleDateString(undefined, {
               month: 'short',
               day: 'numeric',

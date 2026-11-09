@@ -1,5 +1,6 @@
 import { useDroppable } from '@dnd-kit/core';
 import clsx from 'clsx';
+import { ColorDot } from '../ui/ColorDot';
 
 interface GroupedKanbanColumnProps {
   id: string;
@@ -21,14 +22,11 @@ export function GroupedKanbanColumn({
   });
 
   return (
-    <div className="flex-shrink-0 w-64 sm:w-72">
+    <section aria-label={`${name}, ${taskCount} tasks`} className="flex-shrink-0 w-64 sm:w-72">
       {/* Column header */}
       <div className="flex items-center justify-between mb-3 px-1">
         <div className="flex items-center space-x-2">
-          <div
-            className="w-3 h-3 rounded-full"
-            style={{ backgroundColor: color || '#6b7280' }}
-          />
+          <ColorDot color={color} size="md" />
           <h3 className="font-medium text-gray-900">{name}</h3>
           <span className="text-sm text-gray-500">{taskCount}</span>
         </div>
@@ -46,6 +44,6 @@ export function GroupedKanbanColumn({
           {children}
         </div>
       </div>
-    </div>
+    </section>
   );
 }

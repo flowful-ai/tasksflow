@@ -1,14 +1,13 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { TaskCard, type TaskCardTask } from './TaskCard';
+import { TaskCard, type TaskCardTask, type TaskOpenEvent } from './TaskCard';
 import { groupTasks, taskMatchesGroup, sortTasksForColumn, DONE_COLUMN_INITIAL_LIMIT, type GroupBy, type TaskGroup, type AvailableState } from './grouping';
-import type { MouseEvent } from 'react';
 
 interface TaskListViewProps {
   tasks: TaskCardTask[];
   groupBy: GroupBy;
   secondaryGroupBy?: GroupBy;
-  onTaskClick: (taskId: string, event: MouseEvent<HTMLDivElement>) => void;
+  onTaskClick: (taskId: string, event: TaskOpenEvent) => void;
   showProject?: boolean;
   availableStates?: AvailableState[];
   mergeStatesByCategory?: boolean;
@@ -25,13 +24,17 @@ export function TaskListView({
   mergeStatesByCategory,
   selectedTaskIds,
 }: TaskListViewProps) {
-  const groups = groupTasks(tasks, groupBy, availableStates, mergeStatesByCategory);
-  for (const group of groups) {
-    group.tasks = sortTasksForColumn(group.tasks, group.category);
-  }
-  const secondaryGroups = secondaryGroupBy
-    ? groupTasks(tasks, secondaryGroupBy, undefined, mergeStatesByCategory)
-    : null;
+  const groups = useMemo(() => {
+    const grouped = groupTasks(tasks, groupBy, availableStates, mergeStatesByCategory);
+    for (const group of grouped) {
+      group.tasks = sortTasksForColumn(group.tasks, group.category);
+    }
+    return grouped;
+  }, [tasks, groupBy, availableStates, mergeStatesByCategory]);
+  const secondaryGroups = useMemo(
+    () => (secondaryGroupBy ? groupTasks(tasks, secondaryGroupBy, undefined, mergeStatesByCategory) : null),
+    [tasks, secondaryGroupBy, mergeStatesByCategory]
+  );
 
   if (groupBy === 'none') {
     // Simple flat list without grouping
@@ -120,7 +123,7 @@ export function TaskListView({
 interface TaskGroupSectionProps {
   group: TaskGroup;
   groupBy: GroupBy;
-  onTaskClick: (taskId: string, event: MouseEvent<HTMLDivElement>) => void;
+  onTaskClick: (taskId: string, event: TaskOpenEvent) => void;
   showProject: boolean;
   secondaryGroupBy?: GroupBy;
   selectedTaskIds?: Set<string>;

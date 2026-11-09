@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -15,17 +15,18 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { TaskCard, type TaskCardTask } from './TaskCard';
+import { TaskCard, type TaskCardTask, type TaskOpenEvent } from './TaskCard';
 import { GroupedKanbanColumn } from './GroupedKanbanColumn';
 import { groupTasks, taskMatchesGroup, sortTasksForColumn, DONE_COLUMN_INITIAL_LIMIT, type GroupBy, type AvailableState, type TaskGroup } from './grouping';
-import type { MouseEvent } from 'react';
+import type { MoveTaskInput } from '../../api/types';
 
 interface GroupedKanbanBoardProps {
   tasks: TaskCardTask[];
   groupBy: GroupBy;
   secondaryGroupBy?: GroupBy;
-  onTaskClick: (taskId: string, event: MouseEvent<HTMLDivElement>) => void;
-  onTaskMove?: (taskId: string, stateId: string, position: string) => Promise<void>;
+  onTaskClick: (taskId: string, event: TaskOpenEvent) => void;
+  /** Called on drop with the target state and the neighbours the task lands between. */
+  onTaskMove?: (move: MoveTaskInput) => void | Promise<void>;
   onInvalidDrop?: (message: string) => void;
   showProject?: boolean;
   allowDragDrop?: boolean;
@@ -74,13 +75,19 @@ export function GroupedKanbanBoard({
     })
   );
 
-  const groups = groupTasks(tasks, groupBy, availableStates, mergeStatesByCategory);
-  for (const group of groups) {
-    group.tasks = sortTasksForColumn(group.tasks, group.category);
-  }
-  const rowGroups = secondaryGroupBy
-    ? groupTasks(tasks, secondaryGroupBy, undefined, mergeStatesByCategory)
-    : null;
+  // TODO(board): sort columns by `position` (fractional key) instead of priority/date
+  // so a drop sticks after reload; the move API already stores neighbours' order.
+  const groups = useMemo(() => {
+    const grouped = groupTasks(tasks, groupBy, availableStates, mergeStatesByCategory);
+    for (const group of grouped) {
+      group.tasks = sortTasksForColumn(group.tasks, group.category);
+    }
+    return grouped;
+  }, [tasks, groupBy, availableStates, mergeStatesByCategory]);
+  const rowGroups = useMemo(
+    () => (secondaryGroupBy ? groupTasks(tasks, secondaryGroupBy, undefined, mergeStatesByCategory) : null),
+    [tasks, secondaryGroupBy, mergeStatesByCategory]
+  );
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) : null;
 
   // Determine which task fields to show based on groupBy
@@ -89,7 +96,7 @@ export function GroupedKanbanBoard({
 
   const handleDragStart = (event: DragStartEvent) => {
     if (!dragEnabled) return;
-    setActiveId(event.active.id as string);
+    setActiveId(String(event.active.id));
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
@@ -103,8 +110,8 @@ export function GroupedKanbanBoard({
 
     if (!over) return;
 
-    const taskId = active.id as string;
-    const overId = over.id as string;
+    const taskId = String(active.id);
+    const overId = String(over.id);
 
     const draggedTask = tasks.find(t => t.id === taskId);
     if (!draggedTask) return;
@@ -217,24 +224,24 @@ export function GroupedKanbanBoard({
 
     if (!targetStateId) return;
 
-    // Calculate position
-    const targetIndex = targetTasks.findIndex((t) => t.id === overId);
-    let position: string;
-
+    // Neighbours in the target column, without the dragged task itself.
+    const columnTasks = targetTasks.filter((t) => t.id !== taskId);
+    const targetIndex = columnTasks.findIndex((t) => t.id === overId);
+    let afterTaskId: string | null;
+    let beforeTaskId: string | null;
     if (targetIndex >= 0) {
-      // Dropped on a task - insert before it
-      const beforeTask = targetTasks[targetIndex - 1];
-      const afterTask = targetTasks[targetIndex];
-      position = beforeTask
-        ? generatePositionBetween(beforeTask.position || 'a0', afterTask?.position || 'z')
-        : generatePositionBefore(afterTask?.position || 'a0');
+      // Dropped on a task: insert before it.
+      afterTaskId = columnTasks[targetIndex - 1]?.id ?? null;
+      beforeTaskId = columnTasks[targetIndex]?.id ?? null;
+    } else if (overId === taskId) {
+      return; // dropped on itself
     } else {
-      // Dropped on column - place at end
-      const lastTask = targetTasks[targetTasks.length - 1];
-      position = lastTask ? generatePositionAfter(lastTask.position || 'a0') : 'a0';
+      // Dropped on the column: append.
+      afterTaskId = columnTasks[columnTasks.length - 1]?.id ?? null;
+      beforeTaskId = null;
     }
 
-    await onTaskMove(taskId, targetStateId, position);
+    await onTaskMove({ taskId, stateId: targetStateId, afterTaskId, beforeTaskId });
   };
 
   // Helper to get the primary group ID for a task
@@ -432,65 +439,4 @@ export function GroupedKanbanBoard({
       </DragOverlay>
     </DndContext>
   );
-}
-
-// Simple position generation functions
-function generatePositionAfter(pos: string): string {
-  const chars = pos.split('');
-  let i = chars.length - 1;
-
-  while (i >= 0) {
-    const code = chars[i]!.charCodeAt(0);
-    if (code < 122) {
-      chars[i] = String.fromCharCode(code + 1);
-      return chars.join('');
-    }
-    chars[i] = '0';
-    i--;
-  }
-
-  return '0' + chars.join('');
-}
-
-function generatePositionBefore(pos: string): string {
-  const chars = pos.split('');
-  let i = chars.length - 1;
-
-  while (i >= 0) {
-    const code = chars[i]!.charCodeAt(0);
-    if (code > 48) {
-      chars[i] = String.fromCharCode(code - 1);
-      return chars.join('');
-    }
-    chars[i] = 'z';
-    i--;
-  }
-
-  return '0';
-}
-
-function generatePositionBetween(before: string, after: string): string {
-  const maxLen = Math.max(before.length, after.length);
-  const a = before.padEnd(maxLen, '0');
-  const b = after.padEnd(maxLen, '0');
-
-  const result: string[] = [];
-  let carry = 0;
-
-  for (let i = maxLen - 1; i >= 0; i--) {
-    const aCode = a.charCodeAt(i);
-    const bCode = b.charCodeAt(i);
-    const sum = aCode + bCode + carry;
-    const mid = Math.floor(sum / 2);
-    carry = sum % 2;
-    result.unshift(String.fromCharCode(mid));
-  }
-
-  let pos = result.join('');
-
-  if (pos <= before) {
-    pos = before + 'M';
-  }
-
-  return pos;
 }

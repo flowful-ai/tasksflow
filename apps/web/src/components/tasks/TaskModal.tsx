@@ -1,8 +1,14 @@
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, githubApi } from '../../api/client';
+import type { TaskPriority } from '@flowtask/shared';
 import { useAuthStore } from '../../stores/auth';
+import { useCreateTask, useGitHubIntegration, useTask, useUpdateTask } from '../../hooks/queries';
+import { Dialog } from '../ui/Dialog';
+
+const PRIORITIES: readonly TaskPriority[] = ['urgent', 'high', 'medium', 'low', 'none'];
+
+export function isTaskPriority(value: string): value is TaskPriority {
+  return PRIORITIES.some((p) => p === value);
+}
 
 interface TaskModalProps {
   taskId?: string;
@@ -13,16 +19,9 @@ interface TaskModalProps {
   onUpdated?: () => void;
 }
 
-export function TaskModal({
-  taskId,
-  projectId,
-  states,
-  onClose,
-  onCreated,
-  onUpdated,
-}: TaskModalProps) {
+/** Create (or edit) a task. Render it while open; closing unmounts it. */
+export function TaskModal({ taskId, projectId, states, onClose, onCreated, onUpdated }: TaskModalProps) {
   const isEditing = !!taskId;
-  const queryClient = useQueryClient();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -34,15 +33,7 @@ export function TaskModal({
 
   const currentUserId = useAuthStore((state) => state.user?.id);
 
-  // Fetch task if editing
-  const { data: task } = useQuery({
-    queryKey: ['task', taskId],
-    queryFn: async () => {
-      const response = await api.get<{ data: { title: string; description: string | null; stateId: string | null; priority: string | null } }>(`/api/tasks/${taskId}`);
-      return response.data;
-    },
-    enabled: isEditing,
-  });
+  const { data: task } = useTask(taskId, { enabled: isEditing });
 
   // Populate form when task data loads
   useEffect(() => {
@@ -61,92 +52,66 @@ export function TaskModal({
     }
   }, [isEditing, states, stateId]);
 
-  // Fetch GitHub integration for this project (only when creating new tasks)
-  const { data: githubIntegration } = useQuery({
-    queryKey: ['github-integration', projectId],
-    queryFn: () => githubApi.getIntegration(projectId),
-    enabled: !isEditing,
-  });
-
+  const { data: githubIntegration } = useGitHubIntegration(isEditing ? null : projectId);
   const linkedRepos = githubIntegration?.repositories || [];
   const hasGitHub = linkedRepos.length > 0;
 
-  // Create mutation
-  const createMutation = useMutation({
-    mutationFn: async () => {
-      return api.post('/api/tasks', {
+  const createMutation = useCreateTask();
+  const updateMutation = useUpdateTask();
+  const priorityValue = isTaskPriority(priority) ? priority : undefined;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // Errors are toasted by the global mutation handler; the dialog stays open.
+    if (isEditing && taskId) {
+      await updateMutation.mutateAsync({
+        taskId,
+        title,
+        description,
+        stateId: stateId || undefined,
+        priority: priorityValue ?? null,
+      });
+      onUpdated?.();
+    } else {
+      await createMutation.mutateAsync({
         projectId,
         title,
         description: description || undefined,
         stateId: stateId || undefined,
-        priority: priority || undefined,
+        priority: priorityValue,
         assigneeIds: assignToMe && currentUserId ? [currentUserId] : undefined,
         createOnGitHub: createOnGitHub && selectedRepo ? true : undefined,
         githubRepo: createOnGitHub && selectedRepo ? selectedRepo : undefined,
       });
-    },
-    onSuccess: () => {
-      // Invalidate smart view queries since new tasks may match filter criteria
-      queryClient.invalidateQueries({ queryKey: ['smart-view-execute'] });
       onCreated?.();
-    },
-  });
-
-  // Update mutation
-  const updateMutation = useMutation({
-    mutationFn: async () => {
-      return api.patch(`/api/tasks/${taskId}`, {
-        title,
-        description,
-        stateId: stateId || undefined,
-        priority: priority || undefined,
-      });
-    },
-    onSuccess: () => {
-      // Invalidate smart view queries since task changes may affect filter results
-      queryClient.invalidateQueries({ queryKey: ['smart-view-execute'] });
-      onUpdated?.();
-    },
-  });
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isEditing) {
-      await updateMutation.mutateAsync();
-    } else {
-      await createMutation.mutateAsync();
     }
+  };
+
+  const submit = (e: React.FormEvent) => {
+    handleSubmit(e).catch(() => undefined);
   };
 
   const isLoading = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-
-      {/* Modal */}
-      <div className="relative w-full max-w-lg bg-white rounded-lg shadow-xl">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">
-            {isEditing ? 'Edit Task' : 'Create Task'}
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-lg hover:bg-gray-100"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      title={isEditing ? 'Edit Task' : 'Create Task'}
+      size="lg"
+      dismissible={!isLoading}
+      bodyClassName="!p-0"
+    >
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+        <form onSubmit={submit} className="p-4 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="task-title" className="block text-sm font-medium text-gray-700 mb-1">
               Title *
             </label>
             <input
+              id="task-title"
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -158,10 +123,11 @@ export function TaskModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="task-description" className="block text-sm font-medium text-gray-700 mb-1">
               Description
             </label>
             <textarea
+              id="task-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="input min-h-[100px]"
@@ -171,10 +137,11 @@ export function TaskModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="task-status" className="block text-sm font-medium text-gray-700 mb-1">
                 Status
               </label>
               <select
+                id="task-status"
                 value={stateId}
                 onChange={(e) => setStateId(e.target.value)}
                 className="input"
@@ -189,10 +156,11 @@ export function TaskModal({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="task-priority" className="block text-sm font-medium text-gray-700 mb-1">
                 Priority
               </label>
               <select
+                id="task-priority"
                 value={priority}
                 onChange={(e) => setPriority(e.target.value)}
                 className="input"
@@ -251,6 +219,7 @@ export function TaskModal({
 
               {createOnGitHub && linkedRepos.length > 1 && (
                 <select
+                  aria-label="GitHub repository"
                   value={selectedRepo ? `${selectedRepo.owner}/${selectedRepo.repo}` : ''}
                   onChange={(e) => {
                     const [owner, repo] = e.target.value.split('/');
@@ -287,7 +256,6 @@ export function TaskModal({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </Dialog>
   );
 }

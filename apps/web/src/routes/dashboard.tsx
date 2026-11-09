@@ -22,6 +22,7 @@ import { useAuthStore } from '../stores/auth';
 import { tasksApi } from '../api/tasks';
 import { queryKeys } from '../api/queryKeys';
 import type { TaskDto, WorkspaceActivityItemDto as WorkspaceActivityItem } from '../api/types';
+import { EmptyState, ErrorState } from '../components/ui';
 import { useCurrentWorkspace, useProjects, useWorkspaceActivity } from '../hooks/queries';
 import clsx from 'clsx';
 
@@ -153,6 +154,8 @@ export function DashboardPage() {
     data: activityPages,
     isLoading: activityLoading,
     isError: activityError,
+    error: activityQueryError,
+    refetch: refetchActivity,
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
@@ -163,7 +166,7 @@ export function DashboardPage() {
   return (
     <div className="max-w-6xl mx-auto space-y-10">
       {/* Welcome Header */}
-      <div className="opacity-0 animate-fade-in">
+      <header className="opacity-0 animate-fade-in">
         <p className="text-sm font-medium text-neutral-500 mb-1">{getGreeting()}</p>
         <h1 className="text-4xl font-display font-bold text-neutral-900 tracking-tight">
           {firstName}
@@ -171,7 +174,7 @@ export function DashboardPage() {
         <p className="text-neutral-500 mt-2">
           {currentWorkspace ? `Here's what's happening in ${currentWorkspace.name}` : 'Welcome to TasksFlow'}
         </p>
-      </div>
+      </header>
 
       {/* Quick stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -359,9 +362,9 @@ export function DashboardPage() {
               ))}
             </div>
           ) : activityError ? (
-            <div className="px-6 py-10 text-sm text-red-600">Couldn&apos;t load activity right now.</div>
+            <ErrorState error={activityQueryError} resource="activity feed" onRetry={() => void refetchActivity()} className="py-10" />
           ) : activities.length === 0 ? (
-            <div className="px-6 py-10 text-sm text-neutral-500">No activity yet in this workspace.</div>
+            <EmptyState compact icon={<History />} title="No activity yet" body="Changes to tasks in this workspace show up here." />
           ) : (
             <>
               <div className="divide-y divide-neutral-200/70">
@@ -375,7 +378,7 @@ export function DashboardPage() {
                       className="px-6 py-4 flex items-start gap-3 hover:bg-white/80 transition-colors"
                     >
                       <div className={clsx('w-9 h-9 rounded-xl flex items-center justify-center shrink-0', presentation.bgClass)}>
-                        <Icon className={clsx('w-4 h-4', presentation.iconClass)} />
+                        <Icon aria-hidden className={clsx('w-4 h-4', presentation.iconClass)} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm text-neutral-700">
