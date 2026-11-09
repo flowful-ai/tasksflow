@@ -11,11 +11,13 @@ import { Hono, type Context } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { getDatabase } from '@flowtask/database';
-import { TaskRelationService, isTaskError, resolveTaskAccess } from '@flowtask/domain';
-import { getCurrentUser, hasPermission, type WorkspacePermission } from '@flowtask/auth';
+import { TaskRelationService, isTaskError } from '@flowtask/domain';
+import { getAuthz, requireTask } from '../lib/authorize.js';
+import { handleRouteError } from '../lib/responses.js';
 import { AddTaskRelationSchema } from '@flowtask/shared';
 
 const taskRelationRoutes = new Hono();
+taskRelationRoutes.onError(handleRouteError);
 const db = getDatabase();
 const relationService = new TaskRelationService(db);
 
@@ -32,13 +34,6 @@ function failFromError(c: Context, error: Error) {
   return fail(c, 500, 'INTERNAL_ERROR', 'Request failed');
 }
 
-// TODO(authz): replace with the central authorize() helper.
-async function canOnTask(taskId: string, userId: string, permission: WorkspacePermission): Promise<boolean | null> {
-  const access = await resolveTaskAccess(db, taskId, userId);
-  if (!access) return null;
-  return hasPermission(access.role, permission);
-}
-
 const validationHook = (result: { success: boolean; error?: z.ZodError }, c: Context) => {
   if (!result.success) {
     return fail(c, 400, 'VALIDATION_ERROR', result.error?.issues[0]?.message ?? 'Invalid request');
@@ -46,18 +41,15 @@ const validationHook = (result: { success: boolean; error?: z.ZodError }, c: Con
 };
 
 taskRelationRoutes.get('/:taskId/relations', zValidator('param', ParamsSchema, validationHook), async (c) => {
-  const user = getCurrentUser(c);
   const { taskId } = c.req.valid('param');
-  const allowed = await canOnTask(taskId, user.id, 'task:read');
-  if (allowed === null) return fail(c, 404, 'NOT_FOUND', 'Task not found');
-  if (!allowed) return fail(c, 403, 'FORBIDDEN', 'Not authorized');
+  const { user } = await requireTask(c, taskId, 'task:read');
 
   const result = await relationService.list(taskId);
   if (!result.ok) return failFromError(c, result.error);
   // Hide relations to tasks the user cannot see (restricted projects).
   const visible = [];
   for (const view of result.value) {
-    if (await resolveTaskAccess(db, view.task.id, user.id)) visible.push(view);
+    if ((await getAuthz().authorizeTask(view.task.id, user.id, 'task:read')).ok) visible.push(view);
   }
   return c.json({ success: true, data: visible });
 });
@@ -67,16 +59,10 @@ taskRelationRoutes.post(
   zValidator('param', ParamsSchema, validationHook),
   zValidator('json', AddTaskRelationSchema, validationHook),
   async (c) => {
-    const user = getCurrentUser(c);
     const { taskId } = c.req.valid('param');
     const body = c.req.valid('json');
-
-    const [own, other] = await Promise.all([
-      canOnTask(taskId, user.id, 'task:update'),
-      canOnTask(body.relatedTaskId, user.id, 'task:update'),
-    ]);
-    if (own === null || other === null) return fail(c, 404, 'NOT_FOUND', 'Task not found');
-    if (!own || !other) return fail(c, 403, 'FORBIDDEN', 'Not authorized');
+    const { user } = await requireTask(c, taskId, 'task:update');
+    await requireTask(c, body.relatedTaskId, 'task:update');
 
     const result = await relationService.add({
       taskId,
@@ -94,11 +80,8 @@ taskRelationRoutes.delete(
   '/:taskId/relations/:relationId',
   zValidator('param', RelationParamsSchema, validationHook),
   async (c) => {
-    const user = getCurrentUser(c);
     const { taskId, relationId } = c.req.valid('param');
-    const allowed = await canOnTask(taskId, user.id, 'task:update');
-    if (allowed === null) return fail(c, 404, 'NOT_FOUND', 'Task not found');
-    if (!allowed) return fail(c, 403, 'FORBIDDEN', 'Not authorized');
+    const { user } = await requireTask(c, taskId, 'task:update');
 
     const result = await relationService.remove(taskId, relationId, user.id);
     if (!result.ok) return failFromError(c, result.error);

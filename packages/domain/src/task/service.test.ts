@@ -11,7 +11,7 @@ import {
 } from './service.js';
 import { keyForIndex, resolveInsertIndex, type ColumnTask } from './positions.js';
 import { TaskError, isTaskError } from './errors.js';
-import { canAccessProject } from './access.js';
+import { projectAclAllows as canAccessProject } from '../workspace/authorization.js';
 
 const dialect = new PgDialect();
 const render = (conditions: ReturnType<typeof buildTaskAssigneeConditions>) => dialect.sqlToQuery(and(...conditions)!);
@@ -101,5 +101,7 @@ describe('task errors and access rules', () => {
     expect(canAccessProject('members', 'member', false)).toBe(false);
     expect(canAccessProject('members', 'member', true)).toBe(true);
     expect(canAccessProject('all', 'member', false)).toBe(true);
+    // Unknown access values deny members (fail closed).
+    expect(canAccessProject('weird', 'member', true)).toBe(false);
   });
 });

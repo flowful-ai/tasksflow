@@ -14,17 +14,6 @@ export interface FailedAttemptResult {
   lockoutSeconds: number;
 }
 
-/**
- * Callers written for the Redis implementation pass an ioredis client. It is
- * accepted and ignored so they keep compiling until they pass a Database (or
- * nothing) instead.
- */
-export type LegacyRedisClient = { multi: () => object };
-
-function isLegacyRedisClient(value: Database | LegacyRedisClient): value is LegacyRedisClient {
-  return 'multi' in value;
-}
-
 type CounterRow = { count: number; reset_in: number };
 
 /**
@@ -33,7 +22,7 @@ type CounterRow = { count: number; reset_in: number };
  * limits hold across API replicas without Redis. Used for per-minute API token
  * limits and failed-attempt lockouts.
  *
- * Like the Redis version, every method fails open (allows) if the database errors.
+ * Every method fails open (allows) if the database errors.
  */
 export class RateLimitService {
   private static readonly MINUTE_LIMIT_PREFIX = 'ratelimit:token:minute:';
@@ -46,8 +35,8 @@ export class RateLimitService {
 
   private readonly explicitDb: Database | null;
 
-  constructor(db?: Database | LegacyRedisClient) {
-    this.explicitDb = db && !isLegacyRedisClient(db) ? db : null;
+  constructor(db?: Database) {
+    this.explicitDb = db ?? null;
   }
 
   private get db(): Database {

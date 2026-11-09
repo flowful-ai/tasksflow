@@ -13,8 +13,9 @@ import { Hono, type Context } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { getDatabase } from '@flowtask/database';
-import { TaskBulkService, lookupTaskProjects, resolveProjectAccess } from '@flowtask/domain';
-import { getCurrentUser, hasPermission, type WorkspacePermission } from '@flowtask/auth';
+import { TaskBulkService, lookupTaskProjects } from '@flowtask/domain';
+import { getCurrentUser, type WorkspacePermission } from '@flowtask/auth';
+import { getAuthz } from '../lib/authorize.js';
 import { BulkTaskRequestSchema, type BulkTaskOperation } from '@flowtask/shared';
 
 const taskBulkRoutes = new Hono();
@@ -49,12 +50,12 @@ taskBulkRoutes.post('/bulk', zValidator('json', BulkTaskRequestSchema, validatio
   const workspaceIds = new Set([...located.values()].map((v) => v.workspaceId));
   if (workspaceIds.size > 1) return fail(c, 400, 'MIXED_WORKSPACES', 'All tasks must belong to one workspace');
 
-  // TODO(authz): replace with the central authorize() helper.
   const needed = requiredBulkPermissions(op);
+  const authz = getAuthz();
   const allowedProjectIds = new Set<string>();
   for (const projectId of new Set([...located.values()].map((v) => v.projectId))) {
-    const access = await resolveProjectAccess(db, projectId, user.id);
-    if (access && needed.every((p) => hasPermission(access.role, p))) allowedProjectIds.add(projectId);
+    const grant = await authz.authorizeProject(projectId, user.id, 'task:read');
+    if (grant.ok && needed.every((p) => authz.hasPermission(grant.role, p))) allowedProjectIds.add(projectId);
   }
 
   const result = await bulkService.apply({ taskIds, op, actorId: user.id, allowedProjectIds });

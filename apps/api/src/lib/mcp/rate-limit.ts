@@ -1,27 +1,18 @@
 import type { Context, MiddlewareHandler } from 'hono';
-import { Redis } from 'ioredis';
 import { RateLimitService, type RateLimitResult } from '@flowtask/domain';
-import { getClientIp } from './client-ip.js';
+import { getClientIp } from '../client-ip.js';
 
 /**
  * Per-client-IP minute limits for the public OAuth endpoints and the MCP
- * transport. Only the RateLimitService public interface is used here, so the
- * Postgres reimplementation can be swapped in by changing createLimiter().
+ * transport, on the Postgres-backed RateLimitService (shared by all replicas).
  */
 
 type MinuteLimiter = Pick<RateLimitService, 'checkMinuteLimit'>;
 
 let limiter: MinuteLimiter | null = null;
 
-function createLimiter(): MinuteLimiter {
-  const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-  return new RateLimitService(new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: 1 }));
-}
-
 function getLimiter(): MinuteLimiter {
-  if (!limiter) {
-    limiter = createLimiter();
-  }
+  limiter ??= new RateLimitService();
   return limiter;
 }
 

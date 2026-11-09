@@ -12,7 +12,7 @@
  * URI-encoded, as produced by better-call's signCookieValue), so Better Auth's own
  * getSession() validates them exactly as in production.
  */
-import { Hono } from 'hono';
+import type { Hono } from 'hono';
 import { join } from 'path';
 import { sql } from 'drizzle-orm';
 import type { Database } from '@flowtask/database';
@@ -99,33 +99,10 @@ function pushSchema(): void {
   schemaPushed = true;
 }
 
-/** Mirrors the mounting in src/index.ts for the routers covered here. */
+/** The production app (src/app.ts), so tests exercise the real mounting and middleware. */
 async function buildApp(): Promise<Hono> {
-  const { authMiddleware } = await import('@flowtask/auth');
-  const { workspaceRoutes } = await import('../routes/workspaces.js');
-  const { projectRoutes } = await import('../routes/projects.js');
-  const { taskRoutes } = await import('../routes/tasks.js');
-  const { commentRoutes } = await import('../routes/comments.js');
-  const { smartViewRoutes } = await import('../routes/smart-views.js');
-  const { publicRoutes } = await import('../routes/public.js');
-  const { eventRoutes } = await import('../routes/events.js');
-  const { appAdminRoutes } = await import('../routes/app-admin.js');
-
-  const app = new Hono();
-  app.route('/api/public', publicRoutes);
-  app.route('/api/events', eventRoutes);
-  app.use('/api/*', authMiddleware);
-  app.route('/api/workspaces', workspaceRoutes);
-  app.route('/api/projects', projectRoutes);
-  app.route('/api/tasks', taskRoutes);
-  app.route('/api/tasks', commentRoutes);
-  app.route('/api/smart-views', smartViewRoutes);
-  app.route('/api/app', appAdminRoutes);
-  app.onError((error, c) => {
-    console.error('Unhandled test app error:', error);
-    return c.json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } }, 500);
-  });
-  return app;
+  const { createApp } = await import('../app.js');
+  return createApp().app;
 }
 
 async function truncateAll(db: Database): Promise<void> {

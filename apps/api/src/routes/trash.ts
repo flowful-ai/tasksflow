@@ -12,11 +12,13 @@ import { Hono, type Context } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { getDatabase } from '@flowtask/database';
-import { TaskService, isTaskError, resolveProjectAccess } from '@flowtask/domain';
-import { getCurrentUser, hasPermission, type WorkspacePermission } from '@flowtask/auth';
+import { TaskService, isTaskError } from '@flowtask/domain';
+import { requireProject } from '../lib/authorize.js';
+import { handleRouteError } from '../lib/responses.js';
 import { TRASH_RETENTION_DAYS, TrashQuerySchema } from '@flowtask/shared';
 
 const trashRoutes = new Hono();
+trashRoutes.onError(handleRouteError);
 const db = getDatabase();
 const taskService = new TaskService(db);
 
@@ -33,25 +35,14 @@ const validationHook = (result: { success: boolean; error?: z.ZodError }, c: Con
   }
 };
 
-// TODO(authz): replace with the central authorize() helper.
-async function projectAccess(projectId: string, userId: string, permission: WorkspacePermission) {
-  const access = await resolveProjectAccess(db, projectId, userId);
-  if (!access) return { status: 404 as const };
-  if (!hasPermission(access.role, permission)) return { status: 403 as const };
-  return { status: 200 as const, access };
-}
-
 trashRoutes.get(
   '/:projectId/trash',
   zValidator('param', ProjectParamsSchema, validationHook),
   zValidator('query', TrashQuerySchema, validationHook),
   async (c) => {
-    const user = getCurrentUser(c);
     const { projectId } = c.req.valid('param');
     const { page, limit } = c.req.valid('query');
-    const check = await projectAccess(projectId, user.id, 'task:read');
-    if (check.status === 404) return fail(c, 404, 'NOT_FOUND', 'Project not found');
-    if (check.status === 403) return fail(c, 403, 'FORBIDDEN', 'Not authorized');
+    await requireProject(c, projectId, 'task:read');
 
     const result = await taskService.listTrash(projectId, { page, limit });
     if (!result.ok) {
@@ -70,11 +61,8 @@ trashRoutes.post(
   '/:projectId/trash/:taskId/restore',
   zValidator('param', RestoreParamsSchema, validationHook),
   async (c) => {
-    const user = getCurrentUser(c);
     const { projectId, taskId } = c.req.valid('param');
-    const check = await projectAccess(projectId, user.id, 'task:update');
-    if (check.status === 404) return fail(c, 404, 'NOT_FOUND', 'Project not found');
-    if (check.status === 403) return fail(c, 403, 'FORBIDDEN', 'Not authorized');
+    const { user } = await requireProject(c, projectId, 'task:update');
 
     const existing = await taskService.getById(taskId, { includeDeleted: true });
     if (!existing.ok || existing.value.projectId !== projectId) return fail(c, 404, 'NOT_FOUND', 'Task not found');

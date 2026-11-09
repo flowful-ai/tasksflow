@@ -12,7 +12,8 @@ import { Hono, type Context } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { getDatabase } from '@flowtask/database';
-import { NotificationService, getWorkspaceRole, type NotificationRecord } from '@flowtask/domain';
+import { NotificationService, type NotificationRecord } from '@flowtask/domain';
+import { getAuthz } from '../lib/authorize.js';
 import { getCurrentUser } from '@flowtask/auth';
 import {
   ListNotificationsQuerySchema,
@@ -39,7 +40,7 @@ const validationHook = (result: { success: boolean; error?: z.ZodError }, c: Con
 };
 
 async function isMember(workspaceId: string, userId: string): Promise<boolean> {
-  return (await getWorkspaceRole(db, workspaceId, userId)) !== null;
+  return (await getAuthz().getRole(workspaceId, userId)) !== null;
 }
 
 function respond(c: Context, result: Result<NotificationRecord | null, Error>) {

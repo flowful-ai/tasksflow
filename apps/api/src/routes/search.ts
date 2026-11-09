@@ -10,11 +10,13 @@ import { Hono, type Context } from 'hono';
 import type { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { getDatabase } from '@flowtask/database';
-import { SearchService, getWorkspaceRole, listAccessibleProjectIds } from '@flowtask/domain';
-import { getCurrentUser, hasPermission } from '@flowtask/auth';
+import { SearchService } from '@flowtask/domain';
+import { getAuthz, requireWorkspace } from '../lib/authorize.js';
+import { handleRouteError } from '../lib/responses.js';
 import { SearchQuerySchema } from '@flowtask/shared';
 
 const searchRoutes = new Hono();
+searchRoutes.onError(handleRouteError);
 const db = getDatabase();
 const searchService = new SearchService(db);
 
@@ -29,13 +31,9 @@ const validationHook = (result: { success: boolean; error?: z.ZodError }, c: Con
 };
 
 searchRoutes.get('/', zValidator('query', SearchQuerySchema, validationHook), async (c) => {
-  const user = getCurrentUser(c);
   const { workspaceId, q, limit } = c.req.valid('query');
-
-  // TODO(authz): replace with the central authorize() helper.
-  const role = await getWorkspaceRole(db, workspaceId, user.id);
-  if (!role || !hasPermission(role, 'task:read')) return fail(c, 403, 'FORBIDDEN', 'Not authorized');
-  const projectIds = await listAccessibleProjectIds(db, workspaceId, user.id);
+  const { user, role } = await requireWorkspace(c, workspaceId, 'task:read');
+  const projectIds = await getAuthz().listAccessibleProjectIds(workspaceId, user.id, role);
 
   const result = await searchService.search({ projectIds, q, limit });
   if (!result.ok) {

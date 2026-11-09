@@ -84,8 +84,9 @@ export function handleRouteError(error: Error, c: Context): Response {
   if (isAppError(error)) {
     return respondError(c, error);
   }
-  if (error instanceof HTTPException) {
-    return c.json(errorBody('HTTP_ERROR', error.message || 'Request failed'), error.status);
+  if (error instanceof HTTPException && error.status < 500) {
+    const code = error.status === 401 ? 'UNAUTHORIZED' : 'HTTP_ERROR';
+    return c.json(errorBody(code, error.message || 'Request failed'), error.status);
   }
   console.error('Unhandled route error:', error);
   return c.json(errorBody('INTERNAL_ERROR', 'Internal server error'), 500);
