@@ -17,6 +17,9 @@ import type { DisplayType } from '@flowtask/shared';
 import type { SmartViewDto } from '../api/types';
 import { useCurrentWorkspace, useDeleteSmartView, useSmartViews } from '../hooks/queries';
 import {
+  Badge,
+  Button,
+  Card,
   ConfirmDialog,
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +28,7 @@ import {
   EmptyState,
   ErrorState,
   IconButton,
+  PageHeader,
   PageSpinner,
   toast,
 } from '../components/ui';
@@ -83,9 +87,7 @@ function ViewCard({ view, onDelete }: ViewCardProps) {
             <p className="text-sm text-neutral-500 mt-1 line-clamp-2">{view.description}</p>
           )}
           <div className="flex items-center gap-3 mt-2">
-            <span className="inline-flex items-center text-xs text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded">
-              {displayTypeLabels[view.displayType]}
-            </span>
+            <Badge className="font-normal">{displayTypeLabels[view.displayType]}</Badge>
             {activeShares > 0 && (
               <span className="inline-flex items-center gap-1 text-xs text-neutral-600">
                 <Globe aria-hidden className="w-3 h-3" />
@@ -135,9 +137,9 @@ export function ViewsPage() {
         title="No workspace selected"
         body="Select or create a workspace to view saved views."
         action={
-          <Link to="/settings/workspace/new" className="btn btn-primary">
-            Create Workspace
-          </Link>
+          <Button asChild>
+            <Link to="/settings/workspace/new">Create Workspace</Link>
+          </Button>
         }
       />
     );
@@ -149,37 +151,29 @@ export function ViewsPage() {
 
   return (
     <div>
-      <header className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-900">Views</h1>
-          <p className="text-neutral-600 mt-1">Saved filtered views in {currentWorkspace.name}</p>
-        </div>
-        <Link
-          to="/settings/workspace/views/new"
-          className="btn btn-primary inline-flex items-center"
-        >
-          <Plus aria-hidden className="w-4 h-4 mr-2" />
-          New View
-        </Link>
-      </header>
+      <PageHeader
+        title="Views"
+        description={`Saved filtered views in ${currentWorkspace.name}`}
+        actions={
+          <Button asChild leadingIcon={<Plus />}>
+            <Link to="/settings/workspace/views/new">New View</Link>
+          </Button>
+        }
+      />
 
       {views.length === 0 ? (
-        <div className="card">
+        <Card padding="none">
           <EmptyState
             icon={<Eye />}
             title="No views yet"
             body="Create custom views to filter and organize your tasks."
             action={
-              <Link
-                to="/settings/workspace/views/new"
-                className="btn btn-primary inline-flex items-center"
-              >
-                <Plus aria-hidden className="w-4 h-4 mr-2" />
-                Create View
-              </Link>
+              <Button asChild leadingIcon={<Plus />}>
+                <Link to="/settings/workspace/views/new">Create View</Link>
+              </Button>
             }
           />
-        </div>
+        </Card>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {views.map((view) => (

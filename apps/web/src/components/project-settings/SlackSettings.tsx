@@ -3,7 +3,18 @@ import { CheckCircle2 } from 'lucide-react';
 import type { SlackNotificationSettings } from '@flowtask/shared';
 import { slackApi } from '../../api/integrations';
 import { useSlackChannels, useSlackIntegration, useSlackMutations } from '../../hooks/queries';
-import { Banner, ConfirmDialog, ErrorState, PageSpinner, toast } from '../ui';
+import {
+  Banner,
+  Button,
+  Card,
+  Checkbox,
+  ConfirmDialog,
+  ErrorState,
+  Field,
+  PageSpinner,
+  Select,
+  toast,
+} from '../ui';
 
 const NOTIFICATION_LABELS: Array<{ key: keyof SlackNotificationSettings; label: string }> = [
   { key: 'taskCreated', label: 'Task created' },
@@ -66,43 +77,35 @@ export function SlackSettings({ projectId }: SlackSettingsProps) {
 
   if (isLoading) {
     return (
-      <div className="card p-6">
+      <Card>
         <PageSpinner className="h-32" label="Loading Slack settings" />
-      </div>
+      </Card>
     );
   }
 
   if (error || !slack) {
     return (
-      <div className="card p-6">
+      <Card>
         <ErrorState error={error} resource="Slack settings" onRetry={() => void refetch()} />
-      </div>
+      </Card>
     );
   }
 
   const notifications = slack.notifications;
 
   return (
-    <div className="card p-6 space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-neutral-900">Slack Notifications</h2>
-        <p className="text-sm text-neutral-500 mt-1">
-          Post task activity from this project to a Slack channel.
-        </p>
-      </div>
-
+    <Card
+      title="Slack Notifications"
+      description="Post task activity from this project to a Slack channel."
+      className="space-y-4"
+    >
       {callbackError && <Banner variant="error">{callbackError}</Banner>}
 
       {!slack.connected ? (
         slack.canConnect ? (
-          <button
-            type="button"
-            onClick={() => void connect()}
-            className="btn btn-primary"
-            disabled={isStarting}
-          >
+          <Button onClick={() => void connect()} disabled={isStarting}>
             {isStarting ? 'Redirecting to Slack…' : 'Connect Slack'}
-          </button>
+          </Button>
         ) : (
           <Banner variant="warning">
             Slack is not configured. Set SLACK_CLIENT_ID, SLACK_CLIENT_SECRET and
@@ -117,13 +120,12 @@ export function SlackSettings({ projectId }: SlackSettingsProps) {
             {slack.channelName ? <>, posting to #{slack.channelName}</> : null}
           </p>
 
-          <div className="text-sm">
-            <label htmlFor="slack-channel" className="text-neutral-700">
-              Channel
-            </label>
-            <select
-              id="slack-channel"
-              className="input mt-1"
+          <Field
+            label="Channel"
+            id="slack-channel"
+            error={channelsError ? `Could not list channels: ${channelsError.message}` : undefined}
+          >
+            <Select
               value={slack.channelId ?? ''}
               onChange={(e) =>
                 update.mutate(
@@ -135,7 +137,6 @@ export function SlackSettings({ projectId }: SlackSettingsProps) {
                 )
               }
               disabled={update.isPending || channelsLoading || !channels}
-              aria-describedby={channelsError ? 'slack-channel-error' : undefined}
             >
               {slack.channelId && !channels?.some((ch) => ch.id === slack.channelId) && (
                 <option value={slack.channelId}>#{slack.channelName}</option>
@@ -146,57 +147,47 @@ export function SlackSettings({ projectId }: SlackSettingsProps) {
                   {ch.name}
                 </option>
               ))}
-            </select>
-            {channelsError && (
-              <p id="slack-channel-error" className="mt-1 text-xs text-red-600">
-                Could not list channels: {channelsError.message}
-              </p>
-            )}
-          </div>
+            </Select>
+          </Field>
 
           <fieldset className="space-y-2">
             <legend className="text-sm text-neutral-700 mb-1">Notify on</legend>
             {NOTIFICATION_LABELS.map(({ key, label }) => (
-              <label key={key} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={notifications?.[key] ?? true}
-                  onChange={(e) => update.mutate({ notifications: { [key]: e.target.checked } })}
-                  disabled={update.isPending}
-                />
-                {label}
-              </label>
+              <Checkbox
+                key={key}
+                label={label}
+                checked={notifications?.[key] ?? true}
+                onChange={(e) => update.mutate({ notifications: { [key]: e.target.checked } })}
+                disabled={update.isPending}
+              />
             ))}
           </fieldset>
 
           <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={slack.isEnabled}
-                onChange={(e) =>
-                  update.mutate(
-                    { isEnabled: e.target.checked },
-                    {
-                      onSuccess: (view) =>
-                        toast.success(
-                          view.isEnabled ? 'Slack notifications on' : 'Slack notifications paused'
-                        ),
-                    }
-                  )
-                }
-                disabled={update.isPending}
-              />
-              Enabled
-            </label>
-            <button
-              type="button"
+            <Checkbox
+              label="Enabled"
+              checked={slack.isEnabled}
+              onChange={(e) =>
+                update.mutate(
+                  { isEnabled: e.target.checked },
+                  {
+                    onSuccess: (view) =>
+                      toast.success(
+                        view.isEnabled ? 'Slack notifications on' : 'Slack notifications paused'
+                      ),
+                  }
+                )
+              }
+              disabled={update.isPending}
+            />
+            <Button
+              variant="secondary"
               onClick={() => setConfirmDisconnect(true)}
-              className="btn btn-secondary ml-auto"
+              className="ml-auto"
               disabled={disconnect.isPending}
             >
               Disconnect
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -213,6 +204,6 @@ export function SlackSettings({ projectId }: SlackSettingsProps) {
           toast.success('Slack disconnected');
         }}
       />
-    </div>
+    </Card>
   );
 }

@@ -8,7 +8,7 @@ import { LiveIndicator } from '../components/realtime/ConnectionStatus';
 import { BoardSkeleton } from '../components/board/BoardSkeleton';
 import { BulkActionBar, type BulkBarLabel } from '../components/board/BulkActionBar';
 import { useBoardKeyboard } from '../components/board/useBoardKeyboard';
-import { EmptyState, ErrorState, Spinner, toast } from '../components/ui';
+import { Button, EmptyState, ErrorState, Spinner, toast } from '../components/ui';
 import {
   useDeleteTask,
   useMoveTask,
@@ -111,9 +111,9 @@ export function SmartViewPage() {
         resource="view"
         onRetry={() => void viewQuery.refetch()}
         notFoundAction={
-          <Link to="/views" className="btn btn-secondary">
-            Back to views
-          </Link>
+          <Button asChild variant="secondary">
+            <Link to="/views">Back to views</Link>
+          </Button>
         }
       />
     );
@@ -147,13 +147,9 @@ export function SmartViewPage() {
             hasActiveShares={activePublicShares.length > 0}
             onClick={() => setShowShareDialog(true)}
           />
-          <Link
-            to={`/settings/views/${viewId}/edit`}
-            className="btn btn-secondary inline-flex items-center"
-          >
-            <Pencil className="w-4 h-4 mr-2" aria-hidden />
-            Edit
-          </Link>
+          <Button asChild variant="secondary" leadingIcon={<Pencil />}>
+            <Link to={`/settings/views/${viewId}/edit`}>Edit</Link>
+          </Button>
         </div>
       </header>
 
@@ -175,9 +171,9 @@ export function SmartViewPage() {
             title="No tasks match this view"
             body="Edit the view's filters to widen it."
             action={
-              <Link to={`/settings/views/${viewId}/edit`} className="btn btn-secondary">
-                Edit filters
-              </Link>
+              <Button asChild variant="secondary">
+                <Link to={`/settings/views/${viewId}/edit`}>Edit filters</Link>
+              </Button>
             }
           />
         ) : (

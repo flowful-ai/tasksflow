@@ -1,15 +1,52 @@
 import { useEffect, useState } from 'react';
-import { X, Plus, ShieldAlert, Lock, Globe } from 'lucide-react';
+import { X, Plus, ShieldAlert, Lock, Globe, type LucideIcon } from 'lucide-react';
+import clsx from 'clsx';
 import type { ProjectAccess } from '@flowtask/shared';
 import type { WorkspaceMemberDto as WorkspaceMember } from '../../api/types';
 import { useProjectMembers, useSetProjectAccess, useWorkspaceMembers } from '../../hooks/queries';
-import { IconButton, Popover, PopoverContent, PopoverTrigger, toast } from '../ui';
+import {
+  Avatar,
+  Button,
+  Card,
+  IconButton,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  toast,
+} from '../ui';
 
 interface AccessSettingsProps {
   projectId: string;
   workspaceId: string;
   currentAccess: ProjectAccess;
 }
+
+const ACCESS_OPTIONS: ReadonlyArray<{
+  value: ProjectAccess;
+  title: string;
+  description: string;
+  icon: LucideIcon;
+}> = [
+  {
+    value: 'all',
+    title: 'All workspace members',
+    description: 'Everyone in the workspace can access this project.',
+    icon: Globe,
+  },
+  {
+    value: 'admin',
+    title: 'Admins only',
+    description: 'Only workspace owners and admins can access this project.',
+    icon: ShieldAlert,
+  },
+  {
+    value: 'members',
+    title: 'Specific members',
+    description: 'Only selected members (plus owners and admins) can access this project.',
+    icon: Lock,
+  },
+];
 
 export function AccessSettings({ projectId, workspaceId, currentAccess }: AccessSettingsProps) {
   const [access, setAccess] = useState<ProjectAccess>(currentAccess);
@@ -68,12 +105,12 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
 
   if (membersLoading) {
     return (
-      <div className="card p-6">
+      <Card>
         <div className="animate-pulse space-y-4">
           <div className="h-6 bg-neutral-200 rounded w-1/3" />
           <div className="h-20 bg-neutral-200 rounded" />
         </div>
-      </div>
+      </Card>
     );
   }
 
@@ -84,116 +121,61 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
 
   return (
     <div className="space-y-6">
-      <div className="card p-6">
-        <h3 className="text-lg font-semibold text-neutral-900 mb-1">Project Access</h3>
-        <p className="text-sm text-neutral-500 mb-6">Control who can see and access this project.</p>
-
+      <Card title="Project Access" description="Control who can see and access this project.">
         {/* Access mode radio group */}
-        <div className="space-y-3">
-          <label
-            className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-              access === 'all'
-                ? 'border-primary-500 bg-primary-50'
-                : 'border-neutral-200 hover:border-neutral-300'
-            }`}
-          >
-            <input
-              type="radio"
-              name="access"
-              value="all"
-              checked={access === 'all'}
-              onChange={() => setAccess('all')}
-              className="mt-0.5"
-            />
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <Globe aria-hidden className="w-4 h-4 text-neutral-600" />
-                <span className="font-medium text-neutral-900">All workspace members</span>
-              </div>
-              <p className="text-sm text-neutral-500 mt-0.5">
-                Everyone in the workspace can access this project.
-              </p>
-            </div>
-          </label>
-
-          <label
-            className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-              access === 'admin'
-                ? 'border-primary-500 bg-primary-50'
-                : 'border-neutral-200 hover:border-neutral-300'
-            }`}
-          >
-            <input
-              type="radio"
-              name="access"
-              value="admin"
-              checked={access === 'admin'}
-              onChange={() => setAccess('admin')}
-              className="mt-0.5"
-            />
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <ShieldAlert aria-hidden className="w-4 h-4 text-neutral-600" />
-                <span className="font-medium text-neutral-900">Admins only</span>
-              </div>
-              <p className="text-sm text-neutral-500 mt-0.5">
-                Only workspace owners and admins can access this project.
-              </p>
-            </div>
-          </label>
-
-          <label
-            className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-              access === 'members'
-                ? 'border-primary-500 bg-primary-50'
-                : 'border-neutral-200 hover:border-neutral-300'
-            }`}
-          >
-            <input
-              type="radio"
-              name="access"
-              value="members"
-              checked={access === 'members'}
-              onChange={() => setAccess('members')}
-              className="mt-0.5"
-            />
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <Lock aria-hidden className="w-4 h-4 text-neutral-600" />
-                <span className="font-medium text-neutral-900">Specific members</span>
-              </div>
-              <p className="text-sm text-neutral-500 mt-0.5">
-                Only selected members (plus owners and admins) can access this project.
-              </p>
-            </div>
-          </label>
+        <div className="space-y-3 pt-2">
+          {ACCESS_OPTIONS.map((option) => {
+            const Icon = option.icon;
+            return (
+              <label
+                key={option.value}
+                className={clsx(
+                  'flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors',
+                  access === option.value
+                    ? 'border-primary-500 bg-primary-50'
+                    : 'border-neutral-200 hover:border-neutral-300'
+                )}
+              >
+                <input
+                  type="radio"
+                  name="access"
+                  value={option.value}
+                  checked={access === option.value}
+                  onChange={() => setAccess(option.value)}
+                  className="mt-0.5"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <Icon aria-hidden className="w-4 h-4 text-neutral-600" />
+                    <span className="font-medium text-neutral-900">{option.title}</span>
+                  </div>
+                  <p className="text-sm text-neutral-500 mt-0.5">{option.description}</p>
+                </div>
+              </label>
+            );
+          })}
         </div>
-      </div>
+      </Card>
 
       {/* Member list (only shown for 'members' mode) */}
       {access === 'members' && (
-        <div className="card p-6">
+        <Card>
           <div className="flex items-center justify-between mb-4">
             <h4 className="font-medium text-neutral-900">Allowed Members</h4>
             <Popover open={showMemberPicker} onOpenChange={setShowMemberPicker}>
               <PopoverTrigger asChild>
-                <button type="button" className="btn btn-secondary text-sm flex items-center gap-1">
-                  <Plus aria-hidden className="w-4 h-4" />
+                <Button variant="secondary" leadingIcon={<Plus />}>
                   Add member
-                </button>
+                </Button>
               </PopoverTrigger>
               <PopoverContent align="end" className="w-72 !p-0" aria-label="Add a member">
                 <div className="p-2">
-                  <label htmlFor="access-member-search" className="sr-only">
-                    Search members
-                  </label>
-                  <input
-                    id="access-member-search"
-                    type="text"
+                  <Input
+                    aria-label="Search members"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search members..."
-                    className="input text-sm w-full"
+                    className="text-sm"
                   />
                 </div>
                 <ul className="max-h-48 overflow-y-auto border-t border-neutral-100">
@@ -207,20 +189,12 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
                           onClick={() => addMember(member.userId)}
                           className="w-full flex items-center gap-2 px-3 py-2 hover:bg-neutral-50 focus:bg-neutral-50 transition-colors text-left"
                         >
-                          {member.user.avatarUrl ? (
-                            <img
-                              src={member.user.avatarUrl}
-                              alt=""
-                              className="w-6 h-6 rounded-full"
-                            />
-                          ) : (
-                            <div
-                              aria-hidden
-                              className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center text-xs font-medium text-primary-700"
-                            >
-                              {member.user.name?.[0] || member.user.email[0]?.toUpperCase()}
-                            </div>
-                          )}
+                          <Avatar
+                            src={member.user.avatarUrl}
+                            name={member.user.name}
+                            email={member.user.email}
+                            size="sm"
+                          />
                           <div className="min-w-0">
                             <p className="text-sm font-medium text-neutral-900 truncate">
                               {member.user.name || member.user.email.split('@')[0]}
@@ -248,13 +222,12 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
                   className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-neutral-50"
                 >
                   <div className="flex items-center gap-3">
-                    {member.user.avatarUrl ? (
-                      <img src={member.user.avatarUrl} alt="" className="w-8 h-8 rounded-full" />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-sm font-medium text-primary-700">
-                        {member.user.name?.[0] || member.user.email[0]?.toUpperCase()}
-                      </div>
-                    )}
+                    <Avatar
+                      src={member.user.avatarUrl}
+                      name={member.user.name}
+                      email={member.user.email}
+                      size="lg"
+                    />
                     <div>
                       <p className="text-sm font-medium text-neutral-900">
                         {member.user.name || member.user.email.split('@')[0]}
@@ -276,18 +249,13 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
           <p className="text-xs text-neutral-400 mt-4">
             Workspace owners and admins always have access regardless of this setting.
           </p>
-        </div>
+        </Card>
       )}
 
       <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={save}
-          disabled={setProjectAccess.isPending || !hasChanges}
-          className="btn btn-primary"
-        >
+        <Button onClick={save} disabled={setProjectAccess.isPending || !hasChanges}>
           {setProjectAccess.isPending ? 'Saving...' : 'Save Changes'}
-        </button>
+        </Button>
       </div>
     </div>
   );

@@ -9,7 +9,16 @@ import { usePublicShare } from '../hooks/queries';
 import { TaskDisplayContainer } from '../components/task-display/TaskDisplayContainer';
 import type { TaskCardTask } from '../components/task-display/TaskCard';
 import { TaskDetailSheet } from '../components/tasks/TaskDetailSheet';
-import { EmptyState, ErrorState, PageSpinner } from '../components/ui';
+import {
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  Field,
+  Input,
+  PageHeader,
+  PageSpinner,
+} from '../components/ui';
 
 export function PublicSharePage() {
   const { token } = useParams<{ token: string }>();
@@ -79,24 +88,19 @@ export function PublicSharePage() {
               </div>
             )}
 
-            <div className="mb-4">
-              <label htmlFor="password" className="block text-sm font-medium text-neutral-700 mb-1">
-                Password
-              </label>
-              <input
-                id="password"
+            <Field label="Password" id="password" className="mb-4">
+              <Input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="input"
                 placeholder="Enter password"
                 required
               />
-            </div>
+            </Field>
 
-            <button type="submit" className="btn btn-primary w-full">
+            <Button type="submit" block>
               View Share
-            </button>
+            </Button>
           </form>
         </div>
       </main>
@@ -152,14 +156,12 @@ export function PublicSharePage() {
 
       {/* Content */}
       <main className="max-w-7xl mx-auto px-4 py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-neutral-900">{view?.name}</h1>
-          <p className="text-neutral-600 mt-1">
-            {tasks.length} task{tasks.length !== 1 ? 's' : ''}
-          </p>
-        </div>
+        <PageHeader
+          title={view?.name}
+          description={`${tasks.length} task${tasks.length !== 1 ? 's' : ''}`}
+        />
 
-        <div className="card p-4">
+        <Card padding="sm">
           {taskCards.length === 0 ? (
             <EmptyState
               title="No tasks to display"
@@ -176,7 +178,7 @@ export function PublicSharePage() {
               allowDragDrop={false}
             />
           )}
-        </div>
+        </Card>
       </main>
 
       {/* Footer */}

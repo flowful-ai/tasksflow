@@ -16,7 +16,7 @@ import {
 import clsx from 'clsx';
 
 import type { CreatePublicShareInput, PublicShareDto } from '../../api/types';
-import { ConfirmDialog, Dialog, IconButton } from '../ui';
+import { Button, Checkbox, ConfirmDialog, Dialog, Field, IconButton, Input, Panel } from '../ui';
 
 /** A public share as returned to its owner. */
 export type PublicShare = PublicShareDto;
@@ -28,17 +28,18 @@ interface ShareButtonProps {
 
 export function ShareButton({ hasActiveShares, onClick }: ShareButtonProps) {
   return (
-    <button
+    <Button
+      variant="secondary"
       onClick={onClick}
-      className="btn btn-secondary inline-flex items-center relative"
+      className="relative"
       title={hasActiveShares ? 'Manage public share' : 'Create public share'}
+      leadingIcon={<Share2 />}
     >
-      <Share2 className="w-4 h-4 mr-2" />
       Share
       {hasActiveShares && (
         <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white" />
       )}
-    </button>
+    </Button>
   );
 }
 
@@ -119,29 +120,18 @@ export function ActiveShareBanner({
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <button
+        <Button
+          variant="secondary"
           onClick={handleCopy}
-          className={clsx(
-            'btn btn-secondary text-sm',
-            copied && 'bg-green-100 text-green-700 border-green-200'
-          )}
+          className={clsx(copied && 'bg-green-100 text-green-700 border-green-200')}
           disabled={isExpired || isMaxedOut}
+          leadingIcon={copied ? <Check /> : <Copy />}
         >
-          {copied ? (
-            <>
-              <Check className="w-4 h-4 mr-1" />
-              Copied
-            </>
-          ) : (
-            <>
-              <Copy className="w-4 h-4 mr-1" />
-              Copy link
-            </>
-          )}
-        </button>
-        <button onClick={onManage} className="btn btn-secondary text-sm">
+          {copied ? 'Copied' : 'Copy link'}
+        </Button>
+        <Button variant="secondary" onClick={onManage}>
           Manage
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -239,33 +229,31 @@ export function ShareDialog({
           <div className="flex w-full items-center justify-between gap-3">
             {!showCreateForm && activeShares.length > 0 ? (
               <>
-                <button
-                  onClick={() => setShowCreateForm(true)}
-                  className="text-sm text-primary-600 hover:text-primary-700"
-                >
+                <Button variant="link" onClick={() => setShowCreateForm(true)}>
                   + Create another link
-                </button>
-                <button onClick={onClose} className="btn btn-secondary">
+                </Button>
+                <Button variant="secondary" onClick={onClose}>
                   Close
-                </button>
+                </Button>
               </>
             ) : (
               <>
                 {publicShares.length > 0 && (
-                  <button
+                  <Button
+                    variant="link"
                     onClick={() => setShowCreateForm(false)}
-                    className="text-sm text-neutral-600 hover:text-neutral-700"
+                    className="text-neutral-600 hover:no-underline hover:text-neutral-700"
                   >
                     Back to shares
-                  </button>
+                  </Button>
                 )}
                 <div className="flex gap-3 ml-auto">
-                  <button onClick={onClose} className="btn btn-secondary">
+                  <Button variant="secondary" onClick={onClose}>
                     Cancel
-                  </button>
-                  <button onClick={handleCreate} disabled={isCreating} className="btn btn-primary">
+                  </Button>
+                  <Button onClick={handleCreate} disabled={isCreating}>
                     {isCreating ? 'Creating...' : 'Create share link'}
-                  </button>
+                  </Button>
                 </div>
               </>
             )}
@@ -337,45 +325,36 @@ export function ShareDialog({
                     </div>
                   </div>
                   <div className="mt-3 pt-3 border-t border-neutral-200 flex items-center gap-2">
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => handleCopyLink(share.token, share.id)}
                       disabled={expired || maxedOut}
-                      className={clsx(
-                        'flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg transition-colors',
-                        copiedId === share.id
-                          ? 'bg-green-100 text-green-700'
-                          : 'text-neutral-700 hover:bg-neutral-100',
-                        (expired || maxedOut) && 'opacity-50 cursor-not-allowed'
-                      )}
+                      className={clsx(copiedId === share.id && 'bg-green-100 text-green-700')}
+                      leadingIcon={copiedId === share.id ? <Check /> : <Copy />}
                     >
-                      {copiedId === share.id ? (
-                        <>
-                          <Check className="w-4 h-4" />
-                          Copied
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-4 h-4" />
-                          Copy link
-                        </>
-                      )}
-                    </button>
-                    <button
+                      {copiedId === share.id ? 'Copied' : 'Copy link'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => onDisable(share.id)}
                       disabled={isDisabling}
-                      className="flex items-center gap-1 px-3 py-1.5 text-sm text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                      className="text-amber-600 hover:bg-amber-50"
+                      leadingIcon={<EyeOff />}
                     >
-                      <EyeOff className="w-4 h-4" />
                       Disable
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => setConfirmDeleteId(share.id)}
                       disabled={isDeleting}
-                      className="flex items-center gap-1 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      className="text-red-600 hover:bg-red-50"
+                      leadingIcon={<Trash2 />}
                     >
-                      <Trash2 className="w-4 h-4" />
                       Delete
-                    </button>
+                    </Button>
                   </div>
                 </div>
               );
@@ -388,7 +367,7 @@ export function ShareDialog({
           <div className="space-y-3">
             <h3 className="text-sm font-medium text-neutral-500">Disabled shares</h3>
             {inactiveShares.map((share) => (
-              <div key={share.id} className="p-3 rounded-lg border bg-neutral-50 border-neutral-200">
+              <Panel key={share.id} tone="muted" padding="sm">
                 <div className="flex items-start justify-between">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -408,7 +387,7 @@ export function ShareDialog({
                     disabled={isDeleting}
                   />
                 </div>
-              </div>
+              </Panel>
             ))}
           </div>
         )}
@@ -420,21 +399,21 @@ export function ShareDialog({
               Create a public link to share this view with anyone, even without a TasksFlow account.
             </p>
 
-            <div>
-              <label
-                htmlFor="share-password"
-                className="block text-sm font-medium text-neutral-700 mb-1"
-              >
-                <Lock className="w-4 h-4 inline mr-1" aria-hidden />
-                Password (optional)
-              </label>
+            <Field
+              id="share-password"
+              label={
+                <>
+                  <Lock className="w-4 h-4 inline mr-1" aria-hidden />
+                  Password (optional)
+                </>
+              }
+            >
               <div className="relative">
-                <input
-                  id="share-password"
+                <Input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="input pr-10"
+                  className="pr-10"
                   placeholder="Leave empty for no password"
                 />
                 <IconButton
@@ -445,56 +424,51 @@ export function ShareDialog({
                   className="absolute right-2 top-1/2 -translate-y-1/2"
                 />
               </div>
-            </div>
+            </Field>
 
-            <div>
-              <label
-                htmlFor="share-expires"
-                className="block text-sm font-medium text-neutral-700 mb-1"
-              >
-                <Calendar className="w-4 h-4 inline mr-1" aria-hidden />
-                Expiration date (optional)
-              </label>
-              <input
-                id="share-expires"
+            <Field
+              id="share-expires"
+              label={
+                <>
+                  <Calendar className="w-4 h-4 inline mr-1" aria-hidden />
+                  Expiration date (optional)
+                </>
+              }
+            >
+              <Input
                 type="date"
                 value={expiresAt}
                 onChange={(e) => setExpiresAt(e.target.value)}
                 min={new Date().toISOString().split('T')[0]}
-                className="input"
               />
-            </div>
+            </Field>
 
-            <div>
-              <label htmlFor="share-max" className="block text-sm font-medium text-neutral-700 mb-1">
-                <Hash className="w-4 h-4 inline mr-1" aria-hidden />
-                Maximum access count (optional)
-              </label>
-              <input
-                id="share-max"
+            <Field
+              id="share-max"
+              label={
+                <>
+                  <Hash className="w-4 h-4 inline mr-1" aria-hidden />
+                  Maximum access count (optional)
+                </>
+              }
+            >
+              <Input
                 type="number"
                 value={maxAccessCount}
                 onChange={(e) => setMaxAccessCount(e.target.value)}
                 min="1"
-                className="input"
                 placeholder="Leave empty for unlimited"
               />
-            </div>
+            </Field>
 
-            <label className="flex items-start gap-2 rounded-lg border border-neutral-200 p-3">
-              <input
-                type="checkbox"
+            <Panel padding="sm">
+              <Checkbox
                 checked={showExternalLinks}
                 onChange={(e) => setShowExternalLinks(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-neutral-300"
+                label={<span className="font-medium">Show GitHub links</span>}
+                description="Expose linked GitHub issue and pull request URLs on the public page."
               />
-              <span>
-                <span className="block text-sm font-medium text-neutral-900">Show GitHub links</span>
-                <span className="block text-xs text-neutral-600">
-                  Expose linked GitHub issue and pull request URLs on the public page.
-                </span>
-              </span>
-            </label>
+            </Panel>
           </div>
         )}
       </Dialog>
