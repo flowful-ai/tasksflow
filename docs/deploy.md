@@ -71,7 +71,7 @@ The API is stateless apart from open SSE streams, and the shared pieces are in P
 - jobs are claimed with `FOR UPDATE SKIP LOCKED`, and recurring jobs are unique per key, so every replica can run the job runner (`JOBS_DISABLED=true` turns it off in a process);
 - auth and MCP rate limits are Postgres tables shared by all replicas.
 
-To run more instances, add `replicas` under `tasksflow-api.deploy` (the compose file already sets `deploy.resources` there) and redeploy; Traefik balances across them. Mind the connection budget: Postgres is configured for 30 connections, and each API instance uses `DB_POOL_MAX` (10) plus one `LISTEN` connection, plus one during migrations. Two instances fit; for more, lower `DB_POOL_MAX` or raise `max_connections` and the Postgres memory limit together.
+To run more instances, add `replicas` under `tasksflow-api.deploy` (the compose file already sets `deploy.resources` there) and redeploy; Traefik balances across them. Mind the connection budget: Postgres is configured for 30 connections. Each API instance uses at most `DB_POOL_MAX` (10) pool connections plus exactly one `LISTEN` connection for realtime (`NOTIFY` goes through the pool, not a connection of its own), and briefly one more at boot for migrations. Two instances fit: 2 × (10 + 1) = 22 steady, at most 24 while both boot, leaving room for the backup sidecar's `pg_dump` and healthchecks; for more, lower `DB_POOL_MAX` or raise `max_connections` and the Postgres memory limit together.
 
 Cross-instance realtime uses Postgres `LISTEN/NOTIFY` on the same connection settings as the pool (`DATABASE_URL`, or the URL built from `POSTGRES_*`), so a change made through one replica reaches SSE clients on every replica.
 

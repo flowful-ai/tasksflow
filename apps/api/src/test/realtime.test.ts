@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import type { WorkspaceRole } from '@flowtask/shared';
 import { integrationEnabled, setupHarness, TEST_DATABASE_URL, type Harness } from './harness.js';
 import { RealtimeHub, type AccessResolver, type ClientSink } from '../sse/hub.js';
-import { PostgresTransport } from '../sse/postgres-transport.js';
+import { createDatabase, type Database } from '../db/index.js';
+import { LISTEN_APPLICATION_NAME, PostgresTransport } from '../sse/postgres-transport.js';
 
 const decoder = new TextDecoder();
 
@@ -60,16 +61,23 @@ describe.skipIf(!integrationEnabled)('realtime over Postgres LISTEN/NOTIFY', () 
 
   let a: RealtimeHub;
   let b: RealtimeHub;
+  // Stands in for the application pool, which NOTIFY goes through.
+  let pool: Database;
 
   beforeAll(async () => {
     const url = TEST_DATABASE_URL ?? '';
+    pool = createDatabase(url);
+    const transport = () =>
+      new PostgresTransport(url, async (channel, payload) => {
+        await pool.$client.notify(channel, payload);
+      });
     a = new RealtimeHub({
       resolver: staticResolver('member', ['p-open']),
-      transportFactory: () => new PostgresTransport(url),
+      transportFactory: transport,
     });
     b = new RealtimeHub({
       resolver: staticResolver('member', ['p-open']),
-      transportFactory: () => new PostgresTransport(url),
+      transportFactory: transport,
     });
     await a.start();
     await b.start();
@@ -78,6 +86,15 @@ describe.skipIf(!integrationEnabled)('realtime over Postgres LISTEN/NOTIFY', () 
   afterAll(async () => {
     await a?.stop();
     await b?.stop();
+    await pool?.$client.end({ timeout: 2 });
+  });
+
+  it('uses exactly one extra connection per instance: the LISTEN', async () => {
+    await a.publishEventAsync(crypto.randomUUID(), 'task:updated', { id: 'warm-up' });
+    const rows = await pool.$client<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM pg_stat_activity
+      WHERE application_name = ${LISTEN_APPLICATION_NAME} AND datname = current_database()`;
+    expect(rows[0]?.count).toBe(2);
   });
 
   it('fans events out across instances with project filtering and no echo', async () => {

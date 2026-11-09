@@ -1,4 +1,4 @@
-import { resolveDatabaseUrl } from '../db/client.js';
+import { getDatabase, resolveDatabaseUrl } from '../db/client.js';
 import { getAuthz } from '../lib/authorize.js';
 import {
   RealtimeHub,
@@ -42,7 +42,13 @@ export function initSSE(): void {
   }
   hub = new RealtimeHub({
     resolver: accessResolver,
-    transportFactory: url ? () => new PostgresTransport(url) : null,
+    // NOTIFY goes through the app pool; the transport only adds the LISTEN connection.
+    transportFactory: url
+      ? () =>
+          new PostgresTransport(url, async (channel, payload) => {
+            await getDatabase().$client.notify(channel, payload);
+          })
+      : null,
   });
   hub
     .start()

@@ -94,7 +94,7 @@ The queue is the `jobs` table (`apps/api/src/domain/jobs/`):
 - Clients open `GET /api/events/stream?workspaceId=<id>` (EventSource, session cookie). The stream starts with `retry: 5000` and a `connected` event.
 - The hub (`apps/api/src/sse/hub.ts`) stores each stream's user, session, role and accessible project ids. An event is written only to streams that can access its project (from an explicit `projectId`, `data.projectId`, `data.project.id`, or the task's project). User events go to every stream of that user.
 - Every 60 s the hub re-checks sessions and memberships; removing a member or deleting a workspace closes the affected streams immediately; ACL, role and project changes refresh the access caches.
-- Across instances, events go through Postgres `NOTIFY` on one channel and every instance `LISTEN`s on a dedicated connection (`apps/api/src/sse/postgres-transport.ts`), suppressing its own echoes. Payloads over about 7 KB are sent as ids only (NOTIFY's limit is 8 KB). A self-ping watchdog rebuilds a dead `LISTEN`. The transport is only created when `DATABASE_URL` is set; see the scaling note in [deploy.md](deploy.md#scaling).
+- Across instances, events go through Postgres `NOTIFY` on one channel and every instance `LISTEN`s on a dedicated connection (`apps/api/src/sse/postgres-transport.ts`; `NOTIFY` itself goes through the application pool, so the `LISTEN` is the only extra connection), suppressing its own echoes. Payloads over about 7 KB are sent as ids only (NOTIFY's limit is 8 KB). A self-ping watchdog rebuilds a dead `LISTEN`. The transport is only created when `DATABASE_URL` is set; see the scaling note in [deploy.md](deploy.md#scaling).
 - Slow consumers are dropped (more than 500 queued chunks).
 
 ## Positions

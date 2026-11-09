@@ -107,7 +107,7 @@ Smart Views store a JSON filter that `apps/api/src/domain/smart-view/filter-engi
 
 - One stream per tab: `GET /api/events/stream?workspaceId=<id>` (session cookie). Same port as the API.
 - `apps/api/src/sse/hub.ts` keeps each client's role and accessible project ids, and only writes events for projects the user can access. Sessions and membership are re-checked every 60 s; removing a member closes their streams at once.
-- Cross-instance fan-out uses Postgres `LISTEN/NOTIFY` on a dedicated connection (`apps/api/src/sse/postgres-transport.ts`). Payloads over about 7 KB are sent as ids only.
+- Cross-instance fan-out uses Postgres `LISTEN` on a dedicated connection (`apps/api/src/sse/postgres-transport.ts`) and `NOTIFY` through the app pool. Payloads over about 7 KB are sent as ids only.
 - User-targeted events (`publishUserEvent`, for example `notification:created`) reach every stream of that user.
 - Client event names are in `REALTIME_EVENTS` (`packages/shared/src/constants.ts`), e.g. `task:created`, `task:moved`, `tasks:rekeyed`.
 
@@ -284,7 +284,7 @@ bun test apps/api/src/domain/smart-view   # one directory
 - **API**: logs go to stdout (`bun run dev`, or `docker compose logs -f tasksflow-api` in production). `GET /health` (database reachable) and `GET /ready` (and not draining).
 - **Database**: `bun run db:studio`, or `docker compose exec postgres psql -U flowtask flowtask`.
 - **Jobs**: `SELECT type, attempts, last_error, run_at FROM jobs WHERE done_at IS NULL ORDER BY run_at;`
-- **Realtime**: the browser's EventSource on `/api/events/stream`; the API logs `SSE manager initialized with Postgres LISTEN/NOTIFY` at boot. `initSSE()` reads `DATABASE_URL` only: without it (for example when the URL is built from `POSTGRES_*`) it logs `DATABASE_URL not set; realtime events stay on this instance` and there is no cross-instance fan-out.
+- **Realtime**: the browser's EventSource on `/api/events/stream`; the API logs `SSE manager initialized with Postgres LISTEN/NOTIFY` at boot. `initSSE()` resolves the URL like the pool (`resolveDatabaseUrl()`: `DATABASE_URL`, else built from `POSTGRES_*`); with neither it logs `no database URL configured; realtime events stay on this instance` and there is no cross-instance fan-out. `NOTIFY` goes through the shared app pool, so the `LISTEN` connection is the only extra one per instance.
 - **Frontend**: React DevTools, the Network tab, Zustand stores.
 
 ## Environment Setup
