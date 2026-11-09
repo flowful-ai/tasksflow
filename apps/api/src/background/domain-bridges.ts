@@ -206,9 +206,11 @@ export function registerDomainEventBridges(db: Database): () => void {
       );
     }),
 
-    domainEvents.on('project.updated', (event) => {
-      // Refresh cached project access first so the event reaches the right clients.
-      if (event.accessChanged) notifyAccessChanged(event.workspaceId);
+    domainEvents.on('project.updated', async (event) => {
+      // Wait for the access refresh (here, and the NOTIFY that makes other
+      // instances refresh before delivering what follows) so the event is
+      // filtered against the new project access, not the cached one.
+      if (event.accessChanged) await notifyAccessChanged(event.workspaceId);
       publishEvent(
         event.workspaceId,
         REALTIME_EVENTS.PROJECT_UPDATED,
@@ -237,13 +239,13 @@ export function registerDomainEventBridges(db: Database): () => void {
       );
     }),
 
-    domainEvents.on('member.role_changed', (event) => {
-      notifyAccessChanged(event.workspaceId, event.userId);
+    domainEvents.on('member.role_changed', async (event) => {
+      await notifyAccessChanged(event.workspaceId, event.userId);
     }),
 
-    domainEvents.on('workspace.deleted', (event) => {
+    domainEvents.on('workspace.deleted', async (event) => {
       // Memberships are gone: refreshing access closes every stream of the workspace.
-      notifyAccessChanged(event.workspaceId);
+      await notifyAccessChanged(event.workspaceId);
     }),
 
     onNotificationCreated((notification) => {

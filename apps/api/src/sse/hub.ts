@@ -104,6 +104,25 @@ export interface HubOptions {
 
 const encoder = new TextEncoder();
 
+/** Access refreshes run at most this many (workspace, user) lookups at once. */
+export const REFRESH_CONCURRENCY = 8;
+
+/** Run `fn` over `items` with at most `limit` calls in flight. `fn` must not throw. */
+export async function forEachLimited<T>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T) => Promise<void>
+): Promise<void> {
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (next < items.length) {
+      const item = items[next++];
+      if (item !== undefined) await fn(item);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+}
+
 export class RealtimeHub {
   readonly instanceId: string;
   private readonly resolver: AccessResolver;
@@ -125,6 +144,8 @@ export class RealtimeHub {
   private timers: ReturnType<typeof setInterval>[] = [];
   private stopped = false;
   private revalidating = false;
+  /** Set while an incoming access refresh runs; later messages queue behind it. */
+  private inbox: Promise<void> | null = null;
 
   constructor(options: HubOptions) {
     this.resolver = options.resolver;
@@ -267,13 +288,18 @@ export class RealtimeHub {
 
   /**
    * Project ACL, membership or role changed: refresh cached access for the
-   * workspace's clients (or one user's) on every instance.
+   * workspace's clients (or one user's) on every instance. Resolves once the
+   * local refresh is done and the NOTIFY is sent, so an event published after
+   * it is filtered against the new access here, and other instances (which
+   * hold back later messages until their refresh finishes) do the same.
    */
-  notifyAccessChanged(workspaceId: string, userId: string | null = null): void {
-    void this.refreshAccess(workspaceId, userId);
-    void this.broadcast(
-      JSON.stringify({ k: 'access_changed', o: this.instanceId, w: workspaceId, u: userId })
-    );
+  async notifyAccessChanged(workspaceId: string, userId: string | null = null): Promise<void> {
+    await Promise.all([
+      this.refreshAccess(workspaceId, userId),
+      this.broadcast(
+        JSON.stringify({ k: 'access_changed', o: this.instanceId, w: workspaceId, u: userId })
+      ),
+    ]);
   }
 
   /**
@@ -297,7 +323,24 @@ export class RealtimeHub {
     }
     // Our own messages were already handled locally when published.
     if (message.o === this.instanceId) return;
-    this.applyMessage(message);
+    // While an access refresh runs, later messages wait for it, so an event
+    // sent after an ACL change is never filtered against the old access.
+    if (this.inbox) {
+      this.track(this.inbox.then(() => this.applyMessage(message) ?? undefined));
+      return;
+    }
+    const pending = this.applyMessage(message);
+    if (pending) this.track(pending);
+  }
+
+  private track(pending: Promise<void>): void {
+    const next = pending.catch((error: unknown) => {
+      this.logger.error('[realtime] message handling failed:', error);
+    });
+    this.inbox = next;
+    void next.then(() => {
+      if (this.inbox === next) this.inbox = null;
+    });
   }
 
   /**
@@ -334,29 +377,29 @@ export class RealtimeHub {
 
   // ----------------------------------------------------------------- internal
 
-  private applyMessage(message: WireMessage): void {
+  /** Apply a message from another instance; returns the access refresh it started, if any. */
+  private applyMessage(message: WireMessage): Promise<void> | null {
     switch (message.k) {
       case 'ws':
         this.deliverWorkspaceEvent(message);
-        return;
+        return null;
       case 'user':
         this.deliverUserEvent(message);
-        return;
+        return null;
       case 'member_removed':
         this.closeMemberStreams(message.w, message.u);
-        return;
+        return null;
       case 'access_changed':
-        void this.refreshAccess(message.w, message.u);
-        return;
+        return this.refreshAccess(message.w, message.u);
       case 'invalidate':
         try {
           this.onCacheInvalidated?.(message.c, message.key);
         } catch (error) {
           this.logger.error('[realtime] cache invalidation failed:', error);
         }
-        return;
+        return null;
       case 'ping':
-        return;
+        return null;
     }
   }
 
@@ -409,8 +452,9 @@ export class RealtimeHub {
   }
 
   /**
-   * Refresh role and accessible projects, resolved once per (workspace, user)
-   * with the groups in parallel. A failed group keeps its streams.
+   * Refresh role and accessible projects, resolved once per (workspace, user),
+   * REFRESH_CONCURRENCY groups at a time so a busy instance does not take
+   * every pool connection. A failed group keeps its streams.
    */
   private async refreshClients(clients: readonly ClientState[], errorLabel: string): Promise<void> {
     const groups = new Map<string, ClientState[]>();
@@ -420,15 +464,13 @@ export class RealtimeHub {
       if (group) group.push(client);
       else groups.set(key, [client]);
     }
-    await Promise.all(
-      [...groups.values()].map(async (group) => {
-        try {
-          await this.refreshGroup(group);
-        } catch (error) {
-          this.logger.error(errorLabel, error);
-        }
-      })
-    );
+    await forEachLimited([...groups.values()], REFRESH_CONCURRENCY, async (group) => {
+      try {
+        await this.refreshGroup(group);
+      } catch (error) {
+        this.logger.error(errorLabel, error);
+      }
+    });
   }
 
   /** Clients of one user in one workspace. */

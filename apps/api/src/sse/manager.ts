@@ -99,9 +99,13 @@ export function notifyMemberRemoved(workspaceId: string, userId: string): void {
   hub.notifyMemberRemoved(workspaceId, userId);
 }
 
-/** Refresh cached project access after an ACL, role or project change. */
-export function notifyAccessChanged(workspaceId: string, userId?: string): void {
-  hub.notifyAccessChanged(workspaceId, userId ?? null);
+/**
+ * Refresh cached project access after an ACL, role or project change, here
+ * and on every instance. Await it before publishing an event that depends on
+ * the new access.
+ */
+export function notifyAccessChanged(workspaceId: string, userId?: string): Promise<void> {
+  return hub.notifyAccessChanged(workspaceId, userId ?? null);
 }
 
 export function registerClient(registration: ClientRegistration): ClientHandle {

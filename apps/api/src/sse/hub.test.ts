@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import type { WorkspaceRole } from '@flowtask/shared';
 import {
+  REFRESH_CONCURRENCY,
   RealtimeHub,
   type AccessResolver,
   type ClientSink,
@@ -256,11 +257,72 @@ describe('RealtimeHub membership and access changes', () => {
     expect(calls).toEqual({ sessions: 1, roles: 2, projects: 2 });
 
     state.access.set('member', [OPEN, SECRET]);
-    hub.notifyAccessChanged(WS, 'member');
-    await Bun.sleep(0);
+    await hub.notifyAccessChanged(WS, 'member');
     expect(calls).toEqual({ sessions: 1, roles: 3, projects: 3 });
     await hub.publishEventAsync(WS, 'task:updated', { id: 'x' }, { projectId: SECRET });
     for (const tab of tabs) expect(events(tab.sink)).toEqual(['task:updated']);
+  });
+});
+
+describe('RealtimeHub access refresh ordering and concurrency', () => {
+  /** A resolver whose project lookups take `delayMs`, tracking peak concurrency. */
+  function slowResolver(state: FakeState, delayMs: number) {
+    const base = fakeResolver(state);
+    const stats = { inFlight: 0, peak: 0, calls: 0 };
+    const resolver: AccessResolver = {
+      ...base,
+      listAccessibleProjectIds: async (workspaceId, userId, role) => {
+        stats.calls++;
+        stats.inFlight++;
+        stats.peak = Math.max(stats.peak, stats.inFlight);
+        await Bun.sleep(delayMs);
+        stats.inFlight--;
+        return base.listAccessibleProjectIds(workspaceId, userId, role);
+      },
+    };
+    return { resolver, stats };
+  }
+
+  it('filters an event published after notifyAccessChanged against the new access, on every instance', async () => {
+    const bus = memoryBus();
+    const state = baseState();
+    const { resolver } = slowResolver(state, 20);
+    const a = new RealtimeHub({ resolver, transportFactory: bus.factory, instanceId: 'aaaa-1' });
+    const b = new RealtimeHub({ resolver, transportFactory: bus.factory, instanceId: 'bbbb-1' });
+    await a.start();
+    await b.start();
+    try {
+      const onA = register(a, 'member', 'member', [OPEN]);
+      const onB = register(b, 'member', 'member', [OPEN]);
+      state.access.set('member', [OPEN, SECRET]);
+
+      await a.notifyAccessChanged(WS);
+      await a.publishEventAsync(WS, 'project:updated', { id: SECRET }, { projectId: SECRET });
+      expect(events(onA.sink)).toEqual(['project:updated']);
+
+      // b holds the event back until its own refresh has finished.
+      await Bun.sleep(60);
+      expect(events(onB.sink)).toEqual(['project:updated']);
+    } finally {
+      await a.stop();
+      await b.stop();
+    }
+  });
+
+  it('refreshes at most REFRESH_CONCURRENCY users at once', async () => {
+    const state = baseState();
+    const users = Array.from({ length: 30 }, (_, i) => `user-${i}`);
+    for (const user of users) {
+      state.roles.set(user, 'member');
+      state.sessions.add(`s-${user}`);
+    }
+    const { resolver, stats } = slowResolver(state, 5);
+    const hub = new RealtimeHub({ resolver });
+    for (const user of users) register(hub, user, 'member', []);
+
+    await hub.revalidateAll();
+    expect(stats.calls).toBe(30);
+    expect(stats.peak).toBe(REFRESH_CONCURRENCY);
   });
 });
 
