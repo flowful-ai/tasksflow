@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import type { WorkspaceRole } from '@flowtask/shared';
+import { isJsonObject, type WorkspaceRole } from '@flowtask/shared';
 import {
   decodeWireMessage,
   encodeWithinLimit,
@@ -113,8 +113,7 @@ function stringField(data: EventData, key: string): string | null {
 
 function nestedId(data: EventData, key: string): string | null {
   const value = data[key];
-  if (typeof value !== 'object' || value === null || !('id' in value)) return null;
-  return typeof value.id === 'string' ? value.id : null;
+  return isJsonObject(value) && typeof value.id === 'string' ? value.id : null;
 }
 
 /**

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isJsonObject, JsonObjectSchema, toJsonObject, type JsonObject } from '@flowtask/shared';
 
 /**
  * Cross-instance realtime messages, carried over Postgres NOTIFY.
@@ -13,9 +14,10 @@ export const SAFE_PAYLOAD_BYTES = 7000;
 
 /** JSON-serialisable event payload (an object, never a primitive). */
 export type EventPayload = object;
-export type EventData = Record<string, unknown>;
+/** Event data as it travels on the wire: a JSON object. */
+export type EventData = JsonObject;
 
-const EventDataSchema = z.record(z.unknown());
+const EventDataSchema = JsonObjectSchema;
 
 const WorkspaceEventSchema = z.object({
   k: z.literal('ws'),
@@ -77,14 +79,10 @@ const ID_KEYS = [
   'stateId',
 ] as const;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-/** Copy an event payload into a plain record (drops prototypes, functions). */
+/** Copy an event payload into a JSON object (drops prototypes, functions, undefined). */
 export function toEventData(data: EventPayload): EventData {
   const parsed: unknown = JSON.parse(JSON.stringify(data));
-  return isRecord(parsed) ? parsed : {};
+  return toJsonObject(parsed);
 }
 
 /** Keep only the identifiers of an event payload. */
@@ -95,11 +93,11 @@ export function reduceToIds(data: EventData): EventData {
     if (typeof value === 'string' || typeof value === 'number') reduced[key] = value;
   }
   const comment = data.comment;
-  if (!('commentId' in reduced) && isRecord(comment) && typeof comment.id === 'string') {
+  if (!('commentId' in reduced) && isJsonObject(comment) && typeof comment.id === 'string') {
     reduced.commentId = comment.id;
   }
   const project = data.project;
-  if (!('projectId' in reduced) && isRecord(project) && typeof project.id === 'string') {
+  if (!('projectId' in reduced) && isJsonObject(project) && typeof project.id === 'string') {
     reduced.projectId = project.id;
   }
   return reduced;

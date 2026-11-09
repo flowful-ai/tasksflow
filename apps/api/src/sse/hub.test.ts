@@ -11,6 +11,7 @@ import {
   decodeWireMessage,
   encodeWithinLimit,
   SAFE_PAYLOAD_BYTES,
+  toEventData,
   type WorkspaceEventMessage,
 } from './wire.js';
 
@@ -320,6 +321,20 @@ describe('wire format', () => {
   it('rejects malformed payloads', () => {
     expect(decodeWireMessage('not json')).toBeNull();
     expect(decodeWireMessage(JSON.stringify({ k: 'ws', o: 'x' }))).toBeNull();
+    const event = { k: 'ws', o: 'x', id: '1', w: WS, p: null, e: 'task:updated' };
+    expect(decodeWireMessage(JSON.stringify({ ...event, d: ['not', 'an', 'object'] }))).toBeNull();
+    expect(decodeWireMessage(JSON.stringify({ ...event, d: 'text' }))).toBeNull();
+    const nested = { id: 't', project: { id: 'p', tags: ['a', 1, true, null] } };
+    expect(decodeWireMessage(JSON.stringify({ ...event, d: nested }))).toMatchObject({ d: nested });
+  });
+
+  it('copies event payloads into JSON objects', () => {
+    const at = new Date('2026-01-02T03:04:05.000Z');
+    expect(toEventData({ id: 't', at, skip: undefined, fn: () => 1, list: [1, 'a'] })).toEqual({
+      id: 't',
+      at: at.toISOString(),
+      list: [1, 'a'],
+    });
   });
 
   it('derives project ids from common payload shapes', () => {

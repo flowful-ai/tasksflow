@@ -1,7 +1,24 @@
+import { z } from 'zod';
+
 /** A JSON-serialisable value (what a jsonb column or a webhook body can hold). */
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
 export type JsonObject = { [key: string]: JsonValue };
+
+/** Zod schema for JsonValue (finite numbers only, like isJsonValue). */
+export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
+  z.union([
+    z.string(),
+    z.number().finite(),
+    z.boolean(),
+    z.null(),
+    z.array(JsonValueSchema),
+    z.record(JsonValueSchema),
+  ])
+);
+
+/** Zod schema for JsonObject (a JSON object, never a primitive or an array). */
+export const JsonObjectSchema: z.ZodType<JsonObject> = z.record(JsonValueSchema);
 
 export function isJsonObject(value: JsonValue | undefined): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
