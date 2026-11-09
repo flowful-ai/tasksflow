@@ -25,6 +25,9 @@ const PublicSharePage = lazyNamed(() => import('./routes/share'), 'PublicSharePa
 const ProjectSettingsPage = lazyNamed(() => import('./routes/project-settings'), 'ProjectSettingsPage');
 const GitHubCallbackPage = lazyNamed(() => import('./routes/github-callback'), 'GitHubCallbackPage');
 const InvitePage = lazyNamed(() => import('./routes/invite'), 'InvitePage');
+const InboxPage = lazyNamed(() => import('./routes/inbox'), 'InboxPage');
+const MyTasksPage = lazyNamed(() => import('./routes/my-tasks'), 'MyTasksPage');
+const TrashPage = lazyNamed(() => import('./routes/trash'), 'TrashPage');
 
 /** Route element wrapper: per-route error boundary + Suspense for the lazy chunk. */
 function Page({ children }: { children: ReactNode }) {
@@ -78,6 +81,9 @@ export default function App() {
                 <Route path="/projects/new" element={<Page><NewProjectPage /></Page>} />
                 <Route path="/project/:projectId" element={<Page><ProjectPage /></Page>} />
                 <Route path="/project/:projectId/settings" element={<Page><ProjectSettingsPage /></Page>} />
+                <Route path="/project/:projectId/trash" element={<Page><TrashPage /></Page>} />
+                <Route path="/inbox" element={<Page><InboxPage /></Page>} />
+                <Route path="/my-tasks" element={<Page><MyTasksPage /></Page>} />
                 <Route path="/task/:taskId" element={<Page><TaskPage /></Page>} />
                 <Route path="/views" element={<Page><ViewsPage /></Page>} />
                 <Route path="/view/:viewId" element={<Page><SmartViewPage /></Page>} />

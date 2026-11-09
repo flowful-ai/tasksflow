@@ -14,14 +14,70 @@ interface LabelPickerProps {
   isLoading?: boolean;
 }
 
-/** Label chips plus an "Add label" popover with search (stays open to toggle several). */
-export function LabelPicker({ currentLabels, projectLabels, onAdd, onRemove, isLoading }: LabelPickerProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [search, setSearch] = useState('');
+export interface LabelOptionsProps {
+  currentLabels: PickerLabel[];
+  projectLabels: PickerLabel[];
+  onToggle: (labelId: string) => void;
+  isLoading?: boolean;
+}
 
+/** Searchable, multi-select label list (the body of the label popover). */
+export function LabelOptions({ currentLabels, projectLabels, onToggle, isLoading }: LabelOptionsProps) {
+  const [search, setSearch] = useState('');
   const labelIds = new Set(currentLabels.map((l) => l.id));
   const query = search.toLowerCase();
   const filteredLabels = projectLabels.filter((label) => label.name.toLowerCase().includes(query));
+
+  return (
+    <>
+      <div className="p-2 border-b border-gray-100">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search labels..."
+          aria-label="Search labels"
+          autoFocus
+          className="w-full px-3 py-1.5 text-base md:text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+        />
+      </div>
+      <div className="max-h-48 overflow-y-auto" role="listbox" aria-multiselectable="true" aria-label="Labels">
+        {filteredLabels.length === 0 ? (
+          <div className="px-3 py-4 text-sm text-gray-400 text-center">
+            {search ? 'No labels found' : 'No labels available'}
+          </div>
+        ) : (
+          filteredLabels.map((label) => {
+            const isSelected = labelIds.has(label.id);
+            return (
+              <button
+                key={label.id}
+                type="button"
+                role="option"
+                aria-selected={isSelected}
+                onClick={() => onToggle(label.id)}
+                disabled={isLoading}
+                className={clsx(
+                  'w-full flex items-center space-x-3 px-3 py-2 text-left hover:bg-gray-50 transition-colors',
+                  isSelected && 'bg-primary-50'
+                )}
+              >
+                <ColorDot color={label.color} size="md" />
+                <span className="flex-1 text-sm text-gray-700 truncate">{label.name}</span>
+                {isSelected && <Check className="w-4 h-4 text-primary-600 flex-shrink-0" aria-hidden />}
+              </button>
+            );
+          })
+        )}
+      </div>
+    </>
+  );
+}
+
+/** Label chips plus an "Add label" popover with search (stays open to toggle several). */
+export function LabelPicker({ currentLabels, projectLabels, onAdd, onRemove, isLoading }: LabelPickerProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const labelIds = new Set(currentLabels.map((l) => l.id));
 
   const handleToggle = (labelId: string) => {
     if (labelIds.has(labelId)) onRemove(labelId);
@@ -61,7 +117,6 @@ export function LabelPicker({ currentLabels, projectLabels, onAdd, onRemove, isL
         open={isOpen}
         onOpenChange={(open) => {
           setIsOpen(open);
-          if (!open) setSearch('');
         }}
       >
         <PopoverTrigger asChild>
@@ -79,46 +134,7 @@ export function LabelPicker({ currentLabels, projectLabels, onAdd, onRemove, isL
           </button>
         </PopoverTrigger>
         <PopoverContent className="w-56 p-0 overflow-hidden" aria-label="Pick labels">
-          <div className="p-2 border-b border-gray-100">
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search labels..."
-              aria-label="Search labels"
-              autoFocus
-              className="w-full px-3 py-1.5 text-base md:text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-            />
-          </div>
-          <div className="max-h-48 overflow-y-auto" role="listbox" aria-multiselectable="true" aria-label="Labels">
-            {filteredLabels.length === 0 ? (
-              <div className="px-3 py-4 text-sm text-gray-400 text-center">
-                {search ? 'No labels found' : 'No labels available'}
-              </div>
-            ) : (
-              filteredLabels.map((label) => {
-                const isSelected = labelIds.has(label.id);
-                return (
-                  <button
-                    key={label.id}
-                    type="button"
-                    role="option"
-                    aria-selected={isSelected}
-                    onClick={() => handleToggle(label.id)}
-                    disabled={isLoading}
-                    className={clsx(
-                      'w-full flex items-center space-x-3 px-3 py-2 text-left hover:bg-gray-50 transition-colors',
-                      isSelected && 'bg-primary-50'
-                    )}
-                  >
-                    <ColorDot color={label.color} size="md" />
-                    <span className="flex-1 text-sm text-gray-700 truncate">{label.name}</span>
-                    {isSelected && <Check className="w-4 h-4 text-primary-600 flex-shrink-0" aria-hidden />}
-                  </button>
-                );
-              })
-            )}
-          </div>
+          <LabelOptions currentLabels={currentLabels} projectLabels={projectLabels} onToggle={handleToggle} isLoading={isLoading} />
         </PopoverContent>
       </Popover>
     </div>

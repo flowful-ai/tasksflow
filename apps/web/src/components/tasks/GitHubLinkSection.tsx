@@ -112,6 +112,10 @@ export function GitHubLinkSection({ taskId, projectId, externalLinks, onUpdated 
         </a>
       ))}
 
+      {externalLinks.length > 0 && (
+        <p className="-mt-1 mb-2 text-xs text-gray-400">Synced from GitHub (GitHub is the source of truth)</p>
+      )}
+
       {/* Repo selector for creating issue */}
       {showIssueRepoSelector && (
         <div className="mt-2 p-3 border border-gray-200 rounded-lg bg-white">

@@ -115,7 +115,11 @@ export function Dialog({
               initialFocus.current.focus();
             }
           }}
-          onEscapeKeyDown={preventIfLocked}
+          onEscapeKeyDown={(event) => {
+            preventIfLocked(event);
+            // Inline editors marked data-escape-cancels handle Escape themselves (cancel the edit).
+            if (event.target instanceof HTMLElement && event.target.closest('[data-escape-cancels]')) event.preventDefault();
+          }}
           onPointerDownOutside={preventIfLocked}
           onInteractOutside={preventIfLocked}
           className={clsx(

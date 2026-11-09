@@ -12,10 +12,35 @@ interface DueDatePickerProps {
 const formatDate = (dateStr: string) =>
   new Date(dateStr).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
 
-export function DueDatePicker({ value, onChange, isLoading }: DueDatePickerProps) {
-  const [isOpen, setIsOpen] = useState(false);
+/** Date input plus "Clear due date" (the body of the due date popover). */
+export function DueDateOptions({ value, onChange }: { value: string | null; onChange: (date: string | null) => void }) {
   // Format value for input (YYYY-MM-DD)
   const inputValue = value ? value.split('T')[0] : '';
+  return (
+    <>
+      <input
+        type="date"
+        value={inputValue}
+        aria-label="Due date"
+        onChange={(e) => onChange(e.target.value || null)}
+        className="w-full px-3 py-2 text-base md:text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+        autoFocus
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          className="mt-2 w-full px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          Clear due date
+        </button>
+      )}
+    </>
+  );
+}
+
+export function DueDatePicker({ value, onChange, isLoading }: DueDatePickerProps) {
+  const [isOpen, setIsOpen] = useState(false);
 
   return (
     <div>
@@ -42,29 +67,13 @@ export function DueDatePicker({ value, onChange, isLoading }: DueDatePickerProps
           </button>
         </PopoverTrigger>
         <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-3" aria-label="Pick a due date">
-          <input
-            type="date"
-            value={inputValue}
-            aria-label="Due date"
-            onChange={(e) => {
-              onChange(e.target.value || null);
+          <DueDateOptions
+            value={value}
+            onChange={(date) => {
+              onChange(date);
               setIsOpen(false);
             }}
-            className="w-full px-3 py-2 text-base md:text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-            autoFocus
           />
-          {value && (
-            <button
-              type="button"
-              onClick={() => {
-                onChange(null);
-                setIsOpen(false);
-              }}
-              className="mt-2 w-full px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              Clear due date
-            </button>
-          )}
         </PopoverContent>
       </Popover>
     </div>

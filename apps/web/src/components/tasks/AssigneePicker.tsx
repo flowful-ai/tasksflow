@@ -3,7 +3,7 @@ import { User, X, Check, Plus } from 'lucide-react';
 import clsx from 'clsx';
 import { IconButton, Popover, PopoverContent, PopoverTrigger } from '../ui';
 
-interface Assignee {
+export interface Assignee {
   id: string;
   name: string | null;
   email: string;
@@ -11,7 +11,7 @@ interface Assignee {
 }
 
 /** Subset of WorkspaceMemberDto the picker needs. */
-interface PickerMember {
+export interface PickerMember {
   userId: string;
   user: Assignee;
 }
@@ -27,7 +27,7 @@ interface AssigneePickerProps {
 
 const getInitial = (name: string | null, email: string) => (name?.[0] || email[0] || '?').toUpperCase();
 
-function Avatar({ person, size }: { person: Assignee; size: 'sm' | 'md' }) {
+export function Avatar({ person, size }: { person: Assignee; size: 'sm' | 'md' }) {
   const box = size === 'sm' ? 'w-5 h-5 text-xs' : 'w-7 h-7 text-sm';
   return person.avatarUrl ? (
     <img src={person.avatarUrl} alt="" className={clsx(box, 'rounded-full object-cover flex-shrink-0')} />
@@ -35,6 +35,73 @@ function Avatar({ person, size }: { person: Assignee; size: 'sm' | 'md' }) {
     <span aria-hidden className={clsx(box, 'rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0 font-medium text-primary-700')}>
       {getInitial(person.name, person.email)}
     </span>
+  );
+}
+
+export interface AssigneeOptionsProps {
+  currentAssignees: Assignee[];
+  workspaceMembers: PickerMember[];
+  /** Called with the member's user id; the caller adds or removes. */
+  onToggle: (userId: string) => void;
+  isLoading?: boolean;
+}
+
+/** Searchable member list (the body of the assignee popover); reusable in other popovers. */
+export function AssigneeOptions({ currentAssignees, workspaceMembers, onToggle, isLoading }: AssigneeOptionsProps) {
+  const [search, setSearch] = useState('');
+  const assigneeIds = new Set(currentAssignees.map((a) => a.id));
+  const query = search.toLowerCase();
+  const filteredMembers = workspaceMembers.filter((member) => {
+    const name = member.user.name?.toLowerCase() || '';
+    return name.includes(query) || member.user.email.toLowerCase().includes(query);
+  });
+
+  return (
+    <>
+      <div className="p-2 border-b border-gray-100">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search members..."
+          aria-label="Search members"
+          autoFocus
+          className="w-full px-3 py-1.5 text-base md:text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+        />
+      </div>
+      <div className="max-h-48 overflow-y-auto" role="listbox" aria-label="Members">
+        {filteredMembers.length === 0 ? (
+          <div className="px-3 py-4 text-sm text-gray-400 text-center">
+            {search ? 'No members found' : 'No members available'}
+          </div>
+        ) : (
+          filteredMembers.map((member) => {
+            const isAssigned = assigneeIds.has(member.user.id);
+            return (
+              <button
+                key={member.userId}
+                type="button"
+                role="option"
+                aria-selected={isAssigned}
+                onClick={() => onToggle(member.user.id)}
+                disabled={isLoading}
+                className={clsx(
+                  'w-full flex items-center space-x-3 px-3 py-2 text-left hover:bg-gray-50 transition-colors',
+                  isAssigned && 'bg-primary-50'
+                )}
+              >
+                <Avatar person={member.user} size="md" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">{member.user.name || member.user.email}</p>
+                  {member.user.name && <p className="text-xs text-gray-500 truncate">{member.user.email}</p>}
+                </div>
+                {isAssigned && <Check className="w-4 h-4 text-primary-600 flex-shrink-0" aria-hidden />}
+              </button>
+            );
+          })
+        )}
+      </div>
+    </>
   );
 }
 
@@ -47,21 +114,11 @@ export function AssigneePicker({
   isLoading,
 }: AssigneePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [search, setSearch] = useState('');
 
   const assigneeIds = new Set(currentAssignees.map((a) => a.id));
   const isCurrentUserAssigned = currentUserId ? assigneeIds.has(currentUserId) : false;
 
-  const query = search.toLowerCase();
-  const filteredMembers = workspaceMembers.filter((member) => {
-    const name = member.user.name?.toLowerCase() || '';
-    return name.includes(query) || member.user.email.toLowerCase().includes(query);
-  });
-
-  const close = () => {
-    setIsOpen(false);
-    setSearch('');
-  };
+  const close = () => setIsOpen(false);
 
   const handleToggle = (userId: string) => {
     if (assigneeIds.has(userId)) onRemove(userId);
@@ -129,49 +186,12 @@ export function AssigneePicker({
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-64 p-0 overflow-hidden" aria-label="Pick an assignee">
-            <div className="p-2 border-b border-gray-100">
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search members..."
-                aria-label="Search members"
-                autoFocus
-                className="w-full px-3 py-1.5 text-base md:text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              />
-            </div>
-            <div className="max-h-48 overflow-y-auto" role="listbox" aria-label="Members">
-              {filteredMembers.length === 0 ? (
-                <div className="px-3 py-4 text-sm text-gray-400 text-center">
-                  {search ? 'No members found' : 'No members available'}
-                </div>
-              ) : (
-                filteredMembers.map((member) => {
-                  const isAssigned = assigneeIds.has(member.user.id);
-                  return (
-                    <button
-                      key={member.userId}
-                      type="button"
-                      role="option"
-                      aria-selected={isAssigned}
-                      onClick={() => handleToggle(member.user.id)}
-                      disabled={isLoading}
-                      className={clsx(
-                        'w-full flex items-center space-x-3 px-3 py-2 text-left hover:bg-gray-50 transition-colors',
-                        isAssigned && 'bg-primary-50'
-                      )}
-                    >
-                      <Avatar person={member.user} size="md" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{member.user.name || member.user.email}</p>
-                        {member.user.name && <p className="text-xs text-gray-500 truncate">{member.user.email}</p>}
-                      </div>
-                      {isAssigned && <Check className="w-4 h-4 text-primary-600 flex-shrink-0" aria-hidden />}
-                    </button>
-                  );
-                })
-              )}
-            </div>
+            <AssigneeOptions
+              currentAssignees={currentAssignees}
+              workspaceMembers={workspaceMembers}
+              onToggle={handleToggle}
+              isLoading={isLoading}
+            />
           </PopoverContent>
         </Popover>
       </div>
