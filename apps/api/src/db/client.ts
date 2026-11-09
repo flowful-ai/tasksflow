@@ -1,4 +1,5 @@
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
+import type { Logger } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import * as schema from './schema.js';
@@ -39,10 +40,11 @@ export function createConnection(connectionString?: string) {
 }
 
 // Create the drizzle database instance
-export function createDatabase(connectionString?: string) {
+export function createDatabase(connectionString?: string, options: { logger?: Logger } = {}) {
   const client = createConnection(connectionString);
   return drizzle(client, {
     schema: { ...schema, ...relations },
+    ...(options.logger ? { logger: options.logger } : {}),
   });
 }
 

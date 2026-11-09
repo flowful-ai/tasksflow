@@ -4,8 +4,14 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { and, asc, eq, sql } from 'drizzle-orm';
-import { taskEvents, taskStates, tasks } from '../../db/index.js';
-import { arePositionsHealthy, comparePositions, isValidPosition } from '@flowtask/shared';
+import { createDatabase, taskEvents, taskStates, tasks } from '../../db/index.js';
+import {
+  arePositionsHealthy,
+  comparePositions,
+  generatePosition,
+  generatePositions,
+  isValidPosition,
+} from '@flowtask/shared';
 import { domainEvents } from '../events/bus.js';
 import type { DomainEventMap } from '../events/types.js';
 import { TaskBulkService } from './bulk.js';
@@ -13,6 +19,7 @@ import { isTaskError } from './errors.js';
 import { TaskHistoryService } from './history.js';
 import { TaskRelationService } from './relations.js';
 import { TaskService } from './service.js';
+import { placeTask, type PlacementRequest } from './positions.js';
 import { purgeTrash } from './trash.js';
 import { rekeyTaskPositions } from './rekey.js';
 import { ProjectService } from '../project/service.js';
@@ -416,6 +423,80 @@ describe.skipIf(!TEST_DATABASE_URL)('TaskService (integration)', () => {
       expect(rekeyed).toEqual([
         { workspaceId: ws.workspaceId, projectId: p.projectId, stateId: p.states.progress },
       ]);
+    });
+
+    it('places by neighbour keys only, without reading a 2k-row column', async () => {
+      const p = await createProject(testDb(), ws.workspaceId);
+      const keys = generatePositions(2000);
+      await testDb().execute(sql`
+        INSERT INTO tasks (project_id, state_id, sequence_number, title, position)
+        SELECT ${p.projectId}, ${p.states.backlog}, n, 'bulk ' || n, k
+        FROM unnest(${sql.raw(`ARRAY[${keys.map((k) => `'${k}'`).join(',')}]`)}::text[])
+          WITH ORDINALITY AS u(k, n)`);
+      // A trashed task at the tail still bounds an append (it keeps its key).
+      const [trashed] = await testDb()
+        .insert(tasks)
+        .values({
+          projectId: p.projectId,
+          stateId: p.states.backlog,
+          sequenceNumber: 2001,
+          title: 'trashed tail',
+          position: generatePosition(keys[keys.length - 1], null),
+          deletedAt: new Date(),
+        })
+        .returning({ id: tasks.id, position: tasks.position });
+      const rows = await testDb()
+        .select({ id: tasks.id, position: tasks.position })
+        .from(tasks)
+        .where(eq(tasks.projectId, p.projectId))
+        .orderBy(sql`${tasks.position} COLLATE "C"`, asc(tasks.id));
+
+      // Every statement placeTask sends goes through this logger.
+      const queries: string[] = [];
+      const logged = createDatabase(TEST_DATABASE_URL, {
+        logger: { logQuery: (query) => queries.push(query) },
+      });
+      /** Statements that read tasks without a LIMIT (i.e. a column scan). */
+      const columnScans = () =>
+        queries.filter((q) => /from "?tasks"?/i.test(q) && !/\blimit\b/i.test(q)).length;
+      const place = (request: Omit<PlacementRequest, 'projectId' | 'stateId'>) =>
+        logged.transaction(async (tx) => {
+          queries.length = 0;
+          return placeTask(tx, { projectId: p.projectId, stateId: p.states.backlog, ...request });
+        });
+
+      const appended = await place({});
+      expect(appended.rekeyed).toBe(false);
+      expect(comparePositions(appended.position, trashed!.position)).toBe(1);
+      expect(columnScans()).toBe(0);
+
+      const after = await place({ afterTaskId: rows[999]!.id, taskId: rows[5]!.id });
+      expect(comparePositions(after.position, rows[999]!.position)).toBe(1);
+      expect(comparePositions(after.position, rows[1000]!.position)).toBe(-1);
+      expect(columnScans()).toBe(0);
+
+      const before = await place({ beforeTaskId: rows[0]!.id });
+      expect(comparePositions(before.position, rows[0]!.position)).toBe(-1);
+      expect(columnScans()).toBe(0);
+
+      // The excluded task is never its own anchor.
+      await expect(place({ afterTaskId: rows[3]!.id, taskId: rows[3]!.id })).rejects.toThrow(
+        'afterTaskId is not in the target column'
+      );
+
+      const byKey = await place({ position: rows[10]!.position, taskId: rows[42]!.id });
+      expect(comparePositions(byKey.position, rows[10]!.position)).toBe(1);
+      expect(comparePositions(byKey.position, rows[11]!.position)).toBe(-1);
+      expect(columnScans()).toBe(0);
+
+      // An invalid neighbour falls back to the full column and re-keys it.
+      await testDb()
+        .update(tasks)
+        .set({ position: `${rows[0]!.position}:` })
+        .where(eq(tasks.id, rows[1]!.id));
+      const repaired = await place({ afterTaskId: rows[0]!.id });
+      expect(repaired.rekeyed).toBe(true);
+      expect(columnScans()).toBe(1);
     });
 
     it('rekeyTaskPositions repairs an invalid column in one pass, keeping order', async () => {
