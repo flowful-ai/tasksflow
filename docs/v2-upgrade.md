@@ -28,16 +28,16 @@ In the Dokploy Environment tab, compare with [`.env.example`](../.env.example) a
 
 Set or check:
 
-| Variable                                           | Value                                                                                                                                                                                    |
-| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BETTER_AUTH_URL`                                  | The public `https://` URL. Required by the compose file; OAuth callbacks, the Slack redirect and MCP metadata are built from it.                                                         |
-| `WEB_URL`                                          | Remove it or set it to the same URL: it defaults to `BETTER_AUTH_URL`, and the SPA is now served from the API's origin.                                                                  |
-| `APP_MANAGER_EMAILS`                               | Comma-separated emails of the app managers (promoted on their next login).                                                                                                               |
-| `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET` | The GitHub App's own OAuth client (App settings → Client ID / Generate a new client secret). Needed to install the App on new projects.                                                  |
-| `GITHUB_APP_SLUG`                                  | The App slug (defaults to `VITE_GITHUB_APP_SLUG`, which you already have).                                                                                                               |
-| `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`           | If you use Slack: the Slack app's OAuth credentials for "Add to Slack". Keep `SLACK_SIGNING_SECRET`; `SLACK_BOT_TOKEN` still works as a fallback for projects without their own install. |
-| `TRUSTED_PROXY_HOPS`                               | `1` (Dokploy's Traefik).                                                                                                                                                                 |
-| `INTEGRATION_ENCRYPTION_KEY`                       | Optional. Encrypts Slack bot tokens; defaults to `API_KEY_ENCRYPTION_KEY`. Pick it now if you want a separate key: tokens stored under one key cannot be read with another.              |
+| Variable                                           | Value                                                                                                                                                                                                       |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BETTER_AUTH_URL`                                  | The public `https://` URL. Required by the compose file; OAuth callbacks, the Slack redirect and MCP metadata are built from it.                                                                            |
+| `WEB_URL`                                          | Remove it or set it to the same URL: it defaults to `BETTER_AUTH_URL`, and the SPA is now served from the API's origin.                                                                                     |
+| `APP_MANAGER_EMAILS`                               | Comma-separated emails of the app managers (promoted on their next login).                                                                                                                                  |
+| `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET` | The GitHub App's own OAuth client (App settings → Client ID / client secret). Needed to install the App on new projects. If sign-in already uses this App, reuse `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`. |
+| `GITHUB_APP_SLUG`                                  | The App slug (defaults to `VITE_GITHUB_APP_SLUG`, which you already have).                                                                                                                                  |
+| `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`           | If you use Slack: the Slack app's OAuth credentials for "Add to Slack". Keep `SLACK_SIGNING_SECRET`; `SLACK_BOT_TOKEN` still works as a fallback for projects without their own install.                    |
+| `TRUSTED_PROXY_HOPS`                               | `1` (Dokploy's Traefik).                                                                                                                                                                                    |
+| `INTEGRATION_ENCRYPTION_KEY`                       | Optional. Encrypts Slack bot tokens; defaults to `API_KEY_ENCRYPTION_KEY`. Pick it now if you want a separate key: tokens stored under one key cannot be read with another.                                 |
 
 Keep `POSTGRES_*`, `BETTER_AUTH_SECRET`, `API_KEY_ENCRYPTION_KEY`, the GitHub/Google sign-in pairs, `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET` and the `VITE_*` client ids unchanged.
 
@@ -55,7 +55,7 @@ If `API_KEY_ENCRYPTION_KEY` is not 32 bytes of hex or base64, v2 logs a warning 
 In the GitHub App settings:
 
 - tick **Request user authorization (OAuth) during installation**;
-- set the **Callback URL** to `<BETTER_AUTH_URL>/api/github/callback`, e.g. `https://tasks.example.com/api/github/callback`;
+- **add** `<BETTER_AUTH_URL>/api/github/callback` as a Callback URL, e.g. `https://tasks.example.com/api/github/callback`. Keep the existing ones: if the same App handles GitHub sign-in (its Client ID is your `GITHUB_CLIENT_ID`), `<BETTER_AUTH_URL>/api/auth/callback/github` must stay or sign-in breaks. GitHub Apps accept up to 10 callback URLs;
 - keep the webhook URL `<BETTER_AUTH_URL>/api/webhooks/github` and its secret.
 
 v2 refuses App installations that do not come back with the user's OAuth code (it checks that the installing user can access the installation). Repositories already linked keep syncing; this only affects new installs.

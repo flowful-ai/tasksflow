@@ -158,7 +158,7 @@ Owners and admins can see, narrow and revoke connections under **Settings → MC
 FlowTask uses a GitHub App (separate from the OAuth app used for sign-in).
 
 1. Create an App at <https://github.com/settings/apps/new> (or under your organization).
-2. **Callback URL**: `https://<your-domain>/api/github/callback`, and tick **Request user authorization (OAuth) during installation**. FlowTask refuses installations without this step: it checks that the installing user can access the installation.
+2. **Callback URLs**: add `https://<your-domain>/api/github/callback` (and keep `https://<your-domain>/api/auth/callback/github` if this App also handles GitHub sign-in), and tick **Request user authorization (OAuth) during installation**. FlowTask refuses installations without this step: it checks that the installing user can access the installation.
 3. **Webhook**: active, URL `https://<your-domain>/api/webhooks/github`, and a random **webhook secret** (`openssl rand -hex 32`).
 4. **Repository permissions**: Issues: Read and write; Pull requests: Read-only; Metadata: Read-only.
 5. **Subscribe to events**: Issues, Issue comment, Pull request.
