@@ -1,8 +1,17 @@
 import { Hono } from 'hono';
+import type { Context } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { cors } from 'hono/cors';
-import { logger } from 'hono/logger';
-import { secureHeaders } from 'hono/secure-headers';
-import { authMiddleware } from '@flowtask/auth';
+import { HTTPException } from 'hono/http-exception';
+import { sql } from 'drizzle-orm';
+import { authMiddleware, getTrustedOrigins } from '@flowtask/auth';
+import { closeDatabase, getDatabase, runMigrations } from '@flowtask/database';
+import { applyClientIp, parseTrustedProxyHops, resolveClientIp } from './lib/client-ip.js';
+import { resolveMigrationsDir, shouldRunMigrations } from './lib/migrations.js';
+import { requestLogger } from './lib/request-logger.js';
+import { securityHeaders } from './lib/security-headers.js';
+import { isShuttingDown, markShuttingDown, runShutdownHooks, withTimeout } from './lib/shutdown.js';
+import { SpaServer, resolveWebDistDir } from './lib/spa.js';
 
 // Import routes
 import { authRoutes } from './routes/auth.js';
@@ -22,34 +31,75 @@ import { workspaceAgentRoutes } from './routes/workspace-agents.js';
 import { workspaceApiKeysRoutes } from './routes/workspace-api-keys.js';
 import { eventRoutes } from './routes/events.js';
 import { githubRoutes, githubPublicRoutes } from './routes/github.js';
-import { invitationRoutes, publicInvitationRoutes, acceptInvitationRoutes } from './routes/invitations.js';
+import {
+  invitationRoutes,
+  publicInvitationRoutes,
+  acceptInvitationRoutes,
+} from './routes/invitations.js';
 import { appAdminRoutes } from './routes/app-admin.js';
 import { McpOAuthService } from './services/mcp-oauth-service.js';
 
 // Import SSE manager
 import { initSSE } from './sse/manager.js';
 
+const isProduction = process.env.NODE_ENV === 'production';
 const app = new Hono();
 const mcpOAuthService = new McpOAuthService();
+const webDistDir = resolveWebDistDir();
+const spa = webDistDir ? new SpaServer(webDistDir) : null;
 
 // Global middleware
-app.use('*', logger());
-app.use('*', secureHeaders());
-app.use(
-  '*',
-  cors({
-    origin: [
-      'http://localhost:3000',
-      'http://localhost:5173',
-      process.env.WEB_URL || '',
-    ].filter(Boolean),
-    credentials: true,
-  })
+app.use('*', requestLogger());
+app.use('*', securityHeaders(isProduction));
+// Same origins as Better Auth's trustedOrigins: WEB_URL/BETTER_AUTH_URL, plus localhost outside production.
+app.use('*', cors({ origin: getTrustedOrigins(), credentials: true }));
+
+const MB = 1024 * 1024;
+const payloadTooLarge = (c: Context) =>
+  c.json(
+    { success: false, error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request body too large' } },
+    413
+  );
+const defaultBodyLimit = bodyLimit({ maxSize: 1 * MB, onError: payloadTooLarge });
+// GitHub webhook payloads (large pushes, PR bodies) can exceed 1MB.
+const webhookBodyLimit = bodyLimit({ maxSize: 5 * MB, onError: payloadTooLarge });
+app.use('*', (c, next) =>
+  c.req.path.startsWith('/api/webhooks/') ? webhookBodyLimit(c, next) : defaultBodyLimit(c, next)
 );
 
-// Health check
-app.get('/health', (c) => {
-  return c.json({ status: 'ok', timestamp: new Date().toISOString() });
+async function databaseReachable(): Promise<boolean> {
+  let ok = false;
+  await withTimeout(
+    getDatabase()
+      .execute(sql`SELECT 1`)
+      .then(() => {
+        ok = true;
+      })
+      .catch(() => undefined),
+    2000,
+    'health check query'
+  );
+  return ok;
+}
+
+// Liveness: the process is up and can reach Postgres.
+app.get('/health', async (c) => {
+  const db = await databaseReachable();
+  return c.json(
+    {
+      status: db ? 'ok' : 'error',
+      database: db ? 'ok' : 'unreachable',
+      timestamp: new Date().toISOString(),
+    },
+    db ? 200 : 503
+  );
+});
+
+// Readiness: as /health, and not draining for shutdown.
+app.get('/ready', async (c) => {
+  if (isShuttingDown()) return c.json({ status: 'shutting_down' }, 503);
+  const db = await databaseReachable();
+  return c.json({ status: db ? 'ready' : 'not_ready' }, db ? 200 : 503);
 });
 
 // Root-level GitHub App installation callback handler
@@ -66,11 +116,13 @@ app.get('/', (c) => {
     return c.redirect(redirectUrl);
   }
 
-  // Not a GitHub callback, return API info
+  if (spa) return spa.serveIndex(c);
+
+  // No built SPA (API-only dev run): return API info
   return c.json({
     name: 'FlowTask API',
     status: 'ok',
-    docs: '/health'
+    docs: '/health',
   });
 });
 
@@ -140,6 +192,10 @@ app.route('/api/app', appAdminRoutes);
 
 // Error handler
 app.onError((err, c) => {
+  if (err instanceof HTTPException && err.status < 500) {
+    const code = err.status === 401 ? 'UNAUTHORIZED' : 'HTTP_ERROR';
+    return c.json({ success: false, error: { code, message: err.message } }, err.status);
+  }
   console.error('Server error:', err);
   return c.json(
     {
@@ -153,8 +209,14 @@ app.onError((err, c) => {
   );
 });
 
-// 404 handler
-app.notFound((c) => {
+// 404 handler. Non-API GETs fall through to the SPA here (index.html for client
+// routes, files from the built web app), so it works whatever order routes are
+// mounted in.
+app.notFound(async (c) => {
+  if (spa && (c.req.method === 'GET' || c.req.method === 'HEAD')) {
+    const response = await spa.respond(c, c.req.path);
+    if (response) return response;
+  }
   return c.json(
     {
       success: false,
@@ -170,19 +232,76 @@ app.notFound((c) => {
 // Start server with Bun
 const port = parseInt(process.env.API_PORT || '3001', 10);
 const hostname = process.env.API_HOST || '0.0.0.0';
+const trustedProxyHops = parseTrustedProxyHops(process.env.TRUSTED_PROXY_HOPS);
+const shutdownTimeoutMs = Number(process.env.SHUTDOWN_TIMEOUT_MS ?? 10_000);
 
-const server = Bun.serve({
-  hostname,
-  port,
-  fetch: app.fetch,
-  // Increase idle timeout for SSE connections (default is 10s which kills long-lived streams)
-  idleTimeout: 255, // Maximum allowed value in Bun (in seconds)
-});
+async function applyMigrations(): Promise<void> {
+  if (!shouldRunMigrations(process.env.RUN_MIGRATIONS)) return;
+  const dir = resolveMigrationsDir();
+  if (!dir) {
+    throw new Error('Migrations folder not found: set MIGRATIONS_DIR, or RUN_MIGRATIONS=false');
+  }
+  console.log(`Applying database migrations from ${dir}`);
+  await runMigrations(dir);
+}
 
-console.log(`🚀 FlowTask API running at http://${hostname}:${server.port}`);
+function startServer(): ReturnType<typeof Bun.serve> {
+  return Bun.serve({
+    hostname,
+    port,
+    fetch(req, server) {
+      // Resolve the client IP once, from the proxy chain we trust, and overwrite
+      // the forwarded headers so nothing downstream reads a spoofed value.
+      const socketIp = server.requestIP(req)?.address ?? null;
+      applyClientIp(
+        req.headers,
+        resolveClientIp(req.headers.get('x-forwarded-for'), socketIp, trustedProxyHops)
+      );
+      return app.fetch(req, server);
+    },
+    // Increase idle timeout for SSE connections (default is 10s which kills long-lived streams)
+    idleTimeout: 255, // Maximum allowed value in Bun (in seconds)
+  });
+}
 
-// Initialize SSE manager (same port as API)
-initSSE();
+function installShutdownHandlers(server: ReturnType<typeof Bun.serve>): void {
+  let started = false;
+  const shutdown = async (signal: string) => {
+    if (started) return;
+    started = true;
+    markShuttingDown();
+    console.log(`${signal} received: draining`);
+    // Stop accepting new connections; resolves once open ones have finished.
+    const drained = server.stop();
+    // SSE streams and background jobs end through their hooks.
+    await runShutdownHooks(shutdownTimeoutMs);
+    await withTimeout(drained, shutdownTimeoutMs, 'in-flight requests');
+    await server.stop(true);
+    await closeDatabase().catch((error: Error) => {
+      console.error('Closing the database pool failed:', error.message);
+    });
+    console.log('Shutdown complete');
+    process.exit(0);
+  };
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  process.on('SIGINT', () => void shutdown('SIGINT'));
+}
 
-export default app;
+if (import.meta.main) {
+  try {
+    await applyMigrations();
+  } catch (error) {
+    console.error('Database migration failed:', error);
+    process.exit(1);
+  }
+  const server = startServer();
+  installShutdownHandlers(server);
+  console.log(
+    `FlowTask API running at http://${hostname}:${server.port}` +
+      (webDistDir ? ` (serving SPA from ${webDistDir})` : ' (no SPA build found)')
+  );
+  // Initialize SSE manager (same port as API)
+  initSSE();
+}
+
 export { app };

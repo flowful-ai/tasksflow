@@ -1,3 +1,4 @@
+import { HTTPException } from 'hono/http-exception';
 import type { Context, Next } from 'hono';
 import { getAuth } from './config.js';
 
@@ -99,7 +100,7 @@ export async function requireAuth(ctx: Context, next: Next) {
 export function getCurrentUser(ctx: Context): AuthUser {
   const auth = ctx.get('auth') as AuthContext;
   if (!auth?.user) {
-    throw new Error('User not authenticated');
+    throw new HTTPException(401, { message: 'Authentication required' });
   }
   return auth.user;
 }
@@ -111,7 +112,7 @@ export function getCurrentUser(ctx: Context): AuthUser {
 export function getCurrentSession(ctx: Context): AuthSession {
   const auth = ctx.get('auth') as AuthContext;
   if (!auth?.session) {
-    throw new Error('Session not found');
+    throw new HTTPException(401, { message: 'Authentication required' });
   }
   return auth.session;
 }
