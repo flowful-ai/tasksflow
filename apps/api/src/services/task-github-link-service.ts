@@ -8,7 +8,8 @@ import {
   createGitHubClientForInstallation,
   getGitHubTargetForProjectRepo,
   issueContentFrom,
-  runInBackground,
+  registerBackgroundJob,
+  scheduleBackgroundJob,
   type GitHubRepoTarget,
   type PublishRealtimeEvent,
 } from '@flowtask/integrations';
@@ -80,11 +81,21 @@ async function callGitHub<T>(fallbackMessage: string, fn: () => Promise<T>): Pro
  * link a pull request. Repo → installation resolution is exact (a repository
  * must be linked to the task's project; no fallback installation).
  */
+const CREATE_ISSUE_JOB = 'github.create_issue_for_task';
+
 export class TaskGitHubLinkService {
   constructor(
     private readonly db: Database,
     private readonly publish: PublishRealtimeEvent = () => {}
-  ) {}
+  ) {
+    registerBackgroundJob(CREATE_ISSUE_JOB, async (payload) => {
+      const { taskId, projectId, owner, repo } = payload;
+      if (typeof taskId !== 'string' || typeof projectId !== 'string' || typeof owner !== 'string' || typeof repo !== 'string') {
+        throw new NonRetryableError('Job payload is missing the task or repository');
+      }
+      await this.runIssueCreation({ taskId, projectId, owner, repo });
+    });
+  }
 
   private async resolveTarget(input: TaskRepoInput): Promise<GitHubRepoTarget> {
     const target = await getGitHubTargetForProjectRepo(this.db, input.projectId, input.owner, input.repo);
@@ -197,21 +208,23 @@ export class TaskGitHubLinkService {
    * failures; an already-linked task counts as done.
    */
   scheduleIssueCreation(input: TaskRepoInput): void {
-    void runInBackground(
-      'github.create_issue_for_task',
-      async () => {
-        try {
-          await this.createIssueForTask(input);
-        } catch (error) {
-          if (error instanceof TaskGitHubLinkError) {
-            if (error.code === 'ALREADY_LINKED') return;
-            if (error.status !== 500) throw new NonRetryableError(error.message, { cause: error });
-          }
-          throw error;
-        }
-      },
+    scheduleBackgroundJob(
+      CREATE_ISSUE_JOB,
+      { taskId: input.taskId, projectId: input.projectId, owner: input.owner, repo: input.repo },
       { context: { taskId: input.taskId, repo: `${input.owner}/${input.repo}` } }
     );
+  }
+
+  private async runIssueCreation(input: TaskRepoInput): Promise<void> {
+    try {
+      await this.createIssueForTask(input);
+    } catch (error) {
+      if (error instanceof TaskGitHubLinkError) {
+        if (error.code === 'ALREADY_LINKED') return;
+        if (error.status !== 500) throw new NonRetryableError(error.message, { cause: error });
+      }
+      throw error;
+    }
   }
 
   /** Link an existing pull request to a task. */
@@ -260,6 +273,7 @@ export class TaskGitHubLinkService {
       throw new TaskGitHubLinkError('PR_ALREADY_LINKED', 'This pull request is already linked to another task', 409);
     }
 
+    await this.publishTaskUpdated(input.taskId);
     return { url: pullRequest.html_url, number: pullRequest.number };
   }
 

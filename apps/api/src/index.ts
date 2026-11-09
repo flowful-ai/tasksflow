@@ -46,7 +46,7 @@ import { taskRelationRoutes } from './routes/task-relations.js';
 import { taskHistoryRoutes } from './routes/task-history.js';
 import { trashRoutes } from './routes/trash.js';
 import { outgoingWebhookRoutes } from './routes/outgoing-webhooks.js';
-import { startBackgroundServices } from '@flowtask/domain';
+import { startApiBackground } from './background/index.js';
 
 // Import SSE manager
 import { initSSE } from './sse/manager.js';
@@ -317,9 +317,9 @@ if (import.meta.main) {
   );
   // Initialize SSE manager (same port as API)
   initSSE();
-  // Domain-event subscribers + Postgres job runner, stopped on shutdown.
-  const backgroundServices = startBackgroundServices(getDatabase());
-  registerShutdownHook(() => backgroundServices.stop());
+  // Domain-event bridges, subscribers and the Postgres job runner, stopped on shutdown.
+  const background = startApiBackground(getDatabase());
+  registerShutdownHook(() => background.stop());
 }
 
 export default app;

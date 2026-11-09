@@ -1,5 +1,5 @@
 import { FilterEngine, type TaskFilters, type TaskWithRelations } from '@flowtask/domain';
-import { REALTIME_EVENTS, type Result } from '@flowtask/shared';
+import type { Result } from '@flowtask/shared';
 import { ToolExecutionError, fromDomainError, toToolErrorPayload } from '../../lib/mcp/errors.js';
 import type { ToolContext } from '../../lib/mcp/tool-context.js';
 import type { JsonRecord } from '../../lib/mcp/json-schema-zod.js';
@@ -57,10 +57,6 @@ async function resolveAssigneeIds(ctx: ToolContext, refs: string[]): Promise<str
   return ids;
 }
 
-function publishTask(ctx: ToolContext, services: ToolServices, event: string, payload: object): void {
-  services.publish(ctx.workspaceId, event, payload);
-}
-
 // ---------- create ----------
 
 interface CreateFields {
@@ -102,7 +98,6 @@ const createTask: ToolHandler = async (args, ctx, services) => {
     })
   );
 
-  publishTask(ctx, services, REALTIME_EVENTS.TASK_CREATED, { task, projectId: project.id });
   return formatWriteTaskResult('create_task', task, mode);
 };
 
@@ -126,7 +121,6 @@ const bulkCreateTasks: ToolHandler = async (args, ctx, services) => {
         })
       );
       created.push(task);
-      publishTask(ctx, services, REALTIME_EVENTS.TASK_CREATED, { task, projectId: project.id });
     } catch (error) {
       failed.push({ index, error: toToolErrorPayload(error, 'bulk_create_tasks').message });
     }
@@ -164,14 +158,25 @@ async function syncAssignees(task: TaskWithRelations, refs: string[], ctx: ToolC
   for (const id of toRemove) unwrap(await services.tasks.removeAssignee(task.id, id, ctx.userId, options));
 }
 
-/** Applies one update; shared by update_task and bulk_update_tasks. */
+/**
+ * Applies one update (scalar fields, labels, assignees) atomically; shared by
+ * update_task and bulk_update_tasks.
+ */
 async function applyTaskUpdate(
+  item: JsonRecord,
+  ctx: ToolContext,
+  outer: ToolServices
+): Promise<{ before: TaskWithRelations; after: TaskWithRelations }> {
+  const task = await ctx.requireTask(requiredString(item, 'taskId'));
+  return outer.withTaskTransaction((tasks) => applyTaskUpdateIn(task, item, ctx, { ...outer, tasks }));
+}
+
+async function applyTaskUpdateIn(
+  task: TaskWithRelations,
   item: JsonRecord,
   ctx: ToolContext,
   services: ToolServices
 ): Promise<{ before: TaskWithRelations; after: TaskWithRelations }> {
-  const task = await ctx.requireTask(requiredString(item, 'taskId'));
-
   const rawDueDate = nullableString(item, 'dueDate');
   const scalar = {
     title: optionalString(item, 'title'),
@@ -228,7 +233,6 @@ const updateTask: ToolHandler = async (args, ctx, services) => {
     after = await reloadTask(services, after.id);
   }
 
-  publishTask(ctx, services, REALTIME_EVENTS.TASK_UPDATED, after);
   return formatWriteTaskResult('update_task', after, mode);
 };
 
@@ -237,13 +241,12 @@ const bulkUpdateTasks: ToolHandler = async (args, ctx, services) => {
   const results: ToolOutput[] = [];
   let updated = 0;
 
-  // Sequential on purpose: TaskService owns its own writes, and per-task results
-  // let the model retry only what failed.
+  // One transaction per item (an item's fields, labels and assignees land
+  // together), reported per task so the model can retry only what failed.
   for (const item of updates) {
     const taskRef = optionalString(item, 'taskId') ?? '';
     try {
       const { after } = await applyTaskUpdate(item, ctx, services);
-      publishTask(ctx, services, REALTIME_EVENTS.TASK_UPDATED, after);
       results.push({ taskId: taskRef, ok: true, id: after.id });
       updated += 1;
     } catch (error) {
@@ -263,7 +266,6 @@ const bulkUpdateTasks: ToolHandler = async (args, ctx, services) => {
 const deleteTask: ToolHandler = async (args, ctx, services) => {
   const task = await ctx.requireTask(requiredString(args, 'taskId'));
   unwrap(await services.tasks.delete(task.id, ctx.userId, { mcpClientId: ctx.mcpClientId }));
-  publishTask(ctx, services, REALTIME_EVENTS.TASK_DELETED, { id: task.id, projectId: task.projectId });
   return { deleted: true, taskId: task.id };
 };
 
@@ -314,7 +316,6 @@ const moveTask: ToolHandler = async (args, ctx, services) => {
     })
   );
 
-  publishTask(ctx, services, REALTIME_EVENTS.TASK_MOVED, moved);
   return formatWriteTaskResult('move_task', moved, mode);
 };
 
@@ -334,7 +335,6 @@ const assignTask: ToolHandler = async (args, ctx, services) => {
   }
 
   const updated = await reloadTask(services, task.id);
-  publishTask(ctx, services, REALTIME_EVENTS.TASK_UPDATED, updated);
   return formatWriteTaskResult('assign_task', updated, mode);
 };
 

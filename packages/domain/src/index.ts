@@ -2,6 +2,7 @@
 export * from './task/service.js';
 export * from './task/types.js';
 export * from './task/errors.js';
+export type { DbExecutor, Tx } from './task/db.js';
 export * from './task/access.js';
 export * from './task/relations.js';
 export * from './task/history.js';

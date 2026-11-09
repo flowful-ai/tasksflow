@@ -16,7 +16,6 @@ import {
   updateGitHubConfig,
   updateRepoSyncStatus,
 } from '@flowtask/integrations';
-import { publishEvent } from '../sse/manager.js';
 import { apiError, authorizeProjectIntegration } from '../services/integration-access.js';
 import { GitHubInstallError, completeGitHubInstallation } from '../services/github-install-service.js';
 import { slackRoutes } from './slack.js';
@@ -280,7 +279,7 @@ github.post('/:projectId/github/sync', async (c) => {
   await updateRepoSyncStatus(db, projectId, linkedRepo.owner, linkedRepo.repo, { syncStatus: 'syncing', syncError: null });
 
   try {
-    const syncService = new GitHubSyncService({ db, taskService, publish: publishEvent });
+    const syncService = new GitHubSyncService({ db, taskService });
     const result = await syncService.initialSync({
       integrationId: integration.id,
       projectId,

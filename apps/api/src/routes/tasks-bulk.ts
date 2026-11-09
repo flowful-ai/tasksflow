@@ -16,7 +16,6 @@ import { getDatabase } from '@flowtask/database';
 import { TaskBulkService, lookupTaskProjects, resolveProjectAccess } from '@flowtask/domain';
 import { getCurrentUser, hasPermission, type WorkspacePermission } from '@flowtask/auth';
 import { BulkTaskRequestSchema, type BulkTaskOperation } from '@flowtask/shared';
-import { publishEvent } from '../sse/manager.js';
 
 const taskBulkRoutes = new Hono();
 const db = getDatabase();
@@ -64,18 +63,8 @@ taskBulkRoutes.post('/bulk', zValidator('json', BulkTaskRequestSchema, validatio
     return fail(c, 500, 'BULK_FAILED', 'Bulk operation failed');
   }
 
-  const { results, tasks, workspaceId } = result.value;
-  if (workspaceId) {
-    for (const item of results) {
-      if (item.status !== 'updated') continue;
-      const task = tasks.find((t) => t.id === item.taskId);
-      if (task) {
-        publishEvent(workspaceId, op.restore ? 'task:created' : 'task:updated', task);
-      } else if (op.delete) {
-        publishEvent(workspaceId, 'task:deleted', { id: item.taskId, projectId: located.get(item.taskId)?.projectId });
-      }
-    }
-  }
+  // Realtime, Slack and GitHub sync run off the domain events TaskBulkService emits.
+  const { results, tasks } = result.value;
   return c.json({ success: true, data: { results, tasks } });
 });
 

@@ -53,6 +53,5 @@ export {
 export {
   findFirstStateByCategory,
   getStateCategory,
-  positionAtEndOfState,
   resolveTaskReferencesInProject,
 } from './task-lookup.js';

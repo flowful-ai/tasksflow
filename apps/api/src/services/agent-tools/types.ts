@@ -16,6 +16,11 @@ export interface ToolServices {
   smartViews: Pick<SmartViewService, 'create' | 'getById' | 'list'>;
   githubLinks: Pick<TaskGitHubLinkService, 'linkPullRequestToTask'>;
   publish: (workspaceId: string, event: string, payload: object) => void;
+  /**
+   * Run task writes in one transaction (TaskService.transaction): all of them
+   * commit or none do, and their domain events are emitted after commit.
+   */
+  withTaskTransaction<T>(fn: (tasks: ToolServices['tasks']) => Promise<T>): Promise<T>;
 }
 
 export type ToolHandler = (args: JsonRecord, ctx: ToolContext, services: ToolServices) => Promise<ToolOutput>;
@@ -31,6 +36,7 @@ export function getDefaultToolServices(): ToolServices {
       smartViews: new SmartViewService(db),
       githubLinks: new TaskGitHubLinkService(db),
       publish: (workspaceId, event, payload) => publishEvent(workspaceId, event, payload),
+      withTaskTransaction: (fn) => TaskService.transaction(db, (tasks) => fn(tasks)),
     };
   }
   return defaultServices;

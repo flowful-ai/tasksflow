@@ -14,6 +14,8 @@ interface TaskEventBase {
   /** User who performed the change (null for system/GitHub/agent-without-user). */
   actorId: string | null;
   mcpClientId?: string | null;
+  /** Set when the change came from GitHub (webhook/sync): never push it back to GitHub. */
+  origin?: 'github';
 }
 
 export interface TaskCreatedEvent extends TaskEventBase {
@@ -67,6 +69,10 @@ export interface CommentCreatedEvent {
   actorId: string | null;
   content: string;
   mcpClientId?: string | null;
+  /** Set for comments imported from GitHub: never push them back to GitHub. */
+  origin?: 'github';
+  /** Display label when the author isn't a FlowTask user (e.g. "@octocat on GitHub"). */
+  actorLabel?: string;
 }
 
 export interface DomainEventMap {

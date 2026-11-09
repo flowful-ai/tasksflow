@@ -1,9 +1,12 @@
+import type { JsonObject } from '@flowtask/shared';
+
 /**
  * Single seam for fire-and-forget integration work (GitHub reverse sync,
  * issue close, comment sync, issue creation, Slack notifications).
  *
- * Today it retries in-process with exponential backoff. It is meant to be
- * swapped onto the Postgres jobs queue later without touching call sites.
+ * `runInBackground` retries in-process with exponential backoff.
+ * `scheduleBackgroundJob` (below) runs named jobs through the durable Postgres
+ * queue when the API has installed it, and falls back to `runInBackground`.
  */
 
 export type BackgroundLogContext = Record<string, string | number | boolean | null | undefined>;
@@ -89,4 +92,69 @@ export async function runInBackground(
     }
   }
   return { ok: false, attempts };
+}
+
+// ============ Durable queue seam ============
+//
+// Background work is described as a named job with a JSON payload. When a
+// durable queue is installed (the API installs the Postgres jobs queue at
+// boot), scheduling enqueues a row and the job runner executes the registered
+// handler, so the work survives restarts and gets the queue's retry/backoff.
+// Without a queue (tests, scripts) it falls back to in-process runInBackground.
+
+export type BackgroundJobPayload = JsonObject;
+
+export interface DurableJobQueue {
+  enqueue(type: string, payload: BackgroundJobPayload): Promise<void>;
+}
+
+export type BackgroundJobRunner = (payload: BackgroundJobPayload) => Promise<void>;
+
+let durableQueue: DurableJobQueue | null = null;
+const jobRunners = new Map<string, BackgroundJobRunner>();
+
+/** Install (or remove, with null) the durable queue used by scheduleBackgroundJob. */
+export function useDurableJobQueue(queue: DurableJobQueue | null): void {
+  durableQueue = queue;
+}
+
+/**
+ * Register how a background job type runs. Registration is idempotent per type
+ * (the last registration wins), so service instances can register on construction.
+ */
+export function registerBackgroundJob(type: string, run: BackgroundJobRunner): void {
+  jobRunners.set(type, run);
+}
+
+/** Every registered job type with its runner (the API turns these into job-queue handlers). */
+export function getBackgroundJobRunners(): ReadonlyMap<string, BackgroundJobRunner> {
+  return jobRunners;
+}
+
+/**
+ * Schedule a registered job. Never throws: an enqueue failure falls back to
+ * running in-process so the work isn't silently dropped.
+ */
+export function scheduleBackgroundJob(type: string, payload: BackgroundJobPayload, options: BackgroundTaskOptions = {}): void {
+  const run = jobRunners.get(type);
+  if (!run) {
+    console.error(JSON.stringify({ level: 'error', msg: 'background_job_unregistered', task: type }));
+    return;
+  }
+  const inProcess = () => void runInBackground(type, () => run(payload), options);
+  if (!durableQueue) {
+    inProcess();
+    return;
+  }
+  durableQueue.enqueue(type, payload).catch((error: unknown) => {
+    console.error(
+      JSON.stringify({ level: 'warn', msg: 'background_job_enqueue_failed', task: type, ...options.context, ...errorFields(error) })
+    );
+    inProcess();
+  });
+}
+
+/** True when an error should not be retried by a durable queue either. */
+export function isNonRetryableBackgroundError(error: unknown): boolean {
+  return !defaultIsRetryable(error);
 }

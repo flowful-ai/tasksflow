@@ -1,20 +1,17 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { getDatabase, projectIntegrations, externalLinks } from '@flowtask/database';
+import { getDatabase } from '@flowtask/database';
 import { TaskService } from '@flowtask/domain';
-import { getCurrentUser, hasPermission, type WorkspacePermission } from '@flowtask/auth';
+import { hasPermission } from '@flowtask/auth';
 import {
   CreateTaskSchema,
   UpdateTaskSchema,
   MoveTaskSchema,
   LinkTaskGitHubPrSchema,
   TaskPrioritySchema,
-  REALTIME_EVENTS,
 } from '@flowtask/shared';
 import { publishEvent } from '../sse/manager.js';
-import { GitHubReverseSyncService, createGitHubClientForInstallation } from '@flowtask/integrations';
-import { and, eq } from 'drizzle-orm';
 import { TaskGitHubLinkError, TaskGitHubLinkService } from '../services/task-github-link-service.js';
 import { GitHubRepoRefSchema, LinkTaskGitHubIssueSchema } from '@flowtask/shared';
 import { VALID_TASK_SORT_BY, VALID_TASK_SORT_ORDER } from './smart-view-query-utils.js';
@@ -40,50 +37,11 @@ tasks.onError(handleRouteError);
 
 const db = getDatabase();
 const taskService = new TaskService(db);
-const githubReverseSync = new GitHubReverseSyncService(db);
 const taskGitHubLinkService = new TaskGitHubLinkService(db, publishEvent);
-
-// Helper to trigger GitHub reverse sync (async, non-blocking)
-function triggerGitHubSync(
-  taskId: string,
-  changes: {
-    title?: string;
-    description?: string;
-    stateId?: string | null;
-    priority?: string | null;
-    labelIds?: string[];
-  },
-  skipGitHubSync?: boolean
-) {
-  if (skipGitHubSync) return;
-
-  // Run in background, don't await
-  githubReverseSync.syncTaskToGitHub(taskId, changes, { skipIfRecentSync: true }).catch((error: unknown) => {
-    console.error('GitHub reverse sync error:', error);
-  });
-}
-
-/**
- * Compatibility shim for the GitHub routes at the end of this file. It goes
- * through the central authorizer (workspace membership, project ACL, role).
- * New code should use requireTask/requireProject from lib/authorize.ts.
- */
-async function checkTaskAccess(projectId: string, userId: string, permission: WorkspacePermission) {
-  const grant = await getAuthz().authorizeProject(projectId, userId, permission);
-  return grant.ok ? { allowed: true, project: grant.project } : { allowed: false, project: null };
-}
 
 async function assertStateInProject(stateId: string | undefined, projectId: string): Promise<void> {
   if (stateId && !(await getAuthz().stateBelongsToProject(stateId, projectId))) {
     throw badRequest('Invalid state for this project', 'INVALID_STATE');
-  }
-}
-
-/** Re-load a task and broadcast it; never fails the request. */
-async function publishTaskUpdated(workspaceId: string, projectId: string, taskId: string): Promise<void> {
-  const updated = await taskService.getById(taskId);
-  if (updated.ok) {
-    publishEvent(workspaceId, REALTIME_EVENTS.TASK_UPDATED, updated.value, { projectId });
   }
 }
 
@@ -142,13 +100,8 @@ function githubLinkErrorResponse(error: unknown): { body: { success: false; erro
   if (error instanceof TaskGitHubLinkError) {
     return { body: { success: false, error: { code: error.code, message: error.message } }, status: error.status };
   }
-  return {
-    body: {
-      success: false,
-      error: { code: 'GITHUB_ERROR', message: error instanceof Error ? error.message : 'GitHub request failed' },
-    },
-    status: 500,
-  };
+  console.error('[GITHUB_ERROR]', error);
+  return { body: { success: false, error: { code: 'GITHUB_ERROR', message: 'GitHub request failed' } }, status: 500 };
 }
 
 // Create task
@@ -160,7 +113,7 @@ tasks.post(
   ),
   async (c) => {
     const data = c.req.valid('json');
-    const { project, workspaceId, role, user } = await requireProject(c, data.projectId, 'task:create');
+    const { project, role, user } = await requireProject(c, data.projectId, 'task:create');
     const authz = getAuthz();
 
     await assertStateInProject(data.stateId, project.id);
@@ -185,8 +138,6 @@ tasks.post(
     if (!result.ok) {
       throw toAppError(result.error, { status: 400, code: 'CREATE_FAILED', message: 'Failed to create task' });
     }
-
-    publishEvent(workspaceId, REALTIME_EVENTS.TASK_CREATED, result.value, { projectId: project.id });
 
     // Optionally create a linked GitHub issue in the background (retried; the
     // board updates over SSE once the link exists).
@@ -222,7 +173,7 @@ tasks.patch(
   '/:taskId',
   zValidator('json', UpdateTaskSchema),
   async (c) => {
-    const { task, workspaceId, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
+    const { task, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
     const data = c.req.valid('json');
     await assertStateInProject(data.stateId, task.projectId);
 
@@ -230,16 +181,6 @@ tasks.patch(
       status: 400,
       code: 'UPDATE_FAILED',
       message: 'Failed to update task',
-    });
-
-    publishEvent(workspaceId, REALTIME_EVENTS.TASK_UPDATED, updated, { projectId: task.projectId });
-
-    // Trigger GitHub reverse sync
-    triggerGitHubSync(task.id, {
-      title: data.title,
-      description: data.description,
-      stateId: data.stateId,
-      priority: data.priority,
     });
 
     return c.json({ success: true, data: updated });
@@ -251,7 +192,7 @@ tasks.post(
   '/:taskId/move',
   zValidator('json', MoveTaskSchema),
   async (c) => {
-    const { task, workspaceId, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
+    const { task, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
     const data = c.req.valid('json');
 
     // The target state must belong to the task's project (no cross-project moves).
@@ -265,27 +206,13 @@ tasks.post(
       message: 'Failed to move task',
     });
 
-    publishEvent(workspaceId, REALTIME_EVENTS.TASK_MOVED, moved, { projectId: task.projectId });
-
-    // Trigger GitHub reverse sync for state change
-    triggerGitHubSync(task.id, {
-      stateId: data.stateId,
-    });
-
     return c.json({ success: true, data: moved });
   }
 );
 
 // Delete task (soft delete)
 tasks.delete('/:taskId', async (c) => {
-  const { task, workspaceId, user } = await requireTask(c, c.req.param('taskId'), 'task:delete');
-
-  // Close linked GitHub issue (fire-and-forget — must not block or fail the
-  // delete response). The task is soft-deleted, so the external link remains
-  // resolvable for this background call.
-  githubReverseSync.closeGitHubIssue(task.id).catch((error: unknown) => {
-    console.error('GitHub issue close error:', error);
-  });
+  const { task, user } = await requireTask(c, c.req.param('taskId'), 'task:delete');
 
   fromResult(await taskService.delete(task.id, user.id), {
     status: 400,
@@ -293,14 +220,12 @@ tasks.delete('/:taskId', async (c) => {
     message: 'Failed to delete task',
   });
 
-  publishEvent(workspaceId, REALTIME_EVENTS.TASK_DELETED, { id: task.id, projectId: task.projectId });
-
   return c.json({ success: true, data: null });
 });
 
 // Restore task
 tasks.post('/:taskId/restore', async (c) => {
-  const { task, workspaceId, user } = await requireTask(c, c.req.param('taskId'), 'task:update', {
+  const { task, user } = await requireTask(c, c.req.param('taskId'), 'task:update', {
     includeDeleted: true,
   });
 
@@ -309,8 +234,6 @@ tasks.post('/:taskId/restore', async (c) => {
     code: 'RESTORE_FAILED',
     message: 'Failed to restore task',
   });
-
-  publishEvent(workspaceId, REALTIME_EVENTS.TASK_CREATED, restored, { projectId: task.projectId });
 
   return c.json({ success: true, data: restored });
 });
@@ -322,7 +245,7 @@ tasks.post(
   '/:taskId/assignees',
   zValidator('json', z.object({ userId: z.string().uuid() })),
   async (c) => {
-    const { task, project, workspaceId, user } = await requireTask(c, c.req.param('taskId'), 'task:assign');
+    const { task, project, user } = await requireTask(c, c.req.param('taskId'), 'task:assign');
     const { userId } = c.req.valid('json');
 
     // Only workspace members who can see the project may be assigned; this also
@@ -337,14 +260,13 @@ tasks.post(
       message: 'Failed to assign task',
     });
 
-    await publishTaskUpdated(workspaceId, task.projectId, task.id);
     return c.json({ success: true, data: null });
   }
 );
 
 // Remove assignee
 tasks.delete('/:taskId/assignees/:userId', async (c) => {
-  const { task, workspaceId, user } = await requireTask(c, c.req.param('taskId'), 'task:assign');
+  const { task, user } = await requireTask(c, c.req.param('taskId'), 'task:assign');
   const userId = c.req.param('userId');
   if (!z.string().uuid().safeParse(userId).success) {
     throw badRequest('Invalid user id', 'INVALID_ASSIGNEE');
@@ -356,7 +278,6 @@ tasks.delete('/:taskId/assignees/:userId', async (c) => {
     message: 'Failed to unassign task',
   });
 
-  await publishTaskUpdated(workspaceId, task.projectId, task.id);
   return c.json({ success: true, data: null });
 });
 
@@ -367,7 +288,7 @@ tasks.post(
   '/:taskId/labels',
   zValidator('json', z.object({ labelId: z.string().uuid() })),
   async (c) => {
-    const { task, workspaceId, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
+    const { task, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
     const { labelId } = c.req.valid('json');
 
     if (!(await getAuthz().labelsBelongToProject([labelId], task.projectId))) {
@@ -380,14 +301,13 @@ tasks.post(
       message: 'Failed to add label',
     });
 
-    await publishTaskUpdated(workspaceId, task.projectId, task.id);
     return c.json({ success: true, data: null });
   }
 );
 
 // Remove label
 tasks.delete('/:taskId/labels/:labelId', async (c) => {
-  const { task, workspaceId, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
+  const { task, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
   const labelId = c.req.param('labelId');
   if (!z.string().uuid().safeParse(labelId).success) {
     throw badRequest('Invalid label id', 'INVALID_LABEL');
@@ -399,7 +319,6 @@ tasks.delete('/:taskId/labels/:labelId', async (c) => {
     message: 'Failed to remove label',
   });
 
-  await publishTaskUpdated(workspaceId, task.projectId, task.id);
   return c.json({ success: true, data: null });
 });
 
@@ -435,26 +354,10 @@ tasks.post(
   '/:taskId/github-issue',
   zValidator('json', GitHubRepoRefSchema),
   async (c) => {
-    const user = getCurrentUser(c);
-    const taskId = c.req.param('taskId');
+    const { task } = await requireTask(c, c.req.param('taskId'), 'task:update');
     const { owner, repo } = c.req.valid('json');
-
-    const taskResult = await taskService.getById(taskId);
-    if (!taskResult.ok) {
-      return c.json({ success: false, error: { code: 'NOT_FOUND', message: taskResult.error.message } }, 404);
-    }
-    const { allowed } = await checkTaskAccess(taskResult.value.projectId, user.id, 'task:update');
-    if (!allowed) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-    }
-
     try {
-      const issue = await taskGitHubLinkService.createIssueForTask({
-        taskId,
-        projectId: taskResult.value.projectId,
-        owner,
-        repo,
-      });
+      const issue = await taskGitHubLinkService.createIssueForTask({ taskId: task.id, projectId: task.projectId, owner, repo });
       return c.json({ success: true, data: issue }, 201);
     } catch (error) {
       const { body, status } = githubLinkErrorResponse(error);
@@ -468,27 +371,10 @@ tasks.post(
   '/:taskId/github-issue/link',
   zValidator('json', LinkTaskGitHubIssueSchema),
   async (c) => {
-    const user = getCurrentUser(c);
-    const taskId = c.req.param('taskId');
+    const { task } = await requireTask(c, c.req.param('taskId'), 'task:update');
     const { owner, repo, issueNumber } = c.req.valid('json');
-
-    const taskResult = await taskService.getById(taskId);
-    if (!taskResult.ok) {
-      return c.json({ success: false, error: { code: 'NOT_FOUND', message: taskResult.error.message } }, 404);
-    }
-    const { allowed } = await checkTaskAccess(taskResult.value.projectId, user.id, 'task:update');
-    if (!allowed) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-    }
-
     try {
-      const issue = await taskGitHubLinkService.linkIssue({
-        taskId,
-        projectId: taskResult.value.projectId,
-        owner,
-        repo,
-        issueNumber,
-      });
+      const issue = await taskGitHubLinkService.linkIssue({ taskId: task.id, projectId: task.projectId, owner, repo, issueNumber });
       return c.json({ success: true, data: issue }, 201);
     } catch (error) {
       const { body, status } = githubLinkErrorResponse(error);
@@ -502,31 +388,10 @@ tasks.post(
   '/:taskId/github-pr',
   zValidator('json', LinkTaskGitHubPrSchema),
   async (c) => {
-    const user = getCurrentUser(c);
-    const taskId = c.req.param('taskId');
+    const { task } = await requireTask(c, c.req.param('taskId'), 'task:update');
     const { owner, repo, prNumber } = c.req.valid('json');
-
-    const taskResult = await taskService.getById(taskId);
-    if (!taskResult.ok) {
-      return c.json({ success: false, error: { code: 'NOT_FOUND', message: taskResult.error.message } }, 404);
-    }
-    const { allowed, project } = await checkTaskAccess(taskResult.value.projectId, user.id, 'task:update');
-    if (!allowed || !project) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-    }
-
     try {
-      const linkResult = await taskGitHubLinkService.linkPr({
-        taskId,
-        projectId: taskResult.value.projectId,
-        owner,
-        repo,
-        prNumber,
-      });
-      const updatedTask = await taskService.getById(taskId);
-      if (updatedTask.ok) {
-        publishEvent(project.workspaceId, 'task:updated', updatedTask.value);
-      }
+      const linkResult = await taskGitHubLinkService.linkPr({ taskId: task.id, projectId: task.projectId, owner, repo, prNumber });
       return c.json({ success: true, data: linkResult }, 201);
     } catch (error) {
       const { body, status } = githubLinkErrorResponse(error);

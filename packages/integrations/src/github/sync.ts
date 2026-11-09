@@ -1,23 +1,17 @@
 import type { Database } from '@flowtask/database';
-import { externalLinks, tasks } from '@flowtask/database';
-import type { TaskService, TaskWithRelations } from '@flowtask/domain';
-import { REALTIME_EVENTS, formatGitHubExternalId } from '@flowtask/shared';
+import { externalLinks } from '@flowtask/database';
+import { TaskService, type TaskWithRelations } from '@flowtask/domain';
+import { formatGitHubExternalId } from '@flowtask/shared';
 import { and, eq, sql } from 'drizzle-orm';
-import type { PublishRealtimeEvent } from '../types.js';
-import { notifySlackForTaskEvent, type SlackTaskEvent } from '../slack/task-events.js';
 import { createGitHubClientForInstallation } from './client.js';
 import type { GitHubRepoTarget } from './integration-store.js';
 import { computeIssueSyncHash } from './sync-hash.js';
-import { findFirstStateByCategory, getStateCategory, positionAtEndOfState } from './task-lookup.js';
+import { findFirstStateByCategory, getStateCategory } from './task-lookup.js';
 import { issueContentFrom, mapLabelsToPriority, type IssueContent } from './webhook.js';
 
 export interface GitHubSyncDeps {
   db: Database;
   taskService: TaskService;
-  /** Realtime publisher (apps/api sse `publishEvent`). Defaults to a no-op. */
-  publish?: PublishRealtimeEvent;
-  /** Slack notifier. Defaults to notifySlackForTaskEvent. */
-  notifySlack?: (event: SlackTaskEvent) => void;
 }
 
 export type IssueSyncAction = 'created' | 'updated' | 'unchanged' | 'ignored';
@@ -45,52 +39,20 @@ type LinkClaim =
   | { kind: 'created'; task: TaskWithRelations }
   | { kind: 'missing' };
 
-class LinkClaimLostError extends Error {}
-
-/**
- * Limits concurrent link claims: a claim holds one pooled connection for its
- * advisory-locked transaction while TaskService.create uses another.
- */
-class Semaphore {
-  private active = 0;
-  private readonly waiters: Array<() => void> = [];
-  constructor(private readonly max: number) {}
-
-  async run<T>(fn: () => Promise<T>): Promise<T> {
-    if (this.active >= this.max) {
-      // The releasing caller hands its slot over directly (see finally).
-      await new Promise<void>((resolve) => this.waiters.push(resolve));
-    } else {
-      this.active++;
-    }
-    try {
-      return await fn();
-    } finally {
-      const next = this.waiters.shift();
-      if (next) next();
-      else this.active--;
-    }
-  }
-}
-
-const claimSemaphore = new Semaphore(2);
 const INITIAL_SYNC_MAX_PAGES = 10;
 
 /**
  * GitHub → FlowTask sync (issues to tasks). FlowTask → GitHub lives in
- * GitHubReverseSyncService.
+ * GitHubReverseSyncService. Writes go through TaskService with origin
+ * 'github', so realtime and Slack follow from its domain events.
  */
 export class GitHubSyncService {
   private readonly db: Database;
   private readonly taskService: TaskService;
-  private readonly publish: PublishRealtimeEvent;
-  private readonly notifySlack: (event: SlackTaskEvent) => void;
 
   constructor(deps: GitHubSyncDeps) {
     this.db = deps.db;
     this.taskService = deps.taskService;
-    this.publish = deps.publish ?? (() => {});
-    this.notifySlack = deps.notifySlack ?? notifySlackForTaskEvent;
   }
 
   /** Import all open issues of a linked repository. */
@@ -151,8 +113,6 @@ export class GitHubSyncService {
     }
 
     if (claim.kind === 'created') {
-      this.publish(target.workspaceId, REALTIME_EVENTS.TASK_CREATED, claim.task);
-      this.notifySlack({ type: 'task.created', taskId: claim.task.id, actorLabel: 'GitHub' });
       return { action: 'created', taskId: claim.task.id };
     }
 
@@ -174,7 +134,7 @@ export class GitHubSyncService {
       title: issue.content.title,
       description: issue.content.body,
       ...(priority ? { priority } : {}),
-      ...(targetState ? { stateId: targetState.id, position: targetState.position } : {}),
+      ...(targetState ? { stateId: targetState.id } : {}),
       updatedBy: null,
       skipGitHubSync: true,
     });
@@ -185,12 +145,7 @@ export class GitHubSyncService {
       .set({ syncHash, lastSyncedAt: new Date(), externalUrl: issue.url })
       .where(eq(externalLinks.id, claim.linkId));
 
-    if (targetState) {
-      this.publish(target.workspaceId, REALTIME_EVENTS.TASK_MOVED, updated.value);
-      this.notifySlack({ type: 'task.state_changed', taskId: claim.taskId, toStateId: targetState.id, actorLabel: 'GitHub' });
-    } else {
-      this.publish(target.workspaceId, REALTIME_EVENTS.TASK_UPDATED, updated.value);
-    }
+    // Realtime and Slack run off the task.updated domain event (origin 'github').
     return { action: 'updated', taskId: claim.taskId };
   }
 
@@ -202,24 +157,26 @@ export class GitHubSyncService {
     projectId: string,
     currentStateId: string | null,
     issueState: 'open' | 'closed'
-  ): Promise<{ id: string; position: string } | null> {
+  ): Promise<{ id: string } | null> {
     const category = await getStateCategory(this.db, currentStateId);
     const wanted = issueState === 'closed' ? 'done' : 'backlog';
     if (issueState === 'closed' && category === 'done') return null;
     if (issueState === 'open' && category !== 'done') return null;
     const state = await findFirstStateByCategory(this.db, projectId, wanted);
     if (!state || state.id === currentStateId) return null;
-    return { id: state.id, position: await positionAtEndOfState(this.db, projectId, state.id) };
+    // TaskService.update appends the task to the end of the new column.
+    return { id: state.id };
   }
 
   /**
    * Find the task linked to an issue, or create task + link atomically.
    *
-   * An advisory transaction lock on (integration, externalId) serializes
-   * concurrent deliveries for the same issue (e.g. `opened` + `labeled`). The
-   * link is inserted with ON CONFLICT DO NOTHING and the task only survives
-   * when that insert wins; otherwise (or on any failure) the freshly created
-   * task is removed, so there are neither duplicates nor orphans.
+   * One transaction: an advisory lock on (integration, externalId) serializes
+   * concurrent deliveries for the same issue (e.g. `opened` + `labeled`), the
+   * task is created on the same transaction (TaskService.transaction), and the
+   * link insert commits with it. A loser of the lock sees the winner's link and
+   * returns it, so there are neither duplicates nor orphans. The task.created
+   * event is only emitted once the transaction has committed.
    */
   private async claimIssueLink(
     target: GitHubRepoTarget,
@@ -228,89 +185,52 @@ export class GitHubSyncService {
     syncHash: string,
     createIfMissing: boolean
   ): Promise<LinkClaim> {
-    const findExisting = async (): Promise<LinkClaim | null> => {
-      const [existing] = await this.db
-        .select({ id: externalLinks.id, taskId: externalLinks.taskId, syncHash: externalLinks.syncHash })
-        .from(externalLinks)
-        .where(
-          and(
-            eq(externalLinks.integrationId, target.integrationId),
-            eq(externalLinks.externalType, 'github_issue'),
-            eq(externalLinks.externalId, externalId)
-          )
-        );
-      return existing ? { kind: 'existing', linkId: existing.id, taskId: existing.taskId, syncHash: existing.syncHash } : null;
-    };
+    const linkFilter = and(
+      eq(externalLinks.integrationId, target.integrationId),
+      eq(externalLinks.externalType, 'github_issue'),
+      eq(externalLinks.externalId, externalId)
+    );
+    const linkColumns = { id: externalLinks.id, taskId: externalLinks.taskId, syncHash: externalLinks.syncHash };
 
     // Fast path without locking.
-    const existing = await findExisting();
-    if (existing) return existing;
+    const [existing] = await this.db.select(linkColumns).from(externalLinks).where(linkFilter);
+    if (existing) return { kind: 'existing', linkId: existing.id, taskId: existing.taskId, syncHash: existing.syncHash };
     if (!createIfMissing) return { kind: 'missing' };
 
-    return claimSemaphore.run(async () => {
-      let createdTaskId: string | null = null;
-      try {
-        return await this.db.transaction(async (tx): Promise<LinkClaim> => {
-          const lockKey = `github-issue-link:${target.integrationId}:${externalId}`;
-          await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
+    return TaskService.transaction(this.db, async (taskService, tx): Promise<LinkClaim> => {
+      const lockKey = `github-issue-link:${target.integrationId}:${externalId}`;
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
 
-          const [locked] = await tx
-            .select({ id: externalLinks.id, taskId: externalLinks.taskId, syncHash: externalLinks.syncHash })
-            .from(externalLinks)
-            .where(
-              and(
-                eq(externalLinks.integrationId, target.integrationId),
-                eq(externalLinks.externalType, 'github_issue'),
-                eq(externalLinks.externalId, externalId)
-              )
-            );
-          if (locked) {
-            return { kind: 'existing', linkId: locked.id, taskId: locked.taskId, syncHash: locked.syncHash };
-          }
-
-          const initialState =
-            issue.content.state === 'closed' ? await findFirstStateByCategory(this.db, target.projectId, 'done') : null;
-          const priority = mapLabelsToPriority(issue.content.labels);
-          const created = await this.taskService.create({
-            projectId: target.projectId,
-            title: issue.content.title,
-            description: issue.content.body || undefined,
-            ...(priority ? { priority } : {}),
-            ...(initialState ? { stateId: initialState.id } : {}),
-            createdBy: null,
-          });
-          if (!created.ok) throw created.error;
-          createdTaskId = created.value.id;
-
-          const [inserted] = await tx
-            .insert(externalLinks)
-            .values({
-              integrationId: target.integrationId,
-              taskId: created.value.id,
-              externalType: 'github_issue',
-              externalId,
-              externalUrl: issue.url,
-              syncHash,
-              lastSyncedAt: new Date(),
-            })
-            .onConflictDoNothing({
-              target: [externalLinks.integrationId, externalLinks.externalType, externalLinks.externalId],
-            })
-            .returning({ id: externalLinks.id });
-          if (!inserted) throw new LinkClaimLostError('Issue link already claimed');
-
-          return { kind: 'created', task: created.value };
-        });
-      } catch (error) {
-        if (createdTaskId) {
-          await this.db.delete(tasks).where(eq(tasks.id, createdTaskId));
-        }
-        if (error instanceof LinkClaimLostError) {
-          const winner = await findExisting();
-          if (winner) return winner;
-        }
-        throw error;
+      const [locked] = await tx.select(linkColumns).from(externalLinks).where(linkFilter);
+      if (locked) {
+        return { kind: 'existing', linkId: locked.id, taskId: locked.taskId, syncHash: locked.syncHash };
       }
+
+      const initialState =
+        issue.content.state === 'closed' ? await findFirstStateByCategory(tx, target.projectId, 'done') : null;
+      const priority = mapLabelsToPriority(issue.content.labels);
+      const created = await taskService.create({
+        projectId: target.projectId,
+        title: issue.content.title,
+        description: issue.content.body || undefined,
+        ...(priority ? { priority } : {}),
+        ...(initialState ? { stateId: initialState.id } : {}),
+        createdBy: null,
+        skipGitHubSync: true,
+      });
+      if (!created.ok) throw created.error;
+
+      await tx.insert(externalLinks).values({
+        integrationId: target.integrationId,
+        taskId: created.value.id,
+        externalType: 'github_issue',
+        externalId,
+        externalUrl: issue.url,
+        syncHash,
+        lastSyncedAt: new Date(),
+      });
+
+      return { kind: 'created', task: created.value };
     });
   }
 }

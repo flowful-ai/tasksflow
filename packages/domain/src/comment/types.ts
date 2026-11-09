@@ -17,6 +17,8 @@ export interface CommentCreateInput {
   mcpClientId?: string | null;
   content: string;
   externalCommentId?: string | null;
+  /** Display label when the author isn't a FlowTask user (e.g. "@octocat on GitHub"). */
+  actorLabel?: string;
 }
 
 export interface CommentUpdateInput {

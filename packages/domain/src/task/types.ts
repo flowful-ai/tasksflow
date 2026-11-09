@@ -70,6 +70,8 @@ export interface TaskCreateInput extends CreateTask {
   createdBy: string | null;
   agentId?: string | null;
   mcpClientId?: string | null;
+  /** The task is created from GitHub (issue sync); tags its domain event with origin 'github'. */
+  skipGitHubSync?: boolean;
 }
 
 export interface TaskUpdateInput extends UpdateTask {

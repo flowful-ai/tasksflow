@@ -2,7 +2,7 @@ import type { Database } from '@flowtask/database';
 import { comments, externalLinks, labels, projectIntegrations, users } from '@flowtask/database';
 import { findInstallationForRepo, parseGitHubConfig, resolveGitHubLinkRef, type GitHubItemRef } from '@flowtask/shared';
 import { and, eq, inArray } from 'drizzle-orm';
-import { runInBackground } from '../background.js';
+import { NonRetryableError, registerBackgroundJob, scheduleBackgroundJob, type BackgroundJobPayload } from '../background.js';
 import { createGitHubClientForInstallation, type GitHubClient } from './client.js';
 import { computeIssueSyncHash } from './sync-hash.js';
 import { getStateCategory } from './task-lookup.js';
@@ -35,14 +35,73 @@ interface ResolvedIssueLink {
   client: GitHubClient;
 }
 
+export const REVERSE_SYNC_JOBS = {
+  task: 'github.reverse_sync.task',
+  comment: 'github.reverse_sync.comment',
+  closeIssue: 'github.reverse_sync.close_issue',
+} as const;
+
+function optionalString(value: BackgroundJobPayload[string] | undefined): string | undefined {
+  return typeof value === 'string' ? value : undefined;
+}
+
+function payloadTaskId(payload: BackgroundJobPayload): string {
+  const taskId = payload.taskId;
+  if (typeof taskId !== 'string') throw new NonRetryableError('Job payload is missing taskId');
+  return taskId;
+}
+
+function changesFromPayload(value: BackgroundJobPayload[string] | undefined): TaskChangesForGitHub {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const changes: TaskChangesForGitHub = {};
+  if (typeof value.title === 'string') changes.title = value.title;
+  if (typeof value.description === 'string') changes.description = value.description;
+  if (typeof value.stateId === 'string' || value.stateId === null) changes.stateId = value.stateId;
+  if (typeof value.priority === 'string' || value.priority === null) changes.priority = value.priority;
+  if (Array.isArray(value.labelIds)) {
+    changes.labelIds = value.labelIds.filter((id): id is string => typeof id === 'string');
+  }
+  return changes;
+}
+
+function commentFromPayload(value: BackgroundJobPayload[string] | undefined): CommentForGitHub {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || typeof value.content !== 'string') {
+    throw new NonRetryableError('Job payload is missing the comment');
+  }
+  return {
+    content: value.content,
+    authorId: optionalString(value.authorId) ?? null,
+    authorName: optionalString(value.authorName),
+    commentId: optionalString(value.commentId),
+  };
+}
+
+function toPayload(value: TaskChangesForGitHub | CommentForGitHub): BackgroundJobPayload {
+  const payload: BackgroundJobPayload = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (entry !== undefined) payload[key] = entry;
+  }
+  return payload;
+}
+
 /**
  * FlowTask → GitHub sync for tasks linked to a GitHub issue.
  *
- * API errors are thrown (so `runInBackground` can retry them); a missing link
+ * API errors are thrown (so the job queue can retry them); a missing link
  * or unlinked repository returns `{ synced: false, reason }`.
  */
 export class GitHubReverseSyncService {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: Database) {
+    registerBackgroundJob(REVERSE_SYNC_JOBS.task, async (payload) => {
+      await this.syncTaskToGitHub(payloadTaskId(payload), changesFromPayload(payload.changes));
+    });
+    registerBackgroundJob(REVERSE_SYNC_JOBS.comment, async (payload) => {
+      await this.syncCommentToGitHub(payloadTaskId(payload), commentFromPayload(payload.comment));
+    });
+    registerBackgroundJob(REVERSE_SYNC_JOBS.closeIssue, async (payload) => {
+      await this.closeGitHubIssue(payloadTaskId(payload));
+    });
+  }
 
   /**
    * Push task changes to the linked issue. After writing, the fresh issue
@@ -137,21 +196,19 @@ export class GitHubReverseSyncService {
   // ============ Background entry points (single retry seam) ============
 
   scheduleTaskSync(taskId: string, changes: TaskChangesForGitHub): void {
-    void runInBackground('github.reverse_sync.task', async () => {
-      await this.syncTaskToGitHub(taskId, changes);
-    }, { context: { taskId } });
+    scheduleBackgroundJob(REVERSE_SYNC_JOBS.task, { taskId, changes: toPayload(changes) }, { context: { taskId } });
   }
 
   scheduleCommentSync(taskId: string, comment: CommentForGitHub): void {
-    void runInBackground('github.reverse_sync.comment', async () => {
-      await this.syncCommentToGitHub(taskId, comment);
-    }, { context: { taskId, commentId: comment.commentId } });
+    scheduleBackgroundJob(
+      REVERSE_SYNC_JOBS.comment,
+      { taskId, comment: toPayload(comment) },
+      { context: { taskId, commentId: comment.commentId } }
+    );
   }
 
   scheduleIssueClose(taskId: string): void {
-    void runInBackground('github.reverse_sync.close_issue', async () => {
-      await this.closeGitHubIssue(taskId);
-    }, { context: { taskId } });
+    scheduleBackgroundJob(REVERSE_SYNC_JOBS.closeIssue, { taskId }, { context: { taskId } });
   }
 
   // ============ Helpers ============

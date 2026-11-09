@@ -4,7 +4,6 @@ import { getDatabase } from '@flowtask/database';
 import { CommentService } from '@flowtask/domain';
 import { CreateCommentSchema, UpdateCommentSchema, PaginationQuerySchema, REALTIME_EVENTS } from '@flowtask/shared';
 import { publishEvent } from '../sse/manager.js';
-import { GitHubReverseSyncService } from '@flowtask/integrations';
 import { hasPermission } from '@flowtask/auth';
 import { requireTask } from '../lib/authorize.js';
 import { fromResult, handleRouteError, notFound } from '../lib/responses.js';
@@ -14,7 +13,6 @@ comments.onError(handleRouteError);
 
 const db = getDatabase();
 const commentService = new CommentService(db);
-const githubReverseSync = new GitHubReverseSyncService(db);
 
 /** Load a comment and make sure it belongs to the (already authorized) task. */
 async function loadTaskComment(taskId: string, commentId: string) {
@@ -75,17 +73,7 @@ comments.post('/:taskId/comments', zValidator('json', CreateCommentSchema), asyn
     { projectId: task.projectId }
   );
 
-  // Trigger GitHub comment sync (async, non-blocking)
-  githubReverseSync
-    .syncCommentToGitHub(task.id, {
-      content: data.content,
-      authorId: user.id,
-      authorName: user.name || undefined,
-    })
-    .catch((error: unknown) => {
-      console.error('GitHub comment sync error:', error);
-    });
-
+  // GitHub comment sync, Slack and mentions run off the comment.created domain event.
   return c.json({ success: true, data: comment }, 201);
 });
 

@@ -1,9 +1,16 @@
+import { domainEvents } from '../events/bus.js';
 import { eq, and, isNull, desc, sql } from 'drizzle-orm';
 import type { Database } from '@flowtask/database';
 import { comments, users, taskEvents, workspaceAgents } from '@flowtask/database';
 import type { Result } from '@flowtask/shared';
 import { ok, err } from '@flowtask/shared';
-import type { CommentWithUser, CommentCreateInput, CommentUpdateInput, CommentListOptions, CommentAgent } from './types.js';
+import type {
+  CommentWithUser,
+  CommentCreateInput,
+  CommentUpdateInput,
+  CommentListOptions,
+  CommentAgent,
+} from './types.js';
 import { DomainError } from '../workspace/errors.js';
 import { isUuid } from '../workspace/authorization.js';
 
@@ -15,28 +22,42 @@ export class CommentService {
    */
   async create(input: CommentCreateInput): Promise<Result<CommentWithUser, Error>> {
     try {
-      const [comment] = await this.db
-        .insert(comments)
-        .values({
+      const comment = await this.db.transaction(async (tx) => {
+        const [comment] = await tx
+          .insert(comments)
+          .values({
+            taskId: input.taskId,
+            userId: input.userId,
+            agentId: input.agentId || null,
+            content: input.content,
+            externalCommentId: input.externalCommentId || null,
+          })
+          .returning();
+
+        if (!comment) {
+          throw new Error('Failed to create comment');
+        }
+
+        // Record the comment event for audit trail
+        await tx.insert(taskEvents).values({
           taskId: input.taskId,
-          userId: input.userId,
-          agentId: input.agentId || null,
-          content: input.content,
-          externalCommentId: input.externalCommentId || null,
-        })
-        .returning();
+          actorId: input.userId,
+          mcpClientId: input.mcpClientId || null,
+          eventType: 'commented',
+          newValue: { commentId: comment.id },
+        });
+        return comment;
+      });
 
-      if (!comment) {
-        return err(new Error('Failed to create comment'));
-      }
-
-      // Record the comment event for audit trail
-      await this.db.insert(taskEvents).values({
+      // After commit: drives mentions/notifications, Slack, GitHub comment sync.
+      domainEvents.emit('comment.created', {
+        commentId: comment.id,
         taskId: input.taskId,
         actorId: input.userId,
-        mcpClientId: input.mcpClientId || null,
-        eventType: 'commented',
-        newValue: { commentId: comment.id },
+        content: input.content,
+        mcpClientId: input.mcpClientId ?? null,
+        ...(input.externalCommentId ? { origin: 'github' as const } : {}),
+        ...(input.actorLabel ? { actorLabel: input.actorLabel } : {}),
       });
 
       return this.getById(comment.id);
@@ -84,7 +105,10 @@ export class CommentService {
   /**
    * Update a comment.
    */
-  async update(commentId: string, input: CommentUpdateInput): Promise<Result<CommentWithUser, Error>> {
+  async update(
+    commentId: string,
+    input: CommentUpdateInput
+  ): Promise<Result<CommentWithUser, Error>> {
     try {
       // First verify the comment exists and get it
       const currentResult = await this.getById(commentId);
@@ -152,7 +176,9 @@ export class CommentService {
   /**
    * List comments for a task with pagination.
    */
-  async list(options: CommentListOptions): Promise<Result<{ comments: CommentWithUser[]; total: number }, Error>> {
+  async list(
+    options: CommentListOptions
+  ): Promise<Result<{ comments: CommentWithUser[]; total: number }, Error>> {
     try {
       const { taskId, includeDeleted = false, page = 1, limit = 50 } = options;
 
@@ -222,7 +248,9 @@ export class CommentService {
   /**
    * Find a comment by its external ID (e.g., GitHub comment ID).
    */
-  async findByExternalId(externalCommentId: string): Promise<Result<CommentWithUser | null, Error>> {
+  async findByExternalId(
+    externalCommentId: string
+  ): Promise<Result<CommentWithUser | null, Error>> {
     try {
       const [result] = await this.db
         .select({
@@ -255,7 +283,10 @@ export class CommentService {
   /**
    * Update a comment by its external ID (bypasses author check for synced comments).
    */
-  async updateExternal(externalCommentId: string, content: string): Promise<Result<CommentWithUser | null, Error>> {
+  async updateExternal(
+    externalCommentId: string,
+    content: string
+  ): Promise<Result<CommentWithUser | null, Error>> {
     try {
       const [updated] = await this.db
         .update(comments)

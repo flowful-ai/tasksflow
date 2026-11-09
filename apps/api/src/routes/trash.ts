@@ -15,7 +15,6 @@ import { getDatabase } from '@flowtask/database';
 import { TaskService, isTaskError, resolveProjectAccess } from '@flowtask/domain';
 import { getCurrentUser, hasPermission, type WorkspacePermission } from '@flowtask/auth';
 import { TRASH_RETENTION_DAYS, TrashQuerySchema } from '@flowtask/shared';
-import { publishEvent } from '../sse/manager.js';
 
 const trashRoutes = new Hono();
 const db = getDatabase();
@@ -86,8 +85,6 @@ trashRoutes.post(
       console.error('[trash]', result.error);
       return fail(c, 500, 'RESTORE_FAILED', 'Failed to restore task');
     }
-    // Same realtime event as the legacy POST /api/tasks/:id/restore.
-    publishEvent(check.access.workspaceId, 'task:created', result.value);
     return c.json({ success: true, data: result.value });
   }
 );

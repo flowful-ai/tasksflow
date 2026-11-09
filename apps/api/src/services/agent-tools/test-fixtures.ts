@@ -197,6 +197,9 @@ export function createServices(tasks: TaskWithRelations[] = createTasks()): { se
     publish: (_workspaceId, event) => {
       calls.published.push(event);
     },
+    withTaskTransaction(fn) {
+      return fn(this.tasks);
+    },
   };
 
   return { services, calls };

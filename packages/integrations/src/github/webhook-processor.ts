@@ -4,19 +4,18 @@ import type { CommentService, TaskService } from '@flowtask/domain';
 import { REALTIME_EVENTS, formatGitHubExternalId, parseTaskReferences } from '@flowtask/shared';
 import { and, eq } from 'drizzle-orm';
 import type { PublishRealtimeEvent } from '../types.js';
-import { notifySlackForTaskEvent, type SlackTaskEvent } from '../slack/task-events.js';
 import { getGitHubAppId } from './client.js';
 import type { GitHubRepoTarget } from './integration-store.js';
 import { GitHubSyncService } from './sync.js';
-import { findFirstStateByCategory, getStateCategory, positionAtEndOfState, resolveTaskReferencesInProject } from './task-lookup.js';
+import { findFirstStateByCategory, getStateCategory, resolveTaskReferencesInProject } from './task-lookup.js';
 import type { GitHubWebhookAction } from './webhook.js';
 
 export interface GitHubWebhookProcessorDeps {
   db: Database;
   taskService: TaskService;
   commentService: CommentService;
+  /** Realtime publisher for comment and link changes (task changes publish via domain events). */
   publish?: PublishRealtimeEvent;
-  notifySlack?: (event: SlackTaskEvent) => void;
   /** Our GitHub App id, used to recognise echoes of our own writes. Defaults to GITHUB_APP_ID. */
   appId?: number | null;
 }
@@ -42,7 +41,6 @@ export class GitHubWebhookProcessor {
   private readonly taskService: TaskService;
   private readonly commentService: CommentService;
   private readonly publish: PublishRealtimeEvent;
-  private readonly notifySlack: (event: SlackTaskEvent) => void;
   private readonly appId: number | null;
   private readonly sync: GitHubSyncService;
 
@@ -51,13 +49,10 @@ export class GitHubWebhookProcessor {
     this.taskService = deps.taskService;
     this.commentService = deps.commentService;
     this.publish = deps.publish ?? (() => {});
-    this.notifySlack = deps.notifySlack ?? notifySlackForTaskEvent;
     this.appId = deps.appId === undefined ? getGitHubAppId() : deps.appId;
     this.sync = new GitHubSyncService({
       db: deps.db,
       taskService: deps.taskService,
-      publish: this.publish,
-      notifySlack: this.notifySlack,
     });
   }
 
@@ -150,6 +145,7 @@ export class GitHubWebhookProcessor {
         userId: matchedAccount?.userId ?? null,
         content: matchedAccount ? comment.body : `**@${comment.authorLogin}** commented on GitHub:\n\n${comment.body}`,
         externalCommentId: comment.id,
+        ...(matchedAccount ? {} : { actorLabel: `@${comment.authorLogin} on GitHub` }),
       });
       if (!created.ok) throw created.error;
 
@@ -157,13 +153,6 @@ export class GitHubWebhookProcessor {
         taskId,
         projectId: target.projectId,
         comment: created.value,
-      });
-      this.notifySlack({
-        type: 'comment.added',
-        taskId,
-        commentId: created.value.id,
-        actorLabel: matchedAccount ? undefined : `@${comment.authorLogin} on GitHub`,
-        actorUserId: matchedAccount?.userId ?? null,
       });
       return { status: 'processed', action: 'comment_synced', taskId };
     }
@@ -265,13 +254,10 @@ export class GitHubWebhookProcessor {
 
     const moved = await this.taskService.move(taskId, {
       stateId: doneState.id,
-      position: await positionAtEndOfState(this.db, target.projectId, doneState.id),
       movedBy: null,
       skipGitHubSync: true,
     });
     if (!moved.ok) throw moved.error;
-    this.publish(target.workspaceId, REALTIME_EVENTS.TASK_MOVED, moved.value);
-    this.notifySlack({ type: 'task.state_changed', taskId, toStateId: doneState.id, actorLabel: 'GitHub' });
     return true;
   }
 

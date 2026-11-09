@@ -26,9 +26,9 @@ import {
 } from '@flowtask/database';
 import { generatePosition, parseTaskKey, ok, err } from '@flowtask/shared';
 import type { JsonValue, Result } from '@flowtask/shared';
-import { domainEvents } from '../events/bus.js';
+import { BufferedEventSink, domainEvents, type DomainEventSink } from '../events/bus.js';
 import type { TaskFieldChange } from '../events/types.js';
-import type { DbExecutor } from './db.js';
+import type { DbExecutor, Tx } from './db.js';
 import { TaskError, toError } from './errors.js';
 import { placeTask, positionOrder } from './positions.js';
 import { hydrateTasks, selectTaskRefs, taskRowSelection, toTaskRef, type TaskRowWithJoins } from './queries.js';
@@ -242,7 +242,27 @@ interface AssigneeLabelDiff {
 }
 
 export class TaskService {
-  constructor(private db: Database) {}
+  /**
+   * `db` may be an open transaction (see `TaskService.transaction`); `events`
+   * is where domain events go, the process-wide bus by default.
+   */
+  constructor(
+    private db: DbExecutor,
+    private events: DomainEventSink = domainEvents
+  ) {}
+
+  /**
+   * Run several task operations in ONE database transaction. Each service call
+   * inside `fn` becomes a savepoint of the outer transaction, and the domain
+   * events they emit are held back until the outer transaction commits (and
+   * dropped if it rolls back), so listeners never see uncommitted data.
+   */
+  static async transaction<T>(db: Database, fn: (service: TaskService, tx: Tx) => Promise<T>): Promise<T> {
+    const buffer = new BufferedEventSink(domainEvents);
+    const result = await db.transaction((tx) => fn(new TaskService(tx, buffer), tx));
+    buffer.flush();
+    return result;
+  }
 
   /**
    * Create a new task in a project. One transaction: sequence allocation
@@ -316,12 +336,13 @@ export class TaskService {
 
       const result = await this.getById(taskId);
       if (result.ok) {
-        domainEvents.emit('task.created', {
+        this.events.emit('task.created', {
           task: result.value,
           workspaceId: project.workspaceId,
           projectId: project.id,
           actorId: input.createdBy,
           mcpClientId: input.mcpClientId ?? null,
+          ...(input.skipGitHubSync ? { origin: 'github' as const } : {}),
         });
         if (rekeyed) this.emitRekeyed(project, stateId);
       }
@@ -496,12 +517,13 @@ export class TaskService {
 
       const result = await this.getById(taskId);
       if (result.ok && outcome.changed) {
-        domainEvents.emit('task.updated', {
+        this.events.emit('task.updated', {
           task: result.value,
           workspaceId: outcome.project.workspaceId,
           projectId: outcome.project.id,
           actorId: input.updatedBy,
           mcpClientId: input.mcpClientId ?? null,
+          ...(input.skipGitHubSync ? { origin: 'github' as const } : {}),
           changes: outcome.changes,
           ...outcome.diff,
           previousDescription: outcome.changes.some((c) => c.field === 'description')
@@ -633,12 +655,13 @@ export class TaskService {
 
       const result = await this.getById(taskId);
       if (result.ok) {
-        domainEvents.emit('task.moved', {
+        this.events.emit('task.moved', {
           task: result.value,
           workspaceId: outcome.project.workspaceId,
           projectId: outcome.project.id,
           actorId: input.movedBy,
           mcpClientId: input.mcpClientId ?? null,
+          ...(input.skipGitHubSync ? { origin: 'github' as const } : {}),
           fromStateId: outcome.fromStateId,
           toStateId: input.stateId,
           positionOnly: !outcome.stateChanged,
@@ -669,7 +692,7 @@ export class TaskService {
         return { project, current };
       });
       if (outcome) {
-        domainEvents.emit('task.deleted', {
+        this.events.emit('task.deleted', {
           taskId,
           title: outcome.current.title,
           sequenceNumber: outcome.current.sequenceNumber,
@@ -704,7 +727,7 @@ export class TaskService {
       });
       const result = await this.getById(taskId);
       if (result.ok && outcome) {
-        domainEvents.emit('task.restored', {
+        this.events.emit('task.restored', {
           task: result.value,
           workspaceId: outcome.project.workspaceId,
           projectId: outcome.project.id,
@@ -914,7 +937,7 @@ export class TaskService {
       if (outcome.changed) {
         const task = await this.getById(taskId);
         if (task.ok) {
-          domainEvents.emit('task.updated', {
+          this.events.emit('task.updated', {
             task: task.value,
             workspaceId: outcome.project.workspaceId,
             projectId: outcome.project.id,
@@ -951,7 +974,7 @@ export class TaskService {
   }
 
   private emitRekeyed(project: ProjectScope, stateId: string | null): void {
-    domainEvents.emit('tasks.rekeyed', { workspaceId: project.workspaceId, projectId: project.id, stateId });
+    this.events.emit('tasks.rekeyed', { workspaceId: project.workspaceId, projectId: project.id, stateId });
   }
 }
 

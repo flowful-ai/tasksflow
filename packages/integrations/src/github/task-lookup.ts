@@ -1,12 +1,11 @@
-import type { Database } from '@flowtask/database';
+import type { DbExecutor } from '@flowtask/domain';
 import { projects, taskStates, tasks } from '@flowtask/database';
 import type { TaskReference, TaskStateCategory } from '@flowtask/shared';
-import { positionAfter } from '@flowtask/shared';
-import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 
 /** First state (by position) of a category in a project, e.g. the first `done` column. */
 export async function findFirstStateByCategory(
-  db: Database,
+  db: DbExecutor,
   projectId: string,
   category: TaskStateCategory
 ): Promise<{ id: string; name: string } | null> {
@@ -19,21 +18,10 @@ export async function findFirstStateByCategory(
   return state ?? null;
 }
 
-export async function getStateCategory(db: Database, stateId: string | null): Promise<string | null> {
+export async function getStateCategory(db: DbExecutor, stateId: string | null): Promise<string | null> {
   if (!stateId) return null;
   const [state] = await db.select({ category: taskStates.category }).from(taskStates).where(eq(taskStates.id, stateId));
   return state?.category ?? null;
-}
-
-/** Position that places a task at the bottom of a column. */
-export async function positionAtEndOfState(db: Database, projectId: string, stateId: string): Promise<string> {
-  const [last] = await db
-    .select({ position: tasks.position })
-    .from(tasks)
-    .where(and(eq(tasks.projectId, projectId), eq(tasks.stateId, stateId)))
-    .orderBy(desc(tasks.position))
-    .limit(1);
-  return positionAfter(last?.position);
 }
 
 /**
@@ -41,7 +29,7 @@ export async function positionAtEndOfState(db: Database, projectId: string, stat
  * References to other projects' identifiers are ignored.
  */
 export async function resolveTaskReferencesInProject(
-  db: Database,
+  db: DbExecutor,
   projectId: string,
   refs: readonly TaskReference[]
 ): Promise<string[]> {

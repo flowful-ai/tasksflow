@@ -24,6 +24,8 @@ export interface BackgroundServicesOptions {
   runJobs?: boolean;
   concurrency?: number;
   pollMs?: number;
+  /** Additional job handlers (e.g. integration jobs registered by the API). */
+  extraHandlers?: JobHandlers;
 }
 
 export interface BackgroundServices {
@@ -44,7 +46,7 @@ export function startBackgroundServices(db: Database, opts: BackgroundServicesOp
   const unsubscribe = [registerNotificationSubscribers(db), registerOutgoingWebhookSubscribers(db)];
   const runJobs = opts.runJobs ?? process.env.JOBS_DISABLED !== 'true';
   const runner = runJobs
-    ? startJobRunner(db, createBackgroundJobHandlers(), { concurrency: opts.concurrency, pollMs: opts.pollMs })
+    ? startJobRunner(db, { ...opts.extraHandlers, ...createBackgroundJobHandlers() }, { concurrency: opts.concurrency, pollMs: opts.pollMs })
     : null;
 
   if (runJobs) {

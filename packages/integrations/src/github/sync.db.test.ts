@@ -5,7 +5,7 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { createDatabase, externalLinks, projectIntegrations, projects, taskStates, tasks, workspaces, type Database } from '@flowtask/database';
-import { CommentService, TaskService } from '@flowtask/domain';
+import { CommentService, TaskService, domainEvents, type TaskCreatedEvent, type TaskUpdatedEvent } from '@flowtask/domain';
 import { formatGitHubExternalId, parseTaskReferences } from '@flowtask/shared';
 import { and, eq, isNull } from 'drizzle-orm';
 import type { GitHubRepoTarget } from './integration-store.js';
@@ -33,6 +33,12 @@ describeDb('GitHub sync (database)', () => {
   let apiTarget: GitHubRepoTarget;
   let webTarget: GitHubRepoTarget;
   const published: PublishedEvent[] = [];
+  const created: TaskCreatedEvent[] = [];
+  const updated: TaskUpdatedEvent[] = [];
+  const unsubscribe = [
+    domainEvents.on('task.created', (event) => void created.push(event)),
+    domainEvents.on('task.updated', (event) => void updated.push(event)),
+  ];
   let sync: GitHubSyncService;
 
   const suffix = crypto.randomUUID().slice(0, 8);
@@ -112,12 +118,11 @@ describeDb('GitHub sync (database)', () => {
     sync = new GitHubSyncService({
       db,
       taskService: new TaskService(db),
-      publish: (wsId, event, data) => published.push({ workspaceId: wsId, event, data }),
-      notifySlack: () => {},
     });
   });
 
   afterAll(async () => {
+    for (const off of unsubscribe) off();
     if (workspaceId) await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
   });
 
@@ -137,9 +142,12 @@ describeDb('GitHub sync (database)', () => {
     expect(await liveTasksFor(apiTarget, 1)).toHaveLength(1);
     expect(await liveTasksFor(webTarget, 1)).toHaveLength(1);
 
-    const createdEvent = published.find((e) => e.event === 'task:created');
+    // Realtime/Slack follow from the domain event, emitted after the claim commits.
+    await domainEvents.idle();
+    const createdEvent = created.find((e) => e.task.id === a.taskId);
     expect(createdEvent?.workspaceId).toBe(workspaceId);
-    expect(createdEvent?.data).toMatchObject({ projectId });
+    expect(createdEvent?.projectId).toBe(projectId);
+    expect(createdEvent?.origin).toBe('github');
   });
 
   test('a duplicate delivery is a no-op', async () => {
@@ -183,7 +191,10 @@ describeDb('GitHub sync (database)', () => {
     );
     let [task] = await liveTasksFor(apiTarget, 1);
     expect(task?.stateId).toBe(doneStateId);
-    expect(published.some((e) => e.event === 'task:moved')).toBe(true);
+    await domainEvents.idle();
+    expect(
+      updated.some((e) => e.task.id === task?.taskId && e.origin === 'github' && e.changes.some((c) => c.field === 'stateId'))
+    ).toBe(true);
 
     await sync.applyIssue(
       apiTarget,
@@ -211,7 +222,6 @@ describeDb('GitHub sync (database)', () => {
       taskService: new TaskService(db),
       commentService: new CommentService(db),
       publish: (wsId, event, data) => published.push({ workspaceId: wsId, event, data }),
-      notifySlack: () => {},
       appId: 4242,
     });
     const commentEvent = (overrides: { installationId?: number; viaAppId?: number | null; id?: string }): Extract<

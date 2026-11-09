@@ -76,5 +76,30 @@ export class DomainEventBus {
   }
 }
 
+/** Where services send their events: the bus itself, or a buffer that flushes after commit. */
+export interface DomainEventSink {
+  emit<K extends DomainEventName>(event: K, payload: DomainEventMap[K]): void;
+}
+
+/**
+ * Collects events emitted inside an outer transaction. `flush()` forwards them
+ * to the bus once the transaction has committed; on rollback they are dropped.
+ */
+export class BufferedEventSink implements DomainEventSink {
+  private queued: Array<() => void> = [];
+
+  constructor(private readonly target: DomainEventSink) {}
+
+  emit<K extends DomainEventName>(event: K, payload: DomainEventMap[K]): void {
+    this.queued.push(() => this.target.emit(event, payload));
+  }
+
+  flush(): void {
+    const queued = this.queued;
+    this.queued = [];
+    for (const send of queued) send();
+  }
+}
+
 /** Process-wide bus used by all domain services. */
 export const domainEvents = new DomainEventBus();

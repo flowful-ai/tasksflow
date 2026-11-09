@@ -3,7 +3,7 @@ import { getDatabase, type Database } from '@flowtask/database';
 import { comments, projectIntegrations, projects, taskStates, tasks, users } from '@flowtask/database';
 import { parseSlackConfig, type SlackConfig } from '@flowtask/shared';
 import { and, eq } from 'drizzle-orm';
-import { NonRetryableError, runInBackground } from '../background.js';
+import { NonRetryableError, registerBackgroundJob, scheduleBackgroundJob, type BackgroundJobPayload } from '../background.js';
 import { decryptSecret } from '../crypto.js';
 import { getWebUrl } from '../env.js';
 import type { TaskNotification } from '../types.js';
@@ -148,12 +148,44 @@ export async function deliverSlackTaskEvent(
  *
  * Call it after task created, state changed, assigned and comment added.
  */
+export const SLACK_NOTIFY_JOB = 'slack.notify_task_event';
+
+function slackEventFromPayload(payload: BackgroundJobPayload): SlackTaskEvent {
+  const str = (key: string): string | undefined => {
+    const value = payload[key];
+    return typeof value === 'string' ? value : undefined;
+  };
+  const taskId = str('taskId');
+  if (!taskId) throw new NonRetryableError('Slack job payload is missing taskId');
+  const base = { taskId, actorUserId: str('actorUserId') ?? null, actorLabel: str('actorLabel') };
+  switch (str('type')) {
+    case 'task.created':
+      return { ...base, type: 'task.created' };
+    case 'task.state_changed':
+      return { ...base, type: 'task.state_changed', toStateId: str('toStateId') ?? null };
+    case 'task.assigned': {
+      const assigneeUserId = str('assigneeUserId');
+      if (!assigneeUserId) throw new NonRetryableError('Slack job payload is missing assigneeUserId');
+      return { ...base, type: 'task.assigned', assigneeUserId };
+    }
+    case 'comment.added': {
+      const commentId = str('commentId');
+      if (!commentId) throw new NonRetryableError('Slack job payload is missing commentId');
+      return { ...base, type: 'comment.added', commentId };
+    }
+    default:
+      throw new NonRetryableError('Unknown Slack job event type');
+  }
+}
+
+registerBackgroundJob(SLACK_NOTIFY_JOB, async (payload) => {
+  await deliverSlackTaskEvent(getDatabase(), slackEventFromPayload(payload));
+});
+
 export function notifySlackForTaskEvent(event: SlackTaskEvent): void {
-  void runInBackground(
-    'slack.notify_task_event',
-    async () => {
-      await deliverSlackTaskEvent(getDatabase(), event);
-    },
-    { context: { eventType: event.type, taskId: event.taskId } }
-  );
+  const payload: BackgroundJobPayload = {};
+  for (const [key, value] of Object.entries(event)) {
+    if (value !== undefined) payload[key] = value;
+  }
+  scheduleBackgroundJob(SLACK_NOTIFY_JOB, payload, { context: { eventType: event.type, taskId: event.taskId } });
 }
