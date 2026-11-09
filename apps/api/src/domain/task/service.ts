@@ -192,7 +192,12 @@ export async function completedAtFor(
     .from(taskStates)
     .where(eq(taskStates.id, stateId))
     .limit(1);
-  if (state?.category !== 'done') return null;
+  return completedAtForCategory(state?.category ?? null, current);
+}
+
+/** completedAtFor when the target state's category is already known. */
+export function completedAtForCategory(category: string | null, current: Date | null): Date | null {
+  if (category !== 'done') return null;
   return current ?? new Date();
 }
 
@@ -960,6 +965,7 @@ export class TaskService {
         sortOrder = 'asc',
         page = 1,
         limit = 50,
+        skipCount = false,
       } = options;
 
       if (!filters.projectId && !filters.projectIds && !filters.workspaceId) {
@@ -1019,9 +1025,6 @@ export class TaskService {
         countQuery = countQuery.leftJoin(taskAssignees, eq(tasks.id, taskAssignees.taskId));
       if (needsLabelJoin)
         countQuery = countQuery.leftJoin(taskLabels, eq(tasks.id, taskLabels.taskId));
-      const [countResult] = await countQuery.where(whereClause);
-      const total = Number(countResult?.count ?? 0);
-
       const base = distinct
         ? this.db.selectDistinct(taskRowSelection)
         : this.db.select(taskRowSelection);
@@ -1036,11 +1039,15 @@ export class TaskService {
       if (needsLabelJoin)
         taskQuery = taskQuery.leftJoin(taskLabels, eq(tasks.id, taskLabels.taskId));
 
-      const rows: TaskRowWithJoins[] = await taskQuery
-        .where(whereClause)
-        .orderBy(...this.orderBy(sortBy, sortOrder, distinct))
-        .limit(limit)
-        .offset((page - 1) * limit);
+      const [countResult, rows] = await Promise.all([
+        skipCount ? Promise.resolve(null) : countQuery.where(whereClause),
+        taskQuery
+          .where(whereClause)
+          .orderBy(...this.orderBy(sortBy, sortOrder, distinct))
+          .limit(limit)
+          .offset((page - 1) * limit),
+      ]);
+      const total = countResult ? Number(countResult[0]?.count ?? 0) : rows.length;
 
       return ok({ tasks: await hydrateTasks(this.db, rows), total });
     } catch (error) {

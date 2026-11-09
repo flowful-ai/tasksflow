@@ -141,6 +141,8 @@ export interface TaskListOptions {
   sortOrder?: 'asc' | 'desc';
   page?: number;
   limit?: number;
+  /** Skip the COUNT query; `total` is then the number of rows returned. */
+  skipCount?: boolean;
 }
 
 export interface GetTaskOptions {

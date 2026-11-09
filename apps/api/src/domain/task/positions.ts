@@ -240,12 +240,25 @@ async function loadNeighbours(
   }
 
   // Append: after the last key of the column (soft-deleted included, as before).
+  return { before: await columnTail(db, projectId, stateId, taskId), after: null };
+}
+
+/**
+ * The last task of a column in key order (soft-deleted included, since they
+ * keep their keys), read with one LIMIT 1 query. Callers hold the column lock.
+ */
+export async function columnTail(
+  db: DbExecutor,
+  projectId: string,
+  stateId: string | null,
+  excludeTaskId?: string
+): Promise<ColumnTask | null> {
   const [last] = await db.execute<NeighbourRow>(sql`
     SELECT t.id, t.position FROM tasks t
-    WHERE ${col}${exclude}
+    WHERE ${columnSql('t', projectId, stateId)}${excludeSql('t', excludeTaskId)}
     ORDER BY t.position COLLATE "C" DESC, t.id DESC
     LIMIT 1`);
-  return { before: last ?? null, after: null };
+  return last ? { id: last.id, position: last.position } : null;
 }
 
 /**

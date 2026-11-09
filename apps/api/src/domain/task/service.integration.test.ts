@@ -979,5 +979,44 @@ describe.skipIf(!TEST_DATABASE_URL)('TaskService (integration)', () => {
       expect(unwrap(await service.getById(t1.id)).id).toBe(t1.id);
       void createUser;
     });
+
+    it('appends a bulk state change after the column tail in request order', async () => {
+      const p = await createProject(testDb(), ws.workspaceId);
+      const make = async (title: string, stateId: string) =>
+        unwrap(
+          await service.create({ projectId: p.projectId, title, stateId, createdBy: ws.owner.id })
+        );
+      const existing = await make('existing', p.states.done);
+      const movers = [
+        await make('m1', p.states.backlog),
+        await make('m2', p.states.backlog),
+        await make('m3', p.states.backlog),
+      ];
+      const foreign = unwrap(
+        await service.create({ projectId: other.projectId, title: 'f', createdBy: null })
+      );
+      const result = unwrap(
+        await new TaskBulkService(testDb()).apply({
+          taskIds: [movers[2]!.id, foreign.id, movers[0]!.id, movers[1]!.id],
+          op: { stateId: p.states.done },
+          actorId: ws.owner.id,
+          allowedProjectIds: new Set([p.projectId, other.projectId]),
+        })
+      );
+      expect(result.results.map((r) => r.status)).toEqual([
+        'updated',
+        'invalid',
+        'updated',
+        'updated',
+      ]);
+      expect(result.results[1]?.code).toBe('INVALID_STATE');
+      const column = unwrap(
+        await service.list({ filters: { projectId: p.projectId, stateId: p.states.done } })
+      );
+      expect(column.tasks.map((t) => t.title)).toEqual(['existing', 'm3', 'm1', 'm2']);
+      expect(arePositionsHealthy(column.tasks.map((t) => t.position))).toBe(true);
+      expect(column.tasks.every((t) => t.completedAt !== null)).toBe(true);
+      void existing;
+    });
   });
 });

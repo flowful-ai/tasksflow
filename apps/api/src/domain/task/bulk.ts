@@ -9,8 +9,10 @@
  */
 import { eq, inArray } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
-import { projects, tasks } from '../../db/index.js';
+import { projects, taskStates, tasks } from '../../db/index.js';
 import {
+  InvalidPositionError,
+  generatePositions,
   ok,
   err,
   type BulkTaskItemResult,
@@ -19,19 +21,20 @@ import {
 } from '@flowtask/shared';
 import { domainEvents } from '../events/bus.js';
 import type { TaskFieldChange } from '../events/types.js';
-import { isTaskError, toError } from './errors.js';
-import { placeTask } from './positions.js';
+import type { Tx } from './db.js';
+import { TaskError, isTaskError, toError } from './errors.js';
+import { columnTail, lockColumn, placeTask } from './positions.js';
 import {
   applySetChanges,
   recordTaskEvents,
   stateMetadata,
   stateSnapshots,
-  completedAtFor,
+  completedAtForCategory,
   TaskService,
   type AssigneeLabelDiff,
 } from './service.js';
 import type { TaskEventInput, TaskWithRelations } from './types.js';
-import { assertStateInProject, loadProjectScope, type ProjectScope } from './validation.js';
+import { loadProjectScope, type ProjectScope } from './validation.js';
 
 export interface BulkApplyInput {
   taskIds: string[];
@@ -48,6 +51,77 @@ export interface BulkApplyResult {
   tasks: TaskWithRelations[];
   /** Workspace of the affected tasks (for realtime fan-out); null when nothing matched. */
   workspaceId: string | null;
+}
+
+interface BulkTaskRow {
+  id: string;
+  projectId: string;
+  stateId: string | null;
+  deletedAt: Date | null;
+}
+
+/** The target state of a bulk state change, resolved once for every task. */
+interface StateChangePlan {
+  stateId: string;
+  /** null when the state does not exist (every mover is then invalid). */
+  projectId: string | null;
+  category: string | null;
+  snapshots: Awaited<ReturnType<typeof stateSnapshots>>;
+  /** Pre-reserved keys (appended after the column tail, in request order); empty when the tail needs a re-key. */
+  keys: Map<string, string>;
+}
+
+/**
+ * Validate the target state once, take its column lock, and reserve one key
+ * per task that moves into it with a single generatePositions call after the
+ * column's last key. When that key is invalid, `keys` stays empty and each
+ * task falls back to placeTask (which re-keys the column).
+ */
+async function planStateChange(
+  tx: Tx,
+  stateId: string,
+  taskIds: readonly string[],
+  byId: ReadonlyMap<string, BulkTaskRow>,
+  input: BulkApplyInput
+): Promise<StateChangePlan> {
+  const [state] = await tx
+    .select({ projectId: taskStates.projectId, category: taskStates.category })
+    .from(taskStates)
+    .where(eq(taskStates.id, stateId));
+  const movers = taskIds.filter((taskId) => {
+    const row = byId.get(taskId);
+    return (
+      row !== undefined &&
+      (!row.deletedAt || input.op.restore) &&
+      input.allowedProjectIds.has(row.projectId) &&
+      row.projectId === state?.projectId &&
+      row.stateId !== stateId
+    );
+  });
+  const plan: StateChangePlan = {
+    stateId,
+    projectId: state?.projectId ?? null,
+    category: state?.category ?? null,
+    snapshots: await stateSnapshots(tx, [
+      stateId,
+      ...movers.map((taskId) => byId.get(taskId)?.stateId ?? null),
+    ]),
+    keys: new Map(),
+  };
+  if (!state || movers.length === 0) return plan;
+
+  await lockColumn(tx, state.projectId, stateId);
+  const tail = await columnTail(tx, state.projectId, stateId);
+  try {
+    const keys = generatePositions(movers.length, tail?.position ?? null, null);
+    movers.forEach((taskId, i) => {
+      const key = keys[i];
+      if (key !== undefined) plan.keys.set(taskId, key);
+    });
+  } catch (error) {
+    if (!(error instanceof InvalidPositionError)) throw error;
+  }
+  return plan;
 }
 
 interface TaskOutcome {
@@ -114,6 +188,10 @@ export class TaskBulkService {
           .for('update');
         const byId = new Map(rows.map((r) => [r.id, r]));
         const projectCache = new Map<string, ProjectScope>();
+        const statePlan =
+          op.stateId !== undefined && !op.delete
+            ? await planStateChange(tx, op.stateId, taskIds, byId, input)
+            : null;
 
         for (const taskId of taskIds) {
           const row = byId.get(taskId);
@@ -158,26 +236,35 @@ export class TaskBulkService {
               }
 
               const set: Partial<typeof tasks.$inferInsert> = {};
-              if (op.stateId !== undefined && op.stateId !== row.stateId) {
-                await assertStateInProject(sp, scope.id, op.stateId);
-                const placement = await placeTask(sp, {
-                  projectId: scope.id,
-                  stateId: op.stateId,
-                  taskId,
-                });
-                set.stateId = op.stateId;
-                set.position = placement.position;
-                rekeyed = placement.rekeyed;
-                set.completedAt = await completedAtFor(sp, op.stateId, row.completedAt);
-                changes.push({ field: 'stateId', from: row.stateId, to: op.stateId });
-                const snapshots = await stateSnapshots(sp, [row.stateId, op.stateId]);
+              if (statePlan && statePlan.stateId !== row.stateId) {
+                const toStateId = statePlan.stateId;
+                if (statePlan.projectId !== scope.id) {
+                  throw new TaskError('INVALID_STATE', 'State does not belong to this project', [
+                    toStateId,
+                  ]);
+                }
+                const reserved = statePlan.keys.get(taskId);
+                if (reserved !== undefined) {
+                  set.position = reserved;
+                } else {
+                  const placement = await placeTask(sp, {
+                    projectId: scope.id,
+                    stateId: toStateId,
+                    taskId,
+                  });
+                  set.position = placement.position;
+                  rekeyed = placement.rekeyed;
+                }
+                set.stateId = toStateId;
+                set.completedAt = completedAtForCategory(statePlan.category, row.completedAt);
+                changes.push({ field: 'stateId', from: row.stateId, to: toStateId });
                 events.push({
                   ...base,
                   eventType: 'moved',
                   fieldName: 'stateId',
                   oldValue: row.stateId,
-                  newValue: op.stateId,
-                  metadata: stateMetadata(snapshots, row.stateId, op.stateId),
+                  newValue: toStateId,
+                  metadata: stateMetadata(statePlan.snapshots, row.stateId, toStateId),
                 });
               }
               if (op.priority !== undefined && op.priority !== row.priority) {
@@ -258,6 +345,7 @@ export class TaskBulkService {
         const listed = await this.taskService.list({
           filters: { workspaceId, ids: liveIds },
           limit: liveIds.length,
+          skipCount: true,
         });
         if (listed.ok) fresh = listed.value.tasks;
       }
