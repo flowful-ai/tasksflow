@@ -42,7 +42,8 @@ export function hasActiveBoardFilters(filters: BoardFilters): boolean {
 
 /** The part the API can apply (single values only). */
 export function toApiFilters(filters: BoardFilters): TaskListFilters {
-  const api: TaskListFilters = {};
+  // Sub-tasks live under their parent (detail view + progress chip), never as board cards.
+  const api: TaskListFilters = { parentId: 'none' };
   if (filters.assigneeIds.length === 1) api.assigneeId = filters.assigneeIds[0];
   if (filters.labelIds.length === 1) api.labelId = filters.labelIds[0];
   // The API's priority=none matches nothing useful for null priorities; filter it here.
@@ -51,6 +52,7 @@ export function toApiFilters(filters: BoardFilters): TaskListFilters {
 }
 
 export interface FilterableTask {
+  parentId?: string | null;
   priority: string | null;
   dueDate: string | null;
   state: { category?: string } | null;
@@ -94,8 +96,14 @@ export function matchesBoardFilters(task: FilterableTask, filters: BoardFilters,
 }
 
 export function applyBoardFilters<T extends FilterableTask>(tasks: T[], filters: BoardFilters, now: Date = new Date()): T[] {
-  if (!hasActiveBoardFilters(filters)) return tasks;
-  return tasks.filter((task) => matchesBoardFilters(task, filters, now));
+  // Sub-tasks can still reach the cache (realtime patches, smart-view results): keep them off the board.
+  const topLevel = tasks.filter(isTopLevel);
+  if (!hasActiveBoardFilters(filters)) return topLevel;
+  return topLevel.filter((task) => matchesBoardFilters(task, filters, now));
+}
+
+export function isTopLevel(task: { parentId?: string | null }): boolean {
+  return task.parentId == null;
 }
 
 export function toggleValue<T>(values: readonly T[], value: T): T[] {

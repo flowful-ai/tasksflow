@@ -55,12 +55,18 @@ describe('filters', () => {
   const now = new Date('2026-11-09T12:00:00');
   const filters = (patch: Partial<BoardFilters>): BoardFilters => ({ ...EMPTY_FILTERS, ...patch });
 
+  test('sub-tasks never reach the board', () => {
+    const task = { priority: null, dueDate: null, state: null, assignees: [], labels: [] };
+    expect(applyBoardFilters([task, { ...task, parentId: 'p1' }], EMPTY_FILTERS, now)).toEqual([task]);
+  });
+
   test('only single values go to the API', () => {
     expect(toApiFilters(filters({ assigneeIds: ['u1'], priorities: ['high'], labelIds: ['l1', 'l2'] }))).toEqual({
+      parentId: 'none',
       assigneeId: 'u1',
       priority: 'high',
     });
-    expect(toApiFilters(filters({ priorities: ['none'] }))).toEqual({});
+    expect(toApiFilters(filters({ priorities: ['none'] }))).toEqual({ parentId: 'none' });
   });
 
   test('values of one dimension are ORed, dimensions are ANDed', () => {

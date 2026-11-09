@@ -18,9 +18,16 @@ import {
 } from './taskCache';
 
 /** A project list key is ['tasks','list',projectId,filters]; filtered lists may not contain every task. */
-export function isFilteredListKey(key: QueryKey): boolean {
+/**
+ * Whether a list key narrows the project's tasks in a way the cache can't
+ * replay. `parentId: 'none'` (top-level only, every board) is replayable: a
+ * top-level task belongs in it, a sub-task doesn't.
+ */
+export function isFilteredListKey(key: QueryKey, task?: { parentId?: string | null }): boolean {
   const filters = key[3];
-  return typeof filters === 'object' && filters !== null && Object.keys(filters).length > 0;
+  if (typeof filters !== 'object' || filters === null) return false;
+  const entries = Object.entries(filters);
+  return entries.some(([name, value]) => !(name === 'parentId' && value === 'none' && task?.parentId == null));
 }
 
 export interface TaskCacheSnapshot {
@@ -56,7 +63,7 @@ export function restoreTaskCaches(queryClient: QueryClient, snapshot: TaskCacheS
 /** Merge a task into every cache holding it; append to its project's unfiltered list when `created`. */
 export function upsertTaskEverywhere(queryClient: QueryClient, task: TaskDto, options: { created?: boolean } = {}): void {
   for (const [key] of queryClient.getQueriesData<TaskPages>({ queryKey: queryKeys.tasks.project(task.projectId) })) {
-    const appendIfMissing = Boolean(options.created) && !isFilteredListKey(key);
+    const appendIfMissing = Boolean(options.created) && !isFilteredListKey(key, task);
     queryClient.setQueryData<TaskPages>(key, (data) => upsertTask(data, taskListAdapter, task, { appendIfMissing }));
   }
   queryClient.setQueriesData<SmartViewPages>({ queryKey: queryKeys.smartViews.executions() }, (data) =>
