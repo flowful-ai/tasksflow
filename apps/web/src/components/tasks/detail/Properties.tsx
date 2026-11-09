@@ -12,7 +12,7 @@ import { AssigneeOptions, Avatar, type PickerMember } from '../AssigneePicker';
 import { LabelOptions } from '../LabelPicker';
 import { DueDateOptions } from '../DueDatePicker';
 import { GitHubLinkSection } from '../GitHubLinkSection';
-import { PriorityIcon } from './PriorityIcon';
+import { PriorityIcon } from '../../board/PriorityIcon';
 import { TaskSearchPopover } from './TaskSearchPopover';
 import { PRIORITY_OPTIONS, priorityLabel, type DetailState, type OpenTaskHandler, type TaskDetail } from './types';
 

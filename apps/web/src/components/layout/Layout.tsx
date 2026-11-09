@@ -28,6 +28,7 @@ import { modKeyLabel } from '../../lib/hotkeys';
 import { AgentChatLauncher } from '../chat/AgentChatLauncher';
 import { ReconnectingBanner } from '../realtime/ConnectionStatus';
 import { GlobalLayers } from '../command/GlobalLayers';
+import { projectColor } from '../../lib/color';
 import {
   ColorDot,
   DropdownMenu,
@@ -42,19 +43,6 @@ import {
 
 interface LayoutProps {
   children: React.ReactNode;
-}
-
-const PROJECT_COLORS = ['#ef4444', '#2563eb', '#16a34a', '#d97706', '#7c3aed', '#0891b2', '#db2777', '#65a30d'];
-
-/** Stable colour per project (projects have no colour of their own). */
-export function projectColor(projectId: string): string {
-  // FNV-1a: spreads similar uuids across the palette.
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < projectId.length; i++) {
-    hash ^= projectId.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return PROJECT_COLORS[hash % PROJECT_COLORS.length] ?? PROJECT_COLORS[0]!;
 }
 
 function useIsDesktop(): boolean {

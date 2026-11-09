@@ -19,7 +19,7 @@ import { useUiStore } from '../stores/ui';
 import { EmptyState, ErrorState, IconButton, Kbd, PageSpinner, Spinner, toast } from '../components/ui';
 import { TaskDetailView } from '../components/tasks/detail/TaskDetailView';
 import { describeNotification, initials, notificationSentence } from '../components/inbox/notificationText';
-import { projectColor } from '../components/layout/Layout';
+import { projectColor } from '../lib/color';
 
 const TABS: { filter: NotificationFilter; label: string }[] = [
   { filter: 'inbox', label: 'Inbox' },

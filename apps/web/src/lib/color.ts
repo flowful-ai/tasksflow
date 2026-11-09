@@ -85,3 +85,16 @@ export function dotColor(color: string | null | undefined): string {
 export function colorDot(color: string | null | undefined): CSSProperties {
   return { backgroundColor: dotColor(color) };
 }
+
+const PROJECT_COLORS = ['#ef4444', '#2563eb', '#16a34a', '#d97706', '#7c3aed', '#0891b2', '#db2777', '#65a30d'];
+
+/** Stable colour per project (projects have no colour of their own). */
+export function projectColor(projectId: string): string {
+  // FNV-1a: spreads similar uuids across the palette.
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < projectId.length; i++) {
+    hash ^= projectId.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return PROJECT_COLORS[hash % PROJECT_COLORS.length] ?? PROJECT_COLORS[0]!;
+}

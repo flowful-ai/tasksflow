@@ -10,8 +10,8 @@ import { X } from 'lucide-react';
 import clsx from 'clsx';
 import { summarizeBulk, useBulkTasks } from '../../hooks/queries/tasks';
 import { describeBulkSummary } from '../../lib/bulk';
-import { AssigneePicker } from '../tasks/AssigneePicker';
-import { LabelPicker } from '../tasks/LabelPicker';
+import { AssigneeOptions } from '../tasks/AssigneePicker';
+import { LabelOptions } from '../tasks/LabelPicker';
 import {
   ColorDot,
   ConfirmDialog,
@@ -66,7 +66,6 @@ export interface BulkActionBarProps {
   states: BulkBarState[];
   members: { userId: string; user: Person }[];
   labelsByProject: Map<string, BulkBarLabel[]>;
-  currentUserId?: string;
   /** Single deletes use the undo toast instead of a confirmation. */
   onDeleteOne: (taskId: string) => void;
 }
@@ -123,7 +122,6 @@ export function BulkActionBar({
   states,
   members,
   labelsByProject,
-  currentUserId,
   onDeleteOne,
 }: BulkActionBarProps) {
   const bulk = useBulkTasks();
@@ -262,13 +260,13 @@ export function BulkActionBar({
           <PopoverTrigger asChild>
             <BarButton label="Assign" shortcut="A" />
           </PopoverTrigger>
-          <PopoverContent side="top" className="w-72 p-3" aria-label="Assign selected tasks">
-            <AssigneePicker
+          <PopoverContent side="top" className="w-72 p-0" aria-label="Assign selected tasks">
+            <AssigneeOptions
               currentAssignees={commonAssignees}
               workspaceMembers={members}
-              currentUserId={currentUserId}
-              onAdd={(userId) => assigneeAction(userId, 'add')}
-              onRemove={(userId) => assigneeAction(userId, 'remove')}
+              onToggle={(userId) =>
+                assigneeAction(userId, commonAssignees.some((a) => a.id === userId) ? 'remove' : 'add')
+              }
               isLoading={bulk.isPending}
             />
           </PopoverContent>
@@ -278,12 +276,11 @@ export function BulkActionBar({
           <PopoverTrigger asChild>
             <BarButton label="Label" shortcut="L" />
           </PopoverTrigger>
-          <PopoverContent side="top" className="w-72 p-3" aria-label="Label selected tasks">
-            <LabelPicker
+          <PopoverContent side="top" className="w-72 p-0" aria-label="Label selected tasks">
+            <LabelOptions
               currentLabels={commonLabels}
               projectLabels={labelOptions}
-              onAdd={(id) => labelAction(id, 'add')}
-              onRemove={(id) => labelAction(id, 'remove')}
+              onToggle={(id) => labelAction(id, commonLabels.some((l) => l.id === id) ? 'remove' : 'add')}
               isLoading={bulk.isPending}
             />
           </PopoverContent>

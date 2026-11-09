@@ -7,6 +7,7 @@ import { TaskContextMenu, type ContextMenuState } from '../tasks/TaskContextMenu
 import { ColorDot } from '../ui/ColorDot';
 import { PriorityIcon, priorityLabel } from '../board/PriorityIcon';
 import { isOverdue } from '../board/filters';
+import { projectColor } from '../../lib/color';
 
 /** Modifier keys of the click/keypress that opened a card (ctrl/⌘ toggles selection, shift selects a range). */
 export type TaskOpenEvent = { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean };
@@ -255,7 +256,12 @@ const TaskCardBody = memo(function TaskCardBody({ task, showState, showProject, 
       <div className="flex items-center gap-1.5">
         <PriorityIcon priority={task.priority} />
         <span className="font-mono text-[11.5px] font-semibold text-neutral-400">{key}</span>
-        {showProject && <span className="truncate text-[11.5px] text-neutral-400">· {task.project.name}</span>}
+        {showProject && (
+          <span className="flex min-w-0 items-center gap-1 truncate text-[11.5px] text-neutral-400">
+            <ColorDot color={projectColor(task.project.id)} />
+            {task.project.name}
+          </span>
+        )}
         {showState && task.state && (
           <span className="ml-auto">
             <StateChip state={task.state} />
