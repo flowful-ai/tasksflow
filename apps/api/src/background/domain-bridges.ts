@@ -159,6 +159,12 @@ export function registerDomainEventBridges(db: Database): () => void {
     }),
 
     domainEvents.on('comment.created', async (event) => {
+      publishEvent(
+        event.workspaceId,
+        REALTIME_EVENTS.COMMENT_CREATED,
+        { taskId: event.taskId, projectId: event.projectId, comment: event.comment },
+        { projectId: event.projectId }
+      );
       notifySlackForTaskEvent({
         type: 'comment.added',
         taskId: event.taskId,
@@ -173,6 +179,24 @@ export function registerDomainEventBridges(db: Database): () => void {
           commentId: event.commentId,
         });
       }
+    }),
+
+    domainEvents.on('comment.updated', (event) => {
+      publishEvent(
+        event.workspaceId,
+        REALTIME_EVENTS.COMMENT_UPDATED,
+        { taskId: event.taskId, projectId: event.projectId, comment: event.comment },
+        { projectId: event.projectId }
+      );
+    }),
+
+    domainEvents.on('comment.deleted', (event) => {
+      publishEvent(
+        event.workspaceId,
+        REALTIME_EVENTS.COMMENT_DELETED,
+        { taskId: event.taskId, projectId: event.projectId, commentId: event.commentId },
+        { projectId: event.projectId }
+      );
     }),
 
     onNotificationCreated((notification) => {

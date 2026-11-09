@@ -128,6 +128,7 @@ export const TaskEventTypeSchema = z.enum([
   'restored',
   'relation_added',
   'relation_removed',
+  'linked',
 ]);
 export type TaskEventType = z.infer<typeof TaskEventTypeSchema>;
 

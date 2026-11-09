@@ -18,6 +18,7 @@ import {
   CommentService,
   TaskService,
   domainEvents,
+  type CommentCreatedEvent,
   type TaskCreatedEvent,
   type TaskUpdatedEvent,
 } from '../../domain/index.js';
@@ -33,12 +34,6 @@ import type { GitHubWebhookAction, IssueContent } from './webhook.js';
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 const describeDb = TEST_DATABASE_URL ? describe : describe.skip;
 
-interface PublishedEvent {
-  workspaceId: string;
-  event: string;
-  data: object;
-}
-
 describeDb('GitHub sync (database)', () => {
   let db: Database;
   let workspaceId: string;
@@ -47,12 +42,13 @@ describeDb('GitHub sync (database)', () => {
   let doneStateId: string;
   let apiTarget: GitHubRepoTarget;
   let webTarget: GitHubRepoTarget;
-  const published: PublishedEvent[] = [];
+  const commented: CommentCreatedEvent[] = [];
   const created: TaskCreatedEvent[] = [];
   const updated: TaskUpdatedEvent[] = [];
   const unsubscribe = [
     domainEvents.on('task.created', (event) => void created.push(event)),
     domainEvents.on('task.updated', (event) => void updated.push(event)),
+    domainEvents.on('comment.created', (event) => void commented.push(event)),
   ];
   let sync: GitHubSyncService;
 
@@ -281,12 +277,11 @@ describeDb('GitHub sync (database)', () => {
     expect(await projectTaskCount()).toBe(before);
   });
 
-  test('webhook processor: installation must match, app echoes are skipped, comments sync with SSE', async () => {
+  test('webhook processor: installation must match, app echoes are skipped, synced comments emit comment.created', async () => {
     const processor = new GitHubWebhookProcessor({
       db,
       taskService: new TaskService(db),
       commentService: new CommentService(db),
-      publish: (wsId, event, data) => published.push({ workspaceId: wsId, event, data }),
       appId: 4242,
     });
     const commentEvent = (overrides: {
@@ -319,7 +314,7 @@ describeDb('GitHub sync (database)', () => {
 
     const synced = await processor.process(apiTarget, commentEvent({}));
     expect(synced).toMatchObject({ status: 'processed', action: 'comment_synced' });
-    expect(published.find((e) => e.event === 'comment:created')?.data).toMatchObject({ projectId });
+    expect(commented.at(-1)).toMatchObject({ projectId, workspaceId, origin: 'github' });
 
     const duplicate = await processor.process(apiTarget, commentEvent({}));
     expect(duplicate).toMatchObject({ status: 'ignored', reason: 'Comment already synced' });

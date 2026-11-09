@@ -23,6 +23,7 @@ import {
   taskEvents,
   taskRelations,
   projects,
+  externalLinks,
   workspaceAgents,
 } from '../../db/index.js';
 import { parseTaskKey, ok, err } from '@flowtask/shared';
@@ -53,6 +54,7 @@ import type {
   TaskCreateInput,
   TaskUpdateInput,
   TaskMoveInput,
+  ExternalLinkInput,
   TaskFilters,
   TaskListOptions,
   TaskEventInput,
@@ -799,6 +801,71 @@ export class TaskService {
         if (outcome.rekeyed) this.emitRekeyed(outcome.project, input.stateId);
       }
       return result;
+    } catch (error) {
+      return err(toError(error));
+    }
+  }
+
+  /**
+   * Link a task to an external item (GitHub issue or pull request), record it
+   * in the task history and emit `task.updated` with the full task. Returns
+   * `linked: false` (and emits nothing) when that item is already linked.
+   */
+  async linkExternal(input: ExternalLinkInput): Promise<Result<{ linked: boolean }, Error>> {
+    try {
+      const outcome = await this.db.transaction(async (tx) => {
+        const current = await lockTask(tx, input.taskId);
+        const [inserted] = await tx
+          .insert(externalLinks)
+          .values({
+            integrationId: input.integrationId,
+            taskId: input.taskId,
+            externalType: input.externalType,
+            externalId: input.externalId,
+            externalUrl: input.externalUrl,
+            syncHash: input.syncHash ?? null,
+            lastSyncedAt: new Date(),
+          })
+          .onConflictDoNothing({
+            target: [
+              externalLinks.integrationId,
+              externalLinks.externalType,
+              externalLinks.externalId,
+            ],
+          })
+          .returning({ id: externalLinks.id });
+        if (!inserted) return null;
+        await recordTaskEvents(tx, [
+          {
+            taskId: input.taskId,
+            actorId: input.actorId,
+            mcpClientId: input.mcpClientId,
+            eventType: 'linked',
+            newValue: input.externalId,
+            metadata: { externalType: input.externalType, url: input.externalUrl },
+          },
+        ]);
+        return { project: await loadProjectScope(tx, current.projectId) };
+      });
+      if (!outcome) return ok({ linked: false });
+
+      const task = await this.getById(input.taskId);
+      if (task.ok) {
+        this.events.emit('task.updated', {
+          task: task.value,
+          workspaceId: outcome.project.workspaceId,
+          projectId: outcome.project.id,
+          actorId: input.actorId,
+          mcpClientId: input.mcpClientId ?? null,
+          ...(input.origin ? { origin: input.origin } : {}),
+          changes: [],
+          addedAssigneeIds: [],
+          removedAssigneeIds: [],
+          addedLabelIds: [],
+          removedLabelIds: [],
+        });
+      }
+      return ok({ linked: true });
     } catch (error) {
       return err(toError(error));
     }

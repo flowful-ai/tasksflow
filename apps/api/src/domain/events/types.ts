@@ -1,5 +1,6 @@
 import type { JsonValue } from '@flowtask/shared';
 import type { TaskWithRelations } from '../task/types.js';
+import type { CommentWithUser } from '../comment/types.js';
 
 /** A tracked scalar field change on a task (values are JSON: dates as ISO strings). */
 export interface TaskFieldChange {
@@ -58,21 +59,38 @@ export interface TasksRekeyedEvent {
   stateId: string | null;
 }
 
-/**
- * A comment was created. CommentService (owned by another workstream) is
- * expected to emit this after insert; NotificationService and outgoing
- * webhooks subscribe to it.
- */
-export interface CommentCreatedEvent {
-  commentId: string;
+interface CommentEventBase {
+  workspaceId: string;
+  projectId: string;
   taskId: string;
   actorId: string | null;
-  content: string;
   mcpClientId?: string | null;
-  /** Set for comments imported from GitHub: never push them back to GitHub. */
+  /** Set for comments synced from GitHub: never push them back to GitHub. */
   origin?: 'github';
+}
+
+/**
+ * A comment was created. CommentService emits it after commit; realtime,
+ * Slack, GitHub comment sync, notifications and outgoing webhooks subscribe.
+ * It carries the task's key and title so subscribers need not re-query it.
+ */
+export interface CommentCreatedEvent extends CommentEventBase {
+  commentId: string;
+  content: string;
+  comment: CommentWithUser;
+  /** e.g. "FLOW-123" */
+  taskKey: string;
+  taskTitle: string;
   /** Display label when the author isn't a FlowTask user (e.g. "@octocat on GitHub"). */
   actorLabel?: string;
+}
+
+export interface CommentUpdatedEvent extends CommentEventBase {
+  comment: CommentWithUser;
+}
+
+export interface CommentDeletedEvent extends CommentEventBase {
+  commentId: string;
 }
 
 export interface DomainEventMap {
@@ -83,6 +101,8 @@ export interface DomainEventMap {
   'task.restored': TaskRestoredEvent;
   'tasks.rekeyed': TasksRekeyedEvent;
   'comment.created': CommentCreatedEvent;
+  'comment.updated': CommentUpdatedEvent;
+  'comment.deleted': CommentDeletedEvent;
 }
 
 export type DomainEventName = keyof DomainEventMap;

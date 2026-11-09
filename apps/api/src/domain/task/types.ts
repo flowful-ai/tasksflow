@@ -160,7 +160,23 @@ export type TaskEventType =
   | 'deleted'
   | 'restored'
   | 'relation_added'
-  | 'relation_removed';
+  | 'relation_removed'
+  | 'linked';
+
+/** A task ↔ external item link (TaskService.linkExternal). */
+export interface ExternalLinkInput {
+  taskId: string;
+  integrationId: string;
+  externalType: 'github_issue' | 'github_pr';
+  /** e.g. "owner/repo#12" */
+  externalId: string;
+  externalUrl: string;
+  syncHash?: string | null;
+  actorId: string | null;
+  mcpClientId?: string | null;
+  /** Set when the link came from GitHub. */
+  origin?: 'github';
+}
 
 export interface TaskEventInput {
   taskId: string;

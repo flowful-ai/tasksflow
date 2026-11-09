@@ -1,7 +1,8 @@
 import { and, eq } from 'drizzle-orm';
 import type { Database } from '../db/index.js';
-import { externalLinks, projects, tasks } from '../db/index.js';
-import { REALTIME_EVENTS, formatGitHubExternalId } from '@flowtask/shared';
+import { externalLinks, tasks } from '../db/index.js';
+import { formatGitHubExternalId } from '@flowtask/shared';
+import { TaskService } from '../domain/index.js';
 import {
   NonRetryableError,
   computeIssueSyncHash,
@@ -11,7 +12,6 @@ import {
   registerBackgroundJob,
   scheduleBackgroundJob,
   type GitHubRepoTarget,
-  type PublishRealtimeEvent,
 } from '../integrations/index.js';
 
 export type TaskGitHubLinkErrorCode =
@@ -40,6 +40,8 @@ export interface TaskRepoInput {
   projectId: string;
   owner: string;
   repo: string;
+  /** User recorded in the task history (null for background work). */
+  actorId?: string | null;
 }
 
 export interface LinkTaskPullRequestInput extends TaskRepoInput {
@@ -62,6 +64,7 @@ interface NewLink {
   number: number;
   url: string;
   syncHash?: string;
+  actorId: string | null;
 }
 
 function githubStatus(error: unknown): number | null {
@@ -92,10 +95,10 @@ async function callGitHub<T>(fallbackMessage: string, fn: () => Promise<T>): Pro
 const CREATE_ISSUE_JOB = 'github.create_issue_for_task';
 
 export class TaskGitHubLinkService {
-  constructor(
-    private readonly db: Database,
-    private readonly publish: PublishRealtimeEvent = () => {}
-  ) {
+  private readonly tasks: TaskService;
+
+  constructor(private readonly db: Database) {
+    this.tasks = new TaskService(db);
     registerBackgroundJob(CREATE_ISSUE_JOB, async (payload) => {
       const { taskId, projectId, owner, repo } = payload;
       if (
@@ -149,20 +152,6 @@ export class TaskGitHubLinkService {
     return Boolean(existing);
   }
 
-  private async publishTaskUpdated(taskId: string): Promise<void> {
-    const [row] = await this.db
-      .select({ workspaceId: projects.workspaceId, projectId: tasks.projectId })
-      .from(tasks)
-      .innerJoin(projects, eq(tasks.projectId, projects.id))
-      .where(eq(tasks.id, taskId));
-    if (row) {
-      this.publish(row.workspaceId, REALTIME_EVENTS.TASK_UPDATED, {
-        id: taskId,
-        projectId: row.projectId,
-      });
-    }
-  }
-
   /** Link an existing GitHub issue to a task. */
   async linkIssue(input: LinkTaskIssueInput): Promise<TaskGitHubLinkResult> {
     const target = await this.resolveTarget(input);
@@ -193,6 +182,7 @@ export class TaskGitHubLinkService {
     await this.insertLink({
       target,
       taskId: input.taskId,
+      actorId: input.actorId ?? null,
       externalType: 'github_issue',
       number: issue.number,
       url: issue.html_url,
@@ -226,6 +216,7 @@ export class TaskGitHubLinkService {
     await this.insertLink({
       target,
       taskId: input.taskId,
+      actorId: input.actorId ?? null,
       externalType: 'github_issue',
       number: issue.number,
       url: issue.html_url,
@@ -300,6 +291,7 @@ export class TaskGitHubLinkService {
     await this.insertLink({
       target,
       taskId: input.taskId,
+      actorId: input.actorId ?? null,
       externalType: 'github_pr',
       number: input.prNumber,
       url: pullRequest.html_url,
@@ -312,26 +304,21 @@ export class TaskGitHubLinkService {
    * already exists for another task is a 409.
    */
   private async insertLink(link: NewLink): Promise<void> {
-    const [inserted] = await this.db
-      .insert(externalLinks)
-      .values({
-        integrationId: link.target.integrationId,
-        taskId: link.taskId,
-        externalType: link.externalType,
-        externalId: formatGitHubExternalId(
-          link.target.repo.owner,
-          link.target.repo.repo,
-          link.number
-        ),
-        externalUrl: link.url,
-        syncHash: link.syncHash ?? null,
-        lastSyncedAt: new Date(),
-      })
-      .onConflictDoNothing({
-        target: [externalLinks.integrationId, externalLinks.externalType, externalLinks.externalId],
-      })
-      .returning({ id: externalLinks.id });
-    if (!inserted) {
+    const result = await this.tasks.linkExternal({
+      taskId: link.taskId,
+      integrationId: link.target.integrationId,
+      externalType: link.externalType,
+      externalId: formatGitHubExternalId(
+        link.target.repo.owner,
+        link.target.repo.repo,
+        link.number
+      ),
+      externalUrl: link.url,
+      syncHash: link.syncHash ?? null,
+      actorId: link.actorId,
+    });
+    if (!result.ok) throw result.error;
+    if (!result.value.linked) {
       throw link.externalType === 'github_pr'
         ? new TaskGitHubLinkError(
             'PR_ALREADY_LINKED',
@@ -344,6 +331,5 @@ export class TaskGitHubLinkService {
             409
           );
     }
-    await this.publishTaskUpdated(link.taskId);
   }
 }

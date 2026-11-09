@@ -118,6 +118,12 @@ export function describeEvent(event: TaskHistoryItemDto): ReactNode | null {
           removed label <B>{from ?? to}</B>
         </>
       );
+    case 'linked':
+      return (
+        <>
+          linked <B>{to}</B>
+        </>
+      );
     case 'relation_added':
     case 'relation_removed': {
       const relation = event.type === 'relation_added' ? event.to : (event.from ?? event.to);

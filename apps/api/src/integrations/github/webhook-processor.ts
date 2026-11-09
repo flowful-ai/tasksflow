@@ -1,9 +1,8 @@
 import type { Database } from '../../db/index.js';
 import { accounts, externalLinks, workspaceMembers } from '../../db/index.js';
 import type { CommentService, TaskService } from '../../domain/index.js';
-import { REALTIME_EVENTS, formatGitHubExternalId, parseTaskReferences } from '@flowtask/shared';
+import { formatGitHubExternalId, parseTaskReferences } from '@flowtask/shared';
 import { and, eq } from 'drizzle-orm';
-import type { PublishRealtimeEvent } from '../types.js';
 import { getGitHubAppId } from './client.js';
 import type { GitHubRepoTarget } from './integration-store.js';
 import { GitHubSyncService } from './sync.js';
@@ -18,8 +17,6 @@ export interface GitHubWebhookProcessorDeps {
   db: Database;
   taskService: TaskService;
   commentService: CommentService;
-  /** Realtime publisher for comment and link changes (task changes publish via domain events). */
-  publish?: PublishRealtimeEvent;
   /** Our GitHub App id, used to recognise echoes of our own writes. Defaults to GITHUB_APP_ID. */
   appId?: number | null;
 }
@@ -44,7 +41,6 @@ export class GitHubWebhookProcessor {
   private readonly db: Database;
   private readonly taskService: TaskService;
   private readonly commentService: CommentService;
-  private readonly publish: PublishRealtimeEvent;
   private readonly appId: number | null;
   private readonly sync: GitHubSyncService;
 
@@ -52,7 +48,6 @@ export class GitHubWebhookProcessor {
     this.db = deps.db;
     this.taskService = deps.taskService;
     this.commentService = deps.commentService;
-    this.publish = deps.publish ?? (() => {});
     this.appId = deps.appId === undefined ? getGitHubAppId() : deps.appId;
     this.sync = new GitHubSyncService({
       db: deps.db,
@@ -167,12 +162,6 @@ export class GitHubWebhookProcessor {
         ...(matchedAccount ? {} : { actorLabel: `@${comment.authorLogin} on GitHub` }),
       });
       if (!created.ok) throw created.error;
-
-      this.publish(target.workspaceId, REALTIME_EVENTS.COMMENT_CREATED, {
-        taskId,
-        projectId: target.projectId,
-        comment: created.value,
-      });
       return { status: 'processed', action: 'comment_synced', taskId };
     }
 
@@ -182,25 +171,11 @@ export class GitHubWebhookProcessor {
       if (!updated.value) {
         return { status: 'ignored', reason: 'Comment not found for update', taskId };
       }
-      this.publish(target.workspaceId, REALTIME_EVENTS.COMMENT_UPDATED, {
-        taskId,
-        projectId: target.projectId,
-        comment: updated.value,
-      });
       return { status: 'processed', action: 'comment_updated', taskId };
     }
 
-    const existing = await this.commentService.findByExternalId(comment.id);
-    if (!existing.ok) throw existing.error;
     const deleted = await this.commentService.deleteExternal(comment.id);
     if (!deleted.ok) throw deleted.error;
-    if (existing.value) {
-      this.publish(target.workspaceId, REALTIME_EVENTS.COMMENT_DELETED, {
-        taskId,
-        projectId: target.projectId,
-        commentId: existing.value.id,
-      });
-    }
     return { status: 'processed', action: 'comment_deleted', taskId };
   }
 
@@ -218,26 +193,17 @@ export class GitHubWebhookProcessor {
     // A PR links to one task per project (unique external link); the first reference wins.
     const firstReferenced = referencedTaskIds[0];
     if (firstReferenced && action.action !== 'closed') {
-      const [inserted] = await this.db
-        .insert(externalLinks)
-        .values({
-          integrationId: target.integrationId,
-          taskId: firstReferenced,
-          externalType: 'github_pr',
-          externalId,
-          externalUrl: pr.url,
-          lastSyncedAt: new Date(),
-        })
-        .onConflictDoNothing({
-          target: [
-            externalLinks.integrationId,
-            externalLinks.externalType,
-            externalLinks.externalId,
-          ],
-        })
-        .returning({ id: externalLinks.id });
-      if (inserted) {
-        await this.publishTaskUpdated(target, firstReferenced);
+      const linked = await this.taskService.linkExternal({
+        taskId: firstReferenced,
+        integrationId: target.integrationId,
+        externalType: 'github_pr',
+        externalId,
+        externalUrl: pr.url,
+        actorId: null,
+        origin: 'github',
+      });
+      if (!linked.ok) throw linked.error;
+      if (linked.value.linked) {
         return { status: 'processed', action: 'pr_linked', taskId: firstReferenced };
       }
       return { status: 'ignored', reason: 'Pull request already linked', taskId: firstReferenced };
@@ -283,12 +249,5 @@ export class GitHubWebhookProcessor {
     });
     if (!moved.ok) throw moved.error;
     return true;
-  }
-
-  private async publishTaskUpdated(target: GitHubRepoTarget, taskId: string): Promise<void> {
-    const task = await this.taskService.getById(taskId);
-    if (task.ok) {
-      this.publish(target.workspaceId, REALTIME_EVENTS.TASK_UPDATED, task.value);
-    }
   }
 }

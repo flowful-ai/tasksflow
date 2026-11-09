@@ -243,6 +243,7 @@ const updateTask: ToolHandler = async (args, ctx, services) => {
       await services.githubLinks.linkPr({
         taskId: after.id,
         projectId: after.projectId,
+        actorId: ctx.userId,
         owner: prLink.owner,
         repo: prLink.repo,
         prNumber: prLink.prNumber,

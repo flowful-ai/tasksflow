@@ -2,13 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { getDatabase } from '../db/index.js';
 import { CommentService } from '../domain/index.js';
-import {
-  CreateCommentSchema,
-  UpdateCommentSchema,
-  PaginationQuerySchema,
-  REALTIME_EVENTS,
-} from '@flowtask/shared';
-import { publishEvent } from '../sse/manager.js';
+import { CreateCommentSchema, UpdateCommentSchema, PaginationQuerySchema } from '@flowtask/shared';
 import { hasPermission } from '../auth/index.js';
 import { requireTask } from '../lib/authorize.js';
 import { fromResult, handleRouteError, notFound } from '../lib/responses.js';
@@ -62,7 +56,7 @@ comments.get('/:taskId/comments/count', async (c) => {
 
 // Create a comment on a task
 comments.post('/:taskId/comments', zValidator('json', CreateCommentSchema), async (c) => {
-  const { task, workspaceId, user } = await requireTask(c, c.req.param('taskId'), 'comment:create');
+  const { task, user } = await requireTask(c, c.req.param('taskId'), 'comment:create');
   const data = c.req.valid('json');
 
   const comment = fromResult(
@@ -74,14 +68,7 @@ comments.post('/:taskId/comments', zValidator('json', CreateCommentSchema), asyn
     }
   );
 
-  publishEvent(
-    workspaceId,
-    REALTIME_EVENTS.COMMENT_CREATED,
-    { taskId: task.id, projectId: task.projectId, comment },
-    { projectId: task.projectId }
-  );
-
-  // GitHub comment sync, Slack and mentions run off the comment.created domain event.
+  // Realtime, GitHub comment sync, Slack and mentions run off the comment.created domain event.
   return c.json({ success: true, data: comment }, 201);
 });
 
@@ -97,11 +84,7 @@ comments.patch(
   '/:taskId/comments/:commentId',
   zValidator('json', UpdateCommentSchema),
   async (c) => {
-    const { task, workspaceId, user } = await requireTask(
-      c,
-      c.req.param('taskId'),
-      'comment:update'
-    );
+    const { task, user } = await requireTask(c, c.req.param('taskId'), 'comment:update');
     const existing = await loadTaskComment(task.id, c.req.param('commentId'));
     const data = c.req.valid('json');
 
@@ -114,13 +97,6 @@ comments.patch(
       }
     );
 
-    publishEvent(
-      workspaceId,
-      REALTIME_EVENTS.COMMENT_UPDATED,
-      { taskId: task.id, projectId: task.projectId, comment },
-      { projectId: task.projectId }
-    );
-
     return c.json({ success: true, data: comment });
   }
 );
@@ -128,11 +104,7 @@ comments.patch(
 // Delete a comment (soft delete). Authors can delete their own comments;
 // roles with comment:delete (admins, owners) can moderate any comment.
 comments.delete('/:taskId/comments/:commentId', async (c) => {
-  const { task, workspaceId, user, role } = await requireTask(
-    c,
-    c.req.param('taskId'),
-    'comment:read'
-  );
+  const { task, user, role } = await requireTask(c, c.req.param('taskId'), 'comment:read');
   const existing = await loadTaskComment(task.id, c.req.param('commentId'));
 
   fromResult(
@@ -140,13 +112,6 @@ comments.delete('/:taskId/comments/:commentId', async (c) => {
       canModerate: hasPermission(role, 'comment:delete'),
     }),
     { status: 400, code: 'DELETE_FAILED', message: 'Failed to delete comment' }
-  );
-
-  publishEvent(
-    workspaceId,
-    REALTIME_EVENTS.COMMENT_DELETED,
-    { taskId: task.id, projectId: task.projectId, commentId: existing.id },
-    { projectId: task.projectId }
   );
 
   return c.json({ success: true, data: null });

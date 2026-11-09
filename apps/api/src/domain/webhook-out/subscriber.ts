@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm';
-import { projects, tasks, type Database } from '../../db/index.js';
+import { projects, type Database } from '../../db/index.js';
 import type { JsonObject, JsonValue, OutgoingWebhookEvent } from '@flowtask/shared';
 import { domainEvents, type DomainEventBus } from '../events/bus.js';
 import type { TaskFieldChange } from '../events/types.js';
@@ -91,27 +91,9 @@ export function registerOutgoingWebhookSubscribers(
       });
     }),
     bus.on('comment.created', async (e) => {
-      const [row] = await db
-        .select({
-          taskId: tasks.id,
-          title: tasks.title,
-          sequenceNumber: tasks.sequenceNumber,
-          projectId: tasks.projectId,
-          identifier: projects.identifier,
-          workspaceId: projects.workspaceId,
-        })
-        .from(tasks)
-        .innerJoin(projects, eq(tasks.projectId, projects.id))
-        .where(eq(tasks.id, e.taskId));
-      if (!row) return;
-      await dispatch(row.workspaceId, 'comment.created', {
+      await dispatch(e.workspaceId, 'comment.created', {
         comment: { id: e.commentId, content: e.content },
-        task: {
-          id: row.taskId,
-          key: `${row.identifier}-${row.sequenceNumber}`,
-          projectId: row.projectId,
-          title: row.title,
-        },
+        task: { id: e.taskId, key: e.taskKey, projectId: e.projectId, title: e.taskTitle },
         actorId: e.actorId,
       });
     }),

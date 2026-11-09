@@ -3,12 +3,7 @@ import {
   type SmartViewWithRelations,
   type TaskListOptions,
 } from '../../domain/index.js';
-import {
-  FilterGroupSchema,
-  REALTIME_EVENTS,
-  SortOrderSchema,
-  type FilterGroup,
-} from '@flowtask/shared';
+import { FilterGroupSchema, SortOrderSchema, type FilterGroup } from '@flowtask/shared';
 import { ToolExecutionError } from '../../lib/mcp/errors.js';
 import { formatZodIssues } from '../../lib/mcp/json-schema-zod.js';
 import {
@@ -149,11 +144,6 @@ const addComment: ToolHandler = async (args, ctx, services) => {
     })
   );
 
-  services.publish(ctx.workspaceId, REALTIME_EVENTS.COMMENT_CREATED, {
-    comment,
-    taskId: task.id,
-    projectId: task.projectId,
-  });
   return formatWriteCommentResult('add_comment', comment, mode);
 };
 

@@ -157,7 +157,6 @@ export interface RecordedCalls {
   move: Array<{ taskId: string; stateId: string }>;
   delete: string[];
   addAssignee: Array<{ taskId: string; userId: string }>;
-  published: string[];
 }
 
 function matches(candidate: TaskWithRelations, filters: TaskFilters): boolean {
@@ -173,7 +172,7 @@ export function createServices(tasks: TaskWithRelations[] = createTasks()): {
   services: ToolServices;
   calls: RecordedCalls;
 } {
-  const calls: RecordedCalls = { list: [], move: [], delete: [], addAssignee: [], published: [] };
+  const calls: RecordedCalls = { list: [], move: [], delete: [], addAssignee: [] };
   const byId = (taskId: string) => tasks.find((candidate) => candidate.id === taskId);
   const unsupported = async () => err(new Error('not supported in this fake'));
 
@@ -223,9 +222,6 @@ export function createServices(tasks: TaskWithRelations[] = createTasks()): {
       linkPr: async () => {
         throw new Error('not supported in this fake');
       },
-    },
-    publish: (_workspaceId, event) => {
-      calls.published.push(event);
     },
     withTaskTransaction(fn) {
       return fn(this.tasks);

@@ -1,6 +1,5 @@
 import { getDatabase } from '../../db/index.js';
 import { CommentService, SmartViewService, TaskService } from '../../domain/index.js';
-import { publishEvent } from '../../sse/manager.js';
 import { TaskGitHubLinkService } from '../task-github-link-service.js';
 import type { ToolContext } from '../../lib/mcp/tool-context.js';
 import type { JsonRecord } from '../../lib/mcp/json-schema-zod.js';
@@ -24,7 +23,6 @@ export interface ToolServices {
   comments: Pick<CommentService, 'create' | 'list'>;
   smartViews: Pick<SmartViewService, 'create' | 'getById' | 'list'>;
   githubLinks: Pick<TaskGitHubLinkService, 'linkPr'>;
-  publish: (workspaceId: string, event: string, payload: object) => void;
   /**
    * Run task writes in one transaction (TaskService.transaction): all of them
    * commit or none do, and their domain events are emitted after commit.
@@ -48,7 +46,6 @@ export function getDefaultToolServices(): ToolServices {
       comments: new CommentService(db),
       smartViews: new SmartViewService(db),
       githubLinks: new TaskGitHubLinkService(db),
-      publish: (workspaceId, event, payload) => publishEvent(workspaceId, event, payload),
       withTaskTransaction: (fn) => TaskService.transaction(db, (tasks) => fn(tasks)),
     };
   }

@@ -11,7 +11,6 @@ import {
   LinkTaskGitHubPrSchema,
   TaskPrioritySchema,
 } from '@flowtask/shared';
-import { publishEvent } from '../sse/manager.js';
 import {
   TaskGitHubLinkError,
   TaskGitHubLinkService,
@@ -50,7 +49,7 @@ tasks.onError(handleRouteError);
 
 const db = getDatabase();
 const taskService = new TaskService(db);
-const taskGitHubLinkService = new TaskGitHubLinkService(db, publishEvent);
+const taskGitHubLinkService = new TaskGitHubLinkService(db);
 
 async function assertStateInProject(stateId: string | undefined, projectId: string): Promise<void> {
   if (stateId && !(await getAuthz().stateBelongsToProject(stateId, projectId))) {
@@ -356,12 +355,13 @@ tasks.delete('/:taskId/labels/:labelId', async (c) => {
 
 // Create a GitHub issue from an existing task
 tasks.post('/:taskId/github-issue', zValidator('json', GitHubRepoRefSchema), async (c) => {
-  const { task } = await requireTask(c, c.req.param('taskId'), 'task:update');
+  const { task, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
   const { owner, repo } = c.req.valid('json');
   try {
     const issue = await taskGitHubLinkService.createIssueForTask({
       taskId: task.id,
       projectId: task.projectId,
+      actorId: user.id,
       owner,
       repo,
     });
@@ -376,12 +376,13 @@ tasks.post(
   '/:taskId/github-issue/link',
   zValidator('json', LinkTaskGitHubIssueSchema),
   async (c) => {
-    const { task } = await requireTask(c, c.req.param('taskId'), 'task:update');
+    const { task, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
     const { owner, repo, issueNumber } = c.req.valid('json');
     try {
       const issue = await taskGitHubLinkService.linkIssue({
         taskId: task.id,
         projectId: task.projectId,
+        actorId: user.id,
         owner,
         repo,
         issueNumber,
@@ -395,12 +396,13 @@ tasks.post(
 
 // Link an existing GitHub pull request to a task
 tasks.post('/:taskId/github-pr', zValidator('json', LinkTaskGitHubPrSchema), async (c) => {
-  const { task } = await requireTask(c, c.req.param('taskId'), 'task:update');
+  const { task, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
   const { owner, repo, prNumber } = c.req.valid('json');
   try {
     const linkResult = await taskGitHubLinkService.linkPr({
       taskId: task.id,
       projectId: task.projectId,
+      actorId: user.id,
       owner,
       repo,
       prNumber,

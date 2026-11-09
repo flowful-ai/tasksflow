@@ -5,12 +5,6 @@ export interface GitHubRepoRef {
 }
 
 /**
- * Realtime publisher injected by the API (apps/api/src/sse/manager.ts `publishEvent`),
- * so integration-driven task writes update boards live.
- */
-export type PublishRealtimeEvent = (workspaceId: string, event: string, data: object) => void;
-
-/**
  * Task notification data for external services.
  */
 export interface TaskNotification {

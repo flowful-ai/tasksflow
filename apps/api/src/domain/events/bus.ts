@@ -27,6 +27,8 @@ function createRegistry(): ListenerRegistry {
     'task.restored': new Set(),
     'tasks.rekeyed': new Set(),
     'comment.created': new Set(),
+    'comment.updated': new Set(),
+    'comment.deleted': new Set(),
   };
 }
 

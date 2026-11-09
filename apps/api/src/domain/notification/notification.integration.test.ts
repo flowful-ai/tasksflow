@@ -7,6 +7,7 @@ import { notifications, tasks } from '../../db/index.js';
 import { formatMention } from '@flowtask/shared';
 import { DomainEventBus, domainEvents } from '../events/bus.js';
 import { TaskService } from '../task/service.js';
+import { CommentService } from '../comment/service.js';
 import {
   TEST_DATABASE_URL,
   createProject,
@@ -141,12 +142,14 @@ describe.skipIf(!TEST_DATABASE_URL)('notifications (integration)', () => {
         createdBy: ws.owner.id,
       })
     );
-    domainEvents.emit('comment.created', {
-      commentId: '00000000-0000-4000-8000-0000000000aa',
-      taskId: task.id,
-      actorId: ws.member.id,
-      content: `hey ${formatMention('Third', third.id)}`,
-    });
+    unwrap(
+      await new CommentService(testDb()).create({
+        taskId: task.id,
+        userId: ws.member.id,
+        content: `hey ${formatMention('Third', third.id)}`,
+      })
+    );
+    await domainEvents.idle();
     const owner = (await inboxOf(ws.owner.id)).filter((n) => n.task?.id === task.id);
     expect(owner.map((n) => n.type)).toEqual(['commented']);
     const thirdItems = (await inboxOf(third.id)).filter((n) => n.task?.id === task.id);

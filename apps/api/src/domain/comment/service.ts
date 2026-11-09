@@ -1,7 +1,7 @@
 import { domainEvents } from '../events/bus.js';
 import { eq, and, isNull, desc, sql } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
-import { comments, users, taskEvents, workspaceAgents } from '../../db/index.js';
+import { comments, projects, tasks, users, taskEvents, workspaceAgents } from '../../db/index.js';
 import type { Result } from '@flowtask/shared';
 import { ok, err } from '@flowtask/shared';
 import type {
@@ -13,8 +13,72 @@ import type {
 import { DomainError, toError } from '../workspace/errors.js';
 import { isUuid } from '../workspace/authorization.js';
 
+interface CommentTaskScope {
+  workspaceId: string;
+  projectId: string;
+  taskKey: string;
+  taskTitle: string;
+}
+
 export class CommentService {
   constructor(private db: Database) {}
+
+  /** Workspace, project and key of a comment's task (for domain events). */
+  private async taskScope(taskId: string): Promise<CommentTaskScope | null> {
+    const [row] = await this.db
+      .select({
+        workspaceId: projects.workspaceId,
+        projectId: tasks.projectId,
+        identifier: projects.identifier,
+        sequenceNumber: tasks.sequenceNumber,
+        title: tasks.title,
+      })
+      .from(tasks)
+      .innerJoin(projects, eq(tasks.projectId, projects.id))
+      .where(eq(tasks.id, taskId));
+    if (!row) return null;
+    return {
+      workspaceId: row.workspaceId,
+      projectId: row.projectId,
+      taskKey: `${row.identifier}-${row.sequenceNumber}`,
+      taskTitle: row.title,
+    };
+  }
+
+  private async emitUpdated(
+    comment: CommentWithUser,
+    actorId: string | null,
+    origin?: 'github'
+  ): Promise<void> {
+    const scope = await this.taskScope(comment.taskId);
+    if (!scope) return;
+    domainEvents.emit('comment.updated', {
+      workspaceId: scope.workspaceId,
+      projectId: scope.projectId,
+      taskId: comment.taskId,
+      actorId,
+      comment,
+      ...(origin ? { origin } : {}),
+    });
+  }
+
+  private async emitDeleted(
+    commentId: string,
+    taskId: string,
+    actorId: string | null,
+    origin?: 'github'
+  ): Promise<void> {
+    const scope = await this.taskScope(taskId);
+    if (!scope) return;
+    domainEvents.emit('comment.deleted', {
+      workspaceId: scope.workspaceId,
+      projectId: scope.projectId,
+      taskId,
+      actorId,
+      commentId,
+      ...(origin ? { origin } : {}),
+    });
+  }
 
   /**
    * Create a new comment on a task.
@@ -48,18 +112,23 @@ export class CommentService {
         return comment;
       });
 
-      // After commit: drives mentions/notifications, Slack, GitHub comment sync.
-      domainEvents.emit('comment.created', {
-        commentId: comment.id,
-        taskId: input.taskId,
-        actorId: input.userId,
-        content: input.content,
-        mcpClientId: input.mcpClientId ?? null,
-        ...(input.externalCommentId ? { origin: 'github' as const } : {}),
-        ...(input.actorLabel ? { actorLabel: input.actorLabel } : {}),
-      });
-
-      return this.getById(comment.id);
+      const full = await this.getById(comment.id);
+      const scope = await this.taskScope(input.taskId);
+      // After commit: drives realtime, mentions/notifications, Slack, GitHub comment sync.
+      if (full.ok && scope) {
+        domainEvents.emit('comment.created', {
+          ...scope,
+          commentId: comment.id,
+          taskId: input.taskId,
+          actorId: input.userId,
+          content: input.content,
+          comment: full.value,
+          mcpClientId: input.mcpClientId ?? null,
+          ...(input.externalCommentId ? { origin: 'github' as const } : {}),
+          ...(input.actorLabel ? { actorLabel: input.actorLabel } : {}),
+        });
+      }
+      return full;
     } catch (error) {
       return err(toError(error));
     }
@@ -134,7 +203,9 @@ export class CommentService {
         return err(new Error('Failed to update comment'));
       }
 
-      return this.getById(commentId);
+      const full = await this.getById(commentId);
+      if (full.ok) await this.emitUpdated(full.value, input.updatedBy);
+      return full;
     } catch (error) {
       return err(toError(error));
     }
@@ -166,6 +237,7 @@ export class CommentService {
         .set({ deletedAt: new Date() })
         .where(eq(comments.id, commentId));
 
+      await this.emitDeleted(commentId, current.taskId, deletedBy);
       return ok(undefined);
     } catch (error) {
       return err(toError(error));
@@ -300,7 +372,9 @@ export class CommentService {
         return ok(null);
       }
 
-      return this.getById(updated.id);
+      const full = await this.getById(updated.id);
+      if (full.ok) await this.emitUpdated(full.value, null, 'github');
+      return full;
     } catch (error) {
       return err(toError(error));
     }
@@ -311,11 +385,13 @@ export class CommentService {
    */
   async deleteExternal(externalCommentId: string): Promise<Result<void, Error>> {
     try {
-      await this.db
+      const deleted = await this.db
         .update(comments)
         .set({ deletedAt: new Date() })
-        .where(eq(comments.externalCommentId, externalCommentId));
+        .where(and(eq(comments.externalCommentId, externalCommentId), isNull(comments.deletedAt)))
+        .returning({ id: comments.id, taskId: comments.taskId });
 
+      for (const row of deleted) await this.emitDeleted(row.id, row.taskId, null, 'github');
       return ok(undefined);
     } catch (error) {
       return err(toError(error));

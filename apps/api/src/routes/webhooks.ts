@@ -19,7 +19,6 @@ import {
   verifySlackRequest,
   type WebhookTargetResult,
 } from '../integrations/index.js';
-import { publishEvent } from '../sse/manager.js';
 import { getAuthz } from '../lib/authorize.js';
 import { getSlackRedirectUri } from './slack.js';
 
@@ -29,7 +28,6 @@ const processor = new GitHubWebhookProcessor({
   db,
   taskService: new TaskService(db),
   commentService: new CommentService(db),
-  publish: publishEvent,
 });
 
 const DELIVERY_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
