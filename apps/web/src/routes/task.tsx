@@ -15,6 +15,7 @@ export function TaskPage() {
           taskId={taskId}
           mode="page"
           onOpenTask={(id) => navigate(`/task/${id}`)}
+          onDeleted={(projectId) => navigate(`/project/${projectId}`, { replace: true })}
         />
       </div>
     </div>

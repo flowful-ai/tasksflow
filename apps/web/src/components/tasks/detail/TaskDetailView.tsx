@@ -35,6 +35,8 @@ export interface TaskDetailViewProps {
   mode: 'sheet' | 'page' | 'inline';
   onClose?: () => void;
   onOpenTask: OpenTaskHandler;
+  /** Called after a delete is sent; the full page uses it to leave the deleted task. */
+  onDeleted?: (projectId: string) => void;
   /** Public share: no fetching, no editing. */
   readOnly?: boolean;
   initialTask?: TaskDetail;
@@ -54,6 +56,7 @@ export function TaskDetailView({
   mode,
   onClose,
   onOpenTask,
+  onDeleted,
   readOnly = false,
   initialTask,
   states: statesOverride,
@@ -144,6 +147,7 @@ export function TaskDetailView({
           withUpdated
         );
         onClose?.();
+        onDeleted?.(task.project.id);
       }
     : undefined;
 
