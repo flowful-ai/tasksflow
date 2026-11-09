@@ -18,43 +18,24 @@ env:
 
 jobs:
   format:
-    name: format (changed files)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: ${{ env.BUN_VERSION }}
       - run: bun install --frozen-lockfile
-      # Until the repo-wide format pass lands: every file this change touches
-      # must be formatted, except files that were already unformatted at the
-      # base (so editing one line of such a file does not force a reformat).
-      - name: Prettier check
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: |
-          if [ -z "$BASE_SHA" ] || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
-            BASE_SHA=$(git rev-parse HEAD~1)
-          fi
-          git diff --name-only --diff-filter=ACMR "$BASE_SHA" HEAD \
-            -- '*.ts' '*.tsx' '*.js' '*.jsx' '*.json' '*.md' \
-            | grep -v '^packages/database/drizzle/' > changed.txt || true
-          : > to-check.txt
-          while read -r file; do
-            if git cat-file -e "$BASE_SHA:$file" 2>/dev/null \
-              && ! git show "$BASE_SHA:$file" | bunx prettier --check --stdin-filepath "$file" > /dev/null 2>&1; then
-              echo "skip (unformatted at base): $file"
-            else
-              echo "$file" >> to-check.txt
-            fi
-          done < changed.txt
-          if [ -s to-check.txt ]; then
-            xargs bunx prettier --check < to-check.txt
-          else
-            echo "No formattable files to check"
-          fi
+      - run: bun run format:check
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
 
   typecheck:
     runs-on: ubuntu-latest
@@ -105,12 +86,12 @@ jobs:
           bun-version: ${{ env.BUN_VERSION }}
       - run: bun install --frozen-lockfile
       - name: Apply migrations to the empty database
-        working-directory: packages/database
+        working-directory: apps/api
         env:
           DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
         run: bunx drizzle-kit migrate
-      # Every suite, with TEST_DATABASE_URL set: the API isolation/realtime/share
-      # suites plus the domain and integrations database tests.
+      # Every suite, with TEST_DATABASE_URL set. The bun test preload
+      # (bunfig.toml) also migrates the database before any suite runs.
       - name: Integration tests
         run: bun test --timeout 60000
 
@@ -125,12 +106,12 @@ jobs:
       - run: bun install --frozen-lockfile
       # schema.ts must match the committed migrations: generating must produce nothing.
       - name: drizzle-kit generate produces no new migration
-        working-directory: packages/database
+        working-directory: apps/api
         run: |
           bunx drizzle-kit generate --name ci_drift_check
-          if [ -n "$(git status --porcelain .)" ]; then
-            echo "::error::schema.ts and packages/database/drizzle are out of sync; run bun run db:generate and commit the migration"
-            git status --porcelain .
+          if [ -n "$(git status --porcelain drizzle)" ]; then
+            echo "::error::src/db/schema.ts and apps/api/drizzle are out of sync; run bun run db:generate and commit the migration"
+            git status --porcelain drizzle
             exit 1
           fi
 
