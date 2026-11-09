@@ -2,496 +2,203 @@
 
 [![CI](https://github.com/flowful-ai/tasksflow/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/flowful-ai/tasksflow/actions/workflows/ci.yml)
 
-A comprehensive task management platform with GitHub/Slack integrations, AI agent capabilities via MCP, and public shareable views. Built with Bun for blazing-fast performance.
+**The kanban for small dev teams and their AI agents: GitHub in, Claude and Cursor on top, one container to self-host.**
+
+FlowTask keeps your team's tasks next to your GitHub issues and pull requests, lets AI assistants read and update them over MCP, and runs as a single Bun container plus Postgres.
 
 ## Features
 
-- **Kanban Board**. Drag-and-drop task management with customizable states.
-- **Smart Views**. Create filtered views with complex query conditions.
-- **Public Sharing**. Share views publicly with optional password protection.
-- **GitHub Integration**. One-way sync from GitHub issues/PRs to FlowTask tasks.
-- **Slack Integration**. One-way notifications from FlowTask to Slack channels on task updates.
-- **AI Agents**. MCP server with tools for AI-powered task management.
-- **Real-time Updates**. Native Bun WebSocket + Redis pub/sub for instant synchronization.
-- **Multi-workspace**. Organize projects across multiple workspaces with RBAC.
+- **Kanban boards**: drag and drop, custom states, priorities, labels, due dates, list view.
+- **Sub-tasks and relations**: parent/child tasks, plus `blocks`, `relates` and `duplicates` links.
+- **Bulk actions**: select up to 200 tasks and change state, priority, assignees or labels, delete or restore them, in one go.
+- **Inbox**: notifications for assignments, @mentions, comments, status changes and due dates.
+- **Search**: ⌘K command palette with Postgres full-text search over titles and descriptions.
+- **History**: every change to a task is recorded and shown on the task.
+- **Trash**: deleted tasks can be restored for 30 days, then they are purged.
+- **Smart Views**: saved filters (assignee, state, labels, dates, `{{current_user}}`, relative dates), shareable with teammates or publicly through a link with an optional password.
+- **GitHub App, two-way**: issues and PRs sync into tasks; task edits and comments sync back to the linked issue.
+- **Slack**: notifications in a channel per project (FlowTask → Slack only).
+- **Outgoing webhooks**: task and comment events posted to your URL, HMAC-SHA256 signed.
+- **MCP server**: Claude Code, Claude Desktop, Cursor and other MCP clients connect over OAuth and get 19 task tools.
+- **In-app AI chat**: an assistant that uses the same tools with your workspace's OpenRouter key (OpenAI, Anthropic and Google keys work too); it asks before changing anything.
+- **Realtime**: changes appear live in every open tab (Server-Sent Events).
+- **Keyboard first**: shortcuts everywhere; press `?` for the list.
+- **Workspaces and roles**: owner, admin and member roles, with per-project access (everyone, selected members, or admins only).
 
 ## Tech Stack
 
-| Layer          | Technology                               |
-| -------------- | ---------------------------------------- |
-| Runtime        | **Bun**                                  |
-| Frontend       | React + TypeScript + Vite + Tailwind CSS |
-| Backend        | Hono (running on Bun)                    |
-| Database       | PostgreSQL + Drizzle ORM                 |
-| Cache/Queue    | Redis                                    |
-| Authentication | Better Auth                              |
-| Real-time      | Bun WebSockets + Redis Pub/Sub           |
+| Layer          | Technology                                         |
+| -------------- | -------------------------------------------------- |
+| Runtime        | Bun                                                |
+| Frontend       | React, TypeScript, Vite, Tailwind CSS              |
+| Backend        | Hono on Bun                                        |
+| Database       | PostgreSQL 16 with Drizzle ORM                     |
+| Jobs, realtime | Postgres (job queue table, `LISTEN/NOTIFY` to SSE) |
+| Authentication | Better Auth (GitHub and Google sign-in)            |
+| AI             | MCP (Streamable HTTP), Vercel AI SDK, OpenRouter   |
 
-## Prerequisites
+## Quick Start
 
-- **Bun** 1.1+ (https://bun.sh)
-- **Docker** and **Docker Compose** (for databases)
-- **Git**
-
----
-
-## Development Setup
-
-### macOS / Linux
-
-1. **Install Bun** (if not installed)
-
-   ```bash
-   curl -fsSL https://bun.sh/install | bash
-   ```
-
-2. **Clone the repository**
-
-   ```bash
-   git clone https://github.com/flowful-ai/tasksflow.git
-   cd tasksflow
-   ```
-
-3. **Install dependencies**
-
-   ```bash
-   bun install
-   ```
-
-4. **Set up environment variables**
-
-   ```bash
-   cp .env.example .env
-   ```
-
-   Edit `.env` and configure:
-
-   ```env
-   # Database
-   DATABASE_URL=postgresql://flowtask:flowtask@localhost:5432/flowtask
-
-   # Redis
-   REDIS_URL=redis://localhost:6379
-
-   # Auth
-   BETTER_AUTH_SECRET=your-secret-key-min-32-chars
-   BETTER_AUTH_URL=http://localhost:3001
-
-   # Optional: OAuth providers
-   GITHUB_CLIENT_ID=
-   GITHUB_CLIENT_SECRET=
-   GOOGLE_CLIENT_ID=
-   GOOGLE_CLIENT_SECRET=
-
-   # Optional: Integrations
-   GITHUB_APP_ID=
-   GITHUB_APP_PRIVATE_KEY=
-   GITHUB_WEBHOOK_SECRET=
-   SLACK_BOT_TOKEN=
-   SLACK_SIGNING_SECRET=
-
-   # Optional: AI
-   OPENROUTER_API_KEY=
-   ENCRYPTION_KEY=your-32-byte-encryption-key
-   ```
-
-5. **Start infrastructure services**
-
-   ```bash
-   docker-compose up -d
-   ```
-
-   This starts PostgreSQL, Redis, and MinIO (S3-compatible storage).
-
-6. **Run database migrations**
-
-   ```bash
-   bun run db:generate
-   bun run db:migrate
-   ```
-
-7. **Start development servers**
-
-   ```bash
-   bun run dev
-   ```
-
-   - API server: http://localhost:3001
-   - WebSocket server: ws://localhost:3002/ws
-   - Web app: http://localhost:5173
-
-### Windows
-
-1. **Install Bun**
-
-   ```powershell
-   powershell -c "irm bun.sh/install.ps1 | iex"
-   ```
-
-   Or use WSL2 (recommended for best compatibility):
-
-   ```bash
-   # In WSL2
-   curl -fsSL https://bun.sh/install | bash
-   ```
-
-2. **Install Docker Desktop**
-   - Download from https://www.docker.com/products/docker-desktop/
-   - Enable WSL2 backend in Docker Desktop settings
-
-3. **Clone and setup**
-
-   ```powershell
-   git clone https://github.com/flowful-ai/tasksflow.git
-   cd tasksflow
-   bun install
-   ```
-
-4. **Set up environment variables**
-
-   ```powershell
-   copy .env.example .env
-   ```
-
-   Edit `.env` with your preferred text editor (same variables as macOS/Linux).
-
-5. **Start infrastructure services**
-
-   ```powershell
-   docker-compose up -d
-   ```
-
-6. **Run database migrations**
-
-   ```powershell
-   bun run db:generate
-   bun run db:migrate
-   ```
-
-7. **Start development servers**
-   ```powershell
-   bun run dev
-   ```
-
-### Useful Development Commands
+Prerequisites: [Bun](https://bun.sh) 1.3 or newer, Docker (for Postgres), and a GitHub or Google OAuth app for signing in.
 
 ```bash
-# Start all services in dev mode
+git clone https://github.com/flowful-ai/tasksflow.git
+cd tasksflow
+
+# 1. Postgres on 127.0.0.1:5432 (user, password and database: flowtask)
+docker compose up -d
+
+# 2. Dependencies
+bun install
+
+# 3. Environment
+cp .env.example .env
+#    - BETTER_AUTH_SECRET and API_KEY_ENCRYPTION_KEY: openssl rand -hex 32
+#    - a sign-in provider: GITHUB_CLIENT_ID/GITHUB_CLIENT_SECRET (and
+#      VITE_GITHUB_CLIENT_ID with the same client id), or the Google pair
+
+# 4. API on :3001 (applies migrations on boot) and web app on :3000
 bun run dev
+```
 
-# Start only the API
-bun run --filter @flowtask/api dev
+Open http://localhost:3000. The web dev server proxies `/api` to the API.
 
-# Start only the web app
-bun run --filter @flowtask/web dev
+Sign-up is through GitHub or Google only. For local GitHub sign-in, create an OAuth app at <https://github.com/settings/developers> with the callback URL `http://localhost:3001/api/auth/callback/github` (Google: `http://localhost:3001/api/auth/callback/google`). The first account becomes the app manager unless `APP_MANAGER_EMAILS` is set.
 
-# Build all packages
-bun run build
+### Useful commands
 
-# Run type checking
+```bash
+bun run dev              # API + web app
+bun run build            # shared package, web app, API bundle
 bun run typecheck
-
-# Run linting
 bun run lint
-
-# Generate new migration after schema changes
-bun run db:generate
-
-# Apply migrations
-bun run db:migrate
-
-# Open Drizzle Studio (database GUI)
-bun run db:studio
-
-# View logs from Docker services
-docker-compose logs -f
+bun run format:check
+bun run test             # database suites skip without TEST_DATABASE_URL
+bun run test:integration # with TEST_DATABASE_URL set (see CONTRIBUTING notes below)
+bun run db:generate      # new migration after editing apps/api/src/db/schema.ts
+bun run db:migrate       # apply migrations
+bun run db:studio        # Drizzle Studio
 ```
 
-### Direct Database Access
+## Configuration
 
-For debugging or running ad-hoc queries, you can execute SQL directly against the PostgreSQL container:
+Every variable lives in [`.env.example`](.env.example), with comments. "Required" means the API or `docker-compose.prod.yml` refuses to start without it.
+
+| Variable                                                                              | Required               | Meaning                                                                                                                                                  |
+| ------------------------------------------------------------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                                                                        | one of these           | Postgres connection URL.                                                                                                                                 |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_HOST`, `POSTGRES_PORT` | one of these           | Used to build the URL when `DATABASE_URL` is unset (URL-encoded, so any password works). `POSTGRES_PASSWORD` is required by the production compose file. |
+| `DB_POOL_MAX`                                                                         | no                     | Connections per API process (default 10).                                                                                                                |
+| `RUN_MIGRATIONS`                                                                      | no                     | Apply migrations on boot under an advisory lock (default `true`).                                                                                        |
+| `MIGRATIONS_DIR`                                                                      | no                     | Migrations folder (default `apps/api/drizzle`, `/app/drizzle` in the image).                                                                             |
+| `BETTER_AUTH_SECRET`                                                                  | yes                    | Session signing secret, 32+ random characters.                                                                                                           |
+| `BETTER_AUTH_URL`                                                                     | yes in production      | Public base URL of the app (`https://…`); OAuth callbacks are built from it.                                                                             |
+| `PUBLIC_URL`                                                                          | no                     | Base URL for OAuth/MCP metadata when it differs from `BETTER_AUTH_URL`.                                                                                  |
+| `WEB_URL`                                                                             | no                     | Public URL of the web app (default in production: `BETTER_AUTH_URL`). Trusted origin for CORS and auth.                                                  |
+| `APP_MANAGER_EMAILS`                                                                  | no                     | Comma-separated emails promoted to app manager on sign-up or next login. Unset: the first account is promoted.                                           |
+| `TRUSTED_PROXY_HOPS`                                                                  | no                     | Reverse proxies that append to `X-Forwarded-For` (`1` behind Dokploy's Traefik, `0` for none).                                                           |
+| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`                                            | for GitHub sign-in     | GitHub OAuth app for login.                                                                                                                              |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                                            | for Google sign-in     | Google OAuth client for login.                                                                                                                           |
+| `VITE_GITHUB_CLIENT_ID`, `VITE_GOOGLE_CLIENT_ID`                                      | no                     | Web build flags: non-empty shows the sign-in button. The production compose file defaults them to the server values.                                     |
+| `VITE_API_URL`                                                                        | no                     | Leave empty: the SPA calls the API on its own origin.                                                                                                    |
+| `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`                                             | for GitHub integration | GitHub App id and private key (PEM with `\n`, or base64).                                                                                                |
+| `GITHUB_WEBHOOK_SECRET`                                                               | for GitHub integration | Verifies `POST /api/webhooks/github`; webhooks are rejected while unset.                                                                                 |
+| `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`                                    | for GitHub integration | The App's OAuth client, used to verify the installing user.                                                                                              |
+| `GITHUB_APP_SLUG`, `VITE_GITHUB_APP_SLUG`                                             | for GitHub integration | App slug for the install link (`github.com/apps/<slug>`).                                                                                                |
+| `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`                                              | for Slack              | Slack app OAuth credentials ("Add to Slack").                                                                                                            |
+| `SLACK_SIGNING_SECRET`                                                                | for Slack              | Verifies `POST /api/webhooks/slack`.                                                                                                                     |
+| `SLACK_REDIRECT_URI`                                                                  | no                     | Default `<BETTER_AUTH_URL>/api/webhooks/slack/oauth`.                                                                                                    |
+| `SLACK_BOT_TOKEN`                                                                     | no                     | Fallback bot token for projects without their own Slack install.                                                                                         |
+| `API_KEY_ENCRYPTION_KEY`                                                              | yes                    | Encrypts stored AI provider keys. 32 random bytes as hex or base64 (`openssl rand -hex 32`).                                                             |
+| `INTEGRATION_ENCRYPTION_KEY`                                                          | no                     | Encrypts Slack bot tokens; defaults to `API_KEY_ENCRYPTION_KEY`.                                                                                         |
+| `OPENROUTER_TIMEOUT_MS`                                                               | no                     | OpenRouter request timeout (default 120000).                                                                                                             |
+| `NODE_ENV`                                                                            | no                     | `production` turns on HSTS and the production origin and URL rules.                                                                                      |
+| `API_PORT`, `API_HOST`                                                                | no                     | Listen port and interface (defaults `3001`, `0.0.0.0`).                                                                                                  |
+| `WEB_DIST_DIR`                                                                        | no                     | Built SPA to serve (default `apps/web/dist`, `/app/public` in the image).                                                                                |
+| `SHUTDOWN_TIMEOUT_MS`                                                                 | no                     | Per-phase graceful shutdown timeout (default 10000).                                                                                                     |
+| `JOBS_DISABLED`                                                                       | no                     | `true` disables the job runner in this process.                                                                                                          |
+| `ALLOW_PRIVATE_WEBHOOK_TARGETS`                                                       | no                     | `true` allows outgoing webhooks to private addresses (development only).                                                                                 |
+| `TEST_DATABASE_URL`                                                                   | tests only             | Database for integration tests; it is wiped.                                                                                                             |
+
+## Connect an MCP client
+
+The MCP endpoint is `https://<your-domain>/api/mcp` (Streamable HTTP; `/api/mcp/sse` is an alias for older configurations). There are no API tokens to copy: the client registers itself, opens a browser window, and you approve access.
+
+**Claude Code**
 
 ```bash
-# Run a single SQL query
-docker exec -i flowtask-postgres psql -U flowtask -d flowtask -c "SELECT * FROM users;"
-
-# Run multiple queries
-docker exec -i flowtask-postgres psql -U flowtask -d flowtask -c "
-SELECT u.email,
-       CASE WHEN a.id IS NOT NULL THEN 'Yes' ELSE 'No' END as has_account
-FROM users u
-LEFT JOIN accounts a ON u.id = a.user_id;
-"
-
-# Open an interactive PostgreSQL shell
-docker exec -it flowtask-postgres psql -U flowtask -d flowtask
-
-# Execute SQL from a file
-docker exec -i flowtask-postgres psql -U flowtask -d flowtask < script.sql
+claude mcp add --transport http flowtask https://<your-domain>/api/mcp
 ```
 
-Common debugging queries:
+Then run `/mcp` in Claude Code and choose to authenticate.
 
-```bash
-# List all tables
-docker exec -i flowtask-postgres psql -U flowtask -d flowtask -c "\dt"
+**Claude Desktop**: Settings → Connectors → Add custom connector, URL `https://<your-domain>/api/mcp`. Claude connects from Anthropic's servers, so the URL must be reachable from the internet.
 
-# Describe a table structure
-docker exec -i flowtask-postgres psql -U flowtask -d flowtask -c "\d users"
+**Cursor**: add to `~/.cursor/mcp.json` (or `.cursor/mcp.json` in a project):
 
-# Check users and their accounts
-docker exec -i flowtask-postgres psql -U flowtask -d flowtask -c "
-SELECT u.id, u.email, u.name, a.provider_id
-FROM users u
-LEFT JOIN accounts a ON u.id = a.user_id;
-"
+```json
+{
+  "mcpServers": {
+    "flowtask": { "url": "https://<your-domain>/api/mcp" }
+  }
+}
 ```
 
-For Redis access:
+**What happens on connect**
 
-```bash
-# Open Redis CLI
-docker exec -it flowtask-redis redis-cli
+1. The client reads `/.well-known/oauth-protected-resource/api/mcp` and `/.well-known/oauth-authorization-server`, then registers with `POST /api/mcp/oauth/register`.
+2. Your browser opens the FlowTask consent page (sign in first if needed). Pick the workspace and the tools to grant. Only workspace owners and admins can approve.
+3. The client receives a 15-minute access token and a 30-day rotating refresh token, bound to this server's MCP resource.
 
-# Check Redis keys
-docker exec -i flowtask-redis redis-cli KEYS "*"
+Owners and admins can see, narrow and revoke connections under **Settings → MCP Connections**. Details, the tool list and scopes: [docs/mcp.md](docs/mcp.md).
 
-# Monitor Redis in real-time
-docker exec -it flowtask-redis redis-cli MONITOR
-```
+## GitHub App setup
 
----
+FlowTask uses a GitHub App (separate from the OAuth app used for sign-in).
 
-## Production Deployment
+1. Create an App at <https://github.com/settings/apps/new> (or under your organization).
+2. **Callback URL**: `https://<your-domain>/api/github/callback`, and tick **Request user authorization (OAuth) during installation**. FlowTask refuses installations without this step: it checks that the installing user can access the installation.
+3. **Webhook**: active, URL `https://<your-domain>/api/webhooks/github`, and a random **webhook secret** (`openssl rand -hex 32`).
+4. **Repository permissions**: Issues: Read and write; Pull requests: Read-only; Metadata: Read-only.
+5. **Subscribe to events**: Issues, Issue comment, Pull request.
+6. Generate a private key and note the App ID, the Client ID, a new client secret and the App slug (from its public URL).
+7. Set `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`, `GITHUB_APP_SLUG` and `VITE_GITHUB_APP_SLUG`.
 
-### Using Docker Compose
+Then, in a project's settings, install the App and link repositories. Issues and PRs become tasks; changes to a linked task's title, description, state, priority and labels, and new comments, are written back to GitHub.
 
-1. **Clone and configure**
+## Slack app setup
 
-   ```bash
-   git clone https://github.com/flowful-ai/tasksflow.git
-   cd tasksflow
-   cp .env.example .env
-   ```
+Slack gets notifications only (task created, state changed, assigned, comment added); FlowTask never creates tasks from Slack.
 
-2. **Edit `.env` for production**
+1. Create an app at <https://api.slack.com/apps>.
+2. **OAuth & Permissions**: add the redirect URL `https://<your-domain>/api/webhooks/slack/oauth` and the bot scopes `chat:write`, `chat:write.public`, `channels:read`, `groups:read` and `incoming-webhook`.
+3. Optional: a slash command or Event Subscriptions pointing at `https://<your-domain>/api/webhooks/slack` (slash commands answer with help text; events are acknowledged and ignored).
+4. Set `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET` and `SLACK_SIGNING_SECRET` (from **Basic Information**).
+5. In a project's settings, click **Add to Slack** and pick the channel. The bot token is stored per project, encrypted.
 
-   ```env
-   NODE_ENV=production
+## Deployment
 
-   # Use strong secrets
-   DATABASE_URL=postgresql://flowtask:STRONG_PASSWORD@db:5432/flowtask
-   REDIS_URL=redis://redis:6379
-   BETTER_AUTH_SECRET=generate-a-strong-64-char-secret
-   BETTER_AUTH_URL=https://your-domain.com
+Production is one image (`apps/api/Dockerfile`: API bundle, built SPA and migrations) plus Postgres and a daily backup sidecar, described in [`docker-compose.prod.yml`](docker-compose.prod.yml). The reference setup is Dokploy: route your domain to `tasksflow-api` on port 3001, set the environment, deploy. Migrations run on boot.
 
-   # Configure your domain
-   CORS_ORIGIN=https://your-domain.com
-   ```
+- [docs/deploy.md](docs/deploy.md): Dokploy deployment, health checks, scaling, shutdown.
+- [docs/backup-restore.md](docs/backup-restore.md): backups and a restore drill.
+- [docs/v2-upgrade.md](docs/v2-upgrade.md): upgrading a v1 installation.
 
-3. **Build and start**
+## Documentation
 
-   ```bash
-   docker-compose -f docker-compose.prod.yml up -d --build
-   ```
-
-4. **Run migrations**
-
-   ```bash
-   docker-compose -f docker-compose.prod.yml exec api bun run db:migrate
-   ```
-
-5. **Access the application**
-   - Web app: http://localhost:3000
-   - API: http://localhost:3001
-   - WebSocket: ws://localhost:3002/ws
-
-### Manual Deployment
-
-1. **Build all packages**
-
-   ```bash
-   bun install --frozen-lockfile
-   bun run build
-   ```
-
-2. **Deploy the API**
-
-   ```bash
-   cd apps/api
-   bun run dist/index.js
-   ```
-
-3. **Deploy the Web App**
-
-   The web app builds to static files in `apps/web/dist/`. Deploy to any static hosting:
-   - **Nginx**: Copy `dist/` to `/usr/share/nginx/html/`
-   - **Vercel/Netlify**: Point to `apps/web` directory
-   - **S3 + CloudFront**: Upload `dist/` to S3 bucket
-
-4. **Configure reverse proxy**
-
-   Example Nginx configuration:
-
-   ```nginx
-   server {
-       listen 80;
-       server_name your-domain.com;
-
-       # Frontend
-       location / {
-           root /var/www/flowtask;
-           try_files $uri $uri/ /index.html;
-       }
-
-       # API proxy
-       location /api {
-           proxy_pass http://localhost:3001;
-           proxy_http_version 1.1;
-           proxy_set_header Upgrade $http_upgrade;
-           proxy_set_header Connection 'upgrade';
-           proxy_set_header Host $host;
-           proxy_cache_bypass $http_upgrade;
-       }
-
-       # WebSocket proxy
-       location /ws {
-           proxy_pass http://localhost:3002;
-           proxy_http_version 1.1;
-           proxy_set_header Upgrade $http_upgrade;
-           proxy_set_header Connection "Upgrade";
-           proxy_set_header Host $host;
-       }
-   }
-   ```
-
-### Environment Variables Reference
-
-| Variable                 | Required | Description                                   |
-| ------------------------ | -------- | --------------------------------------------- |
-| `DATABASE_URL`           | Yes      | PostgreSQL connection string                  |
-| `REDIS_URL`              | Yes      | Redis connection string                       |
-| `BETTER_AUTH_SECRET`     | Yes      | Secret for signing auth tokens (min 32 chars) |
-| `BETTER_AUTH_URL`        | Yes      | Base URL for auth callbacks                   |
-| `API_PORT`               | No       | API server port (default: 3001)               |
-| `WS_PORT`                | No       | WebSocket server port (default: 3002)         |
-| `CORS_ORIGIN`            | No       | Allowed CORS origin (default: localhost:5173) |
-| `GITHUB_CLIENT_ID`       | No       | GitHub OAuth app client ID                    |
-| `GITHUB_CLIENT_SECRET`   | No       | GitHub OAuth app client secret                |
-| `GOOGLE_CLIENT_ID`       | No       | Google OAuth client ID                        |
-| `GOOGLE_CLIENT_SECRET`   | No       | Google OAuth client secret                    |
-| `GITHUB_APP_ID`          | No       | GitHub App ID for integration                 |
-| `GITHUB_APP_PRIVATE_KEY` | No       | GitHub App private key (base64 encoded)       |
-| `GITHUB_WEBHOOK_SECRET`  | No       | Secret for verifying GitHub webhooks          |
-| `SLACK_BOT_TOKEN`        | No       | Slack bot OAuth token                         |
-| `SLACK_SIGNING_SECRET`   | No       | Secret for verifying Slack requests           |
-| `OPENROUTER_API_KEY`     | No       | OpenRouter API key for AI features            |
-| `ENCRYPTION_KEY`         | No       | 32-byte key for encrypting stored API keys    |
-| `MINIO_ENDPOINT`         | No       | S3/MinIO endpoint for file storage            |
-| `MINIO_ACCESS_KEY`       | No       | S3/MinIO access key                           |
-| `MINIO_SECRET_KEY`       | No       | S3/MinIO secret key                           |
-
----
-
-## Project Structure
-
-```
-flowtask/
-├── apps/
-│   ├── api/                    # Hono API server (Bun runtime)
-│   │   ├── src/
-│   │   │   ├── index.ts        # Server entry point
-│   │   │   ├── routes/         # API route handlers
-│   │   │   └── websocket/      # Bun WebSocket handler
-│   │   └── Dockerfile
-│   │
-│   └── web/                    # React frontend
-│       ├── src/
-│       │   ├── components/     # UI components
-│       │   ├── routes/         # Page components
-│       │   ├── stores/         # Zustand state stores
-│       │   └── api/            # API client
-│       ├── nginx.conf
-│       └── Dockerfile
-│
-├── packages/
-│   ├── shared/                 # Shared types and utilities
-│   ├── database/               # Drizzle schema and client
-│   ├── auth/                   # Better Auth configuration
-│   ├── domain/                 # Business logic services
-│   └── integrations/           # External service clients
-│
-├── docker-compose.yml          # Development infrastructure
-├── docker-compose.prod.yml     # Production deployment
-├── turbo.json                  # Turborepo configuration
-└── package.json                # Root package (Bun workspaces)
-```
-
----
-
-## Why Bun?
-
-FlowTask uses Bun as its primary runtime for several reasons:
-
-- **Speed**. Bun is significantly faster than Node.js for starting servers and running TypeScript.
-- **Native TypeScript**. No transpilation step needed. Bun runs TypeScript directly.
-- **Built-in WebSockets**. Native WebSocket support without additional packages.
-- **All-in-one**. Package manager, bundler, test runner, and runtime in one tool.
-- **Node.js Compatible**. Most npm packages work out of the box.
-
----
-
-## Integrations Setup
-
-### GitHub Integration
-
-1. Create a GitHub App at https://github.com/settings/apps/new
-2. Configure permissions:
-   - Issues: Read & Write
-   - Pull requests: Read
-   - Webhooks: Receive events
-3. Set webhook URL to `https://your-domain.com/api/webhooks/github`
-4. Generate and download private key
-5. Add credentials to `.env`
-
-### Slack Integration
-
-FlowTask posts one-way notifications to Slack on task updates. It does not receive events or create tasks from Slack.
-
-1. Create a Slack App at https://api.slack.com/apps
-2. Add the `chat:write` Bot Token Scope under **OAuth & Permissions**
-3. Install the app to your workspace and copy the Bot User OAuth Token
-4. Invite the bot to the target channel(s)
-5. Set `SLACK_BOT_TOKEN` and `SLACK_SIGNING_SECRET` in `.env`
-
-### AI Agents (MCP)
-
-FlowTask MCP now uses OAuth 2.1 (Authorization Code + PKCE) with dynamic client registration.
-
-1. Add the MCP server in ChatGPT or Claude using `https://your-domain.com/api/mcp/sse`.
-   - Transport mode: Streamable HTTP, stateless, `POST` requests.
-   - `GET`/`DELETE` on `/api/mcp/sse` are not supported.
-   - Legacy split SSE endpoints (`/api/mcp/sse/stream`, `/api/mcp/sse/message`) are deprecated/disabled.
-2. The client discovers OAuth metadata from:
-   - `https://your-domain.com/.well-known/oauth-protected-resource/api/mcp/sse`
-   - `https://your-domain.com/api/mcp/.well-known/oauth-authorization-server`
-3. Sign in and approve consent for one workspace scope (`mcp:workspace:<workspaceId>`) plus tool scopes (`mcp:tool:create_task`, `mcp:tool:add_comment`, etc.).
-4. Only workspace `owner` and `admin` roles can approve MCP OAuth access.
-5. MCP tools are discovered via `tools/list` (not via `list_resources`).
-
----
+- [docs/architecture.md](docs/architecture.md): how requests, events, jobs and realtime fit together.
+- [docs/api.md](docs/api.md): every HTTP endpoint.
+- [docs/mcp.md](docs/mcp.md): MCP tools, scopes and security.
+- [CHANGELOG.md](CHANGELOG.md) and [SECURITY.md](SECURITY.md).
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/my-feature`
-3. Make your changes
-4. Run tests: `bun test`
-5. Commit: `git commit -m "Add my feature"`
-6. Push: `git push origin feature/my-feature`
-7. Open a Pull Request
+1. Fork the repository and create a branch.
+2. Read [AGENTS.md](AGENTS.md) and [CLAUDE.md](CLAUDE.md): layout, conventions and the database rules (schema changes go through `bun run db:generate`).
+3. Before opening a pull request, run `bun run format:check`, `bun run lint`, `bun run typecheck` and `bun run test`. For database code, also run the integration suites against a scratch database: `createdb flowtask_test` in the dev Postgres, then `TEST_DATABASE_URL=postgresql://flowtask:flowtask@localhost:5432/flowtask_test bun run test:integration`.
+4. Open a pull request against `main`. CI runs format, lint, typecheck, unit and integration tests, a migration drift check, the build, a dependency audit and the Docker build.
 
----
+Report security issues privately: see [SECURITY.md](SECURITY.md).
 
 ## License
 
