@@ -52,6 +52,14 @@ const AccessChangedSchema = z.object({
   u: z.string().nullable(),
 });
 
+/** Drop `key` (or everything, when null) from the per-process cache named `c`. */
+const CacheInvalidatedSchema = z.object({
+  k: z.literal('invalidate'),
+  o: z.string(),
+  c: z.string(),
+  key: z.string().nullable(),
+});
+
 const PingSchema = z.object({
   k: z.literal('ping'),
   o: z.string(),
@@ -62,6 +70,7 @@ export const WireMessageSchema = z.discriminatedUnion('k', [
   UserEventSchema,
   MemberRemovedSchema,
   AccessChangedSchema,
+  CacheInvalidatedSchema,
   PingSchema,
 ]);
 

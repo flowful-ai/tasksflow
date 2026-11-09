@@ -301,6 +301,38 @@ describe('RealtimeHub cross-instance delivery', () => {
     }
   });
 
+  it('relays cache invalidations to the other instances only', async () => {
+    const bus = memoryBus();
+    const state = baseState();
+    const seen: Record<string, [string, string | null][]> = { a: [], b: [] };
+    const a = new RealtimeHub({
+      resolver: fakeResolver(state),
+      transportFactory: bus.factory,
+      instanceId: 'aaaaaaaa-a',
+      onCacheInvalidated: (cache, key) => seen.a!.push([cache, key]),
+    });
+    const b = new RealtimeHub({
+      resolver: fakeResolver(state),
+      transportFactory: bus.factory,
+      instanceId: 'bbbbbbbb-b',
+      onCacheInvalidated: (cache, key) => seen.b!.push([cache, key]),
+    });
+    await a.start();
+    await b.start();
+    try {
+      await a.broadcastCacheInvalidation('slack.project_enabled', 'project-1');
+      await a.broadcastCacheInvalidation('slack.project_enabled', null);
+      expect(seen.a).toEqual([]);
+      expect(seen.b).toEqual([
+        ['slack.project_enabled', 'project-1'],
+        ['slack.project_enabled', null],
+      ]);
+    } finally {
+      await a.stop();
+      await b.stop();
+    }
+  });
+
   it('never throws when the transport fails', async () => {
     const failing = (): RealtimeTransport => ({
       subscribe: async () => undefined,

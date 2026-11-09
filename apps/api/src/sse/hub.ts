@@ -98,6 +98,8 @@ export interface HubOptions {
   timings?: Partial<HubTimings>;
   instanceId?: string;
   logger?: Pick<Console, 'error' | 'warn' | 'info'>;
+  /** Called for a cache invalidation broadcast by another instance. */
+  onCacheInvalidated?: (cache: string, key: string | null) => void;
 }
 
 const encoder = new TextEncoder();
@@ -108,6 +110,7 @@ export class RealtimeHub {
   private readonly transportFactory: (() => RealtimeTransport) | null;
   private readonly timings: HubTimings;
   private readonly logger: Pick<Console, 'error' | 'warn' | 'info'>;
+  private readonly onCacheInvalidated: ((cache: string, key: string | null) => void) | null;
 
   private readonly clients = new Set<ClientState>();
   private readonly byWorkspace = new Map<string, Set<ClientState>>();
@@ -129,6 +132,7 @@ export class RealtimeHub {
     this.timings = { ...DEFAULT_TIMINGS, ...options.timings };
     this.instanceId = options.instanceId ?? randomUUID();
     this.logger = options.logger ?? console;
+    this.onCacheInvalidated = options.onCacheInvalidated ?? null;
   }
 
   // ---------------------------------------------------------------- lifecycle
@@ -272,6 +276,14 @@ export class RealtimeHub {
     );
   }
 
+  /**
+   * Tell the other instances to drop `key` (or everything, when null) from a
+   * per-process cache. The caller has already invalidated its own copy.
+   */
+  async broadcastCacheInvalidation(cache: string, key: string | null): Promise<void> {
+    await this.broadcast(JSON.stringify({ k: 'invalidate', o: this.instanceId, c: cache, key }));
+  }
+
   /** Handle a raw payload from the transport. Exposed for tests. */
   handleIncoming(payload: string): void {
     const message = decodeWireMessage(payload);
@@ -335,6 +347,13 @@ export class RealtimeHub {
         return;
       case 'access_changed':
         void this.refreshAccess(message.w, message.u);
+        return;
+      case 'invalidate':
+        try {
+          this.onCacheInvalidated?.(message.c, message.key);
+        } catch (error) {
+          this.logger.error('[realtime] cache invalidation failed:', error);
+        }
         return;
       case 'ping':
         return;

@@ -1,6 +1,10 @@
 import { getDatabase, resolveDatabaseUrl } from '../db/client.js';
 import { getAuthz } from '../lib/authorize.js';
 import {
+  applyRemoteInvalidation,
+  setCacheInvalidationBroadcaster,
+} from '../lib/cache-invalidation.js';
+import {
   RealtimeHub,
   type AccessResolver,
   type ClientHandle,
@@ -26,6 +30,12 @@ const accessResolver: AccessResolver = {
 let hub: RealtimeHub = new RealtimeHub({ resolver: accessResolver });
 let started = false;
 
+// Per-process caches (e.g. "project has Slack") are invalidated on every
+// instance through the same NOTIFY channel as realtime events.
+setCacheInvalidationBroadcaster((cache, key) => {
+  void hub.broadcastCacheInvalidation(cache, key);
+});
+
 /**
  * Start heartbeats, revalidation and the cross-instance subscription.
  * Safe to call more than once; never throws (LISTEN failures are retried).
@@ -41,6 +51,7 @@ export function initSSE(): void {
   }
   hub = new RealtimeHub({
     resolver: accessResolver,
+    onCacheInvalidated: applyRemoteInvalidation,
     // NOTIFY goes through the app pool; the transport only adds the LISTEN connection.
     transportFactory: url
       ? () =>

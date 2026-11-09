@@ -16,6 +16,7 @@ import {
   scheduleBackgroundJob,
   type BackgroundJobPayload,
 } from '../background.js';
+import { invalidateCache, registerInvalidatedCache } from '../../lib/cache-invalidation.js';
 import { decryptSecret } from '../crypto.js';
 import { getWebUrl } from '../env.js';
 import type { TaskNotification } from '../types.js';
@@ -253,10 +254,20 @@ export function slackEnabledForProject(
   return enabled;
 }
 
-/** Forget the cached answer after a project's Slack integration is saved or deleted. */
-export function clearSlackProjectCache(projectId?: string): void {
+const SLACK_PROJECT_CACHE = 'slack.project_enabled';
+
+registerInvalidatedCache(SLACK_PROJECT_CACHE, (projectId) => {
   if (projectId) slackProjectCache.delete(projectId);
   else slackProjectCache.clear();
+});
+
+/**
+ * Forget the cached answer after a project's Slack integration is saved or
+ * deleted, on this instance and (over the realtime NOTIFY channel) on every
+ * other one, so no replica keeps dropping notifications until the TTL ends.
+ */
+export function clearSlackProjectCache(projectId?: string): void {
+  invalidateCache(SLACK_PROJECT_CACHE, projectId ?? null);
 }
 
 /**

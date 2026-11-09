@@ -12,6 +12,10 @@ import {
   testDb,
 } from '../../domain/task/test-fixtures.js';
 import {
+  applyRemoteInvalidation,
+  setCacheInvalidationBroadcaster,
+} from '../../lib/cache-invalidation.js';
+import {
   SLACK_PROJECT_CACHE_TTL_MS,
   clearSlackProjectCache,
   slackEnabledForProject,
@@ -42,5 +46,32 @@ describe.skipIf(!TEST_DATABASE_URL)('slackEnabledForProject (integration)', () =
       .where(eq(projectIntegrations.projectId, project.projectId));
     clearSlackProjectCache(project.projectId);
     expect(await slackEnabledForProject(project.projectId, db)).toBe(false);
+  });
+
+  it('broadcasts a clear to other instances and applies theirs', async () => {
+    const db = testDb();
+    const ws = await createWorkspace(db);
+    const project = await createProject(db, ws.workspaceId);
+    const sent: [string, string | null][] = [];
+    const previous = setCacheInvalidationBroadcaster((cache, key) => sent.push([cache, key]));
+    try {
+      expect(await slackEnabledForProject(project.projectId, db)).toBe(false);
+      await db.insert(projectIntegrations).values({
+        projectId: project.projectId,
+        integrationType: 'slack',
+        config: {},
+        isEnabled: true,
+      });
+      expect(await slackEnabledForProject(project.projectId, db)).toBe(false);
+
+      // Another instance saved the integration: its broadcast clears our entry.
+      applyRemoteInvalidation('slack.project_enabled', project.projectId);
+      expect(await slackEnabledForProject(project.projectId, db)).toBe(true);
+
+      clearSlackProjectCache(project.projectId);
+      expect(sent).toEqual([['slack.project_enabled', project.projectId]]);
+    } finally {
+      setCacheInvalidationBroadcaster(previous);
+    }
   });
 });
