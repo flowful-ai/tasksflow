@@ -1,6 +1,6 @@
 /**
  * TaskService integration tests. Skipped unless TEST_DATABASE_URL points at a
- * database with the v2 schema pushed and drizzle-v2-data/*.sql applied.
+ * database migrated through drizzle/0016_v2.sql (the test preload does this).
  */
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { and, asc, eq, sql } from 'drizzle-orm';

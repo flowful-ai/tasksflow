@@ -19,6 +19,9 @@ describe('dynamic client registration redirect policy', () => {
     'http://[::1]:8080/cb',
     'com.example.app:/oauth2redirect',
     'cursor.app://anysphere.cursor-retrieval/oauth/callback',
+    'cursor://anysphere.cursor-mcp/oauth/callback',
+    'vscode://vscode.github-authentication/did-authenticate',
+    'myapp:/callback',
   ])('accepts %s', (uri) => {
     expect(validateRedirectUri(uri)).toBe(uri);
   });
@@ -29,7 +32,7 @@ describe('dynamic client registration redirect policy', () => {
     'file:///etc/passwd',
     'http://evil.example/callback',
     'http://127.0.0.1.evil.example/cb',
-    'myapp:/callback',
+    'vbscript:msgbox(1)',
     'https://example.com/cb#fragment',
     'not a url',
   ])('rejects %s', (uri) => {

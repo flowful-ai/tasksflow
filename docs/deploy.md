@@ -73,7 +73,7 @@ The API is stateless apart from open SSE streams, and the shared pieces are in P
 
 To run more instances, add `replicas` under `tasksflow-api.deploy` (the compose file already sets `deploy.resources` there) and redeploy; Traefik balances across them. Mind the connection budget: Postgres is configured for 30 connections, and each API instance uses `DB_POOL_MAX` (10) plus one `LISTEN` connection, plus one during migrations. Two instances fit; for more, lower `DB_POOL_MAX` or raise `max_connections` and the Postgres memory limit together.
 
-**Known limitation:** cross-instance realtime uses Postgres `LISTEN/NOTIFY`, and the realtime transport reads only `DATABASE_URL`. `docker-compose.prod.yml` passes the `POSTGRES_*` parts instead, so with the stock compose file each instance logs `DATABASE_URL not set; realtime events stay on this instance` and a change made through one replica only reaches SSE clients connected to that replica. Keep one replica, or add `DATABASE_URL` to the `tasksflow-api` environment in the compose file, before scaling out.
+Cross-instance realtime uses Postgres `LISTEN/NOTIFY` on the same connection settings as the pool (`DATABASE_URL`, or the URL built from `POSTGRES_*`), so a change made through one replica reaches SSE clients on every replica.
 
 ## Logs and operations
 

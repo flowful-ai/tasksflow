@@ -1,3 +1,4 @@
+import { resolveDatabaseUrl } from '../db/client.js';
 import { getAuthz } from '../lib/authorize.js';
 import {
   RealtimeHub,
@@ -33,9 +34,11 @@ let started = false;
 export function initSSE(): void {
   if (started) return;
   started = true;
-  const url = process.env.DATABASE_URL;
+  // Same resolution as the DB pool: DATABASE_URL, or one built from POSTGRES_*
+  // (the prod compose passes the parts, not a URL).
+  const url = resolveDatabaseUrl();
   if (!url) {
-    console.warn('[realtime] DATABASE_URL not set; realtime events stay on this instance');
+    console.warn('[realtime] no database URL configured; realtime events stay on this instance');
   }
   hub = new RealtimeHub({
     resolver: accessResolver,

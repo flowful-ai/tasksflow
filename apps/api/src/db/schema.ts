@@ -120,7 +120,7 @@ export const projects = pgTable(
     isArchived: boolean('is_archived').default(false).notNull(),
     access: text('access').notNull().default('all'), // 'all', 'admin', 'members'
     // Next task sequence number (FLOW-<n>), allocated with UPDATE ... RETURNING
-    // inside the task-create transaction. Backfill: drizzle-v2-data/task-sequence.sql
+    // inside the task-create transaction. Backfill: drizzle/0016_v2.sql
     nextTaskSeq: integer('next_task_seq').notNull().default(1),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -208,7 +208,7 @@ export const tasks = pgTable(
     description: text('description'), // Markdown
     priority: text('priority'), // 'urgent', 'high', 'medium', 'low', 'none'
     // Fractional index within the column. Must sort byte-wise: the column is
-    // switched to COLLATE "C" by drizzle-v2-data/b20-positions-collation.sql
+    // switched to COLLATE "C" by drizzle/0016_v2.sql
     // (drizzle can't declare a collation, and a custom type would make
     // drizzle-kit push TRUNCATE the table), and TaskService orders with an
     // explicit COLLATE "C" as well.
@@ -1002,7 +1002,7 @@ export const outgoingWebhookDeliveries = pgTable(
   ]
 );
 
-// ============ RATE LIMITING (UNLOGGED via drizzle-v2-data/rate-limit-unlogged.sql) ============
+// ============ RATE LIMITING (UNLOGGED via drizzle/0016_v2.sql) ============
 
 export const rateLimitCounters = pgTable(
   'rate_limit_counters',

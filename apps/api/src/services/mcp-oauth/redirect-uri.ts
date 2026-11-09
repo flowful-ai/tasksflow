@@ -3,7 +3,10 @@ import { OAuthError } from './errors.js';
 /**
  * Dynamic client registration policy for redirect URIs (RFC 6749 §3.1.2,
  * RFC 8252 §7): https anywhere, http only on loopback, or a private-use
- * reverse-domain scheme such as `com.example.app:/callback`.
+ * app scheme. RFC 8252 recommends reverse-domain schemes, but real MCP
+ * clients register plain ones (`cursor://`, `vscode://`), so any scheme that
+ * is not on the forbidden list is accepted; the consent page shows the
+ * redirect target and flags the client as unverified.
  */
 
 export const MAX_REDIRECT_URIS = 10;
@@ -20,7 +23,7 @@ const FORBIDDEN_SCHEMES = new Set([
   'about:',
   'filesystem:',
 ]);
-const PRIVATE_USE_SCHEME = /^[a-z][a-z0-9+.-]*\.[a-z0-9+.-]+:$/;
+const PRIVATE_USE_SCHEME = /^[a-z][a-z0-9+.-]*:$/;
 
 function invalid(message: string): OAuthError {
   return new OAuthError('invalid_redirect_uri', message);
@@ -65,9 +68,7 @@ export function validateRedirectUri(raw: string): string {
     return raw;
   }
 
-  throw invalid(
-    'redirect_uri must use https, loopback http, or a reverse-domain private-use scheme'
-  );
+  throw invalid('redirect_uri must use https, loopback http, or a private-use app scheme');
 }
 
 export function validateRedirectUris(uris: unknown): string[] {
