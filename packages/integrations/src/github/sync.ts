@@ -58,14 +58,17 @@ class Semaphore {
 
   async run<T>(fn: () => Promise<T>): Promise<T> {
     if (this.active >= this.max) {
+      // The releasing caller hands its slot over directly (see finally).
       await new Promise<void>((resolve) => this.waiters.push(resolve));
+    } else {
+      this.active++;
     }
-    this.active++;
     try {
       return await fn();
     } finally {
-      this.active--;
-      this.waiters.shift()?.();
+      const next = this.waiters.shift();
+      if (next) next();
+      else this.active--;
     }
   }
 }
