@@ -29,6 +29,8 @@ import { avatarUrlOf, initials } from '../../lib/account';
 import { AgentChatLauncher } from '../chat/AgentChatLauncher';
 import { ReconnectingBanner } from '../realtime/ConnectionStatus';
 import { GlobalLayers } from '../command/GlobalLayers';
+import { NoWorkspaceState } from './NoWorkspaceState';
+import { ErrorState } from '../ui/ErrorState';
 import { projectColor } from '../../lib/color';
 import {
   ColorDot,
@@ -126,7 +128,14 @@ export function Layout({ children }: LayoutProps) {
     workspaces,
     workspaceId,
     setWorkspaceId,
+    isLoading: workspacesLoading,
+    error: workspacesError,
   } = useCurrentWorkspace();
+  // Settings (profile, create workspace, app admin) works without a workspace;
+  // every other page needs one and would otherwise wait for it forever.
+  const needsWorkspace = !location.pathname.startsWith('/settings');
+  const noWorkspace =
+    needsWorkspace && !workspacesLoading && !workspacesError && workspaces.length === 0;
   const { data: projects = [] } = useProjects(workspaceId);
   const { data: unread = 0 } = useUnreadNotificationCount(workspaceId);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -468,7 +477,17 @@ export function Layout({ children }: LayoutProps) {
         {/* Page content */}
         <main id="main" tabIndex={-1} className="p-3 focus:outline-none sm:p-6 lg:p-10">
           <ReconnectingBanner className="mb-4" />
-          {children}
+          {noWorkspace ? (
+            <NoWorkspaceState email={user?.email} onSignOut={() => void logout()} />
+          ) : needsWorkspace && workspacesError && workspaces.length === 0 ? (
+            <ErrorState
+              error={workspacesError}
+              resource="workspaces"
+              onRetry={() => window.location.reload()}
+            />
+          ) : (
+            children
+          )}
         </main>
       </div>
 
