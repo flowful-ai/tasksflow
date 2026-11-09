@@ -2,7 +2,7 @@
  * The composer shows mentions as plain "@Name" and keeps the user ids aside;
  * these convert between that and the stored `@[Name](user:<uuid>)` tokens.
  */
-import { formatMention, parseMentions } from '@flowtask/shared';
+import { formatMention, parseMentions } from '@flowtask/shared/utils';
 
 export interface DraftMention {
   userId: string;

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { formatMention } from '@flowtask/shared';
+import { formatMention } from '@flowtask/shared/utils';
 import { activeMentionQuery, decodeMentions, encodeMentions } from './mentionText';
 import { mentionsToMarkdown } from './Markdown';
 

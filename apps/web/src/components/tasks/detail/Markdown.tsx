@@ -10,7 +10,7 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
 import clsx from 'clsx';
-import { parseMentions } from '@flowtask/shared';
+import { parseMentions } from '@flowtask/shared/utils';
 
 const MENTION_HREF = '#mention-';
 

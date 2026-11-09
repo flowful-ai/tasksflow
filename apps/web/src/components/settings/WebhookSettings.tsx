@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import clsx from 'clsx';
 import { Check, ChevronDown, ChevronRight, Copy, Pencil, RefreshCw, Send, Trash2, Webhook } from 'lucide-react';
-import { OUTGOING_WEBHOOK_EVENTS, type OutgoingWebhookEvent } from '@flowtask/shared';
+import { OUTGOING_WEBHOOK_EVENTS, type OutgoingWebhookEvent } from '@flowtask/shared/types';
 import { hasWebhookSecret } from '../../api/integrations';
 import type { OutgoingWebhookDeliveryDto, OutgoingWebhookDto, OutgoingWebhookEventSelector } from '../../api/types';
 import {

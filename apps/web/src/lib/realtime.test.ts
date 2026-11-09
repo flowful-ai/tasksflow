@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { QueryKey } from '@tanstack/react-query';
-import { REALTIME_EVENTS, type JsonObject } from '@flowtask/shared';
+import { REALTIME_EVENTS } from '@flowtask/shared/constants';
+import type { JsonObject } from '@flowtask/shared/json';
 import {
   actionsForEvent,
   createInvalidationBatcher,

@@ -8,7 +8,7 @@
  *  - smart views:   InfiniteData<SmartViewExecuteDto>                (useSmartViewTasks)
  */
 import type { InfiniteData } from '@tanstack/react-query';
-import { comparePositions, generatePosition } from '@flowtask/shared';
+import { comparePositions, generatePosition } from '@flowtask/shared/utils';
 import type { ApiEnvelope, PageMeta } from '../../api/http';
 import type { MoveTaskInput, SmartViewExecuteDto, TaskDto, TaskStateDto } from '../../api/types';
 

@@ -1,6 +1,6 @@
 import { X } from 'lucide-react';
 import clsx from 'clsx';
-import { FilterOperatorSchema, type FilterCondition, type FilterOperator } from '@flowtask/shared';
+import { FilterOperatorSchema, type FilterCondition, type FilterOperator } from '@flowtask/shared/types';
 import { IconButton } from '../../ui';
 import {
   FILTER_FIELDS,

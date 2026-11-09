@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Bot, Copy, Check, Pencil, Trash2, Shield, Link2 } from 'lucide-react';
 import clsx from 'clsx';
-import { AgentToolSchema, type AgentTool } from '@flowtask/shared';
+import { AgentToolSchema, type AgentTool } from '@flowtask/shared/types';
 import type { McpOAuthConnection } from '../../api/workspaces';
 import { useCurrentWorkspace, useMcpConnectionMutations, useMcpConnections } from '../../hooks/queries';
 import { ConfirmDialog, Dialog, EmptyState, ErrorState, IconButton, toast } from '../ui';

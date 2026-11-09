@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import clsx from 'clsx';
-import { TaskStateCategorySchema, type TaskStateCategory } from '@flowtask/shared';
+import { TaskStateCategorySchema, type TaskStateCategory } from '@flowtask/shared/types';
 import type { TaskStateDto } from '../../api/types';
 import { useTaskStateMutations } from '../../hooks/queries';
 import { ColorDot, ConfirmDialog, toast } from '../ui';

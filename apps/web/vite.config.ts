@@ -32,6 +32,23 @@ export default defineConfig({
       'react-style-singleton': path.resolve(__dirname, './src/lib/styleSingleton.ts'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Stable vendor chunks: cached across app deploys, and no chunk over
+        // 500 kB. zod is not listed: it follows the lazy routes that import
+        // schemas from @flowtask/shared/types.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (/[\\/]node_modules[\\/](react|react-dom|scheduler|react-router|react-router-dom)[\\/]/.test(id)) return 'vendor-react';
+          if (id.includes('@tanstack')) return 'vendor-query';
+          if (id.includes('@radix-ui') || id.includes('@floating-ui')) return 'vendor-radix';
+          if (id.includes('@dnd-kit')) return 'vendor-dnd';
+          return undefined;
+        },
+      },
+    },
+  },
   // Dev server on 3000 (WEB_URL); the API, including SSE, is proxied from 3001.
   server: {
     port: 3000,

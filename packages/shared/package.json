@@ -10,6 +10,26 @@
       "bun": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./types": {
+      "bun": "./src/types/index.ts",
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js"
+    },
+    "./utils": {
+      "bun": "./src/utils/index.ts",
+      "types": "./dist/utils.d.ts",
+      "import": "./dist/utils.js"
+    },
+    "./constants": {
+      "bun": "./src/constants.ts",
+      "types": "./dist/constants.d.ts",
+      "import": "./dist/constants.js"
+    },
+    "./json": {
+      "bun": "./src/types/json.ts",
+      "types": "./dist/json.d.ts",
+      "import": "./dist/json.js"
     }
   },
   "scripts": {

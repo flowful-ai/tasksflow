@@ -9,7 +9,7 @@
  * - A 401 from any non-auth endpoint calls the handler registered with
  *   `setUnauthorizedHandler` (src/lib/queryClient.ts clears the cache and the session).
  */
-import { isJsonObject, type JsonValue } from '@flowtask/shared';
+import { isJsonObject, type JsonValue } from '@flowtask/shared/json';
 
 export const API_BASE_URL: string = import.meta.env.VITE_API_URL || '';
 

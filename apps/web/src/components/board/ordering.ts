@@ -5,7 +5,7 @@
  * completed first (`completedAt`, falling back to `updatedAt` for rows that
  * predate it).
  */
-import { comparePositions } from '@flowtask/shared';
+import { comparePositions } from '@flowtask/shared/utils';
 
 export interface OrderableTask {
   id: string;

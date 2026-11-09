@@ -7,7 +7,8 @@
  *   quiet period (150 ms), deduplicating keys covered by a shorter prefix.
  */
 import type { QueryKey } from '@tanstack/react-query';
-import { REALTIME_EVENTS, isJsonObject, type JsonObject, type JsonValue } from '@flowtask/shared';
+import { REALTIME_EVENTS } from '@flowtask/shared/constants';
+import { isJsonObject, type JsonObject, type JsonValue } from '@flowtask/shared/json';
 import { queryKeys } from '../api/queryKeys';
 import type { TaskDto } from '../api/types';
 
