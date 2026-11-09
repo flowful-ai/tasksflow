@@ -13,13 +13,16 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../stores/auth';
 import { useWorkspaceStore } from '../stores/workspace';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../api/queryKeys';
 import { invitationApi, type PublicInvitation, ApiError } from '../api/client';
 
 export function InvitePage() {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
   const { isAuthenticated, user } = useAuthStore();
-  const fetchWorkspaces = useWorkspaceStore((state) => state.fetchWorkspaces);
+  const queryClient = useQueryClient();
+  const setWorkspaceId = useWorkspaceStore((state) => state.setCurrentWorkspaceId);
 
   const [invitation, setInvitation] = useState<PublicInvitation | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -41,7 +44,7 @@ export function InvitePage() {
 
       try {
         const response = await invitationApi.getByToken(token);
-        setInvitation(response.data);
+        setInvitation(response);
       } catch (err) {
         if (err instanceof ApiError) {
           setError(err.message);
@@ -66,12 +69,13 @@ export function InvitePage() {
     try {
       const response = await invitationApi.accept(token);
       setAcceptedWorkspace({
-        id: response.data.workspaceId,
-        name: response.data.workspaceName,
+        id: response.workspaceId,
+        name: response.workspaceName,
       });
 
-      // Refresh workspaces to include the new one
-      await fetchWorkspaces();
+      // Refresh workspaces to include the new one, and switch to it
+      setWorkspaceId(response.workspaceId);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.all });
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);

@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useWorkspaceStore } from '../stores/workspace';
+import { useCreateProject, useCurrentWorkspace } from '../hooks/queries';
 
 export function NewProjectPage() {
   const navigate = useNavigate();
-  const { currentWorkspace, createProject } = useWorkspaceStore();
+  const { workspace: currentWorkspace } = useCurrentWorkspace();
+  const createProject = useCreateProject();
   const [name, setName] = useState('');
   const [identifier, setIdentifier] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -31,7 +32,12 @@ export function NewProjectPage() {
     setError(null);
 
     try {
-      const project = await createProject(name.trim(), identifier.trim());
+      if (!currentWorkspace) return;
+      const project = await createProject.mutateAsync({
+        workspaceId: currentWorkspace.id,
+        name: name.trim(),
+        identifier: identifier.trim(),
+      });
       navigate(`/project/${project.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create project');

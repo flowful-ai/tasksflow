@@ -51,7 +51,7 @@ export function InviteMemberDialog({
         role,
         maxUses: inviteType === 'generic' ? maxUses : 1,
       });
-      setCreatedInvitation(response.data);
+      setCreatedInvitation(response);
       setStep('success');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create invitation');

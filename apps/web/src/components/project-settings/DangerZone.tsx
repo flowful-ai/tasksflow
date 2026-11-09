@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Trash2, Archive, ArchiveRestore } from 'lucide-react';
 import { api } from '../../api/client';
-import { useWorkspaceStore } from '../../stores/workspace';
+import { queryKeys } from '../../api/queryKeys';
 
 interface ProjectDangerData {
   id: string;
@@ -16,7 +16,7 @@ interface DangerZoneProps {
 }
 
 export function DangerZone({ project, onDeleted }: DangerZoneProps) {
-  const { currentWorkspace, fetchProjects } = useWorkspaceStore();
+  const queryClient = useQueryClient();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isArchived, setIsArchived] = useState(project.isArchived);
@@ -34,9 +34,7 @@ export function DangerZone({ project, onDeleted }: DangerZoneProps) {
     onSuccess: async () => {
       setError(null);
       setIsArchived((prev) => !prev);
-      if (currentWorkspace) {
-        await fetchProjects(currentWorkspace.id);
-      }
+      await queryClient.invalidateQueries({ queryKey: queryKeys.projects.lists() });
     },
     onError: (err: Error) => {
       setError(err.message);
@@ -49,9 +47,7 @@ export function DangerZone({ project, onDeleted }: DangerZoneProps) {
     },
     onSuccess: async () => {
       setError(null);
-      if (currentWorkspace) {
-        await fetchProjects(currentWorkspace.id);
-      }
+      await queryClient.invalidateQueries({ queryKey: queryKeys.projects.lists() });
       onDeleted();
     },
     onError: (err: Error) => {

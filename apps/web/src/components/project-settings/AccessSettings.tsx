@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { X, Plus, ShieldAlert, Lock, Globe } from 'lucide-react';
 import { api, memberApi } from '../../api/client';
-import type { WorkspaceMember } from '../../api/client';
+import type { WorkspaceMemberDto as WorkspaceMember } from '../../api/client';
+import { queryKeys } from '../../api/queryKeys';
 
 interface ProjectMember {
   id: string;
@@ -45,11 +46,8 @@ export function AccessSettings({ projectId, workspaceId, currentAccess, onUpdate
 
   // Fetch workspace members for the picker
   const { data: workspaceMembers } = useQuery({
-    queryKey: ['workspace-members', workspaceId],
-    queryFn: async () => {
-      const response = await memberApi.list(workspaceId);
-      return response.data;
-    },
+    queryKey: queryKeys.workspaces.members(workspaceId),
+    queryFn: () => memberApi.list(workspaceId),
   });
 
   // Initialize selectedUserIds from project members

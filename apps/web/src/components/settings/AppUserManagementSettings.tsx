@@ -52,8 +52,8 @@ export function AppUserManagementSettings({ isAppManager }: AppUserManagementSet
         offset: 0,
       });
 
-      setUsers(response.data.users);
-      setTotal(response.data.total);
+      setUsers(response.users);
+      setTotal(response.total);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load users');
     } finally {
@@ -83,7 +83,7 @@ export function AppUserManagementSettings({ isAppManager }: AppUserManagementSet
 
     try {
       const response = await appAdminApi.updateRole(managedUser.id, nextRole);
-      setUsers((prev) => prev.map((user) => (user.id === managedUser.id ? response.data : user)));
+      setUsers((prev) => prev.map((user) => (user.id === managedUser.id ? response : user)));
       setSuccessMessage(`Updated ${managedUser.email} to ${roleLabel(nextRole)}.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update user role');

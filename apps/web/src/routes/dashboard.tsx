@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   FolderKanban,
@@ -18,28 +17,15 @@ import {
   RotateCcw,
   CircleDot,
 } from 'lucide-react';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { useWorkspaceStore } from '../stores/workspace';
+import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../stores/auth';
-import { api, workspaceApi, type WorkspaceActivityItem } from '../api/client';
+import { tasksApi } from '../api/tasks';
+import { queryKeys } from '../api/queryKeys';
+import type { TaskDto, WorkspaceActivityItemDto as WorkspaceActivityItem } from '../api/types';
+import { useCurrentWorkspace, useProjects, useWorkspaceActivity } from '../hooks/queries';
 import clsx from 'clsx';
 
-interface DashboardTask {
-  id: string;
-  dueDate: string | null;
-  state: {
-    category: string;
-  } | null;
-}
-
-interface TaskListResponse {
-  data: DashboardTask[];
-  meta: {
-    total: number;
-    page: number;
-    limit: number;
-  };
-}
+type DashboardTask = Pick<TaskDto, 'id' | 'dueDate' | 'state'>;
 
 const ACTIVITY_PAGE_SIZE = 20;
 
@@ -102,28 +88,20 @@ async function fetchProjectTasks(projectId: string): Promise<DashboardTask[]> {
   const allTasks: DashboardTask[] = [];
 
   do {
-    const response = await api.get<TaskListResponse>(`/api/tasks?projectId=${projectId}&page=${page}&limit=${limit}`);
+    const response = await tasksApi.listPage(projectId, page, {}, limit);
     allTasks.push(...response.data);
-    total = response.meta.total;
+    total = response.meta?.total ?? 0;
     page += 1;
+    if (response.data.length === 0) break;
   } while (allTasks.length < total);
 
   return allTasks;
 }
 
 export function DashboardPage() {
-  const { currentWorkspace, projects, fetchWorkspaces, fetchProjects } = useWorkspaceStore();
-  const { user } = useAuthStore();
-
-  useEffect(() => {
-    fetchWorkspaces();
-  }, [fetchWorkspaces]);
-
-  useEffect(() => {
-    if (currentWorkspace) {
-      fetchProjects(currentWorkspace.id);
-    }
-  }, [currentWorkspace, fetchProjects]);
+  const { workspace: currentWorkspace, workspaceId } = useCurrentWorkspace();
+  const { data: projects = [] } = useProjects(workspaceId);
+  const user = useAuthStore((s) => s.user);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -133,10 +111,10 @@ export function DashboardPage() {
   };
 
   const firstName = user?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'there';
-  const projectIdsKey = projects.map((project) => project.id).join(',');
+  const projectIds = projects.map((project) => project.id);
 
   const { data: taskStats, isLoading: statsLoading, isError: statsError } = useQuery({
-    queryKey: ['dashboard-task-stats', currentWorkspace?.id, projectIdsKey],
+    queryKey: queryKeys.workspaces.taskStats(workspaceId ?? '', projectIds),
     queryFn: async () => {
       if (!currentWorkspace || projects.length === 0) {
         return { completed: 0, inProgress: 0, overdue: 0 };
@@ -178,22 +156,7 @@ export function DashboardPage() {
     hasNextPage,
     fetchNextPage,
     isFetchingNextPage,
-  } = useInfiniteQuery({
-    queryKey: ['workspace-activity', currentWorkspace?.id],
-    queryFn: ({ pageParam }) => {
-      if (!currentWorkspace) {
-        throw new Error('No workspace selected');
-      }
-      return workspaceApi.listActivity(currentWorkspace.id, {
-        limit: ACTIVITY_PAGE_SIZE,
-        cursor: pageParam ?? undefined,
-      });
-    },
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage) => lastPage.meta.nextCursor ?? undefined,
-    enabled: !!currentWorkspace,
-    staleTime: 15_000,
-  });
+  } = useWorkspaceActivity(workspaceId, ACTIVITY_PAGE_SIZE);
 
   const activities = activityPages?.pages.flatMap((page) => page.data) ?? [];
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
-import { useWorkspaceStore } from '../../stores/workspace';
+import { queryKeys } from '../../api/queryKeys';
 
 interface ProjectSettingsData {
   id: string;
@@ -18,7 +18,7 @@ interface GeneralSettingsProps {
 }
 
 export function GeneralSettings({ project, onUpdated }: GeneralSettingsProps) {
-  const { currentWorkspace, fetchProjects } = useWorkspaceStore();
+  const queryClient = useQueryClient();
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description ?? '');
   const [icon, setIcon] = useState(project.icon ?? '');
@@ -44,9 +44,7 @@ export function GeneralSettings({ project, onUpdated }: GeneralSettingsProps) {
     onSuccess: async () => {
       setError(null);
       onUpdated();
-      if (currentWorkspace) {
-        await fetchProjects(currentWorkspace.id);
-      }
+      await queryClient.invalidateQueries({ queryKey: queryKeys.projects.lists() });
     },
     onError: (err: Error) => {
       setError(err.message);

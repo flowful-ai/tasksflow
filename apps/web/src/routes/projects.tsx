@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom';
 import { Plus, FolderKanban } from 'lucide-react';
-import { useWorkspaceStore } from '../stores/workspace';
+import { useCurrentWorkspace, useProjects } from '../hooks/queries';
 
 export function ProjectsPage() {
-  const { currentWorkspace, projects, isLoading } = useWorkspaceStore();
+  const { workspace: currentWorkspace, workspaceId } = useCurrentWorkspace();
+  const { data: projects = [], isLoading } = useProjects(workspaceId);
 
   if (!currentWorkspace) {
     return (

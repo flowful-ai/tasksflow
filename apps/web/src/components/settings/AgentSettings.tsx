@@ -3,8 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bot, Copy, Check, Pencil, Trash2, Shield, Link2 } from 'lucide-react';
 import clsx from 'clsx';
 import { AgentToolSchema, type AgentTool } from '@flowtask/shared';
-import { useWorkspaceStore } from '../../stores/workspace';
 import { mcpConnectionApi, type McpOAuthConnection } from '../../api/client';
+import { useCurrentWorkspace } from '../../hooks/queries';
 
 export const AGENT_TOOL_LABELS: Record<AgentTool, string> = {
   create_task: 'Create tasks',
@@ -280,7 +280,7 @@ function ConnectGuide() {
 }
 
 export function AgentSettings() {
-  const { currentWorkspace } = useWorkspaceStore();
+  const { workspace: currentWorkspace } = useCurrentWorkspace();
   const queryClient = useQueryClient();
   const [editingConnection, setEditingConnection] = useState<McpOAuthConnection | null>(null);
   const workspaceId = currentWorkspace?.id;
@@ -335,7 +335,7 @@ export function AgentSettings() {
     );
   }
 
-  const connections = data?.data.connections || [];
+  const connections = data ?? [];
 
   return (
     <div className="space-y-6">

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MessageSquare, X, Send, Bot, Wrench, Loader2, ShieldAlert } from 'lucide-react';
+import { Send, Bot, Wrench, Loader2, ShieldAlert, X } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
@@ -14,11 +15,13 @@ import {
   type UIMessage,
 } from 'ai';
 import type { Components } from 'react-markdown';
-import { agentApi, workspaceAiSettingsApi, type AgentSummary } from '../../api/client';
-import { useWorkspaceStore } from '../../stores/workspace';
+import { agentApi } from '../../api/agents';
+import { workspaceAiSettingsApi } from '../../api/workspaces';
+import { API_BASE_URL } from '../../api/http';
+import { queryKeys } from '../../api/queryKeys';
 import { useAuthStore } from '../../stores/auth';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+import { Dialog } from '../ui/Dialog';
+import { IconButton } from '../ui/IconButton';
 const TOOL_ONLY_FALLBACK_MESSAGE = 'Done. I completed the requested actions.';
 const AUTO_SCROLL_THRESHOLD_PX = 64;
 
@@ -78,14 +81,29 @@ function getUserMessageText(message: UIMessage): string {
     .join('');
 }
 
-export function GlobalAgentChat() {
-  const { currentWorkspace } = useWorkspaceStore();
+export interface GlobalAgentChatProps {
+  workspaceId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+/**
+ * Workspace chat panel. Lazy-loaded (it pulls in the AI SDK and markdown) by
+ * AgentChatLauncher on first open, then kept mounted so the conversation
+ * survives closing the panel.
+ */
+export default function GlobalAgentChat({ workspaceId, open: isOpen, onOpenChange: setIsOpen }: GlobalAgentChatProps) {
   const userId = useAuthStore((state) => state.user?.id ?? null);
 
-  const [isOpen, setIsOpen] = useState(false);
-  const [enabled, setEnabled] = useState(false);
-  const [agents, setAgents] = useState<AgentSummary[]>([]);
-  const [defaultAgentId, setDefaultAgentId] = useState<string | null>(null);
+  const { data: agents = [] } = useQuery({
+    queryKey: queryKeys.workspaces.agents(workspaceId, true),
+    queryFn: () => agentApi.list(workspaceId, true),
+  });
+  const { data: defaultAgentId = null } = useQuery({
+    queryKey: queryKeys.workspaces.aiSettings(workspaceId),
+    queryFn: () => workspaceAiSettingsApi.get(workspaceId),
+    select: (settings) => settings.defaultAgentId,
+  });
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
   const [input, setInput] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -136,35 +154,14 @@ export function GlobalAgentChat() {
   const isStreaming = status === 'submitted' || status === 'streaming';
 
   useEffect(() => {
-    if (!currentWorkspace || !userId) {
-      setEnabled(false);
-      setIsOpen(false);
-      return;
+    if (!userId || agents.length === 0) return;
+
+    let rememberedAgentId: string | null = null;
+    try {
+      rememberedAgentId = localStorage.getItem(storageKey(userId, workspaceId));
+    } catch {
+      // storage unavailable (private mode)
     }
-
-    const load = async () => {
-      try {
-        const [availabilityResult, settingsResult, agentsResult] = await Promise.all([
-          agentApi.availability(currentWorkspace.id),
-          workspaceAiSettingsApi.get(currentWorkspace.id),
-          agentApi.list(currentWorkspace.id, true),
-        ]);
-
-        setEnabled(availabilityResult.data.enabled);
-        setDefaultAgentId(settingsResult.data.defaultAgentId);
-        setAgents(agentsResult.data);
-      } catch {
-        setEnabled(false);
-      }
-    };
-
-    load();
-  }, [currentWorkspace, userId]);
-
-  useEffect(() => {
-    if (!currentWorkspace || !userId || agents.length === 0) return;
-
-    const rememberedAgentId = localStorage.getItem(storageKey(userId, currentWorkspace.id));
     const nextAgentId =
       (rememberedAgentId && agents.some((agent) => agent.id === rememberedAgentId) && rememberedAgentId) ||
       (defaultAgentId && agents.some((agent) => agent.id === defaultAgentId) && defaultAgentId) ||
@@ -172,16 +169,20 @@ export function GlobalAgentChat() {
       '';
 
     setSelectedAgentId(nextAgentId);
-  }, [agents, defaultAgentId, currentWorkspace, userId]);
+  }, [agents, defaultAgentId, workspaceId, userId]);
 
   useEffect(() => {
-    if (!currentWorkspace || !userId || !selectedAgentId) return;
-    localStorage.setItem(storageKey(userId, currentWorkspace.id), selectedAgentId);
-  }, [selectedAgentId, currentWorkspace, userId]);
+    if (!userId || !selectedAgentId) return;
+    try {
+      localStorage.setItem(storageKey(userId, workspaceId), selectedAgentId);
+    } catch {
+      // storage unavailable (private mode)
+    }
+  }, [selectedAgentId, workspaceId, userId]);
 
   const canSend = useMemo(() => {
-    return enabled && !!selectedAgentId && input.trim().length > 0 && !isStreaming;
-  }, [enabled, selectedAgentId, input, isStreaming]);
+    return !!selectedAgentId && input.trim().length > 0 && !isStreaming;
+  }, [selectedAgentId, input, isStreaming]);
 
   const lastAssistantMessage = [...messages].reverse().find((message) => message.role === 'assistant');
   const lastAssistantHasVisibleOutput = !!lastAssistantMessage?.parts.some(
@@ -226,32 +227,24 @@ export function GlobalAgentChat() {
     }
   };
 
-  if (!enabled || !currentWorkspace || !userId) {
+  if (!userId) {
     return null;
   }
 
   return (
-    <>
-      <button
-        className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 rounded-full bg-neutral-900 px-4 py-3 text-sm font-semibold text-white shadow-lg hover:bg-neutral-800"
-        onClick={() => setIsOpen(true)}
-      >
-        <MessageSquare className="h-4 w-4" />
-        Chat
-      </button>
-
-      {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-end p-4">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setIsOpen(false)} />
-          <div className="relative h-[70vh] w-full max-w-md rounded-2xl border border-gray-200 bg-white shadow-xl">
+    <Dialog
+      open={isOpen}
+      onOpenChange={setIsOpen}
+      title="Workspace chat"
+      bare
+      className="!left-auto !top-auto !bottom-4 !right-4 !translate-x-0 !translate-y-0 h-[70vh] !max-w-md overflow-hidden border border-gray-200"
+    >
             <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
               <div className="flex items-center gap-2">
-                <Bot className="h-4 w-4 text-primary-600" />
-                <span className="text-sm font-semibold text-gray-900">Workspace Chat</span>
+                <Bot className="h-4 w-4 text-primary-600" aria-hidden />
+                <h2 className="text-sm font-semibold text-gray-900">Workspace Chat</h2>
               </div>
-              <button className="rounded-md p-1 hover:bg-gray-100" onClick={() => setIsOpen(false)}>
-                <X className="h-4 w-4 text-gray-600" />
-              </button>
+              <IconButton label="Close chat" icon={<X />} onClick={() => setIsOpen(false)} />
             </div>
 
             <div className="border-b border-gray-200 px-4 py-3">
@@ -453,14 +446,16 @@ export function GlobalAgentChat() {
                   }}
                   placeholder="Ask the assistant..."
                 />
-                <button className="btn btn-primary" onClick={() => void handleSend()} disabled={!canSend}>
-                  <Send className="h-4 w-4" />
-                </button>
+                <IconButton
+                  label="Send message"
+                  variant="solid"
+                  size="md"
+                  icon={<Send />}
+                  onClick={() => void handleSend()}
+                  disabled={!canSend}
+                />
               </div>
             </div>
-          </div>
-        </div>
-      )}
-    </>
+    </Dialog>
   );
 }

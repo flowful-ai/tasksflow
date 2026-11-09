@@ -15,12 +15,12 @@ import {
   Link as LinkIcon,
 } from 'lucide-react';
 import clsx from 'clsx';
-import { useWorkspaceStore } from '../../stores/workspace';
+import { useCurrentWorkspace } from '../../hooks/queries';
 import { useAuthStore } from '../../stores/auth';
 import {
   memberApi,
   invitationApi,
-  type WorkspaceMember,
+  type WorkspaceMemberDto as WorkspaceMember,
   type WorkspaceInvitation,
 } from '../../api/client';
 import { InviteMemberDialog } from './InviteMemberDialog';
@@ -284,7 +284,7 @@ function InvitationRow({ invitation, onRevoke, isRevoking }: InvitationRowProps)
 }
 
 export function MemberSettings() {
-  const workspace = useWorkspaceStore((state) => state.currentWorkspace);
+  const { workspace } = useCurrentWorkspace();
   const currentUser = useAuthStore((state) => state.user);
 
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
@@ -308,11 +308,11 @@ export function MemberSettings() {
     try {
       const [membersRes, invitationsRes] = await Promise.all([
         memberApi.list(workspace.id),
-        canManageMembers ? invitationApi.list(workspace.id, 'pending') : Promise.resolve({ data: [] }),
+        canManageMembers ? invitationApi.list(workspace.id, 'pending') : Promise.resolve([]),
       ]);
 
-      setMembers(membersRes.data);
-      setInvitations(invitationsRes.data || []);
+      setMembers(membersRes);
+      setInvitations(invitationsRes);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load members');
     } finally {

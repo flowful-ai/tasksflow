@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, LayoutGrid, List, Table2, Calendar, Lock, Globe, Eye, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
-import { useWorkspaceStore } from '../stores/workspace';
 import { api } from '../api/client';
 import type { SmartView, DisplayType } from '@flowtask/shared';
+import { useCurrentWorkspace } from '../hooks/queries';
 
 interface SmartViewWithShares extends SmartView {
   _count?: {
@@ -165,7 +165,7 @@ function ViewCard({ view, onDelete }: ViewCardProps) {
 }
 
 export function ViewsPage() {
-  const { currentWorkspace } = useWorkspaceStore();
+  const { workspace: currentWorkspace } = useCurrentWorkspace();
   const queryClient = useQueryClient();
 
   const { data, isLoading, error } = useQuery({

@@ -4,9 +4,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Eye, LayoutGrid, List, Table2, Calendar } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '../../api/client';
-import { useWorkspaceStore } from '../../stores/workspace';
 import { FilterBuilder } from './filter-builder';
 import type { SmartView, DisplayType, GroupBy, SortBy, SortOrder, FilterGroup } from '@flowtask/shared';
+import { useCurrentWorkspace } from '../../hooks/queries';
 
 const DISPLAY_TYPE_OPTIONS: { value: DisplayType; label: string; icon: React.ReactNode }[] = [
   { value: 'kanban', label: 'Kanban', icon: <LayoutGrid className="w-4 h-4" /> },
@@ -63,7 +63,7 @@ export function SmartViewForm() {
   const { viewId } = useParams<{ viewId: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { currentWorkspace } = useWorkspaceStore();
+  const { workspace: currentWorkspace } = useCurrentWorkspace();
 
   const isEditing = !!viewId;
 

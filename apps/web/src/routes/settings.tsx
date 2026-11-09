@@ -3,7 +3,6 @@ import { Routes, Route, Link, useLocation, useNavigate, Navigate } from 'react-r
 import { User, Building2, Link2, Bot, Eye, Users, Shield, Plug } from 'lucide-react';
 import clsx from 'clsx';
 import type { AppRole } from '@flowtask/shared';
-import { useWorkspaceStore } from '../stores/workspace';
 import { AVAILABLE_PERMISSIONS, AgentSettings } from '../components/settings/AgentSettings';
 import { SmartViewForm } from '../components/smart-views/SmartViewForm';
 import { MemberSettings } from '../components/settings/MemberSettings';
@@ -13,7 +12,7 @@ import { authApi, type LinkedAccount } from '../api/auth';
 import {
   ApiError,
   appAdminApi,
-  workspaceApi,
+  workspacesApi as workspaceApi,
   workspaceApiKeyApi,
   workspaceAiSettingsApi,
   agentApi,
@@ -21,6 +20,7 @@ import {
   type AgentSummary,
   type WorkspaceAiSettings,
 } from '../api/client';
+import { useCreateWorkspace, useCurrentWorkspace } from '../hooks/queries';
 
 function ProfileSettings() {
   return (
@@ -279,7 +279,7 @@ const EMPTY_AGENT_FORM: AgentFormState = {
 };
 
 function ApiKeySettings() {
-  const { currentWorkspace } = useWorkspaceStore();
+  const { workspace: currentWorkspace } = useCurrentWorkspace();
   const workspaceId = currentWorkspace?.id;
   const [apiKeys, setApiKeys] = useState<Record<ApiKeyProvider, string>>(EMPTY_PROVIDER_INPUTS);
   const [statusByProvider, setStatusByProvider] = useState<Record<ApiKeyProvider, boolean>>(EMPTY_PROVIDER_STATUS);
@@ -308,7 +308,7 @@ function ApiKeySettings() {
     try {
       const response = await workspaceApiKeyApi.listStatuses(id);
       const nextStatus = { ...EMPTY_PROVIDER_STATUS };
-      for (const entry of response.data.providers) {
+      for (const entry of response.providers) {
         nextStatus[entry.provider] = entry.hasKey;
       }
       setStatusByProvider(nextStatus);
@@ -339,8 +339,8 @@ function ApiKeySettings() {
           agentApi.list(workspaceId, 'all'),
         ]);
 
-        setAiSettings(settingsResponse.data);
-        setAgents(agentsResponse.data);
+        setAiSettings(settingsResponse);
+        setAgents(agentsResponse);
       } catch (err) {
         if (err instanceof ApiError && err.status === 403) {
           return;
@@ -410,7 +410,7 @@ function ApiKeySettings() {
     setAgentFormError(null);
     try {
       const response = await agentApi.get(agent.id);
-      const detail = response.data;
+      const detail = response;
       setEditingAgentId(detail.id);
       setAgentForm({
         name: detail.name,
@@ -496,7 +496,7 @@ function ApiKeySettings() {
       }
 
       const refreshedAgents = await agentApi.list(workspaceId, 'all');
-      setAgents(refreshedAgents.data);
+      setAgents(refreshedAgents);
       resetAgentForm();
       setSuccess(editingAgentId ? 'Agent updated.' : 'Agent created.');
     } catch (err) {
@@ -517,7 +517,7 @@ function ApiKeySettings() {
         ...aiSettings,
         defaultAgentId: agentId,
       });
-      setAiSettings(response.data);
+      setAiSettings(response);
       setSuccess('Chat defaults saved.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save chat defaults');
@@ -534,7 +534,7 @@ function ApiKeySettings() {
     try {
       await agentApi.update(agent.id, { isActive: !agent.isActive });
       const refreshedAgents = await agentApi.list(workspaceId!, 'all');
-      setAgents(refreshedAgents.data);
+      setAgents(refreshedAgents);
 
       if (agent.isActive && aiSettings?.defaultAgentId === agent.id) {
         await saveDefaultAgent(null);
@@ -559,7 +559,7 @@ function ApiKeySettings() {
     try {
       await agentApi.delete(agent.id);
       const refreshedAgents = await agentApi.list(workspaceId, 'all');
-      setAgents(refreshedAgents.data);
+      setAgents(refreshedAgents);
       if (aiSettings?.defaultAgentId === agent.id) {
         await saveDefaultAgent(null);
       } else {
@@ -861,7 +861,7 @@ function ViewsSettings() {
 
 function NewWorkspaceSettings() {
   const navigate = useNavigate();
-  const createWorkspace = useWorkspaceStore((state) => state.createWorkspace);
+  const createWorkspaceMutation = useCreateWorkspace();
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -888,7 +888,7 @@ function NewWorkspaceSettings() {
     setError(null);
 
     try {
-      await createWorkspace(name.trim(), slug.trim());
+      await createWorkspaceMutation.mutateAsync({ name: name.trim(), slug: slug.trim() });
       navigate('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create workspace');
@@ -979,7 +979,7 @@ type NavigationSection = {
 
 export function SettingsPage() {
   const location = useLocation();
-  const { currentWorkspace } = useWorkspaceStore();
+  const { workspace: currentWorkspace } = useCurrentWorkspace();
   const [isLoadingAppContext, setIsLoadingAppContext] = useState(true);
   const [isLoadingWorkspaceRole, setIsLoadingWorkspaceRole] = useState(false);
   const [appRole, setAppRole] = useState<AppRole | null>(null);
@@ -993,7 +993,7 @@ export function SettingsPage() {
 
       try {
         const response = await appAdminApi.me();
-        setAppRole(response.data.appRole);
+        setAppRole(response.appRole);
       } catch (err) {
         setAppRole(null);
         setAppContextError(err instanceof Error ? err.message : 'Failed to load app context');
@@ -1016,7 +1016,7 @@ export function SettingsPage() {
       setIsLoadingWorkspaceRole(true);
       try {
         const response = await workspaceApi.me(workspaceId);
-        setWorkspaceRole(response.data.role);
+        setWorkspaceRole(response.role);
       } catch {
         setWorkspaceRole(null);
       } finally {
