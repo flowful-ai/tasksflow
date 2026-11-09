@@ -131,6 +131,8 @@ workspaces.delete('/:workspaceId', async (c) => {
     code: 'DELETE_FAILED',
     message: 'Failed to delete workspace',
   });
+  // Memberships are gone: refreshing access closes every stream of the workspace.
+  notifyAccessChanged(workspaceId);
   return c.json({ success: true, data: null });
 });
 
