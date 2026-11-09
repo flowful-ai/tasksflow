@@ -27,8 +27,8 @@ export function encodeMentions(text: string, mentions: DraftMention[]): string {
     });
   }
   // NUL-delimited placeholders cannot occur in user text.
-  // eslint-disable-next-line no-control-regex
   return out.replace(
+    // eslint-disable-next-line no-control-regex
     /\u0000(\d+)\u0000/g,
     (_m, index: string) => placeholders[Number(index)] ?? ''
   );

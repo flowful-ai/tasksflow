@@ -94,8 +94,8 @@ export function sanitizeClientName(raw: unknown): string {
     throw new OAuthError('invalid_client_metadata', 'client_name is required');
   }
   // Strip control characters so the consent page cannot be visually spoofed.
-  // eslint-disable-next-line no-control-regex -- stripping control characters is the point
   const name = raw
+    // eslint-disable-next-line no-control-regex -- stripping control characters is the point
     .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, '')
     .trim();
   if (!name) {
