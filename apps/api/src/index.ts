@@ -11,6 +11,7 @@ import {
 } from './lib/shutdown.js';
 import { initSSE, shutdownSSE } from './sse/manager.js';
 import { checkApiKeyEncryptionConfig, rekeyTaskPositions } from './domain/index.js';
+import { getAllowedRedirectSchemes } from './services/mcp-oauth/redirect-uri.js';
 
 const { app, webDistDir } = createApp();
 
@@ -91,6 +92,13 @@ function installShutdownHandlers(server: ReturnType<typeof Bun.serve>): void {
 if (import.meta.main) {
   // Warns once when API_KEY_ENCRYPTION_KEY isn't a 32-byte key (legacy derivation).
   checkApiKeyEncryptionConfig();
+  try {
+    // Fail fast on an invalid MCP_ALLOWED_REDIRECT_SCHEMES instead of at the first registration.
+    getAllowedRedirectSchemes();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
   try {
     await applyMigrations();
   } catch (error) {

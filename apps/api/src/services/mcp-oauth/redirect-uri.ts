@@ -2,34 +2,86 @@ import { OAuthError } from './errors.js';
 
 /**
  * Dynamic client registration policy for redirect URIs (RFC 6749 §3.1.2,
- * RFC 8252 §7): https anywhere, http only on loopback, or a private-use
- * app scheme. RFC 8252 recommends reverse-domain schemes, but real MCP
- * clients register plain ones (`cursor://`, `vscode://`), so any scheme that
- * is not on the forbidden list is accepted; the consent page shows the
- * redirect target and flags the client as unverified.
+ * RFC 8252 §7). Accepted:
+ * - https with a host;
+ * - http on loopback only;
+ * - reverse-domain private-use schemes (`com.example.app:`), which must
+ *   contain a dot (RFC 8252 §7.1);
+ * - an explicit allowlist of known MCP client schemes without a dot
+ *   (DEFAULT_ALLOWED_REDIRECT_SCHEMES, extended by MCP_ALLOWED_REDIRECT_SCHEMES).
+ * Everything else is rejected: OS protocol handlers (`ms-msdt:`,
+ * `search-ms:`), remote schemes (`ftp:`, `ws:`, `wss:`), `javascript:`, ...
  */
 
 export const MAX_REDIRECT_URIS = 10;
 export const MAX_REDIRECT_URI_LENGTH = 2000;
 export const MAX_CLIENT_NAME_LENGTH = 100;
 
+/** Known MCP clients that register a dotless custom scheme. */
+export const DEFAULT_ALLOWED_REDIRECT_SCHEMES: readonly string[] = [
+  'cursor',
+  'vscode',
+  'vscode-insiders',
+  'windsurf',
+];
+
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
+const SCHEME_NAME = /^[a-z][a-z0-9+.-]*$/;
+/** Never allowed, not even through MCP_ALLOWED_REDIRECT_SCHEMES. */
 const FORBIDDEN_SCHEMES = new Set([
-  'javascript:',
-  'data:',
-  'file:',
-  'vbscript:',
-  'blob:',
-  'about:',
-  'filesystem:',
+  'javascript',
+  'data',
+  'file',
+  'vbscript',
+  'blob',
+  'about',
+  'filesystem',
+  'http',
+  'https',
+  'ftp',
+  'ws',
+  'wss',
+  'search-ms',
 ]);
-const PRIVATE_USE_SCHEME = /^[a-z][a-z0-9+.-]*:$/;
+
+function isForbiddenScheme(scheme: string): boolean {
+  return FORBIDDEN_SCHEMES.has(scheme) || scheme.startsWith('ms-');
+}
+
+/**
+ * Parse MCP_ALLOWED_REDIRECT_SCHEMES (comma-separated scheme names, without
+ * `:`) and add them to the defaults. Throws on an invalid or forbidden entry,
+ * so a typo fails loudly instead of silently widening the policy.
+ */
+export function parseAllowedRedirectSchemes(raw: string | undefined): ReadonlySet<string> {
+  const schemes = new Set(DEFAULT_ALLOWED_REDIRECT_SCHEMES);
+  for (const entry of (raw ?? '').split(',')) {
+    const scheme = entry.trim().toLowerCase();
+    if (!scheme) continue;
+    if (!SCHEME_NAME.test(scheme) || isForbiddenScheme(scheme)) {
+      throw new Error(`MCP_ALLOWED_REDIRECT_SCHEMES: "${entry.trim()}" is not an allowed scheme`);
+    }
+    schemes.add(scheme);
+  }
+  return schemes;
+}
+
+let envAllowedSchemes: ReadonlySet<string> | null = null;
+
+/** Allowlisted dotless schemes from the environment (parsed once). */
+export function getAllowedRedirectSchemes(): ReadonlySet<string> {
+  envAllowedSchemes ??= parseAllowedRedirectSchemes(process.env.MCP_ALLOWED_REDIRECT_SCHEMES);
+  return envAllowedSchemes;
+}
 
 function invalid(message: string): OAuthError {
   return new OAuthError('invalid_redirect_uri', message);
 }
 
-export function validateRedirectUri(raw: string): string {
+export function validateRedirectUri(
+  raw: string,
+  allowedSchemes: ReadonlySet<string> = getAllowedRedirectSchemes()
+): string {
   if (typeof raw !== 'string' || raw.length === 0 || raw.length > MAX_REDIRECT_URI_LENGTH) {
     throw invalid('redirect_uri must be a non-empty string under 2000 characters');
   }
@@ -45,30 +97,35 @@ export function validateRedirectUri(raw: string): string {
     throw invalid('redirect_uri must not contain a fragment');
   }
 
-  const scheme = url.protocol.toLowerCase();
-  if (FORBIDDEN_SCHEMES.has(scheme)) {
-    throw invalid(`redirect_uri scheme ${scheme} is not allowed`);
-  }
+  const scheme = url.protocol.toLowerCase().replace(/:$/, '');
 
-  if (scheme === 'https:') {
+  if (scheme === 'https') {
     if (!url.hostname) {
       throw invalid('https redirect_uri must include a host');
     }
     return raw;
   }
 
-  if (scheme === 'http:') {
+  if (scheme === 'http') {
     if (!LOOPBACK_HOSTS.has(url.hostname.toLowerCase())) {
       throw invalid('http redirect_uri is only allowed on loopback (127.0.0.1, localhost, [::1])');
     }
     return raw;
   }
 
-  if (PRIVATE_USE_SCHEME.test(scheme)) {
+  if (isForbiddenScheme(scheme)) {
+    throw invalid(`redirect_uri scheme ${scheme}: is not allowed`);
+  }
+
+  // Reverse-domain private-use scheme (RFC 8252 §7.1), or an allowlisted MCP client.
+  if ((SCHEME_NAME.test(scheme) && scheme.includes('.')) || allowedSchemes.has(scheme)) {
     return raw;
   }
 
-  throw invalid('redirect_uri must use https, loopback http, or a private-use app scheme');
+  throw invalid(
+    'redirect_uri must use https, loopback http, a reverse-domain private-use scheme ' +
+      '(com.example.app:) or an allowlisted app scheme'
+  );
 }
 
 export function validateRedirectUris(uris: unknown): string[] {

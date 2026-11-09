@@ -5,6 +5,7 @@ import {
   validateRedirectUri,
   validateRedirectUris,
   describeRedirectTarget,
+  parseAllowedRedirectSchemes,
 } from './redirect-uri.js';
 import { resolveRequestedResource, tokenResourceMatches } from './resource.js';
 import { openWithSecret, sealWithSecret } from './crypto.js';
@@ -21,7 +22,8 @@ describe('dynamic client registration redirect policy', () => {
     'cursor.app://anysphere.cursor-retrieval/oauth/callback',
     'cursor://anysphere.cursor-mcp/oauth/callback',
     'vscode://vscode.github-authentication/did-authenticate',
-    'myapp:/callback',
+    'vscode-insiders://vscode.github-authentication/did-authenticate',
+    'windsurf://codeium.windsurf/oauth/callback',
   ])('accepts %s', (uri) => {
     expect(validateRedirectUri(uri)).toBe(uri);
   });
@@ -35,9 +37,36 @@ describe('dynamic client registration redirect policy', () => {
     'vbscript:msgbox(1)',
     'https://example.com/cb#fragment',
     'not a url',
+    // Dotless schemes that are not allowlisted: OS protocol handlers, remote schemes.
+    'myapp:/callback',
+    'ms-msdt:/id PCWDiagnostic /skip force',
+    'ms-settings:privacy',
+    'search-ms:query=x&crumb=location:\\\\evil.example\\share',
+    'ftp://evil.example/cb',
+    'ws://127.0.0.1/cb',
+    'wss://evil.example/cb',
   ])('rejects %s', (uri) => {
     expect(() => validateRedirectUri(uri)).toThrow(OAuthError);
   });
+
+  it('extends the dotless allowlist from MCP_ALLOWED_REDIRECT_SCHEMES', () => {
+    const allowed = parseAllowedRedirectSchemes(' zed , MyClient ');
+    expect(validateRedirectUri('zed://oauth/callback', allowed)).toBe('zed://oauth/callback');
+    expect(validateRedirectUri('myclient:/cb', allowed)).toBe('myclient:/cb');
+    // The defaults stay.
+    expect(validateRedirectUri('cursor://anysphere.cursor-mcp/cb', allowed)).toBeTruthy();
+    expect(() => validateRedirectUri('other:/cb', allowed)).toThrow(OAuthError);
+    expect(parseAllowedRedirectSchemes(undefined).has('vscode-insiders')).toBe(true);
+  });
+
+  it.each(['ftp', 'ms-msdt', 'search-ms', 'javascript', 'http', 'wss', 'not a scheme', 'x:'])(
+    'refuses %s in MCP_ALLOWED_REDIRECT_SCHEMES',
+    (entry) => {
+      expect(() => parseAllowedRedirectSchemes(`cursor,${entry}`)).toThrow(
+        /MCP_ALLOWED_REDIRECT_SCHEMES/
+      );
+    }
+  );
 
   it('caps the number of redirect URIs', () => {
     const uris = Array.from({ length: 11 }, (_, index) => `https://example.com/cb/${index}`);
