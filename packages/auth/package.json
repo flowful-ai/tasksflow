@@ -22,13 +22,15 @@
     "dev": "tsup",
     "watch": "tsup --watch",
     "typecheck": "tsc --noEmit",
+    "test": "bun test --pass-with-no-tests",
     "clean": "rm -rf dist"
   },
   "dependencies": {
     "@flowtask/database": "workspace:*",
     "@flowtask/shared": "workspace:*",
-    "better-auth": "^1.1.10",
-    "hono": "^4.7.6"
+    "better-auth": "^1.7.18",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.13.17"
   },
   "devDependencies": {
     "tsup": "^8.3.5",

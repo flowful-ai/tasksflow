@@ -2,31 +2,176 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, v2]
   push:
-    branches: [main]
+    branches: [main, v2]
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
+env:
+  BUN_VERSION: 1.3.11
+
 jobs:
-  ci:
-    name: typecheck and test
+  format:
+    name: format (changed files)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          bun-version: 1.3.11
-          cache: true
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      # Until the repo-wide format pass lands: every file this change touches
+      # must be formatted, except files that were already unformatted at the
+      # base (so editing one line of such a file does not force a reformat).
+      - name: Prettier check
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [ -z "$BASE_SHA" ] || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            BASE_SHA=$(git rev-parse HEAD~1)
+          fi
+          git diff --name-only --diff-filter=ACMR "$BASE_SHA" HEAD \
+            -- '*.ts' '*.tsx' '*.js' '*.jsx' '*.json' '*.md' \
+            | grep -v '^packages/database/drizzle/' > changed.txt || true
+          : > to-check.txt
+          while read -r file; do
+            if git cat-file -e "$BASE_SHA:$file" 2>/dev/null \
+              && ! git show "$BASE_SHA:$file" | bunx prettier --check --stdin-filepath "$file" > /dev/null 2>&1; then
+              echo "skip (unformatted at base): $file"
+            else
+              echo "$file" >> to-check.txt
+            fi
+          done < changed.txt
+          if [ -s to-check.txt ]; then
+            xargs bunx prettier --check < to-check.txt
+          else
+            echo "No formattable files to check"
+          fi
 
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
 
-      - name: Typecheck
-        run: bun run typecheck
+  unit:
+    name: unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      # Database-backed suites skip themselves without TEST_DATABASE_URL.
+      - run: bun run test
 
-      - name: Test
-        run: bun test
+  integration:
+    name: integration tests (Postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: flowtask
+          POSTGRES_PASSWORD: flowtask
+          POSTGRES_DB: flowtask_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U flowtask"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://flowtask:flowtask@localhost:5432/flowtask_test
+      BETTER_AUTH_SECRET: ci-secret-that-is-at-least-32-characters
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      - name: Apply migrations to the empty database
+        working-directory: packages/database
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+        run: bunx drizzle-kit migrate
+      - name: Integration tests
+        run: |
+          if grep -q '"test:integration"' package.json; then
+            bun run test:integration
+          else
+            bun test
+          fi
+
+  migration-drift:
+    name: migration drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      # schema.ts must match the committed migrations: generating must produce nothing.
+      - name: drizzle-kit generate produces no new migration
+        working-directory: packages/database
+        run: |
+          bunx drizzle-kit generate --name ci_drift_check
+          if [ -n "$(git status --porcelain .)" ]; then
+            echo "::error::schema.ts and packages/database/drizzle are out of sync; run bun run db:generate and commit the migration"
+            git status --porcelain .
+            exit 1
+          fi
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+
+  audit:
+    name: dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+      - run: bun install --frozen-lockfile
+      # GHSA-mrhx-c7xc-m3w5 (zod <4.6.6, memory exhaustion on oversized
+      # constrained collections) is fixed only in zod 4. Ignored until the
+      # zod 4 major upgrade; remove the flag in that change.
+      - run: bun audit --audit-level=high --ignore=GHSA-mrhx-c7xc-m3w5
+
+  docker:
+    name: docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: false
+          tags: flowtask:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

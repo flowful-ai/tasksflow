@@ -17,6 +17,7 @@
     "dev": "tsup",
     "watch": "tsup --watch",
     "typecheck": "tsc --noEmit",
+    "test": "bun test --pass-with-no-tests",
     "clean": "rm -rf dist"
   },
   "devDependencies": {
