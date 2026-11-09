@@ -3,7 +3,6 @@ import { useParams, Link } from 'react-router-dom';
 import { Pencil, LayoutGrid, List, Table, Calendar, Filter } from 'lucide-react';
 import { TaskDisplayContainer, taskKeyOf, type DisplayType } from '../components/task-display';
 import type { MoveTaskInput, TaskStateDto } from '../api/types';
-import { TaskDetailSheet } from '../components/tasks/TaskDetailSheet';
 import { ShareButton, ShareDialog, ActiveShareBanner } from '../components/smart-views/ShareDialog';
 import { LiveIndicator } from '../components/realtime/ConnectionStatus';
 import { BoardSkeleton } from '../components/board/BoardSkeleton';
@@ -18,7 +17,7 @@ import {
   useSmartViewTasks,
   useWorkspace,
 } from '../hooks/queries';
-import { useAuthStore } from '../stores/auth';
+import { useUiStore } from '../stores/ui';
 
 const displayTypeIcons: Record<DisplayType, React.ComponentType<{ className?: string }>> = {
   kanban: LayoutGrid,
@@ -29,13 +28,19 @@ const displayTypeIcons: Record<DisplayType, React.ComponentType<{ className?: st
 
 export function SmartViewPage() {
   const { viewId } = useParams<{ viewId: string }>();
-  const currentUserId = useAuthStore((s) => s.user?.id);
-  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
+  const openTaskSheet = useUiStore((s) => s.openTaskSheet);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const boardRef = useRef<HTMLDivElement>(null);
 
   const viewQuery = useSmartViewTasks(viewId);
-  const { view, tasks, total } = viewQuery;
+  const { view, tasks: matchedTasks, total } = viewQuery;
+  // A sub-task whose parent also matched is reachable from the parent card, so it
+  // is not shown twice. Sub-tasks matched on their own stay visible: a saved
+  // filter such as "assigned to me" must not hide them.
+  const tasks = useMemo(() => {
+    const matched = new Set(matchedTasks.map((task) => task.id));
+    return matchedTasks.filter((task) => !task.parentId || !matched.has(task.parentId));
+  }, [matchedTasks]);
   const { data: workspaceDetail } = useWorkspace(view?.workspaceId);
   const shares = usePublicShareMutations(viewId ?? '');
   const moveAsync = useMoveTask().mutateAsync;
@@ -67,9 +72,9 @@ export function SmartViewPage() {
   const keyboard = useBoardKeyboard({
     containerRef: boardRef,
     visibleIds,
-    onOpen: setOpenTaskId,
+    onOpen: openTaskSheet,
     onDeleteOne: deleteOne,
-    enabled: !openTaskId && !showShareDialog,
+    enabled: !showShareDialog,
   });
   const selectedTasks = useMemo(
     () => (keyboard.selectedIds.size === 0 ? [] : tasks.filter((task) => keyboard.selectedIds.has(task.id))),
@@ -84,12 +89,6 @@ export function SmartViewPage() {
     [moveAsync]
   );
   const onInvalidDrop = useCallback((message: string) => toast.warning(message), []);
-
-  const openTask = openTaskId ? taskById.get(openTaskId) ?? null : null;
-  const openTaskStates = useMemo(
-    () => projects.find((project) => project.id === openTask?.project.id)?.taskStates ?? [],
-    [projects, openTask?.project.id]
-  );
 
   const activePublicShares = useMemo(() => view?.publicShares?.filter((share) => share.isActive) ?? [], [view?.publicShares]);
   const primaryActiveShare = activePublicShares[0];
@@ -195,18 +194,9 @@ export function SmartViewPage() {
         states={allProjectStates}
         members={members}
         labelsByProject={labelsByProject}
-        currentUserId={currentUserId}
         onDeleteOne={deleteOne}
       />
 
-      {openTaskId && openTask && (
-        <TaskDetailSheet
-          taskId={openTaskId}
-          projectId={openTask.project.id}
-          states={openTaskStates}
-          onClose={() => setOpenTaskId(null)}
-        />
-      )}
 
       {showShareDialog && (
         <ShareDialog

@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { FolderKanban, MoreHorizontal, Plus, Settings, SearchX } from 'lucide-react';
+import { FolderKanban, MoreHorizontal, Plus, Settings, SearchX, Trash2 } from 'lucide-react';
 import { TaskDisplayContainer } from '../components/task-display';
 import { taskKeyOf } from '../components/task-display/TaskCard';
-import { TaskModal } from '../components/tasks/TaskModal';
-import { TaskDetailSheet } from '../components/tasks/TaskDetailSheet';
 import { BoardTopBar, type FilterOption } from '../components/board/BoardTopBar';
 import { BoardSkeleton } from '../components/board/BoardSkeleton';
 import { BulkActionBar } from '../components/board/BulkActionBar';
@@ -32,6 +30,7 @@ import type { MoveTaskInput } from '../api/types';
 import { useCreateTask, useDeleteTask, useMoveTask, useProject, useProjectTasks, useWorkspace } from '../hooks/queries';
 import { useAuthStore } from '../stores/auth';
 import { useWorkspaceStore, type ProjectViewMode } from '../stores/workspace';
+import { useUiStore } from '../stores/ui';
 
 export function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -42,8 +41,8 @@ export function ProjectPage() {
   const isMobile = useIsMobile();
   const [mobileMode, setMobileMode] = useState<ProjectViewMode | null>(null);
   const [filters, setFilters] = useState<BoardFilters>(EMPTY_FILTERS);
-  const [createInState, setCreateInState] = useState<{ stateId?: string } | null>(null);
-  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
+  const openCreateTask = useUiStore((s) => s.openCreateTask);
+  const openTaskSheet = useUiStore((s) => s.openTaskSheet);
   const boardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -83,9 +82,8 @@ export function ProjectPage() {
   const keyboard = useBoardKeyboard({
     containerRef: boardRef,
     visibleIds,
-    onOpen: setOpenTaskId,
+    onOpen: openTaskSheet,
     onDeleteOne: deleteOne,
-    enabled: !openTaskId && !createInState,
   });
   const selectedTasks = useMemo(
     () => (keyboard.selectedIds.size === 0 ? [] : tasks.filter((t) => keyboard.selectedIds.has(t.id))),
@@ -108,7 +106,7 @@ export function ProjectPage() {
     },
     [createAsync, projectId]
   );
-  const onAddTask = useCallback((stateId: string) => setCreateInState({ stateId }), []);
+  const onAddTask = useCallback((stateId: string) => openCreateTask({ projectId, stateId }), [openCreateTask, projectId]);
 
   const members = useMemo(() => workspaceDetail?.members ?? [], [workspaceDetail?.members]);
   const memberOptions = useMemo<FilterOption[]>(
@@ -141,7 +139,7 @@ export function ProjectPage() {
   }
 
   const setViewMode = (mode: ProjectViewMode) => (isMobile ? setMobileMode(mode) : setProjectViewMode(project.id, mode));
-  const openCreate = () => setCreateInState({});
+  const openCreate = () => openCreateTask({ projectId: project.id });
   const chips = describeFilters(filters, {
     currentUserId,
     members: new Map(memberOptions.map((m) => [m.id, m.name])),
@@ -223,6 +221,9 @@ export function ProjectPage() {
               <DropdownMenuItem icon={<Settings />} asChild>
                 <Link to={`/project/${project.id}/settings`}>Project settings</Link>
               </DropdownMenuItem>
+              <DropdownMenuItem icon={<Trash2 />} asChild>
+                <Link to={`/project/${project.id}/trash`}>Trash</Link>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         }
@@ -240,7 +241,6 @@ export function ProjectPage() {
         states={taskStates}
         members={members}
         labelsByProject={labelsByProject}
-        currentUserId={currentUserId ?? undefined}
         onDeleteOne={deleteOne}
       />
 
@@ -255,19 +255,6 @@ export function ProjectPage() {
         </button>
       )}
 
-      {createInState && (
-        <TaskModal
-          projectId={project.id}
-          states={taskStates}
-          defaultStateId={createInState.stateId}
-          onClose={() => setCreateInState(null)}
-          onCreated={() => setCreateInState(null)}
-        />
-      )}
-
-      {openTaskId && (
-        <TaskDetailSheet taskId={openTaskId} projectId={project.id} states={taskStates} onClose={() => setOpenTaskId(null)} />
-      )}
     </div>
   );
 }

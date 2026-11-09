@@ -12,11 +12,15 @@
  * C and ⌘K are global shortcuts owned elsewhere and are never handled here.
  */
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { useHotkey } from '../../lib/hotkeys';
 import type { TaskOpenEvent } from '../task-display/TaskCard';
 
 export type BulkPicker = 'status' | 'assign' | 'label' | 'priority' | 'delete';
 
 const PICKER_KEYS: Record<string, BulkPicker> = { s: 'status', a: 'assign', l: 'label', p: 'priority' };
+
+/** Every key the board binds through the shared registry (never C or ⌘K, which are global). */
+const BOARD_KEYS = ['j', 'k', 'arrowdown', 'arrowup', 'arrowright', 'arrowleft', 'x', 'escape', 'e', 'backspace', 'delete', 's', 'a', 'l', 'p'] as const;
 
 function isElement(target: EventTarget | null): target is Element {
   return target instanceof Element;
@@ -158,91 +162,87 @@ export function useBoardKeyboard({ containerRef, visibleIds, onOpen, onDeleteOne
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (!enabledRef.current || event.defaultPrevented) return;
-      if (event.metaKey || event.ctrlKey || event.altKey) return;
-      const container = containerRef.current;
-      const target = event.target;
-      if (!container || !isElement(target)) return;
-      if (isTypingTarget(target)) return;
-      if (target.closest('[role="dialog"], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper]')) return;
-      // A keyboard drag in progress owns the arrow keys.
-      if (container.querySelector('[data-dragging="true"]')) return;
+  /**
+   * Resolve a key press to a board action, or null when the board doesn't own
+   * it (focus elsewhere, keyboard drag in progress). Runs through the shared
+   * hotkey registry, which already skips inputs, menus and open modals.
+   */
+  const resolveAction = (event: KeyboardEvent): (() => void) | null => {
+    if (!enabledRef.current) return null;
+    const container = containerRef.current;
+    const target = event.target;
+    if (!container || !isElement(target)) return null;
+    if (isTypingTarget(target)) return null;
+    // A keyboard drag in progress owns the arrow keys.
+    if (container.querySelector('[data-dragging="true"]')) return null;
 
-      const inBoard = container.contains(target);
-      const inBoardChrome = !inBoard && target.closest('[data-board-scope]') !== null;
-      const hasSelection = selectedRef.current.size > 0;
-      const onPage = target === document.body || target === document.documentElement || inBoardChrome;
-      if (!inBoard && !(hasSelection && onPage)) return;
+    const inBoard = container.contains(target);
+    const inBoardChrome = !inBoard && target.closest('[data-board-scope]') !== null;
+    const hasSelection = selectedRef.current.size > 0;
+    const onPage = target === document.body || target === document.documentElement || inBoardChrome;
+    if (!inBoard && !(hasSelection && onPage)) return null;
 
-      const cardNode = inBoard ? target.closest('[data-task-id]') : null;
-      const card = isHTMLElement(cardNode) ? cardNode : null;
-      const focusedId = card?.dataset.taskId ?? null;
-      const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+    const cardNode = inBoard ? target.closest('[data-task-id]') : null;
+    const card = isHTMLElement(cardNode) ? cardNode : null;
+    const focusedId = card?.dataset.taskId ?? null;
+    const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+    const move = (direction: Parameters<typeof findNeighbourCard>[2]) => () =>
+      focusCard(findNeighbourCard(container, card, direction));
 
-      const move = (direction: Parameters<typeof findNeighbourCard>[2]) => {
-        event.preventDefault();
-        focusCard(findNeighbourCard(container, card, direction));
-      };
-
-      switch (key) {
-        case 'j':
-          return move('next');
-        case 'k':
-          return move('prev');
-        case 'ArrowDown':
-          return move(card ? 'down' : 'next');
-        case 'ArrowUp':
-          return move(card ? 'up' : 'prev');
-        case 'ArrowRight':
-          return card ? move('right') : undefined;
-        case 'ArrowLeft':
-          return card ? move('left') : undefined;
-        case 'x':
-          if (!focusedId) return;
-          event.preventDefault();
-          toggle(focusedId);
-          return;
-        case 'Escape':
-          if (!hasSelection) return;
-          event.preventDefault();
-          clearSelection();
-          return;
-        case 'e':
-          if (!focusedId) return;
-          event.preventDefault();
-          onOpenRef.current(focusedId);
-          return;
-        case 'Backspace':
-        case 'Delete': {
-          const targets = hasSelection ? [...selectedRef.current] : focusedId ? [focusedId] : [];
-          if (targets.length === 0) return;
-          event.preventDefault();
+    switch (key) {
+      case 'j':
+        return move('next');
+      case 'k':
+        return move('prev');
+      case 'ArrowDown':
+        return move(card ? 'down' : 'next');
+      case 'ArrowUp':
+        return move(card ? 'up' : 'prev');
+      case 'ArrowRight':
+        return card ? move('right') : null;
+      case 'ArrowLeft':
+        return card ? move('left') : null;
+      case 'x':
+        return focusedId ? () => toggle(focusedId) : null;
+      case 'Escape':
+        return hasSelection ? clearSelection : null;
+      case 'e':
+        return focusedId ? () => onOpenRef.current(focusedId) : null;
+      case 'Backspace':
+      case 'Delete': {
+        const targets = hasSelection ? [...selectedRef.current] : focusedId ? [focusedId] : [];
+        if (targets.length === 0) return null;
+        return () => {
           if (targets.length === 1) {
             onDeleteOneRef.current(targets[0]!);
             if (hasSelection) clearSelection();
           } else {
             setPicker('delete');
           }
-          return;
-        }
-        default: {
-          const wanted = PICKER_KEYS[key];
-          if (!wanted || event.shiftKey) return;
-          if (!hasSelection) {
-            if (!focusedId) return;
+        };
+      }
+      default: {
+        const wanted = PICKER_KEYS[key];
+        if (!wanted) return null;
+        if (!hasSelection && !focusedId) return null;
+        return () => {
+          if (!hasSelection && focusedId) {
             anchorRef.current = focusedId;
             setSelectedIds(new Set([focusedId]));
           }
-          event.preventDefault();
           setPicker(wanted);
-        }
+        };
       }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [containerRef, toggle, clearSelection]);
+    }
+  };
+
+  const hotkeyOptions = { when: (event: KeyboardEvent) => resolveAction(event) !== null };
+  const runAction = (event: KeyboardEvent) => resolveAction(event)?.();
+  for (const combo of BOARD_KEYS) {
+    // BOARD_KEYS is a module constant, so the hook order never changes.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    useHotkey(combo, runAction, hotkeyOptions);
+  }
 
   return { selectedIds, picker, setPicker, onTaskClick, clearSelection, toggle };
 }

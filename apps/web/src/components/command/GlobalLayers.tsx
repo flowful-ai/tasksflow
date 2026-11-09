@@ -55,18 +55,16 @@ function GlobalCreateTask() {
     : null;
   const { data: project } = useProject(projectId);
 
-  // TaskModal defaults to the first state: put the requested one first.
-  const states = useMemo(() => {
-    const sorted = [...(project?.taskStates ?? [])].sort((a, b) => (a.position < b.position ? -1 : a.position > b.position ? 1 : 0));
-    const wanted = request?.stateId;
-    if (!wanted) return sorted;
-    return [...sorted.filter((s) => s.id === wanted), ...sorted.filter((s) => s.id !== wanted)];
-  }, [project?.taskStates, request?.stateId]);
+  const states = useMemo(
+    () => [...(project?.taskStates ?? [])].sort((a, b) => (a.position < b.position ? -1 : a.position > b.position ? 1 : 0)),
+    [project?.taskStates]
+  );
+  const defaultStateId = request?.stateId && states.some((s) => s.id === request.stateId) ? request.stateId : undefined;
 
   if (!request || !projectId || !project) return null;
   return (
     <Suspense fallback={null}>
-      <TaskModal projectId={projectId} states={states} onClose={close} onCreated={close} />
+      <TaskModal projectId={projectId} states={states} defaultStateId={defaultStateId} onClose={close} onCreated={close} />
     </Suspense>
   );
 }
