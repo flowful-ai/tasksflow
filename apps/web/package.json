@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && bun scripts/check-csp-assets.ts",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "bun test --pass-with-no-tests"
