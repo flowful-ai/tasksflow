@@ -1,101 +1,26 @@
-import type { IntegrationProvider, GitHubConfig, WebhookResult, GitHubIssueWebhookPayload, GitHubPRWebhookPayload, GitHubIssueCommentWebhookPayload } from '../types.js';
-import type { TaskEvent } from '@flowtask/shared';
-import { GitHubWebhookHandler } from './webhook.js';
+import { GitHubConfigSchema, type GitHubConfig } from '@flowtask/shared';
+import type { IntegrationProvider } from '../types.js';
+import { getGitHubAppId } from './client.js';
+import { readSecretEnv } from '../env.js';
 
 /**
- * GitHub integration provider.
- * Implements one-way sync: GitHub → FlowTask
+ * GitHub integration provider (config validation).
+ * Sync is two-way: GitHubWebhookProcessor/GitHubSyncService (GitHub → FlowTask)
+ * and GitHubReverseSyncService (FlowTask → GitHub).
  */
 export class GitHubProvider implements IntegrationProvider<GitHubConfig> {
   type = 'github' as const;
   name = 'GitHub';
 
-  private webhookHandler = new GitHubWebhookHandler();
-
-  /**
-   * Validate GitHub configuration.
-   */
   validateConfig(config: unknown): config is GitHubConfig {
-    if (!config || typeof config !== 'object') {
-      return false;
-    }
-
-    const c = config as Record<string, unknown>;
-
-    return (
-      typeof c.owner === 'string' &&
-      c.owner.length > 0 &&
-      typeof c.repo === 'string' &&
-      c.repo.length > 0 &&
-      typeof c.installationId === 'number' &&
-      c.installationId > 0
-    );
+    return GitHubConfigSchema.safeParse(config).success;
   }
 
-  /**
-   * Handle incoming GitHub webhooks.
-   */
-  async handleWebhook(payload: unknown, config: GitHubConfig): Promise<WebhookResult> {
-    // Determine event type from payload structure
-    // Check issue_comment first since it also has 'issue' field
-    if (this.isIssueCommentPayload(payload)) {
-      return this.webhookHandler.handleIssueCommentEvent(payload, config);
-    }
-
-    if (this.isIssuePayload(payload)) {
-      return this.webhookHandler.handleIssueEvent(payload, config);
-    }
-
-    if (this.isPRPayload(payload)) {
-      return this.webhookHandler.handlePREvent(payload, config);
-    }
-
-    return { action: 'ignore' };
-  }
-
-  /**
-   * GitHub integration does not send notifications (one-way sync).
-   * Tasks are synced from GitHub, not to GitHub.
-   */
-  async notify(event: TaskEvent, config: GitHubConfig): Promise<void> {
-    // No-op: We don't sync back to GitHub
-    // This is intentional - GitHub is the source of truth
-  }
-
-  /**
-   * Check if the integration is properly configured.
-   */
   isConfigured(config: GitHubConfig): boolean {
-    return this.validateConfig(config);
-  }
-
-  private isIssuePayload(payload: unknown): payload is GitHubIssueWebhookPayload {
     return (
-      payload !== null &&
-      typeof payload === 'object' &&
-      'issue' in payload &&
-      'action' in payload &&
-      !('pull_request' in payload)
-    );
-  }
-
-  private isPRPayload(payload: unknown): payload is GitHubPRWebhookPayload {
-    return (
-      payload !== null &&
-      typeof payload === 'object' &&
-      'pull_request' in payload &&
-      'action' in payload
-    );
-  }
-
-  private isIssueCommentPayload(payload: unknown): payload is GitHubIssueCommentWebhookPayload {
-    return (
-      payload !== null &&
-      typeof payload === 'object' &&
-      'comment' in payload &&
-      'issue' in payload &&
-      'action' in payload &&
-      !('pull_request' in payload)
+      config.repositories.length > 0 &&
+      getGitHubAppId() !== null &&
+      readSecretEnv('GITHUB_APP_PRIVATE_KEY') !== undefined
     );
   }
 }

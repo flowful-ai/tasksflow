@@ -1,272 +1,313 @@
 import type { Database } from '@flowtask/database';
-import { projectIntegrations, externalLinks, tasks } from '@flowtask/database';
-import { eq, and } from 'drizzle-orm';
-import type { GitHubConfig } from '../types.js';
-import { createGitHubClientForInstallation, type GitHubClient } from './client.js';
-import { GitHubWebhookHandler } from './webhook.js';
-import { TaskService } from '@flowtask/domain';
-import { positionAfter } from '@flowtask/shared';
+import { externalLinks, tasks } from '@flowtask/database';
+import type { TaskService, TaskWithRelations } from '@flowtask/domain';
+import { REALTIME_EVENTS, formatGitHubExternalId } from '@flowtask/shared';
+import { and, eq, sql } from 'drizzle-orm';
+import type { PublishRealtimeEvent } from '../types.js';
+import { notifySlackForTaskEvent, type SlackTaskEvent } from '../slack/task-events.js';
+import { createGitHubClientForInstallation } from './client.js';
+import type { GitHubRepoTarget } from './integration-store.js';
+import { computeIssueSyncHash } from './sync-hash.js';
+import { findFirstStateByCategory, getStateCategory, positionAtEndOfState } from './task-lookup.js';
+import { issueContentFrom, mapLabelsToPriority, type IssueContent } from './webhook.js';
+
+export interface GitHubSyncDeps {
+  db: Database;
+  taskService: TaskService;
+  /** Realtime publisher (apps/api sse `publishEvent`). Defaults to a no-op. */
+  publish?: PublishRealtimeEvent;
+  /** Slack notifier. Defaults to notifySlackForTaskEvent. */
+  notifySlack?: (event: SlackTaskEvent) => void;
+}
+
+export type IssueSyncAction = 'created' | 'updated' | 'unchanged' | 'ignored';
+
+export interface IssueSyncResult {
+  action: IssueSyncAction;
+  taskId: string | null;
+}
+
+export interface InitialSyncResult {
+  created: number;
+  updated: number;
+  unchanged: number;
+  errors: string[];
+}
+
+interface IssueSnapshot {
+  number: number;
+  url: string;
+  content: IssueContent;
+}
+
+type LinkClaim =
+  | { kind: 'existing'; linkId: string; taskId: string; syncHash: string | null }
+  | { kind: 'created'; task: TaskWithRelations }
+  | { kind: 'missing' };
+
+class LinkClaimLostError extends Error {}
 
 /**
- * Service for syncing GitHub issues to FlowTask tasks.
- * One-way sync: GitHub → FlowTask
+ * Limits concurrent link claims: a claim holds one pooled connection for its
+ * advisory-locked transaction while TaskService.create uses another.
+ */
+class Semaphore {
+  private active = 0;
+  private readonly waiters: Array<() => void> = [];
+  constructor(private readonly max: number) {}
+
+  async run<T>(fn: () => Promise<T>): Promise<T> {
+    if (this.active >= this.max) {
+      await new Promise<void>((resolve) => this.waiters.push(resolve));
+    }
+    this.active++;
+    try {
+      return await fn();
+    } finally {
+      this.active--;
+      this.waiters.shift()?.();
+    }
+  }
+}
+
+const claimSemaphore = new Semaphore(2);
+const INITIAL_SYNC_MAX_PAGES = 10;
+
+/**
+ * GitHub → FlowTask sync (issues to tasks). FlowTask → GitHub lives in
+ * GitHubReverseSyncService.
  */
 export class GitHubSyncService {
-  private webhookHandler = new GitHubWebhookHandler();
+  private readonly db: Database;
+  private readonly taskService: TaskService;
+  private readonly publish: PublishRealtimeEvent;
+  private readonly notifySlack: (event: SlackTaskEvent) => void;
 
-  constructor(
-    private db: Database,
-    private taskService: TaskService
-  ) {}
+  constructor(deps: GitHubSyncDeps) {
+    this.db = deps.db;
+    this.taskService = deps.taskService;
+    this.publish = deps.publish ?? (() => {});
+    this.notifySlack = deps.notifySlack ?? notifySlackForTaskEvent;
+  }
 
-  /**
-   * Perform initial sync of all open issues from GitHub.
-   */
-  async initialSync(integrationId: string, projectId: string, config: GitHubConfig): Promise<{
-    created: number;
-    updated: number;
-    errors: string[];
-  }> {
-    const result = { created: 0, updated: 0, errors: [] as string[] };
-    const repoName = `${config.owner}/${config.repo}`;
+  /** Import all open issues of a linked repository. */
+  async initialSync(target: GitHubRepoTarget): Promise<InitialSyncResult> {
+    const result: InitialSyncResult = { created: 0, updated: 0, unchanged: 0, errors: [] };
+    const client = await createGitHubClientForInstallation(target.repo.installationId, target.repo);
 
-    console.log(`[GitHub Sync] initialSync started for ${repoName} (integration: ${integrationId})`);
-
-    try {
-      // Update sync status
-      await this.updateSyncStatus(integrationId, 'syncing');
-
-      const client = await createGitHubClientForInstallation(config.installationId, config);
-
-      // Fetch all open issues
-      const issues = await client.listIssues({ state: 'open', per_page: 100 });
-      console.log(`[GitHub Sync] Fetched ${issues.length} open issues from ${repoName}`);
-
+    for (let page = 1; page <= INITIAL_SYNC_MAX_PAGES; page++) {
+      const issues = await client.listIssues({ state: 'open', per_page: 100, page });
       for (const issue of issues) {
+        // The issues endpoint also returns pull requests; those aren't tasks.
+        if (issue.pull_request) continue;
         try {
-          // GitHub's issues endpoint also returns pull requests; skip those so
-          // PRs aren't ingested as tasks (the PR webhook path handles them).
-          if (issue.pull_request) {
-            continue;
-          }
-
-          // Check if we already have this issue linked
-          const [existingLink] = await this.db
-            .select()
-            .from(externalLinks)
-            .where(
-              and(
-                eq(externalLinks.integrationId, integrationId),
-                eq(externalLinks.externalType, 'github_issue'),
-                eq(externalLinks.externalId, issue.number.toString())
-              )
-            );
-
-          if (existingLink) {
-            // Update existing task
-            const updateResult = await this.taskService.update(existingLink.taskId, {
-              title: issue.title,
-              description: issue.body || undefined,
-              priority: this.webhookHandler.mapLabelsToPriority(issue.labels as { name: string }[]),
-              updatedBy: null,
-            });
-
-            if (updateResult.ok) {
-              result.updated++;
-            } else {
-              result.errors.push(`Failed to update task for issue #${issue.number}: ${updateResult.error.message}`);
-            }
-          } else {
-            // Create new task
-            const taskData = this.webhookHandler.buildTaskFromIssue(issue as any);
-
-            const createResult = await this.taskService.create({
-              projectId,
-              title: taskData.title,
-              description: taskData.description || undefined,
-              priority: taskData.priority || undefined,
-              createdBy: null,
-            });
-
-            if (createResult.ok) {
-              // Create external link
-              await this.db.insert(externalLinks).values({
-                integrationId,
-                taskId: createResult.value.id,
-                externalType: 'github_issue',
-                externalId: taskData.externalId,
-                externalUrl: taskData.externalUrl,
-                lastSyncedAt: new Date(),
-              });
-
-              result.created++;
-            } else {
-              result.errors.push(`Failed to create task for issue #${issue.number}: ${createResult.error.message}`);
-            }
-          }
+          const synced = await this.applyIssue(
+            target,
+            { number: issue.number, url: issue.html_url, content: issueContentFrom(issue) },
+            { createIfMissing: true }
+          );
+          if (synced.action === 'created') result.created++;
+          else if (synced.action === 'updated') result.updated++;
+          else if (synced.action === 'unchanged') result.unchanged++;
         } catch (error) {
-          const errorMsg = `Error processing issue #${issue.number}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-          console.error(`[GitHub Sync] ${errorMsg}`);
-          result.errors.push(errorMsg);
+          result.errors.push(`Issue #${issue.number}: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       }
-
-      // Update sync status
-      await this.updateSyncStatus(integrationId, 'synced');
-      console.log(`[GitHub Sync] Completed for ${repoName}: ${result.created} created, ${result.updated} updated, ${result.errors.length} errors`);
-    } catch (error) {
-      const errorMsg = `Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      console.error(`[GitHub Sync] ${errorMsg}`, error);
-      await this.updateSyncStatus(integrationId, 'error', error instanceof Error ? error.message : 'Unknown error');
-      // Re-throw critical errors (credentials missing, API failures) so the caller can handle them
-      throw error;
+      if (issues.length < 100) break;
     }
-
     return result;
   }
 
-  /**
-   * Sync a single issue from a webhook event.
-   */
-  async syncIssue(
-    integrationId: string,
-    projectId: string,
-    config: GitHubConfig,
-    issueNumber: number
-  ): Promise<{ taskId: string; action: 'created' | 'updated' | 'linked' }> {
-    const client = await createGitHubClientForInstallation(config.installationId, config);
+  /** Fetch the current state of an issue from GitHub and apply it. */
+  async syncIssueFromGitHub(
+    target: GitHubRepoTarget,
+    issueNumber: number,
+    options: { createIfMissing: boolean }
+  ): Promise<IssueSyncResult> {
+    const client = await createGitHubClientForInstallation(target.repo.installationId, target.repo);
     const issue = await client.getIssue(issueNumber);
+    if (issue.pull_request) {
+      return { action: 'ignored', taskId: null };
+    }
+    return this.applyIssue(target, { number: issue.number, url: issue.html_url, content: issueContentFrom(issue) }, options);
+  }
 
-    // Check if we already have this issue linked
-    const [existingLink] = await this.db
-      .select()
-      .from(externalLinks)
-      .where(
-        and(
-          eq(externalLinks.integrationId, integrationId),
-          eq(externalLinks.externalType, 'github_issue'),
-          eq(externalLinks.externalId, issueNumber.toString())
-        )
-      );
+  /** Apply issue content to its linked task, creating the task when allowed. */
+  async applyIssue(
+    target: GitHubRepoTarget,
+    issue: IssueSnapshot,
+    options: { createIfMissing: boolean }
+  ): Promise<IssueSyncResult> {
+    const externalId = formatGitHubExternalId(target.repo.owner, target.repo.repo, issue.number);
+    const syncHash = computeIssueSyncHash(issue.content);
 
-    if (existingLink) {
-      // Update existing task
-      const taskData = this.webhookHandler.buildTaskFromIssue(issue as any);
-      await this.taskService.update(existingLink.taskId, {
-        title: taskData.title,
-        description: taskData.description || undefined,
-        priority: taskData.priority || undefined,
-        updatedBy: null,
-      });
+    const claim = await this.claimIssueLink(target, externalId, issue, syncHash, options.createIfMissing);
 
-      // Update last synced timestamp
-      await this.db
-        .update(externalLinks)
-        .set({ lastSyncedAt: new Date() })
-        .where(eq(externalLinks.id, existingLink.id));
-
-      return { taskId: existingLink.taskId, action: 'updated' };
+    if (claim.kind === 'missing') {
+      return { action: 'ignored', taskId: null };
     }
 
-    // Create new task
-    const taskData = this.webhookHandler.buildTaskFromIssue(issue as any);
-    const createResult = await this.taskService.create({
-      projectId,
-      title: taskData.title,
-      description: taskData.description || undefined,
-      priority: taskData.priority || undefined,
-      createdBy: null,
+    if (claim.kind === 'created') {
+      this.publish(target.workspaceId, REALTIME_EVENTS.TASK_CREATED, claim.task);
+      this.notifySlack({ type: 'task.created', taskId: claim.task.id, actorLabel: 'GitHub' });
+      return { action: 'created', taskId: claim.task.id };
+    }
+
+    // Echo of our own write, or a duplicate delivery: nothing changed.
+    if (claim.syncHash === syncHash) {
+      return { action: 'unchanged', taskId: claim.taskId };
+    }
+
+    const current = await this.taskService.getById(claim.taskId);
+    if (!current.ok) throw current.error;
+    if (current.value.deletedAt) {
+      return { action: 'ignored', taskId: claim.taskId };
+    }
+
+    const targetState = await this.resolveTargetState(target.projectId, current.value.stateId, issue.content.state);
+    const priority = mapLabelsToPriority(issue.content.labels);
+
+    const updated = await this.taskService.update(claim.taskId, {
+      title: issue.content.title,
+      description: issue.content.body,
+      ...(priority ? { priority } : {}),
+      ...(targetState ? { stateId: targetState.id, position: targetState.position } : {}),
+      updatedBy: null,
+      skipGitHubSync: true,
     });
+    if (!updated.ok) throw updated.error;
 
-    if (!createResult.ok) {
-      throw createResult.error;
-    }
-
-    // Create external link
-    await this.db.insert(externalLinks).values({
-      integrationId,
-      taskId: createResult.value.id,
-      externalType: 'github_issue',
-      externalId: taskData.externalId,
-      externalUrl: taskData.externalUrl,
-      lastSyncedAt: new Date(),
-    });
-
-    return { taskId: createResult.value.id, action: 'created' };
-  }
-
-  /**
-   * Link a PR to an existing task.
-   */
-  async linkPullRequest(
-    integrationId: string,
-    taskId: string,
-    prNumber: number,
-    prUrl: string
-  ): Promise<void> {
-    // Check if link already exists
-    const [existing] = await this.db
-      .select()
-      .from(externalLinks)
-      .where(
-        and(
-          eq(externalLinks.integrationId, integrationId),
-          eq(externalLinks.taskId, taskId),
-          eq(externalLinks.externalType, 'github_pr'),
-          eq(externalLinks.externalId, prNumber.toString())
-        )
-      );
-
-    if (!existing) {
-      await this.db.insert(externalLinks).values({
-        integrationId,
-        taskId,
-        externalType: 'github_pr',
-        externalId: prNumber.toString(),
-        externalUrl: prUrl,
-        lastSyncedAt: new Date(),
-      });
-    }
-  }
-
-  /**
-   * Find a task by its external ID (issue number).
-   */
-  async findTaskByExternalId(
-    integrationId: string,
-    externalType: 'github_issue' | 'github_pr',
-    externalId: string
-  ): Promise<string | null> {
-    const [link] = await this.db
-      .select({ taskId: externalLinks.taskId })
-      .from(externalLinks)
-      .where(
-        and(
-          eq(externalLinks.integrationId, integrationId),
-          eq(externalLinks.externalType, externalType),
-          eq(externalLinks.externalId, externalId)
-        )
-      );
-
-    return link?.taskId ?? null;
-  }
-
-  /**
-   * Update integration sync status.
-   */
-  private async updateSyncStatus(
-    integrationId: string,
-    status: 'idle' | 'syncing' | 'synced' | 'error',
-    error?: string
-  ): Promise<void> {
     await this.db
-      .update(projectIntegrations)
-      .set({
-        syncStatus: status,
-        syncError: error || null,
-        lastSyncAt: status === 'synced' ? new Date() : undefined,
-        updatedAt: new Date(),
-      })
-      .where(eq(projectIntegrations.id, integrationId));
+      .update(externalLinks)
+      .set({ syncHash, lastSyncedAt: new Date(), externalUrl: issue.url })
+      .where(eq(externalLinks.id, claim.linkId));
+
+    if (targetState) {
+      this.publish(target.workspaceId, REALTIME_EVENTS.TASK_MOVED, updated.value);
+      this.notifySlack({ type: 'task.state_changed', taskId: claim.taskId, toStateId: targetState.id, actorLabel: 'GitHub' });
+    } else {
+      this.publish(target.workspaceId, REALTIME_EVENTS.TASK_UPDATED, updated.value);
+    }
+    return { action: 'updated', taskId: claim.taskId };
+  }
+
+  /**
+   * Closed issue → first `done` state; reopened issue → first `backlog` state.
+   * Returns null when the task is already in a matching category.
+   */
+  async resolveTargetState(
+    projectId: string,
+    currentStateId: string | null,
+    issueState: 'open' | 'closed'
+  ): Promise<{ id: string; position: string } | null> {
+    const category = await getStateCategory(this.db, currentStateId);
+    const wanted = issueState === 'closed' ? 'done' : 'backlog';
+    if (issueState === 'closed' && category === 'done') return null;
+    if (issueState === 'open' && category !== 'done') return null;
+    const state = await findFirstStateByCategory(this.db, projectId, wanted);
+    if (!state || state.id === currentStateId) return null;
+    return { id: state.id, position: await positionAtEndOfState(this.db, projectId, state.id) };
+  }
+
+  /**
+   * Find the task linked to an issue, or create task + link atomically.
+   *
+   * An advisory transaction lock on (integration, externalId) serializes
+   * concurrent deliveries for the same issue (e.g. `opened` + `labeled`). The
+   * link is inserted with ON CONFLICT DO NOTHING and the task only survives
+   * when that insert wins; otherwise (or on any failure) the freshly created
+   * task is removed, so there are neither duplicates nor orphans.
+   */
+  private async claimIssueLink(
+    target: GitHubRepoTarget,
+    externalId: string,
+    issue: IssueSnapshot,
+    syncHash: string,
+    createIfMissing: boolean
+  ): Promise<LinkClaim> {
+    const findExisting = async (): Promise<LinkClaim | null> => {
+      const [existing] = await this.db
+        .select({ id: externalLinks.id, taskId: externalLinks.taskId, syncHash: externalLinks.syncHash })
+        .from(externalLinks)
+        .where(
+          and(
+            eq(externalLinks.integrationId, target.integrationId),
+            eq(externalLinks.externalType, 'github_issue'),
+            eq(externalLinks.externalId, externalId)
+          )
+        );
+      return existing ? { kind: 'existing', linkId: existing.id, taskId: existing.taskId, syncHash: existing.syncHash } : null;
+    };
+
+    // Fast path without locking.
+    const existing = await findExisting();
+    if (existing) return existing;
+    if (!createIfMissing) return { kind: 'missing' };
+
+    return claimSemaphore.run(async () => {
+      let createdTaskId: string | null = null;
+      try {
+        return await this.db.transaction(async (tx): Promise<LinkClaim> => {
+          const lockKey = `github-issue-link:${target.integrationId}:${externalId}`;
+          await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`);
+
+          const [locked] = await tx
+            .select({ id: externalLinks.id, taskId: externalLinks.taskId, syncHash: externalLinks.syncHash })
+            .from(externalLinks)
+            .where(
+              and(
+                eq(externalLinks.integrationId, target.integrationId),
+                eq(externalLinks.externalType, 'github_issue'),
+                eq(externalLinks.externalId, externalId)
+              )
+            );
+          if (locked) {
+            return { kind: 'existing', linkId: locked.id, taskId: locked.taskId, syncHash: locked.syncHash };
+          }
+
+          const initialState =
+            issue.content.state === 'closed' ? await findFirstStateByCategory(this.db, target.projectId, 'done') : null;
+          const priority = mapLabelsToPriority(issue.content.labels);
+          const created = await this.taskService.create({
+            projectId: target.projectId,
+            title: issue.content.title,
+            description: issue.content.body || undefined,
+            ...(priority ? { priority } : {}),
+            ...(initialState ? { stateId: initialState.id } : {}),
+            createdBy: null,
+          });
+          if (!created.ok) throw created.error;
+          createdTaskId = created.value.id;
+
+          const [inserted] = await tx
+            .insert(externalLinks)
+            .values({
+              integrationId: target.integrationId,
+              taskId: created.value.id,
+              externalType: 'github_issue',
+              externalId,
+              externalUrl: issue.url,
+              syncHash,
+              lastSyncedAt: new Date(),
+            })
+            .onConflictDoNothing({
+              target: [externalLinks.integrationId, externalLinks.externalType, externalLinks.externalId],
+            })
+            .returning({ id: externalLinks.id });
+          if (!inserted) throw new LinkClaimLostError('Issue link already claimed');
+
+          return { kind: 'created', task: created.value };
+        });
+      } catch (error) {
+        if (createdTaskId) {
+          await this.db.delete(tasks).where(eq(tasks.id, createdTaskId));
+        }
+        if (error instanceof LinkClaimLostError) {
+          const winner = await findExisting();
+          if (winner) return winner;
+        }
+        throw error;
+      }
+    });
   }
 }

@@ -1,150 +1,78 @@
-import { App } from '@slack/bolt';
-import type { SlackConfig } from '../types.js';
+import { webApi, type types as slackTypes } from '@slack/bolt';
+import { readSecretEnv } from '../env.js';
+
+export type SlackBlock = slackTypes.KnownBlock;
+
+export interface SlackChannel {
+  id: string;
+  name: string;
+  isPrivate: boolean;
+  isMember: boolean;
+}
 
 /**
- * Slack client wrapper using Bolt for JavaScript.
- * Handles API calls and socket mode connections.
+ * Thin wrapper over the Slack Web API client for the calls FlowTask makes
+ * (notifications are one-way: FlowTask → Slack).
  */
 export class SlackClient {
-  private app: App;
-  private config: SlackConfig;
+  constructor(private readonly web: webApi.WebClient) {}
 
-  constructor(app: App, config: SlackConfig) {
-    this.app = app;
-    this.config = config;
-  }
-
-  /**
-   * Send a message to the configured channel.
-   */
-  async sendMessage(text: string, blocks?: unknown[]): Promise<string> {
-    const result = await this.app.client.chat.postMessage({
-      channel: this.config.channelId,
+  /** Post a message; returns its `ts`. */
+  async postMessage(channel: string, text: string, blocks?: SlackBlock[]): Promise<string | null> {
+    const result: webApi.ChatPostMessageResponse = await this.web.chat.postMessage({
+      channel,
       text,
-      blocks: blocks as any,
+      ...(blocks ? { blocks } : {}),
+      unfurl_links: false,
+      unfurl_media: false,
     });
-
-    return result.ts || '';
+    return result.ts ?? null;
   }
 
-  /**
-   * Update an existing message.
-   */
-  async updateMessage(ts: string, text: string, blocks?: unknown[]): Promise<void> {
-    await this.app.client.chat.update({
-      channel: this.config.channelId,
-      ts,
-      text,
-      blocks: blocks as any,
-    });
+  /** Public (and, with groups:read, private) channels the bot can see. First 1000. */
+  async listChannels(): Promise<SlackChannel[]> {
+    const channels: SlackChannel[] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < 5; page++) {
+      const result: webApi.ConversationsListResponse = await this.web.conversations.list({
+        exclude_archived: true,
+        types: 'public_channel,private_channel',
+        limit: 200,
+        ...(cursor ? { cursor } : {}),
+      });
+      for (const channel of result.channels ?? []) {
+        if (channel.id && channel.name) {
+          channels.push({
+            id: channel.id,
+            name: channel.name,
+            isPrivate: channel.is_private === true,
+            isMember: channel.is_member === true,
+          });
+        }
+      }
+      cursor = result.response_metadata?.next_cursor || undefined;
+      if (!cursor) break;
+    }
+    return channels;
   }
 
-  /**
-   * Add a reaction to a message.
-   */
-  async addReaction(ts: string, emoji: string): Promise<void> {
-    await this.app.client.reactions.add({
-      channel: this.config.channelId,
-      timestamp: ts,
-      name: emoji,
-    });
+  /** Channel name lookup (falls back to the id). */
+  async getChannelName(channelId: string): Promise<string> {
+    const result: webApi.ConversationsInfoResponse = await this.web.conversations.info({ channel: channelId });
+    return result.channel?.name ?? channelId;
   }
 
-  /**
-   * Get channel information.
-   */
-  async getChannelInfo(): Promise<{ name: string; id: string }> {
-    const result = await this.app.client.conversations.info({
-      channel: this.config.channelId,
-    });
-
-    return {
-      name: (result.channel as any)?.name || this.config.channelName,
-      id: this.config.channelId,
-    };
-  }
-
-  /**
-   * Get members of the channel.
-   */
-  async getChannelMembers(): Promise<string[]> {
-    const result = await this.app.client.conversations.members({
-      channel: this.config.channelId,
-    });
-
-    return result.members || [];
-  }
-
-  /**
-   * Get user information.
-   */
-  async getUserInfo(userId: string): Promise<{ name: string; email?: string }> {
-    const result = await this.app.client.users.info({
-      user: userId,
-    });
-
-    return {
-      name: (result.user as any)?.real_name || (result.user as any)?.name || 'Unknown',
-      email: (result.user as any)?.profile?.email,
-    };
-  }
-
-  /**
-   * Get the Bolt App instance for advanced operations.
-   */
-  getApp(): App {
-    return this.app;
-  }
-
-  /**
-   * Get the configuration.
-   */
-  getConfig(): SlackConfig {
-    return this.config;
+  /** Join a public channel so the bot can post there. */
+  async joinChannel(channelId: string): Promise<void> {
+    await this.web.conversations.join({ channel: channelId });
   }
 }
 
-/**
- * Create a Slack client with the configured credentials.
- */
-export function createSlackClient(config: SlackConfig): SlackClient {
-  const botToken = process.env.SLACK_BOT_TOKEN;
-  const signingSecret = process.env.SLACK_SIGNING_SECRET;
-  const appToken = process.env.SLACK_APP_TOKEN;
-
-  if (!botToken || !signingSecret) {
-    throw new Error('Slack credentials not configured');
-  }
-
-  const app = new App({
-    token: botToken,
-    signingSecret,
-    // Use socket mode if app token is provided
-    socketMode: !!appToken,
-    appToken: appToken || undefined,
-  });
-
-  return new SlackClient(app, config);
+export function createSlackClient(botToken: string): SlackClient {
+  return new SlackClient(new webApi.WebClient(botToken));
 }
 
-/**
- * Create a Slack client for a specific workspace.
- * In production, this would use the workspace's stored OAuth token.
- */
-export function createSlackClientForWorkspace(
-  workspaceToken: string,
-  config: SlackConfig
-): SlackClient {
-  const signingSecret = process.env.SLACK_SIGNING_SECRET;
-
-  if (!signingSecret) {
-    throw new Error('Slack signing secret not configured');
-  }
-
-  const app = new App({
-    token: workspaceToken,
-    signingSecret,
-  });
-
-  return new SlackClient(app, config);
+/** Instance-wide bot token for single-workspace self-hosting (SLACK_BOT_TOKEN), trimmed. */
+export function getEnvSlackBotToken(): string | undefined {
+  return readSecretEnv('SLACK_BOT_TOKEN');
 }

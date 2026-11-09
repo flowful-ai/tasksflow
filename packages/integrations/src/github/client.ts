@@ -1,325 +1,162 @@
 import { Octokit } from '@octokit/rest';
 import { createAppAuth } from '@octokit/auth-app';
-import type { GitHubConfig } from '../types.js';
+import type { GitHubRepoRef } from '../types.js';
+import { readSecretEnv } from '../env.js';
 
 /**
- * GitHub API client wrapper.
- * Uses GitHub Apps authentication for accessing repository data.
+ * GitHub API client scoped to one repository.
+ * Uses GitHub App installation authentication.
  */
 export class GitHubClient {
-  private octokit: Octokit;
-  private config: GitHubConfig;
+  constructor(
+    private readonly octokit: Octokit,
+    private readonly repoRef: GitHubRepoRef
+  ) {}
 
-  constructor(octokit: Octokit, config: GitHubConfig) {
-    this.octokit = octokit;
-    this.config = config;
+  private get base(): { owner: string; repo: string } {
+    return { owner: this.repoRef.owner, repo: this.repoRef.repo };
   }
 
-  /**
-   * Get repository information.
-   */
   async getRepository() {
-    const { data } = await this.octokit.repos.get({
-      owner: this.config.owner,
-      repo: this.config.repo,
-    });
+    const { data } = await this.octokit.repos.get(this.base);
     return data;
   }
 
-  /**
-   * List issues in the repository.
-   */
   async listIssues(options?: { state?: 'open' | 'closed' | 'all'; per_page?: number; page?: number }) {
     const { data } = await this.octokit.issues.listForRepo({
-      owner: this.config.owner,
-      repo: this.config.repo,
-      state: options?.state || 'open',
-      per_page: options?.per_page || 30,
-      page: options?.page || 1,
+      ...this.base,
+      state: options?.state ?? 'open',
+      per_page: options?.per_page ?? 30,
+      page: options?.page ?? 1,
     });
     return data;
   }
 
-  /**
-   * Get a specific issue.
-   */
   async getIssue(issueNumber: number) {
-    const { data } = await this.octokit.issues.get({
-      owner: this.config.owner,
-      repo: this.config.repo,
-      issue_number: issueNumber,
-    });
+    const { data } = await this.octokit.issues.get({ ...this.base, issue_number: issueNumber });
     return data;
   }
 
-  /**
-   * List pull requests in the repository.
-   */
   async listPullRequests(options?: { state?: 'open' | 'closed' | 'all'; per_page?: number; page?: number }) {
     const { data } = await this.octokit.pulls.list({
-      owner: this.config.owner,
-      repo: this.config.repo,
-      state: options?.state || 'open',
-      per_page: options?.per_page || 30,
-      page: options?.page || 1,
+      ...this.base,
+      state: options?.state ?? 'open',
+      per_page: options?.per_page ?? 30,
+      page: options?.page ?? 1,
     });
     return data;
   }
 
-  /**
-   * Get a specific pull request.
-   */
   async getPullRequest(prNumber: number) {
-    const { data } = await this.octokit.pulls.get({
-      owner: this.config.owner,
-      repo: this.config.repo,
-      pull_number: prNumber,
-    });
+    const { data } = await this.octokit.pulls.get({ ...this.base, pull_number: prNumber });
     return data;
   }
 
-  /**
-   * List comments on an issue.
-   */
   async listIssueComments(issueNumber: number) {
-    const { data } = await this.octokit.issues.listComments({
-      owner: this.config.owner,
-      repo: this.config.repo,
-      issue_number: issueNumber,
-    });
+    const { data } = await this.octokit.issues.listComments({ ...this.base, issue_number: issueNumber });
     return data;
   }
 
-  /**
-   * Add a comment to an issue.
-   */
   async addIssueComment(issueNumber: number, body: string) {
-    const { data } = await this.octokit.issues.createComment({
-      owner: this.config.owner,
-      repo: this.config.repo,
-      issue_number: issueNumber,
-      body,
-    });
+    const { data } = await this.octokit.issues.createComment({ ...this.base, issue_number: issueNumber, body });
     return data;
   }
 
-  /**
-   * Get labels for the repository.
-   */
   async listLabels() {
-    const { data } = await this.octokit.issues.listLabelsForRepo({
-      owner: this.config.owner,
-      repo: this.config.repo,
-    });
+    const { data } = await this.octokit.issues.listLabelsForRepo(this.base);
     return data;
   }
 
-  /**
-   * Get commits that reference a task ID (e.g., FLOW-123).
-   */
-  async findCommitsByTaskId(taskIdentifier: string) {
-    const { data } = await this.octokit.search.commits({
-      q: `repo:${this.config.owner}/${this.config.repo} ${taskIdentifier}`,
-    });
-    return data.items;
-  }
-
-  /**
-   * Get the Octokit instance for advanced operations.
-   */
   getOctokit(): Octokit {
     return this.octokit;
   }
 
-  // ============ Write Methods (for two-way sync) ============
+  // ============ Write Methods (two-way sync) ============
 
-  /**
-   * Update an issue's title, body, and/or state.
-   */
-  async updateIssue(issueNumber: number, updates: {
-    title?: string;
-    body?: string;
-    state?: 'open' | 'closed';
-  }) {
-    const { data } = await this.octokit.issues.update({
-      owner: this.config.owner,
-      repo: this.config.repo,
-      issue_number: issueNumber,
-      ...updates,
-    });
+  async updateIssue(issueNumber: number, updates: { title?: string; body?: string; state?: 'open' | 'closed' }) {
+    const { data } = await this.octokit.issues.update({ ...this.base, issue_number: issueNumber, ...updates });
     return data;
   }
 
-  /**
-   * Set labels on an issue, replacing existing labels.
-   */
   async setIssueLabels(issueNumber: number, labels: string[]) {
-    const { data } = await this.octokit.issues.setLabels({
-      owner: this.config.owner,
-      repo: this.config.repo,
-      issue_number: issueNumber,
-      labels,
-    });
+    const { data } = await this.octokit.issues.setLabels({ ...this.base, issue_number: issueNumber, labels });
     return data;
   }
 
-  /**
-   * Add labels to an issue without removing existing ones.
-   */
-  async addIssueLabels(issueNumber: number, labels: string[]) {
-    const { data } = await this.octokit.issues.addLabels({
-      owner: this.config.owner,
-      repo: this.config.repo,
-      issue_number: issueNumber,
-      labels,
-    });
+  async createIssue(options: { title: string; body?: string; labels?: string[]; assignees?: string[] }) {
+    const { data } = await this.octokit.issues.create({ ...this.base, ...options });
     return data;
   }
-
-  /**
-   * Remove a label from an issue.
-   */
-  async removeIssueLabel(issueNumber: number, label: string) {
-    const { data } = await this.octokit.issues.removeLabel({
-      owner: this.config.owner,
-      repo: this.config.repo,
-      issue_number: issueNumber,
-      name: label,
-    });
-    return data;
-  }
-
-  /**
-   * Set assignees on an issue, replacing existing assignees.
-   */
-  async setIssueAssignees(issueNumber: number, assignees: string[]) {
-    const { data } = await this.octokit.issues.update({
-      owner: this.config.owner,
-      repo: this.config.repo,
-      issue_number: issueNumber,
-      assignees,
-    });
-    return data;
-  }
-
-  /**
-   * Add assignees to an issue.
-   */
-  async addIssueAssignees(issueNumber: number, assignees: string[]) {
-    const { data } = await this.octokit.issues.addAssignees({
-      owner: this.config.owner,
-      repo: this.config.repo,
-      issue_number: issueNumber,
-      assignees,
-    });
-    return data;
-  }
-
-  /**
-   * Remove assignees from an issue.
-   */
-  async removeIssueAssignees(issueNumber: number, assignees: string[]) {
-    const { data } = await this.octokit.issues.removeAssignees({
-      owner: this.config.owner,
-      repo: this.config.repo,
-      issue_number: issueNumber,
-      assignees,
-    });
-    return data;
-  }
-
-  /**
-   * Create a new issue.
-   */
-  async createIssue(options: {
-    title: string;
-    body?: string;
-    labels?: string[];
-    assignees?: string[];
-  }) {
-    const { data } = await this.octokit.issues.create({
-      owner: this.config.owner,
-      repo: this.config.repo,
-      ...options,
-    });
-    return data;
-  }
-}
-
-/**
- * Create a GitHub client with app authentication.
- */
-export async function createGitHubClient(config: GitHubConfig): Promise<GitHubClient> {
-  // In production, this would use GitHub App authentication
-  // For now, we'll use a personal access token from environment
-  const token = process.env.GITHUB_TOKEN || process.env.GITHUB_ACCESS_TOKEN;
-
-  if (!token) {
-    console.error('[GitHub Client] Missing GitHub token. Set GITHUB_TOKEN or GITHUB_ACCESS_TOKEN environment variable.');
-    throw new Error('GitHub token not configured');
-  }
-
-  const octokit = new Octokit({
-    auth: token,
-  });
-
-  return new GitHubClient(octokit, config);
 }
 
 /**
  * Decode a private key that may be base64-encoded.
- * Supports both raw PEM format and base64-encoded keys.
- * Base64 encoding is useful for deployments where .env parsers
- * don't handle multi-line values well (e.g., Dokploy).
+ * Supports raw PEM and base64-encoded PEM (for .env parsers that mangle newlines).
  */
 function decodePrivateKey(key: string): string {
-  // If it starts with '-----BEGIN', it's already in PEM format
   if (key.startsWith('-----BEGIN')) {
-    return key;
+    return key.replace(/\\n/g, '\n');
   }
+  const decoded = Buffer.from(key, 'base64').toString('utf-8');
+  return decoded.startsWith('-----BEGIN') ? decoded : key;
+}
 
-  // Try to decode as base64
-  try {
-    const decoded = Buffer.from(key, 'base64').toString('utf-8');
-    if (decoded.startsWith('-----BEGIN')) {
-      return decoded;
-    }
-  } catch {
-    // Not valid base64, return as-is
+export interface GitHubAppCredentials {
+  appId: number;
+  privateKey: string;
+}
+
+export function getGitHubAppCredentials(): GitHubAppCredentials {
+  const appId = Number(readSecretEnv('GITHUB_APP_ID'));
+  const privateKeyRaw = readSecretEnv('GITHUB_APP_PRIVATE_KEY');
+  if (!Number.isSafeInteger(appId) || appId <= 0 || !privateKeyRaw) {
+    throw new Error('GitHub App credentials not configured. Set GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY.');
   }
+  return { appId, privateKey: decodePrivateKey(privateKeyRaw) };
+}
 
-  // Return as-is if neither format matches
-  return key;
+/** The configured GitHub App id, or null when GitHub isn't configured. */
+export function getGitHubAppId(): number | null {
+  const appId = Number(readSecretEnv('GITHUB_APP_ID'));
+  return Number.isSafeInteger(appId) && appId > 0 ? appId : null;
+}
+
+/** Octokit authenticated as a GitHub App installation. */
+export function createInstallationOctokit(installationId: number): Octokit {
+  const { appId, privateKey } = getGitHubAppCredentials();
+  return new Octokit({
+    authStrategy: createAppAuth,
+    auth: { appId, privateKey, installationId },
+  });
 }
 
 /**
- * Create a GitHub client with installation authentication.
- * This is used for GitHub App installations.
+ * Create a repository-scoped client with installation authentication.
  */
 export async function createGitHubClientForInstallation(
   installationId: number,
-  config: Omit<GitHubConfig, 'installationId'>
+  repoRef: GitHubRepoRef
 ): Promise<GitHubClient> {
-  const appId = process.env.GITHUB_APP_ID;
-  const privateKeyRaw = process.env.GITHUB_APP_PRIVATE_KEY;
+  return new GitHubClient(createInstallationOctokit(installationId), repoRef);
+}
 
-  if (!appId || !privateKeyRaw) {
-    console.error('[GitHub Client] Missing GitHub App credentials. Set GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY environment variables.');
-    throw new Error('GitHub App credentials not configured. Set GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY env vars.');
-  }
+export interface InstallationRepository {
+  id: number;
+  owner: string;
+  name: string;
+  fullName: string;
+  htmlUrl: string;
+}
 
-  // Decode the private key (supports both raw PEM and base64-encoded)
-  const privateKey = decodePrivateKey(privateKeyRaw);
-
-  // Use GitHub App installation authentication
-  const octokit = new Octokit({
-    authStrategy: createAppAuth,
-    auth: {
-      appId: parseInt(appId, 10),
-      privateKey,
-      installationId,
-    },
-  });
-
-  return new GitHubClient(octokit, { ...config, installationId });
+/** List repositories an installation can access (first 100). */
+export async function listInstallationRepositories(installationId: number): Promise<InstallationRepository[]> {
+  const octokit = createInstallationOctokit(installationId);
+  const { data } = await octokit.apps.listReposAccessibleToInstallation({ per_page: 100 });
+  return data.repositories.map((repo) => ({
+    id: repo.id,
+    owner: repo.owner.login,
+    name: repo.name,
+    fullName: repo.full_name,
+    htmlUrl: repo.html_url,
+  }));
 }
