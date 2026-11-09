@@ -26,6 +26,8 @@ import { useMediaQuery } from '../lib/useMediaQuery';
 import { shortRelativeTime, tomorrowMorning } from '../lib/time';
 import { useUiStore } from '../stores/ui';
 import {
+  Avatar,
+  Button,
   EmptyState,
   ErrorState,
   IconButton,
@@ -65,29 +67,20 @@ const EMPTY: Record<string, { title: string; body: string }> = {
 function ActorAvatar({ notification }: { notification: NotificationDto }) {
   const system = notification.type === 'overdue' || notification.type === 'due_soon';
   const gh = notification.type === 'github' && !notification.actor;
-  if (notification.actor?.avatarUrl) {
-    return (
-      <img
-        src={notification.actor.avatarUrl}
-        alt=""
-        className="h-7 w-7 shrink-0 rounded-full object-cover"
-      />
-    );
-  }
   return (
-    <span
-      aria-hidden
-      className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white"
-      style={{
-        background: system
+    <Avatar
+      src={notification.actor?.avatarUrl}
+      size="md"
+      color={
+        system
           ? '#ef4444'
           : gh
             ? '#57534e'
-            : projectColor(notification.actor?.id ?? notification.id),
-      }}
+            : projectColor(notification.actor?.id ?? notification.id)
+      }
     >
-      {system ? <Clock className="h-3.5 w-3.5" /> : gh ? 'GH' : initials(notification.actor?.name)}
-    </span>
+      {system ? <Clock /> : gh ? 'GH' : initials(notification.actor?.name)}
+    </Avatar>
   );
 }
 
@@ -345,14 +338,13 @@ export function InboxPage() {
                 </ul>
                 {list.hasNextPage && (
                   <div className="p-3 text-center">
-                    <button
-                      type="button"
-                      className="btn btn-secondary text-sm"
+                    <Button
+                      variant="secondary"
                       disabled={list.isFetchingNextPage}
                       onClick={() => void list.fetchNextPage()}
                     >
                       {list.isFetchingNextPage ? 'Loading…' : 'Load more'}
-                    </button>
+                    </Button>
                   </div>
                 )}
               </>
@@ -435,12 +427,9 @@ export function InboxPage() {
                     body="It may still be in the project trash."
                     action={
                       opened.task ? (
-                        <Link
-                          to={`/project/${opened.task.projectId}/trash`}
-                          className="btn btn-secondary"
-                        >
-                          Open trash
-                        </Link>
+                        <Button asChild variant="secondary">
+                          <Link to={`/project/${opened.task.projectId}/trash`}>Open trash</Link>
+                        </Button>
                       ) : undefined
                     }
                   />

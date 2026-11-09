@@ -25,7 +25,7 @@ import { useUiStore } from '../../stores/ui';
 import { useCurrentWorkspace, useProjects, useUnreadNotificationCount } from '../../hooks/queries';
 import { useRealtimeEvents } from '../../hooks/useRealtimeEvents';
 import { modKeyLabel } from '../../lib/hotkeys';
-import { avatarUrlOf, initials } from '../../lib/account';
+import { avatarUrlOf } from '../../lib/account';
 import { AgentChatLauncher } from '../chat/AgentChatLauncher';
 import { ReconnectingBanner } from '../realtime/ConnectionStatus';
 import { GlobalLayers } from '../command/GlobalLayers';
@@ -33,6 +33,7 @@ import { NoWorkspaceState } from './NoWorkspaceState';
 import { ErrorState } from '../ui/ErrorState';
 import { projectColor } from '../../lib/color';
 import {
+  Avatar,
   ColorDot,
   DropdownMenu,
   DropdownMenuContent,
@@ -371,22 +372,14 @@ export function Layout({ children }: LayoutProps) {
         {/* User menu */}
         <div className="border-t border-sidebar-border p-3">
           <div className="flex items-center gap-1 px-1 py-1">
-            {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt=""
-                className="avatar-ring h-8 w-8 rounded-full object-cover"
-              />
-            ) : (
-              <div
-                aria-hidden
-                className="avatar-ring flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary-500 to-primary-600"
-              >
-                <span className="text-sm font-semibold text-white">
-                  {initials(user?.name, user?.email)}
-                </span>
-              </div>
-            )}
+            <Avatar
+              src={avatarUrl}
+              name={user?.name}
+              email={user?.email}
+              tone="brand"
+              size="lg"
+              className="avatar-ring"
+            />
             <div className="ml-2 min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-white">
                 {user?.name || user?.email?.split('@')[0]}

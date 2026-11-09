@@ -8,13 +8,19 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Target } from 'lucide-react';
-import clsx from 'clsx';
 import type { TaskDto } from '../api/types';
 import { useCurrentWorkspace, useProjects, useProjectTasks } from '../hooks/queries';
 import { useAuthStore } from '../stores/auth';
 import { useUiStore } from '../stores/ui';
 import { TaskListView, type AvailableState, type GroupBy } from '../components/task-display';
-import { EmptyState, PageSpinner, Spinner } from '../components/ui';
+import {
+  Checkbox,
+  EmptyState,
+  PageHeader,
+  PageSpinner,
+  SegmentedControl,
+  Spinner,
+} from '../components/ui';
 
 interface ProjectResult {
   tasks: TaskDto[];
@@ -93,50 +99,31 @@ export function MyTasksPage() {
           <ProjectAssignedTasks key={p.id} projectId={p.id} userId={userId} onResult={onResult} />
         ))}
 
-      <header className="mb-6 flex flex-wrap items-end gap-3">
-        <div className="min-w-0 flex-1">
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-neutral-900">
+      <PageHeader
+        title={
+          <>
             My tasks
             {loading && <Spinner size="sm" label="Loading tasks" />}
-          </h1>
-          <p className="mt-1 text-sm text-neutral-500">
-            {tasks.length} task{tasks.length === 1 ? '' : 's'} assigned to you across{' '}
-            {projects.length} project
-            {projects.length === 1 ? '' : 's'}
-          </p>
-        </div>
-        <label className="inline-flex items-center gap-2 text-sm text-neutral-600">
-          <input
-            type="checkbox"
-            checked={hideDone}
-            onChange={(e) => setHideDone(e.target.checked)}
-            className="h-4 w-4 rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
-          />
-          Hide done
-        </label>
-        <div
-          role="group"
-          aria-label="Group by"
-          className="flex items-center rounded-lg border border-neutral-200 p-0.5"
-        >
-          {GROUPINGS.map((g) => (
-            <button
-              key={g.value}
-              type="button"
-              aria-pressed={groupBy === g.value}
-              onClick={() => setGroupBy(g.value)}
-              className={clsx(
-                'rounded-md px-3 py-1 text-sm font-medium transition-colors',
-                groupBy === g.value
-                  ? 'bg-neutral-100 text-neutral-900'
-                  : 'text-neutral-500 hover:text-neutral-800'
-              )}
-            >
-              {g.label}
-            </button>
-          ))}
-        </div>
-      </header>
+          </>
+        }
+        description={`${tasks.length} task${tasks.length === 1 ? '' : 's'} assigned to you across ${projects.length} project${projects.length === 1 ? '' : 's'}`}
+        actions={
+          <>
+            <Checkbox
+              checked={hideDone}
+              onChange={(e) => setHideDone(e.target.checked)}
+              label="Hide done"
+              labelClassName="items-center"
+            />
+            <SegmentedControl
+              label="Group by"
+              value={groupBy}
+              onChange={setGroupBy}
+              options={GROUPINGS}
+            />
+          </>
+        }
+      />
 
       {projectsLoading ? (
         <PageSpinner label="Loading projects" />

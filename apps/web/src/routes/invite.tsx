@@ -1,22 +1,12 @@
 import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import {
-  Users,
-  Mail,
-  Shield,
-  User,
-  Clock,
-  AlertTriangle,
-  Loader2,
-  CheckCircle,
-  LogIn,
-} from 'lucide-react';
+import { Users, Mail, Shield, User, Clock, AlertTriangle, CheckCircle, LogIn } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../stores/auth';
 import { useWorkspaceStore } from '../stores/workspace';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { usePublicInvitation } from '../hooks/queries';
-import { PageSpinner } from '../components/ui';
+import { Button, PageSpinner } from '../components/ui';
 import { queryKeys } from '../api/queryKeys';
 import { invitationApi, ApiError } from '../api/client';
 
@@ -80,9 +70,9 @@ export function InvitePage() {
             {errorCode === 'EXPIRED' ? 'Invitation Expired' : 'Invalid Invitation'}
           </h1>
           <p className="text-neutral-600 mb-6">{error}</p>
-          <Link to="/login" className="btn btn-primary">
-            Go to Login
-          </Link>
+          <Button asChild>
+            <Link to="/login">Go to Login</Link>
+          </Button>
         </div>
       </div>
     );
@@ -103,9 +93,7 @@ export function InvitePage() {
             You've successfully joined the workspace. You can now start collaborating with your
             team.
           </p>
-          <button type="button" onClick={handleGoToWorkspace} className="btn btn-primary">
-            Go to Dashboard
-          </button>
+          <Button onClick={handleGoToWorkspace}>Go to Dashboard</Button>
         </div>
       </div>
     );
@@ -136,7 +124,9 @@ export function InvitePage() {
         <div className="p-6 space-y-6">
           {/* Workspace info */}
           <div className="text-center">
-            <h2 className="text-2xl font-bold text-neutral-900 mb-1">{invitation?.workspaceName}</h2>
+            <h2 className="text-2xl font-bold text-neutral-900 mb-1">
+              {invitation?.workspaceName}
+            </h2>
             <div className="flex items-center justify-center gap-2 text-neutral-600">
               {invitation?.role === 'admin' ? (
                 <>
@@ -221,35 +211,19 @@ export function InvitePage() {
           <div className="space-y-3">
             {isAuthenticated ? (
               isEmailMismatch ? (
-                <Link to="/login" className="btn btn-primary w-full justify-center">
-                  <LogIn className="w-4 h-4 mr-2" />
-                  Sign in with different account
-                </Link>
+                <Button asChild block leadingIcon={<LogIn />}>
+                  <Link to="/login">Sign in with different account</Link>
+                </Button>
               ) : (
-                <button
-                  onClick={handleAccept}
-                  disabled={isAccepting}
-                  className="btn btn-primary w-full justify-center"
-                >
-                  {isAccepting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Accepting...
-                    </>
-                  ) : (
-                    'Accept Invitation'
-                  )}
-                </button>
+                <Button onClick={handleAccept} loading={isAccepting} block>
+                  {isAccepting ? 'Accepting...' : 'Accept Invitation'}
+                </Button>
               )
             ) : (
               <>
-                <Link
-                  to={`/login?redirect=/invite/${token}`}
-                  className="btn btn-primary w-full justify-center"
-                >
-                  <LogIn className="w-4 h-4 mr-2" />
-                  Sign in to Accept
-                </Link>
+                <Button asChild block leadingIcon={<LogIn />}>
+                  <Link to={`/login?redirect=/invite/${token}`}>Sign in to Accept</Link>
+                </Button>
                 <p className="text-sm text-center text-neutral-500">
                   Don't have an account?{' '}
                   <Link

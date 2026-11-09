@@ -9,6 +9,7 @@
  */
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
+import { Button } from './Button';
 import { AlertTriangle } from 'lucide-react';
 
 interface ErrorBoundaryProps {
@@ -99,13 +100,11 @@ export function ErrorFallback({
       )}
       <div className="mt-1 flex gap-2">
         {onReset && !isChunkError && (
-          <button type="button" className="btn btn-secondary" onClick={onReset}>
+          <Button variant="secondary" onClick={onReset}>
             Try again
-          </button>
+          </Button>
         )}
-        <button type="button" className="btn btn-primary" onClick={() => window.location.reload()}>
-          Reload page
-        </button>
+        <Button onClick={() => window.location.reload()}>Reload page</Button>
       </div>
     </div>
   );

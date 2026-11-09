@@ -19,7 +19,7 @@ export interface EmptyStateProps {
  *
  *   <EmptyState icon={<FolderKanban />} title='No tasks match "Assignee: me"'
  *     body={<>Clear the filter or press <Kbd>C</Kbd> to create one.</>}
- *     action={<button className="btn btn-secondary" onClick={clear}>Clear filter</button>} />
+ *     action={<Button variant="secondary" onClick={clear}>Clear filter</Button>} />
  */
 export function EmptyState({
   icon,

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { User, X, Check, Plus } from 'lucide-react';
 import clsx from 'clsx';
-import { IconButton, Popover, PopoverContent, PopoverTrigger } from '../ui';
+import { Avatar, IconButton, Input, Popover, PopoverContent, PopoverTrigger } from '../ui';
 
 export interface Assignee {
   id: string;
@@ -23,30 +23,6 @@ interface AssigneePickerProps {
   onAdd: (userId: string) => void;
   onRemove: (userId: string) => void;
   isLoading?: boolean;
-}
-
-const getInitial = (name: string | null, email: string) =>
-  (name?.[0] || email[0] || '?').toUpperCase();
-
-export function Avatar({ person, size }: { person: Assignee; size: 'sm' | 'md' }) {
-  const box = size === 'sm' ? 'w-5 h-5 text-xs' : 'w-7 h-7 text-sm';
-  return person.avatarUrl ? (
-    <img
-      src={person.avatarUrl}
-      alt=""
-      className={clsx(box, 'rounded-full object-cover flex-shrink-0')}
-    />
-  ) : (
-    <span
-      aria-hidden
-      className={clsx(
-        box,
-        'rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0 font-medium text-primary-700'
-      )}
-    >
-      {getInitial(person.name, person.email)}
-    </span>
-  );
 }
 
 export interface AssigneeOptionsProps {
@@ -75,14 +51,13 @@ export function AssigneeOptions({
   return (
     <>
       <div className="p-2 border-b border-neutral-100">
-        <input
-          type="text"
+        <Input
+          size="sm"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search members..."
           aria-label="Search members"
           autoFocus
-          className="w-full px-3 py-1.5 text-base md:text-sm border border-neutral-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
         />
       </div>
       <div className="max-h-48 overflow-y-auto" role="listbox" aria-label="Members">
@@ -106,7 +81,12 @@ export function AssigneeOptions({
                   isAssigned && 'bg-primary-50'
                 )}
               >
-                <Avatar person={member.user} size="md" />
+                <Avatar
+                  src={member.user.avatarUrl}
+                  name={member.user.name}
+                  email={member.user.email}
+                  size="md"
+                />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-neutral-900 truncate">
                     {member.user.name || member.user.email}
@@ -162,7 +142,12 @@ export function AssigneePicker({
               key={assignee.id}
               className="flex items-center gap-2 py-1 pl-2.5 pr-1 bg-neutral-100 rounded-full"
             >
-              <Avatar person={assignee} size="sm" />
+              <Avatar
+                src={assignee.avatarUrl}
+                name={assignee.name}
+                email={assignee.email}
+                size="xs"
+              />
               <span className="text-sm text-neutral-700">{assignee.name || assignee.email}</span>
               <IconButton
                 label={`Unassign ${assignee.name || assignee.email}`}

@@ -6,7 +6,7 @@ import { tasksApi } from '../../api/tasks';
 import { queryKeys } from '../../api/queryKeys';
 import type { TaskExternalLinkDto as ExternalLinkData } from '../../api/types';
 import { useGitHubIntegration } from '../../hooks/queries';
-import { IconButton } from '../ui/IconButton';
+import { Button, IconButton, Input, Panel, Select } from '../ui';
 
 // External ids are `owner/repo#N`; older links may still hold a bare number.
 function formatGitHubRef(link: { externalId: string; externalUrl?: string }): string {
@@ -132,7 +132,7 @@ export function GitHubLinkSection({ taskId, projectId, externalLinks, onUpdated 
 
       {/* Repo selector for creating issue */}
       {showIssueRepoSelector && (
-        <div className="mt-2 p-3 border border-neutral-200 rounded-lg bg-white">
+        <Panel padding="sm" className="mt-2 bg-white">
           <p className="text-xs text-neutral-500 mb-2">Select repository to create issue:</p>
           <div className="space-y-1">
             {integration?.repositories.map((repo) => (
@@ -162,17 +162,18 @@ export function GitHubLinkSection({ taskId, projectId, externalLinks, onUpdated 
           >
             Cancel
           </button>
-        </div>
+        </Panel>
       )}
 
       {showPrLinker && (
-        <div className="mt-2 p-3 border border-neutral-200 rounded-lg bg-white">
+        <Panel padding="sm" className="mt-2 bg-white">
           <p className="text-xs text-neutral-500 mb-2">Link existing pull request:</p>
           <div className="space-y-2">
-            <select
+            <Select
+              size="sm"
+              aria-label="Repository"
               value={selectedPrRepo}
               onChange={(e) => setSelectedPrRepo(e.target.value)}
-              className="w-full rounded border border-neutral-200 px-2 py-1.5 text-sm text-neutral-700 focus:border-primary-500 focus:outline-none"
               disabled={linkPrMutation.isPending}
             >
               <option value="">Select repository</option>
@@ -181,18 +182,22 @@ export function GitHubLinkSection({ taskId, projectId, externalLinks, onUpdated 
                   {repo.owner}/{repo.repo}
                 </option>
               ))}
-            </select>
-            <input
+            </Select>
+            <Input
+              size="sm"
               type="number"
+              aria-label="Pull request number"
               min={1}
               step={1}
               placeholder="Pull request number"
               value={prNumber}
               onChange={(e) => setPrNumber(e.target.value)}
-              className="w-full rounded border border-neutral-200 px-2 py-1.5 text-sm text-neutral-700 focus:border-primary-500 focus:outline-none"
               disabled={linkPrMutation.isPending}
             />
-            <button
+            <Button
+              variant="danger"
+              size="sm"
+              loading={linkPrMutation.isPending}
               onClick={() => {
                 const parsedPrNumber = Number(prNumber);
                 if (!selectedPrRepo || !Number.isInteger(parsedPrNumber) || parsedPrNumber <= 0) {
@@ -212,11 +217,9 @@ export function GitHubLinkSection({ taskId, projectId, externalLinks, onUpdated 
                 !Number.isInteger(Number(prNumber)) ||
                 Number(prNumber) <= 0
               }
-              className="inline-flex items-center gap-2 rounded bg-primary-600 px-3 py-1.5 text-sm text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {linkPrMutation.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
               Link PR
-            </button>
+            </Button>
           </div>
           {linkPrMutation.isError && (
             <p role="alert" className="mt-2 text-xs text-red-600">
@@ -233,7 +236,7 @@ export function GitHubLinkSection({ taskId, projectId, externalLinks, onUpdated 
           >
             Cancel
           </button>
-        </div>
+        </Panel>
       )}
 
       {externalLinks.length === 0 && hasIntegration && !showIssueRepoSelector && !showPrLinker && (

@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { ColorDot } from '../ui/ColorDot';
 import { IconButton } from '../ui/IconButton';
+import { Input } from '../ui';
 
 interface GroupedKanbanColumnProps {
   id: string;
@@ -67,7 +68,8 @@ function QuickAdd({
 
   return (
     <div className="rounded-[10px] border border-neutral-300 bg-white p-2 shadow-sm">
-      <input
+      <Input
+        bare
         ref={inputRef}
         autoFocus
         value={title}

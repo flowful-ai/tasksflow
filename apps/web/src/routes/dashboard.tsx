@@ -22,7 +22,7 @@ import { useAuthStore } from '../stores/auth';
 import { tasksApi } from '../api/tasks';
 import { queryKeys } from '../api/queryKeys';
 import type { TaskDto, WorkspaceActivityItemDto as WorkspaceActivityItem } from '../api/types';
-import { EmptyState, ErrorState } from '../components/ui';
+import { Button, Card, EmptyState, ErrorState } from '../components/ui';
 import { useCurrentWorkspace, useProjects, useWorkspaceActivity } from '../hooks/queries';
 import clsx from 'clsx';
 
@@ -317,45 +317,26 @@ export function DashboardPage() {
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-display font-semibold text-neutral-900">Projects</h2>
           {currentWorkspace && (
-            <Link to="/projects/new" className="btn btn-primary">
-              <Plus className="w-4 h-4 mr-2" />
-              New Project
-            </Link>
+            <Button asChild leadingIcon={<Plus />}>
+              <Link to="/projects/new">New Project</Link>
+            </Button>
           )}
         </div>
 
         {!currentWorkspace ? (
-          <div className="card p-16 text-center opacity-0 animate-scale-in stagger-5">
-            <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-neutral-100 flex items-center justify-center">
-              <FolderKanban className="w-8 h-8 text-neutral-400" />
-            </div>
-            <h3 className="text-xl font-display font-semibold text-neutral-900 mb-2">
-              No workspace selected
-            </h3>
-            <p className="text-neutral-500 mb-8 max-w-sm mx-auto">
-              Create or join a workspace to start organizing your projects and tasks
-            </p>
-            <Link to="/settings/workspaces/new" className="btn btn-primary inline-flex">
-              <Plus className="w-4 h-4 mr-2" />
-              Create Workspace
-            </Link>
-          </div>
+          <ProjectsEmpty
+            title="No workspace selected"
+            body="Create or join a workspace to start organizing your projects and tasks"
+            to="/settings/workspaces/new"
+            action="Create Workspace"
+          />
         ) : projects.length === 0 ? (
-          <div className="card p-16 text-center opacity-0 animate-scale-in stagger-5">
-            <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-neutral-100 flex items-center justify-center">
-              <FolderKanban className="w-8 h-8 text-neutral-400" />
-            </div>
-            <h3 className="text-xl font-display font-semibold text-neutral-900 mb-2">
-              No projects yet
-            </h3>
-            <p className="text-neutral-500 mb-8 max-w-sm mx-auto">
-              Create your first project to start organizing and tracking tasks
-            </p>
-            <Link to="/projects/new" className="btn btn-primary inline-flex">
-              <Plus className="w-4 h-4 mr-2" />
-              Create Project
-            </Link>
-          </div>
+          <ProjectsEmpty
+            title="No projects yet"
+            body="Create your first project to start organizing and tracking tasks"
+            to="/projects/new"
+            action="Create Project"
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {projects.map((project, index) => (
@@ -490,14 +471,13 @@ export function DashboardPage() {
 
               {hasNextPage && (
                 <div className="px-6 py-5 border-t border-neutral-200/80 text-center">
-                  <button
-                    type="button"
-                    onClick={() => fetchNextPage()}
+                  <Button
+                    variant="secondary"
+                    onClick={() => void fetchNextPage()}
                     disabled={isFetchingNextPage}
-                    className="btn btn-secondary"
                   >
                     {isFetchingNextPage ? 'Loading...' : 'Load more'}
-                  </button>
+                  </Button>
                 </div>
               )}
             </>
@@ -505,5 +485,31 @@ export function DashboardPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+/** Empty projects panel (no workspace / no projects) with one call to action. */
+function ProjectsEmpty({
+  title,
+  body,
+  to,
+  action,
+}: {
+  title: string;
+  body: string;
+  to: string;
+  action: string;
+}) {
+  return (
+    <Card padding="none" className="p-16 text-center opacity-0 animate-scale-in stagger-5">
+      <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-neutral-100 flex items-center justify-center">
+        <FolderKanban className="w-8 h-8 text-neutral-400" />
+      </div>
+      <h3 className="text-xl font-display font-semibold text-neutral-900 mb-2">{title}</h3>
+      <p className="text-neutral-500 mb-8 max-w-sm mx-auto">{body}</p>
+      <Button asChild leadingIcon={<Plus />}>
+        <Link to={to}>{action}</Link>
+      </Button>
+    </Card>
   );
 }

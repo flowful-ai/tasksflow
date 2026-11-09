@@ -18,10 +18,11 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  Avatar,
   IconButton,
   Spinner,
 } from '../../ui';
-import { Avatar, type PickerMember } from '../AssigneePicker';
+import type { PickerMember } from '../AssigneePicker';
 import { formatDateTime, relativeTime } from '../../../lib/time';
 import { CommentComposer } from './CommentComposer';
 import { Markdown } from './Markdown';
@@ -268,7 +269,14 @@ function CommentCard({ comment, taskId, currentUserId, canModerate, members }: C
               <Bot className="h-3 w-3" />
             </span>
           ) : (
-            comment.user && <Avatar person={comment.user} size="sm" />
+            comment.user && (
+              <Avatar
+                src={comment.user.avatarUrl}
+                name={comment.user.name}
+                email={comment.user.email}
+                size="xs"
+              />
+            )
           )}
           <b className="font-semibold text-neutral-900">{author}</b>
           {comment.agent && (

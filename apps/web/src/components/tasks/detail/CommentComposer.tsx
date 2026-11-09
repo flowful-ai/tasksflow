@@ -6,8 +6,8 @@
 import { useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Send } from 'lucide-react';
 import clsx from 'clsx';
-import { IconButton, Kbd } from '../../ui';
-import { Avatar, type PickerMember } from '../AssigneePicker';
+import { Avatar, Button, IconButton, Kbd, Textarea } from '../../ui';
+import type { PickerMember } from '../AssigneePicker';
 import { modKeyLabel } from '../../../lib/hotkeys';
 import {
   activeMentionQuery,
@@ -145,7 +145,8 @@ export function CommentComposer({
   return (
     <div className="relative">
       <div className="rounded-xl border border-neutral-200 bg-white focus-within:border-primary-400 focus-within:ring-2 focus-within:ring-primary-100">
-        <textarea
+        <Textarea
+          bare
           ref={textareaRef}
           role="combobox"
           aria-label={onCancel ? 'Edit comment' : 'New comment'}
@@ -178,19 +179,14 @@ export function CommentComposer({
             to send
           </span>
           {onCancel && (
-            <button type="button" className="btn btn-ghost px-2.5 py-1 text-xs" onClick={onCancel}>
+            <Button variant="ghost" size="xs" onClick={onCancel}>
               Cancel
-            </button>
+            </Button>
           )}
           {onCancel ? (
-            <button
-              type="button"
-              className="btn btn-primary px-2.5 py-1 text-xs"
-              onClick={() => void submit()}
-              disabled={!text.trim() || isSubmitting}
-            >
+            <Button size="xs" onClick={() => void submit()} disabled={!text.trim() || isSubmitting}>
               {submitLabel}
-            </button>
+            </Button>
           ) : (
             <IconButton
               label={submitLabel}
@@ -227,7 +223,12 @@ export function CommentComposer({
                 index === activeIndex ? 'bg-neutral-100 text-neutral-900' : 'text-neutral-700'
               )}
             >
-              <Avatar person={member.user} size="sm" />
+              <Avatar
+                src={member.user.avatarUrl}
+                name={member.user.name}
+                email={member.user.email}
+                size="xs"
+              />
               <span className="truncate">{member.user.name || member.user.email}</span>
               {member.user.name && (
                 <span className="ml-auto truncate text-xs text-neutral-400">

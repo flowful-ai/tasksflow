@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Plus, FolderKanban } from 'lucide-react';
 import { useCurrentWorkspace, useProjects } from '../hooks/queries';
-import { EmptyState, ErrorState, PageSpinner } from '../components/ui';
+import { Button, Card, EmptyState, ErrorState, PageHeader, PageSpinner } from '../components/ui';
 
 export function ProjectsPage() {
   const { workspace: currentWorkspace, workspaceId } = useCurrentWorkspace();
@@ -14,9 +14,9 @@ export function ProjectsPage() {
         title="No workspace selected"
         body="Select or create a workspace to view projects."
         action={
-          <Link to="/settings/workspace/new" className="btn btn-primary">
-            Create Workspace
-          </Link>
+          <Button asChild>
+            <Link to="/settings/workspace/new">Create Workspace</Link>
+          </Button>
         }
       />
     );
@@ -28,31 +28,29 @@ export function ProjectsPage() {
 
   return (
     <div>
-      <header className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-900">Projects</h1>
-          <p className="text-neutral-600 mt-1">All projects in {currentWorkspace.name}</p>
-        </div>
-        <Link to="/projects/new" className="btn btn-primary inline-flex items-center">
-          <Plus aria-hidden className="w-4 h-4 mr-2" />
-          New Project
-        </Link>
-      </header>
+      <PageHeader
+        title="Projects"
+        description={`All projects in ${currentWorkspace.name}`}
+        actions={
+          <Button asChild leadingIcon={<Plus />}>
+            <Link to="/projects/new">New Project</Link>
+          </Button>
+        }
+      />
 
       {projects.length === 0 ? (
-        <div className="card">
+        <Card padding="none">
           <EmptyState
             icon={<FolderKanban />}
             title="No projects yet"
             body="Create your first project to start organizing tasks."
             action={
-              <Link to="/projects/new" className="btn btn-primary inline-flex items-center">
-                <Plus aria-hidden className="w-4 h-4 mr-2" />
-                Create Project
-              </Link>
+              <Button asChild leadingIcon={<Plus />}>
+                <Link to="/projects/new">Create Project</Link>
+              </Button>
             }
           />
-        </div>
+        </Card>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => (

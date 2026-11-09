@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../../stores/auth';
 import { OAuthButtons } from '../../components/auth/OAuthButtons';
+import { Button, Field, Input } from '../../components/ui';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -104,44 +105,34 @@ export function LoginPage() {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-6 mt-6">
               <div className="space-y-4">
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-neutral-700">
-                    Email address
-                  </label>
-                  <input
-                    id="email"
+                <Field label="Email address" id="email">
+                  <Input
                     name="email"
                     type="email"
                     autoComplete="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="input mt-1"
                     placeholder="you@example.com"
                   />
-                </div>
+                </Field>
 
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-neutral-700">
-                    Password
-                  </label>
-                  <input
-                    id="password"
+                <Field label="Password" id="password">
+                  <Input
                     name="password"
                     type="password"
                     autoComplete="current-password"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="input mt-1"
                     placeholder="Enter your password"
                   />
-                </div>
+                </Field>
               </div>
 
-              <button type="submit" disabled={isSubmitting} className="btn btn-primary w-full py-3">
+              <Button type="submit" disabled={isSubmitting} block className="py-3">
                 {isSubmitting ? 'Signing in...' : 'Sign in'}
-              </button>
+              </Button>
             </form>
           )}
         </div>

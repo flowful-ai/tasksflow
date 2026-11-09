@@ -5,10 +5,10 @@ import clsx from 'clsx';
 import { CircleDot, GitPullRequest } from 'lucide-react';
 import { githubLinkLabel } from '@flowtask/shared/utils';
 import { TaskContextMenu, type ContextMenuState } from '../tasks/TaskContextMenu';
-import { ColorDot } from '../ui/ColorDot';
+import { AvatarStack, ColorDot } from '../ui';
 import { PriorityIcon, priorityLabel } from '../board/PriorityIcon';
 import { isOverdue } from '../board/filters';
-import { avatarColor, projectColor } from '../../lib/color';
+import { projectColor } from '../../lib/color';
 
 /** Modifier keys of the click/keypress that opened a card (ctrl/⌘ toggles selection, shift selects a range). */
 export type TaskOpenEvent = { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean };
@@ -78,13 +78,6 @@ export function taskKeyOf(task: Pick<TaskCardTask, 'key' | 'project' | 'sequence
   return task.key ?? `${task.project.identifier}-${task.sequenceNumber}`;
 }
 
-function initials(name: string | null, email: string): string {
-  const source = (name || email).trim();
-  const parts = source.split(/[\s._@-]+/).filter(Boolean);
-  const letters = parts.length >= 2 ? `${parts[0][0]}${parts[1][0]}` : source.slice(0, 2);
-  return letters.toUpperCase();
-}
-
 function formatDue(dueDate: string): string {
   const date = new Date(dueDate);
   const sameYear = date.getFullYear() === new Date().getFullYear();
@@ -93,49 +86,6 @@ function formatDue(dueDate: string): string {
     day: 'numeric',
     ...(sameYear ? {} : { year: 'numeric' }),
   });
-}
-
-export function AvatarStack({
-  assignees,
-  max = 3,
-}: {
-  assignees: TaskCardTask['assignees'];
-  max?: number;
-}) {
-  if (assignees.length === 0) return null;
-  const names = assignees.map((a) => a.name || a.email).join(', ');
-  return (
-    <span className="flex shrink-0 items-center -space-x-1.5" title={names}>
-      <span className="sr-only">Assigned to {names}</span>
-      {assignees.slice(0, max).map((assignee) =>
-        assignee.avatarUrl ? (
-          <img
-            key={assignee.id}
-            src={assignee.avatarUrl}
-            alt=""
-            className="h-5 w-5 rounded-full border-2 border-white object-cover"
-          />
-        ) : (
-          <span
-            key={assignee.id}
-            aria-hidden
-            className="grid h-5 w-5 place-items-center rounded-full border-2 border-white text-[9px] font-bold text-white"
-            style={{ backgroundColor: avatarColor(assignee.id) }}
-          >
-            {initials(assignee.name, assignee.email)}
-          </span>
-        )
-      )}
-      {assignees.length > max && (
-        <span
-          aria-hidden
-          className="grid h-5 w-5 place-items-center rounded-full border-2 border-white bg-neutral-200 text-[9px] font-bold text-neutral-700"
-        >
-          +{assignees.length - max}
-        </span>
-      )}
-    </span>
-  );
 }
 
 function SubtaskProgress({ done, total }: { done: number; total: number }) {
@@ -266,7 +216,7 @@ const TaskCardBody = memo(function TaskCardBody({
             </span>
           )}
           <DueChip task={task} />
-          <AvatarStack assignees={task.assignees} />
+          <AvatarStack users={task.assignees} />
         </span>
       </div>
     );
@@ -317,7 +267,7 @@ const TaskCardBody = memo(function TaskCardBody({
           )}
           <DueChip task={task} />
           <span className="ml-auto">
-            <AvatarStack assignees={task.assignees} />
+            <AvatarStack users={task.assignees} />
           </span>
         </div>
       )}

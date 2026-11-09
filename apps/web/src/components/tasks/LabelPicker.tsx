@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Tag, X, Check, Plus } from 'lucide-react';
 import clsx from 'clsx';
 import type { LabelDto } from '../../api/types';
-import { ColorDot, IconButton, Popover, PopoverContent, PopoverTrigger } from '../ui';
+import { ColorDot, IconButton, Input, Popover, PopoverContent, PopoverTrigger } from '../ui';
 
 type PickerLabel = Pick<LabelDto, 'id' | 'name' | 'color'>;
 
@@ -36,14 +36,13 @@ export function LabelOptions({
   return (
     <>
       <div className="p-2 border-b border-neutral-100">
-        <input
-          type="text"
+        <Input
+          size="sm"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search labels..."
           aria-label="Search labels"
           autoFocus
-          className="w-full px-3 py-1.5 text-base md:text-sm border border-neutral-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
         />
       </div>
       <div

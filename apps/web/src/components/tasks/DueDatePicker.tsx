@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Calendar, ChevronDown } from 'lucide-react';
 import clsx from 'clsx';
-import { Popover, PopoverContent, PopoverTrigger } from '../ui';
+import { Input, Popover, PopoverContent, PopoverTrigger } from '../ui';
 
 interface DueDatePickerProps {
   value: string | null;
@@ -29,12 +29,13 @@ export function DueDateOptions({
   const inputValue = value ? value.split('T')[0] : '';
   return (
     <>
-      <input
+      <Input
+        size="sm"
         type="date"
         value={inputValue}
         aria-label="Due date"
         onChange={(e) => onChange(e.target.value || null)}
-        className="w-full px-3 py-2 text-base md:text-sm border border-neutral-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+        className="py-2"
         autoFocus
       />
       {value && (
