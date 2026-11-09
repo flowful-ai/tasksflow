@@ -1,10 +1,15 @@
 import { eq, and, sql, desc, asc, like, inArray, SQL } from 'drizzle-orm';
-
-function escapeLike(value: string): string {
-  return value.replace(/[%_\\]/g, '\\$&');
-}
 import type { Database } from '@flowtask/database';
-import { projects, taskStates, labels, projectIntegrations, tasks, projectMembers, users } from '@flowtask/database';
+import {
+  projects,
+  taskStates,
+  labels,
+  projectIntegrations,
+  tasks,
+  projectMembers,
+  users,
+  workspaceMembers,
+} from '@flowtask/database';
 import { generatePosition, positionAfter } from '@flowtask/shared';
 import { DEFAULT_TASK_STATES } from '@flowtask/shared';
 import type { Result } from '@flowtask/shared';
@@ -19,6 +24,13 @@ import type {
   LabelUpdateInput,
   ProjectListOptions,
 } from './types.js';
+import { DomainError, toError } from '../workspace/errors.js';
+import { isUuid, projectAclAllows } from '../workspace/authorization.js';
+import type { WorkspaceRole } from '@flowtask/shared';
+
+function escapeLike(value: string): string {
+  return value.replace(/[%_\\]/g, '\\$&');
+}
 
 export class ProjectService {
   constructor(private db: Database) {}
@@ -35,7 +47,7 @@ export class ProjectService {
         .where(and(eq(projects.workspaceId, input.workspaceId), eq(projects.identifier, input.identifier)));
 
       if (existing) {
-        return err(new Error(`Project with identifier "${input.identifier}" already exists`));
+        return err(new DomainError('CONFLICT', `Project with identifier "${input.identifier}" already exists`));
       }
 
       // Create the project
@@ -82,10 +94,13 @@ export class ProjectService {
    */
   async getById(projectId: string): Promise<Result<ProjectWithRelations, Error>> {
     try {
+      if (!isUuid(projectId)) {
+        return err(new DomainError('NOT_FOUND', 'Project not found'));
+      }
       const [project] = await this.db.select().from(projects).where(eq(projects.id, projectId));
 
       if (!project) {
-        return err(new Error('Project not found'));
+        return err(new DomainError('NOT_FOUND', 'Project not found'));
       }
 
       // Get task states
@@ -110,7 +125,7 @@ export class ProjectService {
 
       // Get task count
       const [countResult] = await this.db
-        .select({ count: sql<number>`COUNT(*)` })
+        .select({ count: sql<number>`COUNT(*)::int` })
         .from(tasks)
         .where(eq(tasks.projectId, projectId));
 
@@ -223,7 +238,7 @@ export class ProjectService {
         this.db.select().from(labels).where(inArray(labels.projectId, projectIds)).orderBy(asc(labels.name)),
         this.db.select().from(projectIntegrations).where(inArray(projectIntegrations.projectId, projectIds)),
         this.db
-          .select({ projectId: tasks.projectId, count: sql<number>`COUNT(*)` })
+          .select({ projectId: tasks.projectId, count: sql<number>`COUNT(*)::int` })
           .from(tasks)
           .where(inArray(tasks.projectId, projectIds))
           .groupBy(tasks.projectId),
@@ -278,12 +293,7 @@ export class ProjectService {
             );
           const memberOfSet = new Set(memberEntries.map((m) => m.projectId));
 
-          filteredRows = filteredRows.filter((p) => {
-            if (p.access === 'all') return true;
-            if (p.access === 'admin') return false; // member role can't access admin-only
-            if (p.access === 'members') return memberOfSet.has(p.id);
-            return true;
-          });
+          filteredRows = filteredRows.filter((p) => projectAclAllows(p.access, 'member', memberOfSet.has(p.id)));
         }
       }
 
@@ -341,44 +351,63 @@ export class ProjectService {
   }
 
   /**
-   * Update a task state.
+   * Update a task state. Scoped to `projectId` so a state of another project
+   * (or workspace) can never be modified through this project.
    */
-  async updateTaskState(stateId: string, input: TaskStateUpdateInput): Promise<Result<typeof taskStates.$inferSelect, Error>> {
+  async updateTaskState(
+    projectId: string,
+    stateId: string,
+    input: TaskStateUpdateInput
+  ): Promise<Result<typeof taskStates.$inferSelect, Error>> {
     try {
-      const updateData: Record<string, unknown> = {};
+      if (!isUuid(stateId)) {
+        return err(new DomainError('NOT_FOUND', 'Task state not found'));
+      }
+      const updateData: Partial<typeof taskStates.$inferInsert> = {};
       if (input.name !== undefined) updateData.name = input.name;
       if (input.color !== undefined) updateData.color = input.color;
 
-      const [updated] = await this.db
-        .update(taskStates)
-        .set(updateData)
-        .where(eq(taskStates.id, stateId))
-        .returning();
+      const scope = and(eq(taskStates.id, stateId), eq(taskStates.projectId, projectId));
+      const [updated] =
+        Object.keys(updateData).length > 0
+          ? await this.db.update(taskStates).set(updateData).where(scope).returning()
+          : await this.db.select().from(taskStates).where(scope);
 
       if (!updated) {
-        return err(new Error('Failed to update task state'));
+        return err(new DomainError('NOT_FOUND', 'Task state not found'));
       }
 
       return ok(updated);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
   /**
-   * Delete a task state (sets tasks to null state).
+   * Delete a task state of `projectId` (its tasks get a null state).
    */
-  async deleteTaskState(stateId: string): Promise<Result<void, Error>> {
+  async deleteTaskState(projectId: string, stateId: string): Promise<Result<void, Error>> {
     try {
-      // Update tasks to remove the state reference
-      await this.db.update(tasks).set({ stateId: null }).where(eq(tasks.stateId, stateId));
-
-      // Delete the state
-      await this.db.delete(taskStates).where(eq(taskStates.id, stateId));
-
-      return ok(undefined);
+      if (!isUuid(stateId)) {
+        return err(new DomainError('NOT_FOUND', 'Task state not found'));
+      }
+      return await this.db.transaction(async (tx) => {
+        const [deleted] = await tx
+          .delete(taskStates)
+          .where(and(eq(taskStates.id, stateId), eq(taskStates.projectId, projectId)))
+          .returning({ id: taskStates.id });
+        if (!deleted) {
+          return err(new DomainError('NOT_FOUND', 'Task state not found'));
+        }
+        // FK is ON DELETE SET NULL; keep the explicit update scoped for clarity.
+        await tx
+          .update(tasks)
+          .set({ stateId: null })
+          .where(and(eq(tasks.stateId, stateId), eq(tasks.projectId, projectId)));
+        return ok(undefined);
+      });
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -409,39 +438,55 @@ export class ProjectService {
   }
 
   /**
-   * Update a label.
+   * Update a label. Scoped to `projectId` (see updateTaskState).
    */
-  async updateLabel(labelId: string, input: LabelUpdateInput): Promise<Result<typeof labels.$inferSelect, Error>> {
+  async updateLabel(
+    projectId: string,
+    labelId: string,
+    input: LabelUpdateInput
+  ): Promise<Result<typeof labels.$inferSelect, Error>> {
     try {
-      const updateData: Record<string, unknown> = {};
+      if (!isUuid(labelId)) {
+        return err(new DomainError('NOT_FOUND', 'Label not found'));
+      }
+      const updateData: Partial<typeof labels.$inferInsert> = {};
       if (input.name !== undefined) updateData.name = input.name;
       if (input.color !== undefined) updateData.color = input.color;
 
-      const [updated] = await this.db
-        .update(labels)
-        .set(updateData)
-        .where(eq(labels.id, labelId))
-        .returning();
+      const scope = and(eq(labels.id, labelId), eq(labels.projectId, projectId));
+      const [updated] =
+        Object.keys(updateData).length > 0
+          ? await this.db.update(labels).set(updateData).where(scope).returning()
+          : await this.db.select().from(labels).where(scope);
 
       if (!updated) {
-        return err(new Error('Failed to update label'));
+        return err(new DomainError('NOT_FOUND', 'Label not found'));
       }
 
       return ok(updated);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
   /**
-   * Delete a label (removes from all tasks).
+   * Delete a label of `projectId` (removes it from all tasks).
    */
-  async deleteLabel(labelId: string): Promise<Result<void, Error>> {
+  async deleteLabel(projectId: string, labelId: string): Promise<Result<void, Error>> {
     try {
-      await this.db.delete(labels).where(eq(labels.id, labelId));
+      if (!isUuid(labelId)) {
+        return err(new DomainError('NOT_FOUND', 'Label not found'));
+      }
+      const [deleted] = await this.db
+        .delete(labels)
+        .where(and(eq(labels.id, labelId), eq(labels.projectId, projectId)))
+        .returning({ id: labels.id });
+      if (!deleted) {
+        return err(new DomainError('NOT_FOUND', 'Label not found'));
+      }
       return ok(undefined);
     } catch (error) {
-      return err(error instanceof Error ? error : new Error('Unknown error'));
+      return err(toError(error));
     }
   }
 
@@ -451,10 +496,11 @@ export class ProjectService {
    * Check if a user has access to a project based on their workspace role.
    * Owners/admins always have access.
    */
-  async hasAccess(projectId: string, userId: string, workspaceRole: 'owner' | 'admin' | 'member'): Promise<boolean> {
+  async hasAccess(projectId: string, userId: string, workspaceRole: WorkspaceRole): Promise<boolean> {
     if (workspaceRole === 'owner' || workspaceRole === 'admin') {
       return true;
     }
+    if (!isUuid(projectId)) return false;
 
     const [project] = await this.db
       .select({ access: projects.access })
@@ -462,8 +508,7 @@ export class ProjectService {
       .where(eq(projects.id, projectId));
 
     if (!project) return false;
-    if (project.access === 'all') return true;
-    if (project.access === 'admin') return false;
+    if (project.access !== 'members') return projectAclAllows(project.access, workspaceRole, false);
 
     // access === 'members' — check project_members table
     const [member] = await this.db
@@ -509,6 +554,24 @@ export class ProjectService {
    */
   async setAccess(projectId: string, access: 'all' | 'admin' | 'members', userIds?: string[]): Promise<Result<void, Error>> {
     try {
+      const uniqueUserIds = [...new Set(userIds ?? [])];
+      if (access === 'members' && uniqueUserIds.length > 0) {
+        const [project] = await this.db
+          .select({ workspaceId: projects.workspaceId })
+          .from(projects)
+          .where(eq(projects.id, projectId));
+        if (!project) {
+          return err(new DomainError('NOT_FOUND', 'Project not found'));
+        }
+        const memberRows = await this.db
+          .select({ userId: workspaceMembers.userId })
+          .from(workspaceMembers)
+          .where(and(eq(workspaceMembers.workspaceId, project.workspaceId), inArray(workspaceMembers.userId, uniqueUserIds)));
+        if (memberRows.length !== uniqueUserIds.length) {
+          return err(new DomainError('BAD_REQUEST', 'All project members must be workspace members'));
+        }
+      }
+
       await this.db.transaction(async (tx) => {
         // Update access column
         await tx
@@ -520,9 +583,9 @@ export class ProjectService {
         await tx.delete(projectMembers).where(eq(projectMembers.projectId, projectId));
 
         // Insert new members if access === 'members' and userIds provided
-        if (access === 'members' && userIds && userIds.length > 0) {
+        if (access === 'members' && uniqueUserIds.length > 0) {
           await tx.insert(projectMembers).values(
-            userIds.map((userId) => ({
+            uniqueUserIds.map((userId) => ({
               projectId,
               userId,
             }))
