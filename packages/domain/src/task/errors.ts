@@ -55,6 +55,4 @@ export function isTaskError(error: Error): error is TaskError {
 }
 
 /** Normalise anything caught into an Error (TaskError passes through). */
-export function toError(error: unknown): Error {
-  return error instanceof Error ? error : new Error('Unknown error');
-}
+export { toError } from '../workspace/errors.js';

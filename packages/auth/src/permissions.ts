@@ -115,8 +115,14 @@ const ROLE_PERMISSIONS: Record<WorkspaceRole, Set<WorkspacePermission>> = {
   ]),
 };
 
+const ALL_PERMISSIONS: ReadonlySet<string> = ROLE_PERMISSIONS.owner;
+
+export function isWorkspacePermission(value: string): value is WorkspacePermission {
+  return ALL_PERMISSIONS.has(value);
+}
+
 /**
- * Check if a role has a specific permission.
+ * Check if a role has a specific permission. Unknown roles have none.
  */
 export function hasPermission(role: WorkspaceRole, permission: WorkspacePermission): boolean {
   return ROLE_PERMISSIONS[role]?.has(permission) ?? false;
@@ -137,8 +143,8 @@ export function canAccess(
   resource: 'workspace' | 'project' | 'task' | 'comment' | 'smart_view' | 'agent',
   action: 'create' | 'read' | 'update' | 'delete' | 'manage_members' | 'manage_settings' | 'manage_integrations' | 'assign' | 'share' | 'execute'
 ): boolean {
-  const permission = `${resource}:${action}` as WorkspacePermission;
-  return hasPermission(role, permission);
+  const permission = `${resource}:${action}`;
+  return isWorkspacePermission(permission) && hasPermission(role, permission);
 }
 
 /**

@@ -14,6 +14,7 @@
     "build": "turbo run build",
     "lint": "turbo run typecheck",
     "test": "turbo run test",
+    "test:integration": "bun test --timeout 60000 apps/api/src/test",
     "typecheck": "turbo run typecheck",
     "clean": "turbo run clean && rm -rf node_modules",
     "db:generate": "bun --filter @flowtask/database db:generate",

@@ -1,140 +1,90 @@
-import { Redis } from 'ioredis';
-import { randomUUID } from 'crypto';
-
-// Type constraint for event payloads - must be an object (not primitive)
-type EventPayload = object;
-
-// Unique id for this process. Used to ignore Redis messages that this same
-// process published, since those events were already delivered locally by the
-// originating broadcast call (prevents double-delivery to local clients).
-const INSTANCE_ID = randomUUID();
-
-// Track SSE clients by workspace
-const workspaceClients = new Map<string, Set<ReadableStreamDefaultController>>();
-
-// Redis pub/sub for horizontal scaling
-let publisher: Redis | null = null;
-let subscriber: Redis | null = null;
+import { getAuthz } from '../lib/authorize.js';
+import { RealtimeHub, type AccessResolver, type ClientHandle, type ClientRegistration, type PublishOptions } from './hub.js';
+import { PostgresTransport } from './postgres-transport.js';
+import type { EventPayload } from './wire.js';
 
 /**
- * Initialize Redis pub/sub for SSE scaling across multiple servers.
+ * Process-wide realtime entry points. Events are filtered per client by
+ * project access and fanned out across API instances with Postgres
+ * LISTEN/NOTIFY (see hub.ts and postgres-transport.ts).
  */
-export function initSSE() {
-  const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
 
-  if (!publisher) {
-    publisher = new Redis(redisUrl);
-    subscriber = new Redis(redisUrl);
+const accessResolver: AccessResolver = {
+  getRole: (workspaceId, userId) => getAuthz().getRole(workspaceId, userId),
+  listAccessibleProjectIds: (workspaceId, userId, role) => getAuthz().listAccessibleProjectIds(workspaceId, userId, role),
+  isSessionActive: (sessionId) => getAuthz().isSessionActive(sessionId),
+  resolveTaskProjectId: (taskId) => getAuthz().getTaskProjectId(taskId),
+};
 
-    subscriber.subscribe('sse:events');
-    subscriber.on('message', (channel, message) => {
-      if (channel === 'sse:events') {
-        try {
-          const { workspaceId, event, data, origin } = JSON.parse(message);
-          // Skip messages we published ourselves — the originating
-          // broadcastToWorkspace call already delivered them to local clients.
-          if (origin === INSTANCE_ID) {
-            return;
-          }
-          broadcastToWorkspace(workspaceId, event, data, false);
-        } catch (error) {
-          console.error('Failed to parse Redis message:', error);
-        }
-      }
-    });
+let hub: RealtimeHub = new RealtimeHub({ resolver: accessResolver });
+let started = false;
 
-    console.log('SSE manager initialized with Redis pub/sub');
+/**
+ * Start heartbeats, revalidation and the cross-instance subscription.
+ * Safe to call more than once; never throws (LISTEN failures are retried).
+ */
+export function initSSE(): void {
+  if (started) return;
+  started = true;
+  const url = process.env.DATABASE_URL;
+  if (!url) {
+    console.warn('[realtime] DATABASE_URL not set; realtime events stay on this instance');
   }
+  hub = new RealtimeHub({
+    resolver: accessResolver,
+    transportFactory: url ? () => new PostgresTransport(url) : null,
+  });
+  hub
+    .start()
+    .then(() => console.log('SSE manager initialized with Postgres LISTEN/NOTIFY'))
+    .catch((error: unknown) => console.error('[realtime] failed to start:', error));
+}
+
+/** Close every stream and the LISTEN connection (graceful shutdown). */
+export async function shutdownSSE(): Promise<void> {
+  started = false;
+  await hub.stop();
 }
 
 /**
- * Add a client to a workspace subscription.
+ * Publish an event to a workspace's realtime clients.
+ *
+ * The event is only delivered to clients that can access its project, taken
+ * from `options.projectId`, else `data.projectId` / `data.project.id`, else
+ * resolved from `data.taskId`. Events with no project go to every member.
  */
-export function addClient(workspaceId: string, controller: ReadableStreamDefaultController) {
-  if (!workspaceClients.has(workspaceId)) {
-    workspaceClients.set(workspaceId, new Set());
-  }
-  workspaceClients.get(workspaceId)!.add(controller);
-  console.log(`SSE client added to workspace ${workspaceId} (total: ${workspaceClients.get(workspaceId)!.size})`);
-}
-
-/**
- * Remove a client from a workspace subscription.
- */
-export function removeClient(workspaceId: string, controller: ReadableStreamDefaultController) {
-  const clients = workspaceClients.get(workspaceId);
-  if (clients) {
-    clients.delete(controller);
-    console.log(`SSE client removed from workspace ${workspaceId} (remaining: ${clients.size})`);
-    if (clients.size === 0) {
-      workspaceClients.delete(workspaceId);
-    }
-  }
-}
-
-/**
- * Broadcast an event to all clients in a workspace.
- */
-function broadcastToWorkspace<T extends EventPayload>(
+export function publishEvent<T extends EventPayload>(
   workspaceId: string,
   event: string,
   data: T,
-  publishToRedis = true
-) {
-  const clients = workspaceClients.get(workspaceId);
-
-  if (clients) {
-    // Format as SSE message
-    const message = formatSSEMessage(event, data);
-    const encoder = new TextEncoder();
-    const chunk = encoder.encode(message);
-
-    // Send to all connected clients
-    for (const controller of clients) {
-      try {
-        controller.enqueue(chunk);
-      } catch {
-        // Client disconnected, will be cleaned up
-      }
-    }
-  }
-
-  // Publish to Redis for other servers. Tag with our INSTANCE_ID so we can
-  // ignore the echo of our own message (we already delivered locally above).
-  if (publishToRedis && publisher) {
-    publisher.publish('sse:events', JSON.stringify({ workspaceId, event, data, origin: INSTANCE_ID }));
-  }
+  options?: PublishOptions
+): void {
+  hub.publishEvent(workspaceId, event, data, options);
 }
 
-/**
- * Format a message as Server-Sent Events.
- */
-function formatSSEMessage<T extends EventPayload>(event: string, data: T): string {
-  return `event: ${event}\ndata: ${JSON.stringify({ ...data, timestamp: new Date().toISOString() })}\n\n`;
+/** Publish an event to all of one user's streams (any workspace). */
+export function publishUserEvent<T extends EventPayload>(userId: string, event: string, data: T): void {
+  hub.publishUserEvent(userId, event, data);
 }
 
-/**
- * Publish an event to a workspace.
- * This is the main function called by route handlers.
- */
-export function publishEvent<T extends EventPayload>(workspaceId: string, event: string, data: T) {
-  broadcastToWorkspace(workspaceId, event, data, true);
+/** Immediately close a removed member's streams on every instance. */
+export function notifyMemberRemoved(workspaceId: string, userId: string): void {
+  hub.notifyMemberRemoved(workspaceId, userId);
 }
 
-/**
- * Get the number of connected clients in a workspace.
- */
+/** Refresh cached project access after an ACL, role or project change. */
+export function notifyAccessChanged(workspaceId: string, userId?: string): void {
+  hub.notifyAccessChanged(workspaceId, userId ?? null);
+}
+
+export function registerClient(registration: ClientRegistration): ClientHandle {
+  return hub.addClient(registration);
+}
+
 export function getWorkspaceClientCount(workspaceId: string): number {
-  return workspaceClients.get(workspaceId)?.size || 0;
+  return hub.getWorkspaceClientCount(workspaceId);
 }
 
-/**
- * Get total connected clients.
- */
 export function getTotalClientCount(): number {
-  let total = 0;
-  for (const clients of workspaceClients.values()) {
-    total += clients.size;
-  }
-  return total;
+  return hub.getTotalClientCount();
 }

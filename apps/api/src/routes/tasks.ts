@@ -1,29 +1,33 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { getDatabase, projectIntegrations, externalLinks, taskStates } from '@flowtask/database';
-import { TaskService, ProjectService, WorkspaceService } from '@flowtask/domain';
-import { getCurrentUser } from '@flowtask/auth';
+import { getDatabase, projectIntegrations, externalLinks } from '@flowtask/database';
+import { TaskService } from '@flowtask/domain';
+import { getCurrentUser, hasPermission, type WorkspacePermission } from '@flowtask/auth';
 import {
   CreateTaskSchema,
   UpdateTaskSchema,
   MoveTaskSchema,
-  CreateCommentSchema,
   LinkTaskGitHubPrSchema,
   TaskPrioritySchema,
+  REALTIME_EVENTS,
 } from '@flowtask/shared';
-import { hasPermission, type WorkspacePermission } from '@flowtask/auth';
 import { publishEvent } from '../sse/manager.js';
 import { GitHubReverseSyncService, createGitHubClientForInstallation } from '@flowtask/integrations';
 import { and, eq } from 'drizzle-orm';
 import { TaskGitHubLinkError, TaskGitHubLinkService } from '../services/task-github-link-service.js';
 import { VALID_TASK_SORT_BY, VALID_TASK_SORT_ORDER } from './smart-view-query-utils.js';
+import { getAuthz, requireProject, requireTask, requireUser } from '../lib/authorize.js';
+import { badRequest, forbidden, fromResult, handleRouteError, toAppError } from '../lib/responses.js';
 
 // Validates and coerces task-list query params. Keeps invalid values out of the
 // service layer and clamps `limit` so a client can't request an unbounded page.
 // Sort vocabularies are shared with smart-view query execution so they can't drift.
 const TaskListQuerySchema = z.object({
   priority: TaskPrioritySchema.optional(),
+  stateId: z.string().uuid().optional(),
+  assigneeId: z.string().uuid().optional(),
+  search: z.string().max(200).optional(),
   sortBy: z.enum(VALID_TASK_SORT_BY).default('position'),
   sortOrder: z.enum(VALID_TASK_SORT_ORDER).default('asc'),
   page: z.coerce.number().int().min(1).default(1),
@@ -31,10 +35,10 @@ const TaskListQuerySchema = z.object({
 });
 
 const tasks = new Hono();
+tasks.onError(handleRouteError);
+
 const db = getDatabase();
 const taskService = new TaskService(db);
-const projectService = new ProjectService(db);
-const workspaceService = new WorkspaceService(db);
 const githubReverseSync = new GitHubReverseSyncService(db);
 const taskGitHubLinkService = new TaskGitHubLinkService(db);
 
@@ -58,83 +62,74 @@ function triggerGitHubSync(
   });
 }
 
-// Helper to check task access via project -> workspace + project access control
+/**
+ * Compatibility shim for the GitHub routes at the end of this file. It goes
+ * through the central authorizer (workspace membership, project ACL, role).
+ * New code should use requireTask/requireProject from lib/authorize.ts.
+ */
 async function checkTaskAccess(projectId: string, userId: string, permission: WorkspacePermission) {
-  const projectResult = await projectService.getById(projectId);
-  if (!projectResult.ok) {
-    return { allowed: false, project: null };
-  }
+  const grant = await getAuthz().authorizeProject(projectId, userId, permission);
+  return grant.ok ? { allowed: true, project: grant.project } : { allowed: false, project: null };
+}
 
-  const roleResult = await workspaceService.getMemberRole(projectResult.value.workspaceId, userId);
-  if (!roleResult.ok || !roleResult.value) {
-    return { allowed: false, project: projectResult.value };
+async function assertStateInProject(stateId: string | undefined, projectId: string): Promise<void> {
+  if (stateId && !(await getAuthz().stateBelongsToProject(stateId, projectId))) {
+    throw badRequest('Invalid state for this project', 'INVALID_STATE');
   }
+}
 
-  const role = roleResult.value as 'owner' | 'admin' | 'member';
-  if (!hasPermission(role, permission)) {
-    return { allowed: false, project: projectResult.value };
+/** Re-load a task and broadcast it; never fails the request. */
+async function publishTaskUpdated(workspaceId: string, projectId: string, taskId: string): Promise<void> {
+  const updated = await taskService.getById(taskId);
+  if (updated.ok) {
+    publishEvent(workspaceId, REALTIME_EVENTS.TASK_UPDATED, updated.value, { projectId });
   }
-
-  // Check project-level access
-  const hasProjectAccess = await projectService.hasAccess(projectId, userId, role);
-  return {
-    allowed: hasProjectAccess,
-    project: projectResult.value,
-  };
 }
 
 // List tasks
 tasks.get('/', async (c) => {
-  const user = getCurrentUser(c);
-  const projectId = c.req.query('projectId');
-
-  if (!projectId) {
-    return c.json({ success: false, error: { code: 'MISSING_PARAM', message: 'projectId is required' } }, 400);
-  }
-
-  const { allowed } = await checkTaskAccess(projectId, user.id, 'task:read');
-  if (!allowed) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
+  const { project } = await requireProject(c, c.req.query('projectId'), 'task:read');
 
   // Map present-but-empty params ("?sortBy=") to undefined so the schema
   // defaults apply instead of failing the enum/number validation.
   const parsedQuery = TaskListQuerySchema.safeParse({
     priority: c.req.query('priority') || undefined,
+    stateId: c.req.query('stateId') || undefined,
+    assigneeId: c.req.query('assigneeId') || undefined,
+    search: c.req.query('search') || undefined,
     sortBy: c.req.query('sortBy') || undefined,
     sortOrder: c.req.query('sortOrder') || undefined,
     page: c.req.query('page') || undefined,
     limit: c.req.query('limit') || undefined,
   });
   if (!parsedQuery.success) {
-    return c.json({ success: false, error: { code: 'INVALID_QUERY', message: 'Invalid query parameters' } }, 400);
+    throw badRequest('Invalid query parameters', 'INVALID_QUERY');
   }
-  const { priority, sortBy, sortOrder, page, limit } = parsedQuery.data;
+  const { priority, stateId, assigneeId, search, sortBy, sortOrder, page, limit } = parsedQuery.data;
 
-  const result = await taskService.list({
-    filters: {
-      projectId,
-      stateId: c.req.query('stateId'),
-      assigneeId: c.req.query('assigneeId'),
-      priority,
-      search: c.req.query('search'),
-      includeDeleted: c.req.query('includeDeleted') === 'true',
-    },
-    sortBy,
-    sortOrder,
-    page,
-    limit,
-  });
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'LIST_FAILED', message: result.error.message } }, 500);
-  }
+  const result = fromResult(
+    await taskService.list({
+      filters: {
+        projectId: project.id,
+        stateId,
+        assigneeId,
+        priority,
+        search,
+        includeDeleted: c.req.query('includeDeleted') === 'true',
+      },
+      sortBy,
+      sortOrder,
+      page,
+      limit,
+    }),
+    { code: 'LIST_FAILED', message: 'Failed to list tasks' }
+  );
 
   return c.json({
     success: true,
-    data: result.value.tasks,
+    data: result.tasks,
     meta: {
-      total: result.value.total,
+      total: Number(result.total),
       page,
       limit,
     },
@@ -174,12 +169,22 @@ tasks.post(
     CreateTaskSchema.extend({ projectId: z.string().uuid() })
   ),
   async (c) => {
-    const user = getCurrentUser(c);
     const data = c.req.valid('json');
+    const { project, workspaceId, role, user } = await requireProject(c, data.projectId, 'task:create');
+    const authz = getAuthz();
 
-    const { allowed, project } = await checkTaskAccess(data.projectId, user.id, 'task:create');
-    if (!allowed) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
+    await assertStateInProject(data.stateId, project.id);
+    if (data.labelIds && !(await authz.labelsBelongToProject(data.labelIds, project.id))) {
+      throw badRequest('Invalid labels for this project', 'INVALID_LABEL');
+    }
+    if (data.assigneeIds && data.assigneeIds.length > 0) {
+      const onlySelf = data.assigneeIds.every((id) => id === user.id);
+      if (!onlySelf && !hasPermission(role, 'task:assign')) {
+        throw forbidden('Insufficient permissions to assign other users');
+      }
+      if (!(await authz.usersCanAccessProject(project, data.assigneeIds))) {
+        throw badRequest('Assignees must be members with access to this project', 'INVALID_ASSIGNEE');
+      }
     }
 
     const result = await taskService.create({
@@ -188,11 +193,10 @@ tasks.post(
     });
 
     if (!result.ok) {
-      return c.json({ success: false, error: { code: 'CREATE_FAILED', message: result.error.message } }, 400);
+      throw toAppError(result.error, { status: 400, code: 'CREATE_FAILED', message: 'Failed to create task' });
     }
 
-    // Publish WebSocket event
-    publishEvent(project!.workspaceId, 'task:created', result.value);
+    publishEvent(workspaceId, REALTIME_EVENTS.TASK_CREATED, result.value, { projectId: project.id });
 
     // Optionally create GitHub issue (non-blocking)
     let githubResult: { url: string; number: number } | null = null;
@@ -259,21 +263,11 @@ tasks.post(
 
 // Get task by ID
 tasks.get('/:taskId', async (c) => {
-  const user = getCurrentUser(c);
-  const taskId = c.req.param('taskId');
-
-  const result = await taskService.getById(taskId);
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: result.error.message } }, 404);
-  }
-
-  const { allowed } = await checkTaskAccess(result.value.projectId, user.id, 'task:read');
-  if (!allowed) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
-
-  return c.json({ success: true, data: result.value });
+  const { task } = await requireTask(c, c.req.param('taskId'), 'task:read', {
+    includeDeleted: c.req.query('includeDeleted') === 'true',
+  });
+  const full = fromResult(await taskService.getById(task.id), { code: 'FETCH_FAILED', message: 'Failed to load task' });
+  return c.json({ success: true, data: full });
 });
 
 // Update task
@@ -281,42 +275,27 @@ tasks.patch(
   '/:taskId',
   zValidator('json', UpdateTaskSchema),
   async (c) => {
-    const user = getCurrentUser(c);
-    const taskId = c.req.param('taskId');
+    const { task, workspaceId, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
     const data = c.req.valid('json');
+    await assertStateInProject(data.stateId, task.projectId);
 
-    // Get task first
-    const taskResult = await taskService.getById(taskId);
-    if (!taskResult.ok) {
-      return c.json({ success: false, error: { code: 'NOT_FOUND', message: taskResult.error.message } }, 404);
-    }
-
-    const { allowed, project } = await checkTaskAccess(taskResult.value.projectId, user.id, 'task:update');
-    if (!allowed) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-    }
-
-    const result = await taskService.update(taskId, {
-      ...data,
-      updatedBy: user.id,
+    const updated = fromResult(await taskService.update(task.id, { ...data, updatedBy: user.id }), {
+      status: 400,
+      code: 'UPDATE_FAILED',
+      message: 'Failed to update task',
     });
 
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'UPDATE_FAILED', message: result.error.message } }, 400);
-    }
-
-    // Publish WebSocket event
-    publishEvent(project!.workspaceId, 'task:updated', result.value);
+    publishEvent(workspaceId, REALTIME_EVENTS.TASK_UPDATED, updated, { projectId: task.projectId });
 
     // Trigger GitHub reverse sync
-    triggerGitHubSync(taskId, {
+    triggerGitHubSync(task.id, {
       title: data.title,
       description: data.description,
       stateId: data.stateId,
       priority: data.priority,
     });
 
-    return c.json({ success: true, data: result.value });
+    return c.json({ success: true, data: updated });
   }
 );
 
@@ -325,121 +304,68 @@ tasks.post(
   '/:taskId/move',
   zValidator('json', MoveTaskSchema),
   async (c) => {
-    const user = getCurrentUser(c);
-    const taskId = c.req.param('taskId');
+    const { task, workspaceId, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
     const data = c.req.valid('json');
 
-    // Get task first
-    const taskResult = await taskService.getById(taskId);
-    if (!taskResult.ok) {
-      return c.json({ success: false, error: { code: 'NOT_FOUND', message: taskResult.error.message } }, 404);
+    // The target state must belong to the task's project (no cross-project moves).
+    if (!(await getAuthz().stateBelongsToProject(data.stateId, task.projectId))) {
+      throw badRequest('Cannot move task to a state from a different project', 'CROSS_PROJECT_MOVE');
     }
 
-    const { allowed, project } = await checkTaskAccess(taskResult.value.projectId, user.id, 'task:update');
-    if (!allowed) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-    }
-
-    // Validate that target state belongs to the same project (safety net for cross-project moves)
-    if (data.stateId) {
-      const targetState = await db.query.taskStates.findFirst({
-        where: eq(taskStates.id, data.stateId),
-      });
-
-      if (!targetState) {
-        return c.json({ success: false, error: { code: 'STATE_NOT_FOUND', message: 'Invalid state' } }, 400);
-      }
-
-      if (targetState.projectId !== taskResult.value.projectId) {
-        return c.json({
-          success: false,
-          error: { code: 'CROSS_PROJECT_MOVE', message: 'Cannot move task to a state from a different project' }
-        }, 400);
-      }
-    }
-
-    const result = await taskService.move(taskId, {
-      ...data,
-      movedBy: user.id,
+    const moved = fromResult(await taskService.move(task.id, { ...data, movedBy: user.id }), {
+      status: 400,
+      code: 'MOVE_FAILED',
+      message: 'Failed to move task',
     });
 
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'MOVE_FAILED', message: result.error.message } }, 400);
-    }
-
-    // Publish WebSocket event
-    publishEvent(project!.workspaceId, 'task:moved', result.value);
+    publishEvent(workspaceId, REALTIME_EVENTS.TASK_MOVED, moved, { projectId: task.projectId });
 
     // Trigger GitHub reverse sync for state change
-    triggerGitHubSync(taskId, {
+    triggerGitHubSync(task.id, {
       stateId: data.stateId,
     });
 
-    return c.json({ success: true, data: result.value });
+    return c.json({ success: true, data: moved });
   }
 );
 
 // Delete task (soft delete)
 tasks.delete('/:taskId', async (c) => {
-  const user = getCurrentUser(c);
-  const taskId = c.req.param('taskId');
-
-  // Get task first
-  const taskResult = await taskService.getById(taskId);
-  if (!taskResult.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: taskResult.error.message } }, 404);
-  }
-
-  const { allowed, project } = await checkTaskAccess(taskResult.value.projectId, user.id, 'task:delete');
-  if (!allowed) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
+  const { task, workspaceId, user } = await requireTask(c, c.req.param('taskId'), 'task:delete');
 
   // Close linked GitHub issue (fire-and-forget — must not block or fail the
   // delete response). The task is soft-deleted, so the external link remains
   // resolvable for this background call.
-  githubReverseSync.closeGitHubIssue(taskId).catch((error: unknown) => {
+  githubReverseSync.closeGitHubIssue(task.id).catch((error: unknown) => {
     console.error('GitHub issue close error:', error);
   });
 
-  const result = await taskService.delete(taskId, user.id);
+  fromResult(await taskService.delete(task.id, user.id), {
+    status: 400,
+    code: 'DELETE_FAILED',
+    message: 'Failed to delete task',
+  });
 
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'DELETE_FAILED', message: result.error.message } }, 400);
-  }
-
-  // Publish WebSocket event
-  publishEvent(project!.workspaceId, 'task:deleted', { id: taskId, projectId: taskResult.value.projectId });
+  publishEvent(workspaceId, REALTIME_EVENTS.TASK_DELETED, { id: task.id, projectId: task.projectId });
 
   return c.json({ success: true, data: null });
 });
 
 // Restore task
 tasks.post('/:taskId/restore', async (c) => {
-  const user = getCurrentUser(c);
-  const taskId = c.req.param('taskId');
+  const { task, workspaceId, user } = await requireTask(c, c.req.param('taskId'), 'task:update', {
+    includeDeleted: true,
+  });
 
-  // Get task first (including deleted)
-  const taskResult = await taskService.getById(taskId);
-  if (!taskResult.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: taskResult.error.message } }, 404);
-  }
+  const restored = fromResult(await taskService.restore(task.id, user.id), {
+    status: 400,
+    code: 'RESTORE_FAILED',
+    message: 'Failed to restore task',
+  });
 
-  const { allowed, project } = await checkTaskAccess(taskResult.value.projectId, user.id, 'task:update');
-  if (!allowed) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
+  publishEvent(workspaceId, REALTIME_EVENTS.TASK_CREATED, restored, { projectId: task.projectId });
 
-  const result = await taskService.restore(taskId, user.id);
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'RESTORE_FAILED', message: result.error.message } }, 400);
-  }
-
-  // Publish WebSocket event
-  publishEvent(project!.workspaceId, 'task:created', result.value);
-
-  return c.json({ success: true, data: result.value });
+  return c.json({ success: true, data: restored });
 });
 
 // === Assignees ===
@@ -449,66 +375,41 @@ tasks.post(
   '/:taskId/assignees',
   zValidator('json', z.object({ userId: z.string().uuid() })),
   async (c) => {
-    const user = getCurrentUser(c);
-    const taskId = c.req.param('taskId');
+    const { task, project, workspaceId, user } = await requireTask(c, c.req.param('taskId'), 'task:assign');
     const { userId } = c.req.valid('json');
 
-    // Get task first
-    const taskResult = await taskService.getById(taskId);
-    if (!taskResult.ok) {
-      return c.json({ success: false, error: { code: 'NOT_FOUND', message: taskResult.error.message } }, 404);
+    // Only workspace members who can see the project may be assigned; this also
+    // stops responses from embedding a foreign user's profile.
+    if (!(await getAuthz().userCanAccessProject(project, userId))) {
+      throw badRequest('Assignee must be a member with access to this project', 'INVALID_ASSIGNEE');
     }
 
-    const { allowed, project } = await checkTaskAccess(taskResult.value.projectId, user.id, 'task:assign');
-    if (!allowed) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-    }
+    fromResult(await taskService.addAssignee(task.id, userId, user.id), {
+      status: 400,
+      code: 'ASSIGN_FAILED',
+      message: 'Failed to assign task',
+    });
 
-    const result = await taskService.addAssignee(taskId, userId, user.id);
-
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'ASSIGN_FAILED', message: result.error.message } }, 400);
-    }
-
-    // Get updated task and publish
-    const updatedTask = await taskService.getById(taskId);
-    if (updatedTask.ok) {
-      publishEvent(project!.workspaceId, 'task:updated', updatedTask.value);
-    }
-
+    await publishTaskUpdated(workspaceId, task.projectId, task.id);
     return c.json({ success: true, data: null });
   }
 );
 
 // Remove assignee
 tasks.delete('/:taskId/assignees/:userId', async (c) => {
-  const user = getCurrentUser(c);
-  const taskId = c.req.param('taskId');
+  const { task, workspaceId, user } = await requireTask(c, c.req.param('taskId'), 'task:assign');
   const userId = c.req.param('userId');
-
-  // Get task first
-  const taskResult = await taskService.getById(taskId);
-  if (!taskResult.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: taskResult.error.message } }, 404);
+  if (!z.string().uuid().safeParse(userId).success) {
+    throw badRequest('Invalid user id', 'INVALID_ASSIGNEE');
   }
 
-  const { allowed, project } = await checkTaskAccess(taskResult.value.projectId, user.id, 'task:assign');
-  if (!allowed) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
+  fromResult(await taskService.removeAssignee(task.id, userId, user.id), {
+    status: 400,
+    code: 'UNASSIGN_FAILED',
+    message: 'Failed to unassign task',
+  });
 
-  const result = await taskService.removeAssignee(taskId, userId, user.id);
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'UNASSIGN_FAILED', message: result.error.message } }, 400);
-  }
-
-  // Get updated task and publish
-  const updatedTask = await taskService.getById(taskId);
-  if (updatedTask.ok) {
-    publishEvent(project!.workspaceId, 'task:updated', updatedTask.value);
-  }
-
+  await publishTaskUpdated(workspaceId, task.projectId, task.id);
   return c.json({ success: true, data: null });
 });
 
@@ -519,66 +420,39 @@ tasks.post(
   '/:taskId/labels',
   zValidator('json', z.object({ labelId: z.string().uuid() })),
   async (c) => {
-    const user = getCurrentUser(c);
-    const taskId = c.req.param('taskId');
+    const { task, workspaceId, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
     const { labelId } = c.req.valid('json');
 
-    // Get task first
-    const taskResult = await taskService.getById(taskId);
-    if (!taskResult.ok) {
-      return c.json({ success: false, error: { code: 'NOT_FOUND', message: taskResult.error.message } }, 404);
+    if (!(await getAuthz().labelsBelongToProject([labelId], task.projectId))) {
+      throw badRequest('Invalid label for this project', 'INVALID_LABEL');
     }
 
-    const { allowed, project } = await checkTaskAccess(taskResult.value.projectId, user.id, 'task:update');
-    if (!allowed) {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-    }
+    fromResult(await taskService.addLabel(task.id, labelId, user.id), {
+      status: 400,
+      code: 'LABEL_FAILED',
+      message: 'Failed to add label',
+    });
 
-    const result = await taskService.addLabel(taskId, labelId, user.id);
-
-    if (!result.ok) {
-      return c.json({ success: false, error: { code: 'LABEL_FAILED', message: result.error.message } }, 400);
-    }
-
-    // Get updated task and publish
-    const updatedTask = await taskService.getById(taskId);
-    if (updatedTask.ok) {
-      publishEvent(project!.workspaceId, 'task:updated', updatedTask.value);
-    }
-
+    await publishTaskUpdated(workspaceId, task.projectId, task.id);
     return c.json({ success: true, data: null });
   }
 );
 
 // Remove label
 tasks.delete('/:taskId/labels/:labelId', async (c) => {
-  const user = getCurrentUser(c);
-  const taskId = c.req.param('taskId');
+  const { task, workspaceId, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
   const labelId = c.req.param('labelId');
-
-  // Get task first
-  const taskResult = await taskService.getById(taskId);
-  if (!taskResult.ok) {
-    return c.json({ success: false, error: { code: 'NOT_FOUND', message: taskResult.error.message } }, 404);
+  if (!z.string().uuid().safeParse(labelId).success) {
+    throw badRequest('Invalid label id', 'INVALID_LABEL');
   }
 
-  const { allowed, project } = await checkTaskAccess(taskResult.value.projectId, user.id, 'task:update');
-  if (!allowed) {
-    return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
-  }
+  fromResult(await taskService.removeLabel(task.id, labelId, user.id), {
+    status: 400,
+    code: 'UNLABEL_FAILED',
+    message: 'Failed to remove label',
+  });
 
-  const result = await taskService.removeLabel(taskId, labelId, user.id);
-
-  if (!result.ok) {
-    return c.json({ success: false, error: { code: 'UNLABEL_FAILED', message: result.error.message } }, 400);
-  }
-
-  // Get updated task and publish
-  const updatedTask = await taskService.getById(taskId);
-  if (updatedTask.ok) {
-    publishEvent(project!.workspaceId, 'task:updated', updatedTask.value);
-  }
-
+  await publishTaskUpdated(workspaceId, task.projectId, task.id);
   return c.json({ success: true, data: null });
 });
 
@@ -590,11 +464,12 @@ tasks.post(
   zValidator(
     'json',
     z.object({
-      beforePosition: z.string().nullable().optional(),
-      afterPosition: z.string().nullable().optional(),
+      beforePosition: z.string().max(200).nullable().optional(),
+      afterPosition: z.string().max(200).nullable().optional(),
     })
   ),
   async (c) => {
+    requireUser(c);
     const data = c.req.valid('json');
 
     const position = taskService.calculatePositionBetween(

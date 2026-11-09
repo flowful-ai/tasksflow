@@ -450,6 +450,8 @@ export const publicShares = pgTable(
     accessCount: integer('access_count').default(0).notNull(),
     lastAccessedAt: timestamp('last_accessed_at'),
     isActive: boolean('is_active').default(true).notNull(),
+    // GitHub issue/PR links are only exposed publicly when explicitly enabled.
+    showExternalLinks: boolean('show_external_links').default(false).notNull(),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
@@ -458,6 +460,18 @@ export const publicShares = pgTable(
     // Listing shares for a view queries by smart_view_id.
     index('public_share_smart_view_idx').on(table.smartViewId),
   ]
+);
+
+// Fixed-window counters for share-password attempts. Keys are
+// `token:<token>` (per share, independent of IP) and `ip:<ip>:<token>`.
+export const publicSharePasswordAttempts = pgTable(
+  'public_share_password_attempts',
+  {
+    key: text('key').primaryKey(),
+    attempts: integer('attempts').default(0).notNull(),
+    windowExpiresAt: timestamp('window_expires_at').notNull(),
+  },
+  (table) => [index('share_pw_attempt_expiry_idx').on(table.windowExpiresAt)]
 );
 
 // ============ AI AGENTS ============

@@ -65,3 +65,7 @@ export interface ResolvedFilter {
   filters: FilterGroup;
   context: FilterContext;
 }
+
+// Access policy and safe DTO helpers, re-exported for '@flowtask/domain'.
+export * from './access.js';
+export * from './public-dto.js';

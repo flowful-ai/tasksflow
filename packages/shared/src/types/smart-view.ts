@@ -142,6 +142,7 @@ export const PublicShareSchema = z.object({
   accessCount: z.number().int().nonnegative().default(0),
   lastAccessedAt: z.coerce.date().nullable(),
   isActive: z.boolean().default(true),
+  showExternalLinks: z.boolean().default(false),
   createdBy: z.string().uuid().nullable(),
   createdAt: z.coerce.date(),
 });
@@ -154,6 +155,8 @@ export const CreatePublicShareSchema = z.object({
   password: z.string().min(4).optional(),
   expiresAt: z.coerce.date().optional(),
   maxAccessCount: z.number().int().positive().optional(),
+  /** Expose GitHub issue/PR links on the public page (off by default). */
+  showExternalLinks: z.boolean().optional(),
 });
 
 export type CreatePublicShare = z.infer<typeof CreatePublicShareSchema>;

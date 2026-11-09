@@ -1,6 +1,12 @@
-import { eq, and, or, desc, asc, inArray, SQL } from 'drizzle-orm';
+import { eq, and, or, desc, asc, inArray, lt, sql, SQL } from 'drizzle-orm';
 import type { Database } from '@flowtask/database';
-import { smartViews, smartViewShares, publicShares, users, type NewPublicShare } from '@flowtask/database';
+import {
+  smartViews,
+  smartViewShares,
+  publicShares,
+  publicSharePasswordAttempts,
+  type NewPublicShare,
+} from '@flowtask/database';
 import type { Result, FilterGroup } from '@flowtask/shared';
 import { ok, err } from '@flowtask/shared';
 import type {
@@ -12,6 +18,25 @@ import type {
   SmartViewListOptions,
 } from './types.js';
 import { FilterEngine } from './filter-engine.js';
+import { DomainError, toError } from '../workspace/errors.js';
+import { isUuid } from '../workspace/authorization.js';
+
+/**
+ * Share-password brute-force limits (fixed 15 minute windows).
+ * Attempts are counted *before* the password is checked, so parallel guesses
+ * cannot slip past the limit. The per-token counter is independent of the
+ * client IP, which bounds guessing even from many addresses.
+ */
+export const SHARE_PASSWORD_LIMITS = {
+  windowSeconds: 15 * 60,
+  perIpAndToken: 10,
+  perToken: 50,
+} as const;
+
+export interface PasswordAttemptDecision {
+  allowed: boolean;
+  retryAfterSeconds: number;
+}
 
 async function hashPassword(password: string): Promise<string> {
   return Bun.password.hash(password, { algorithm: 'bcrypt', cost: 12 });
@@ -33,7 +58,7 @@ export class SmartViewService {
       if (input.filters) {
         const validation = FilterEngine.validate(input.filters);
         if (!validation.valid) {
-          return err(new Error(`Invalid filters: ${validation.errors.join(', ')}`));
+          return err(new DomainError('BAD_REQUEST', `Invalid filters: ${validation.errors.join(', ')}`));
         }
       }
 
@@ -77,10 +102,13 @@ export class SmartViewService {
    */
   async getById(viewId: string): Promise<Result<SmartViewWithRelations, Error>> {
     try {
+      if (!isUuid(viewId)) {
+        return err(new DomainError('NOT_FOUND', 'Smart view not found'));
+      }
       const [view] = await this.db.select().from(smartViews).where(eq(smartViews.id, viewId));
 
       if (!view) {
-        return err(new Error('Smart view not found'));
+        return err(new DomainError('NOT_FOUND', 'Smart view not found'));
       }
 
       // Get shares
@@ -111,7 +139,7 @@ export class SmartViewService {
       if (input.filters) {
         const validation = FilterEngine.validate(input.filters);
         if (!validation.valid) {
-          return err(new Error(`Invalid filters: ${validation.errors.join(', ')}`));
+          return err(new DomainError('BAD_REQUEST', `Invalid filters: ${validation.errors.join(', ')}`));
         }
       }
 
@@ -342,6 +370,7 @@ export class SmartViewService {
         expiresAt: input.expiresAt,
         maxAccessCount: input.maxAccessCount,
         passwordHash: input.password ? await hashPassword(input.password) : null,
+        showExternalLinks: input.showExternalLinks ?? false,
       };
 
       const [share] = await this.db.insert(publicShares).values(values).returning();
@@ -361,25 +390,28 @@ export class SmartViewService {
    */
   async getPublicShareByToken(token: string): Promise<Result<typeof publicShares.$inferSelect, Error>> {
     try {
+      if (!isUuid(token)) {
+        return err(new DomainError('NOT_FOUND', 'Public share not found'));
+      }
       const [share] = await this.db.select().from(publicShares).where(eq(publicShares.token, token));
 
       if (!share) {
-        return err(new Error('Public share not found'));
+        return err(new DomainError('NOT_FOUND', 'Public share not found'));
       }
 
       // Check if active
       if (!share.isActive) {
-        return err(new Error('Public share is disabled'));
+        return err(new DomainError('NOT_FOUND', 'Public share is disabled'));
       }
 
       // Check expiration
       if (share.expiresAt && share.expiresAt < new Date()) {
-        return err(new Error('Public share has expired'));
+        return err(new DomainError('NOT_FOUND', 'Public share has expired'));
       }
 
       // Check access count
       if (share.maxAccessCount && share.accessCount >= share.maxAccessCount) {
-        return err(new Error('Public share has reached maximum access count'));
+        return err(new DomainError('NOT_FOUND', 'Public share has reached maximum access count'));
       }
 
       return ok(share);
@@ -408,6 +440,71 @@ export class SmartViewService {
     } catch (error) {
       return err(error instanceof Error ? error : new Error('Unknown error'));
     }
+  }
+
+  /**
+   * Count a share-password attempt for (token) and (ip, token) before the
+   * password is verified. Returns whether verification may proceed.
+   */
+  async beginPasswordAttempt(token: string, ip: string): Promise<Result<PasswordAttemptDecision, Error>> {
+    try {
+      const [perToken, perIp] = await Promise.all([
+        this.incrementAttempt(`token:${token}`),
+        this.incrementAttempt(`ip:${ip}:${token}`),
+      ]);
+
+      const blocked = [
+        perToken.attempts > SHARE_PASSWORD_LIMITS.perToken ? perToken.retryAfterSeconds : 0,
+        perIp.attempts > SHARE_PASSWORD_LIMITS.perIpAndToken ? perIp.retryAfterSeconds : 0,
+      ];
+      const retryAfterSeconds = Math.max(...blocked);
+      return ok({ allowed: retryAfterSeconds === 0, retryAfterSeconds });
+    } catch (error) {
+      return err(toError(error));
+    }
+  }
+
+  /**
+   * Settle an attempt after verification. A success clears the (ip, token)
+   * counter and gives back the per-token slot it used; failures stay counted.
+   */
+  async settlePasswordAttempt(token: string, ip: string, success: boolean): Promise<Result<void, Error>> {
+    try {
+      if (success) {
+        await this.db.delete(publicSharePasswordAttempts).where(eq(publicSharePasswordAttempts.key, `ip:${ip}:${token}`));
+        await this.db
+          .update(publicSharePasswordAttempts)
+          .set({ attempts: sql`GREATEST(${publicSharePasswordAttempts.attempts} - 1, 0)` })
+          .where(eq(publicSharePasswordAttempts.key, `token:${token}`));
+      }
+      // Opportunistic cleanup of expired windows.
+      if (Math.random() < 0.05) {
+        await this.db.delete(publicSharePasswordAttempts).where(lt(publicSharePasswordAttempts.windowExpiresAt, sql`now()`));
+      }
+      return ok(undefined);
+    } catch (error) {
+      return err(toError(error));
+    }
+  }
+
+  private async incrementAttempt(key: string): Promise<{ attempts: number; retryAfterSeconds: number }> {
+    const window = sql`now() + make_interval(secs => ${SHARE_PASSWORD_LIMITS.windowSeconds})`;
+    const expired = sql`${publicSharePasswordAttempts.windowExpiresAt} <= now()`;
+    const [row] = await this.db
+      .insert(publicSharePasswordAttempts)
+      .values({ key, attempts: 1, windowExpiresAt: window })
+      .onConflictDoUpdate({
+        target: publicSharePasswordAttempts.key,
+        set: {
+          attempts: sql`CASE WHEN ${expired} THEN 1 ELSE ${publicSharePasswordAttempts.attempts} + 1 END`,
+          windowExpiresAt: sql`CASE WHEN ${expired} THEN ${window} ELSE ${publicSharePasswordAttempts.windowExpiresAt} END`,
+        },
+      })
+      .returning({
+        attempts: publicSharePasswordAttempts.attempts,
+        retryAfterSeconds: sql<number>`GREATEST(CEIL(EXTRACT(EPOCH FROM (${publicSharePasswordAttempts.windowExpiresAt} - now()))), 1)::int`,
+      });
+    return { attempts: row?.attempts ?? 1, retryAfterSeconds: row?.retryAfterSeconds ?? SHARE_PASSWORD_LIMITS.windowSeconds };
   }
 
   /**
@@ -461,6 +558,3 @@ export class SmartViewService {
     }
   }
 }
-
-// Import sql for the recordPublicShareAccess function
-import { sql } from 'drizzle-orm';

@@ -4,6 +4,8 @@ import { comments, users, taskEvents, workspaceAgents } from '@flowtask/database
 import type { Result } from '@flowtask/shared';
 import { ok, err } from '@flowtask/shared';
 import type { CommentWithUser, CommentCreateInput, CommentUpdateInput, CommentListOptions, CommentAgent } from './types.js';
+import { DomainError } from '../workspace/errors.js';
+import { isUuid } from '../workspace/authorization.js';
 
 export class CommentService {
   constructor(private db: Database) {}
@@ -48,6 +50,9 @@ export class CommentService {
    */
   async getById(commentId: string): Promise<Result<CommentWithUser, Error>> {
     try {
+      if (!isUuid(commentId)) {
+        return err(new DomainError('NOT_FOUND', 'Comment not found'));
+      }
       const [result] = await this.db
         .select({
           comment: comments,
@@ -63,7 +68,7 @@ export class CommentService {
         .where(eq(comments.id, commentId));
 
       if (!result) {
-        return err(new Error('Comment not found'));
+        return err(new DomainError('NOT_FOUND', 'Comment not found'));
       }
 
       return ok({
@@ -90,7 +95,7 @@ export class CommentService {
 
       // Check if the user is authorized to update (must be the author)
       if (current.userId !== input.updatedBy) {
-        return err(new Error('Not authorized to update this comment'));
+        return err(new DomainError('FORBIDDEN', 'Only the author can edit this comment'));
       }
 
       const [updated] = await this.db
@@ -113,9 +118,14 @@ export class CommentService {
   }
 
   /**
-   * Soft delete a comment.
+   * Soft delete a comment. The author may always delete it; `canModerate`
+   * (callers holding comment:delete, e.g. workspace admins) may delete any.
    */
-  async delete(commentId: string, deletedBy: string): Promise<Result<void, Error>> {
+  async delete(
+    commentId: string,
+    deletedBy: string,
+    options: { canModerate?: boolean } = {}
+  ): Promise<Result<void, Error>> {
     try {
       // First verify the comment exists
       const currentResult = await this.getById(commentId);
@@ -124,9 +134,8 @@ export class CommentService {
       }
       const current = currentResult.value;
 
-      // Check if the user is authorized to delete (must be the author)
-      if (current.userId !== deletedBy) {
-        return err(new Error('Not authorized to delete this comment'));
+      if (current.userId !== deletedBy && !options.canModerate) {
+        return err(new DomainError('FORBIDDEN', 'Only the author can delete this comment'));
       }
 
       await this.db
@@ -158,7 +167,7 @@ export class CommentService {
 
       // Get total count
       const [countResult] = await this.db
-        .select({ count: sql<number>`COUNT(*)` })
+        .select({ count: sql<number>`COUNT(*)::int` })
         .from(comments)
         .where(whereClause);
 
@@ -200,7 +209,7 @@ export class CommentService {
   async getCount(taskId: string): Promise<Result<number, Error>> {
     try {
       const [result] = await this.db
-        .select({ count: sql<number>`COUNT(*)` })
+        .select({ count: sql<number>`COUNT(*)::int` })
         .from(comments)
         .where(and(eq(comments.taskId, taskId), isNull(comments.deletedAt)));
 
