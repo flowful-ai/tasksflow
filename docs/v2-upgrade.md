@@ -77,7 +77,7 @@ Deploy the v2 branch. The first boot of `tasksflow-api`:
    - switches `tasks.position` to `COLLATE "C"` (byte order) and makes `rate_limit_counters` UNLOGGED;
    - rewrites GitHub external ids to `owner/repo#N` (from the issue URL) and folds legacy GitHub configs into `repositories[]`;
    - seeds MCP OAuth token families for existing refresh and access tokens;
-   - deletes project ACL rows and smart-view shares for users who are no longer workspace members, labels attached across projects, and task states pointing at another project; backfills `completed_at` for tasks already in a done state;
+   - deletes project ACL rows and smart-view shares for users who are no longer workspace members and labels attached across projects, and moves tasks that point at another project's state to their own project's state of the same category (same name preferred); backfills `completed_at` for tasks already in a done state;
 2. then, in the background, re-keys task columns whose position keys the v1 generator left invalid (logged as `Re-keyed N task column(s)`).
 
 Watch the logs for `Applying database migrations from /app/drizzle` and `FlowTask API running at …`. Drizzle applies pending migrations in one transaction, so if `0016_v2` fails the database is left as it was; the container logs `Database migration failed:` and restarts. Fix the cause or restore the backup (step 1) and redeploy v1.

@@ -385,9 +385,18 @@ WHERE tl.task_id = t.id
   AND tl.label_id = l.id
   AND l.project_id <> t.project_id;
 --> statement-breakpoint
--- Tasks pointing at a state of a different project lose that state.
+-- Tasks pointing at a state of a different project move to their own
+-- project's state of the same category, preferring the same name. Only when
+-- the project has no state in that category does the task lose its state.
 UPDATE tasks t
-SET state_id = NULL
+SET state_id = (
+  SELECT own.id
+  FROM task_states own
+  WHERE own.project_id = t.project_id
+    AND own.category = s.category
+  ORDER BY (own.name = s.name) DESC, own.position COLLATE "C", own.id
+  LIMIT 1
+)
 FROM task_states s
 WHERE t.state_id = s.id
   AND s.project_id <> t.project_id;
