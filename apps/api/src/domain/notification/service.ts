@@ -34,7 +34,9 @@ export interface NotificationInput {
 }
 
 export type NotificationRecord = Notification;
-export type NotificationCreatedListener = (notification: NotificationRecord) => void | Promise<void>;
+export type NotificationCreatedListener = (
+  notification: NotificationRecord
+) => void | Promise<void>;
 
 const createdListeners = new Set<NotificationCreatedListener>();
 
@@ -80,7 +82,8 @@ interface Cursor {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Postgres timestamp[tz]::text, e.g. "2026-11-09 10:00:00.123456+00". */
-const PG_TIMESTAMP_RE = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d{1,6})?([+-]\d{2}(:?\d{2})?)?$/;
+const PG_TIMESTAMP_RE =
+  /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d{1,6})?([+-]\d{2}(:?\d{2})?)?$/;
 
 function encodeCursor(cursor: Cursor): string {
   return Buffer.from(`${cursor.ts}|${cursor.id}`, 'utf8').toString('base64url');
@@ -97,7 +100,10 @@ function decodeCursor(raw: string | undefined): Cursor | null {
   return { ts, id };
 }
 
-export function notificationFilterCondition(filter: NotificationFilter, now: Date): SQL | undefined {
+export function notificationFilterCondition(
+  filter: NotificationFilter,
+  now: Date
+): SQL | undefined {
   const notSnoozed = or(isNull(notifications.snoozedUntil), lte(notifications.snoozedUntil, now))!;
   switch (filter) {
     case 'inbox':
@@ -138,7 +144,11 @@ export class NotificationService {
       }
     }
     if (values.length === 0) return [];
-    const rows = await this.db.insert(notifications).values(values).onConflictDoNothing().returning();
+    const rows = await this.db
+      .insert(notifications)
+      .values(values)
+      .onConflictDoNothing()
+      .returning();
     notifyListeners(rows);
     return rows;
   }
@@ -149,7 +159,10 @@ export class NotificationService {
   ): Promise<Result<{ items: NotificationItem[]; nextCursor: string | null }, Error>> {
     try {
       const limit = Math.max(1, Math.min(100, query.limit ?? 30));
-      const conditions: SQL[] = [eq(notifications.userId, userId), eq(notifications.workspaceId, query.workspaceId)];
+      const conditions: SQL[] = [
+        eq(notifications.userId, userId),
+        eq(notifications.workspaceId, query.workspaceId),
+      ];
       const filterCondition = notificationFilterCondition(query.filter ?? 'inbox', new Date());
       if (filterCondition) conditions.push(filterCondition);
       const cursor = decodeCursor(query.cursor);
@@ -189,7 +202,11 @@ export class NotificationService {
             workspaceId: n.workspaceId,
             type: n.type,
             task:
-              n.taskId && row.taskTitle !== null && row.taskSeq !== null && row.identifier !== null && row.taskProjectId
+              n.taskId &&
+              row.taskTitle !== null &&
+              row.taskSeq !== null &&
+              row.identifier !== null &&
+              row.taskProjectId
                 ? {
                     id: n.taskId,
                     key: formatTaskKey(row.identifier, row.taskSeq),
@@ -198,7 +215,9 @@ export class NotificationService {
                     deleted: row.taskDeletedAt !== null,
                   }
                 : null,
-            actor: n.actorId ? { id: n.actorId, name: row.actorName, avatarUrl: row.actorAvatar } : null,
+            actor: n.actorId
+              ? { id: n.actorId, name: row.actorName, avatarUrl: row.actorAvatar }
+              : null,
             data: toNotificationData(toJsonObject(n.data)),
             readAt: n.readAt,
             archivedAt: n.archivedAt,
@@ -208,7 +227,8 @@ export class NotificationService {
         ];
       });
       const last = page[page.length - 1];
-      const nextCursor = rows.length > limit && last ? encodeCursor({ ts: last.cursorTs, id: last.n.id }) : null;
+      const nextCursor =
+        rows.length > limit && last ? encodeCursor({ ts: last.cursorTs, id: last.n.id }) : null;
       return ok({ items, nextCursor });
     } catch (error) {
       return err(toError(error));
@@ -260,7 +280,10 @@ export class NotificationService {
   }
 
   /** Archive ("done"); also marks it read. */
-  async archive(userId: string, notificationId: string): Promise<Result<NotificationRecord | null, Error>> {
+  async archive(
+    userId: string,
+    notificationId: string
+  ): Promise<Result<NotificationRecord | null, Error>> {
     try {
       const [row] = await this.db
         .update(notifications)
@@ -288,7 +311,11 @@ export class NotificationService {
         .update(notifications)
         .set({ readAt: new Date() })
         .where(
-          and(eq(notifications.userId, userId), eq(notifications.workspaceId, workspaceId), isNull(notifications.readAt))
+          and(
+            eq(notifications.userId, userId),
+            eq(notifications.workspaceId, workspaceId),
+            isNull(notifications.readAt)
+          )
         )
         .returning({ id: notifications.id });
       return ok(rows.length);
@@ -300,7 +327,9 @@ export class NotificationService {
 
 type NotificationDataValue = NotificationItem['data'][string];
 
-function isStateRef(value: JsonObject[string]): value is { id: string; name: string; category: string } {
+function isStateRef(
+  value: JsonObject[string]
+): value is { id: string; name: string; category: string } {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -314,7 +343,12 @@ function isStateRef(value: JsonObject[string]): value is { id: string; name: str
 function toNotificationData(data: JsonObject): NotificationItem['data'] {
   const out: Record<string, NotificationDataValue> = {};
   for (const [key, value] of Object.entries(data)) {
-    if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    if (
+      value === null ||
+      typeof value === 'string' ||
+      typeof value === 'number' ||
+      typeof value === 'boolean'
+    ) {
       out[key] = value;
     } else if (isStateRef(value)) {
       out[key] = { id: value.id, name: value.name, category: value.category };

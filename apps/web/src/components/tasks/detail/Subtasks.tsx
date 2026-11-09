@@ -20,11 +20,21 @@ interface SubtasksProps {
   onOpenTask: OpenTaskHandler;
 }
 
-export function firstStateOf(states: DetailState[], category: 'done' | 'backlog'): DetailState | undefined {
+export function firstStateOf(
+  states: DetailState[],
+  category: 'done' | 'backlog'
+): DetailState | undefined {
   return states.find((s) => s.category === category);
 }
 
-export function Subtasks({ taskId, projectId, subtasks, states, readOnly = false, onOpenTask }: SubtasksProps) {
+export function Subtasks({
+  taskId,
+  projectId,
+  subtasks,
+  states,
+  readOnly = false,
+  onOpenTask,
+}: SubtasksProps) {
   const queryClient = useQueryClient();
   const updateTask = useUpdateTask();
   const createTask = useCreateTask();
@@ -34,7 +44,8 @@ export function Subtasks({ taskId, projectId, subtasks, states, readOnly = false
   const [pending, setPending] = useState<Record<string, boolean>>({});
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const refreshParent = () => queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(taskId) });
+  const refreshParent = () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(taskId) });
   const isDone = (sub: TaskRefDto) => pending[sub.id] ?? sub.done;
   const doneCount = subtasks.filter(isDone).length;
   const doneState = firstStateOf(states, 'done');
@@ -75,18 +86,27 @@ export function Subtasks({ taskId, projectId, subtasks, states, readOnly = false
   const progress = subtasks.length > 0 ? Math.round((doneCount / subtasks.length) * 100) : 0;
 
   return (
-    <section aria-labelledby={`subtasks-${taskId}`} className="rounded-xl border border-neutral-200">
+    <section
+      aria-labelledby={`subtasks-${taskId}`}
+      className="rounded-xl border border-neutral-200"
+    >
       <div className="flex items-center gap-3 border-b border-neutral-100 px-3 py-2">
         <h3 id={`subtasks-${taskId}`} className="text-sm font-semibold text-neutral-800">
           Sub-tasks
         </h3>
         {subtasks.length > 0 && (
           <>
-            <span className="text-xs tabular-nums text-neutral-500" aria-label={`${doneCount} of ${subtasks.length} done`}>
+            <span
+              className="text-xs tabular-nums text-neutral-500"
+              aria-label={`${doneCount} of ${subtasks.length} done`}
+            >
               {doneCount}/{subtasks.length}
             </span>
             <span aria-hidden className="h-1.5 w-16 overflow-hidden rounded-full bg-neutral-100">
-              <span className="block h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${progress}%` }} />
+              <span
+                className="block h-full rounded-full bg-emerald-500 transition-all"
+                style={{ width: `${progress}%` }}
+              />
             </span>
           </>
         )}
@@ -110,7 +130,10 @@ export function Subtasks({ taskId, projectId, subtasks, states, readOnly = false
           {subtasks.map((sub) => {
             const done = isDone(sub);
             return (
-              <li key={sub.id} className="group flex items-center gap-2.5 px-3 py-1.5 hover:bg-neutral-50">
+              <li
+                key={sub.id}
+                className="group flex items-center gap-2.5 px-3 py-1.5 hover:bg-neutral-50"
+              >
                 <input
                   type="checkbox"
                   checked={done}
@@ -162,7 +185,11 @@ export function Subtasks({ taskId, projectId, subtasks, states, readOnly = false
             className="min-w-0 flex-1 border-0 bg-transparent p-0 text-base placeholder:text-neutral-400 focus:ring-0 md:text-sm"
           />
           {title.trim() && (
-            <button type="submit" className="btn btn-primary px-2.5 py-1 text-xs" disabled={createTask.isPending}>
+            <button
+              type="submit"
+              className="btn btn-primary px-2.5 py-1 text-xs"
+              disabled={createTask.isPending}
+            >
               Add
             </button>
           )}

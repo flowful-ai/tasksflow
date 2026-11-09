@@ -27,11 +27,13 @@ export const WorkspaceInvitationSchema = z.object({
   expiresAt: z.coerce.date(),
   acceptedAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
-  invitedBy: z.object({
-    id: z.string().uuid(),
-    name: z.string().nullable(),
-    email: z.string().email(),
-  }).nullable(),
+  invitedBy: z
+    .object({
+      id: z.string().uuid(),
+      name: z.string().nullable(),
+      email: z.string().email(),
+    })
+    .nullable(),
 });
 
 export type WorkspaceInvitation = z.infer<typeof WorkspaceInvitationSchema>;
@@ -45,10 +47,12 @@ export const PublicInvitationSchema = z.object({
   maxUses: z.number().int().positive().nullable(),
   usesCount: z.number().int().nonnegative(),
   expiresAt: z.coerce.date(),
-  invitedBy: z.object({
-    name: z.string().nullable(),
-    email: z.string().email(),
-  }).nullable(),
+  invitedBy: z
+    .object({
+      name: z.string().nullable(),
+      email: z.string().email(),
+    })
+    .nullable(),
 });
 
 export type PublicInvitation = z.infer<typeof PublicInvitationSchema>;

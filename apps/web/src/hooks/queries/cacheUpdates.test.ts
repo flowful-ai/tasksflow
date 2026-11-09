@@ -18,6 +18,8 @@ describe('isFilteredListKey', () => {
   });
 
   test('any other filter blocks the append', () => {
-    expect(isFilteredListKey(key({ parentId: 'none', assigneeId: 'u1' }), { parentId: null })).toBe(true);
+    expect(isFilteredListKey(key({ parentId: 'none', assigneeId: 'u1' }), { parentId: null })).toBe(
+      true
+    );
   });
 });

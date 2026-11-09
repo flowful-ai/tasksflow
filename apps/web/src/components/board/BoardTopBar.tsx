@@ -58,7 +58,8 @@ interface BoardTopBarProps {
 
 const DUE_VALUES: readonly DueFilter[] = ['overdue', 'week', 'none'];
 
-const chipBase = 'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-[3px] text-[12.5px] transition-colors';
+const chipBase =
+  'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-[3px] text-[12.5px] transition-colors';
 
 // Keep the menu open while toggling several values.
 const keepOpen = (event: Event) => event.preventDefault();
@@ -104,7 +105,11 @@ export function BoardTopBar({
         </ol>
       </nav>
 
-      <div role="group" aria-label="View" className="flex overflow-hidden rounded-lg border border-neutral-200 text-[12.5px]">
+      <div
+        role="group"
+        aria-label="View"
+        className="flex overflow-hidden rounded-lg border border-neutral-200 text-[12.5px]"
+      >
         {(['kanban', 'list'] as const).map((mode) => (
           <button
             key={mode}
@@ -113,7 +118,9 @@ export function BoardTopBar({
             onClick={() => onViewModeChange(mode)}
             className={clsx(
               'px-2.5 py-1 font-medium',
-              viewMode === mode ? 'bg-neutral-100 font-semibold text-neutral-900' : 'text-neutral-500 hover:text-neutral-800'
+              viewMode === mode
+                ? 'bg-neutral-100 font-semibold text-neutral-900'
+                : 'text-neutral-500 hover:text-neutral-800'
             )}
           >
             {mode === 'kanban' ? 'Board' : 'List'}
@@ -126,14 +133,20 @@ export function BoardTopBar({
           type="button"
           aria-pressed={false}
           onClick={() => set({ assigneeIds: [currentUserId] })}
-          className={clsx(chipBase, 'border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300')}
+          className={clsx(
+            chipBase,
+            'border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300'
+          )}
         >
           Assignee: me
         </button>
       )}
 
       {chips.map((chip) => (
-        <span key={chip.dimension} className={clsx(chipBase, 'border-primary-500 bg-primary-50 pr-1 text-primary-700')}>
+        <span
+          key={chip.dimension}
+          className={clsx(chipBase, 'border-primary-500 bg-primary-50 pr-1 text-primary-700')}
+        >
           <span className="max-w-[14rem] truncate">{chip.label}</span>
           <button
             type="button"
@@ -148,7 +161,13 @@ export function BoardTopBar({
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button type="button" className={clsx(chipBase, 'border-dashed border-neutral-300 bg-white text-neutral-600 hover:border-neutral-400')}>
+          <button
+            type="button"
+            className={clsx(
+              chipBase,
+              'border-dashed border-neutral-300 bg-white text-neutral-600 hover:border-neutral-400'
+            )}
+          >
             <Plus aria-hidden className="h-3 w-3" />
             Filter
           </button>
@@ -162,7 +181,9 @@ export function BoardTopBar({
                   key={priority}
                   checked={filters.priorities.includes(priority)}
                   onSelect={keepOpen}
-                  onCheckedChange={() => set({ priorities: toggleValue(filters.priorities, priority) })}
+                  onCheckedChange={() =>
+                    set({ priorities: toggleValue(filters.priorities, priority) })
+                  }
                 >
                   <span className="flex items-center gap-2">
                     <span className="flex w-3.5 justify-center">
@@ -177,7 +198,9 @@ export function BoardTopBar({
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>Label</DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="max-h-72 overflow-y-auto">
-              {labels.length === 0 && <p className="px-2.5 py-2 text-sm text-neutral-400">No labels in this project</p>}
+              {labels.length === 0 && (
+                <p className="px-2.5 py-2 text-sm text-neutral-400">No labels in this project</p>
+              )}
               {labels.map((label) => (
                 <DropdownMenuCheckboxItem
                   key={label.id}
@@ -201,7 +224,9 @@ export function BoardTopBar({
                   key={member.id}
                   checked={filters.assigneeIds.includes(member.id)}
                   onSelect={keepOpen}
-                  onCheckedChange={() => set({ assigneeIds: toggleValue(filters.assigneeIds, member.id) })}
+                  onCheckedChange={() =>
+                    set({ assigneeIds: toggleValue(filters.assigneeIds, member.id) })
+                  }
                 >
                   {member.id === currentUserId ? `${member.name} (me)` : member.name}
                 </DropdownMenuCheckboxItem>
@@ -227,7 +252,11 @@ export function BoardTopBar({
       </DropdownMenu>
 
       {chips.length > 1 && (
-        <button type="button" onClick={() => onFiltersChange(EMPTY_FILTERS)} className="text-[12.5px] text-neutral-500 hover:text-neutral-800">
+        <button
+          type="button"
+          onClick={() => onFiltersChange(EMPTY_FILTERS)}
+          className="text-[12.5px] text-neutral-500 hover:text-neutral-800"
+        >
           Clear all
         </button>
       )}
@@ -243,7 +272,10 @@ export function BoardTopBar({
         >
           <Plus aria-hidden className="h-3.5 w-3.5" />
           New
-          <Kbd aria-hidden className="hidden !border-neutral-600 !bg-transparent !text-neutral-300 md:inline-flex">
+          <Kbd
+            aria-hidden
+            className="hidden !border-neutral-600 !bg-transparent !text-neutral-300 md:inline-flex"
+          >
             C
           </Kbd>
         </button>

@@ -22,7 +22,12 @@ export interface LabelOptionsProps {
 }
 
 /** Searchable, multi-select label list (the body of the label popover). */
-export function LabelOptions({ currentLabels, projectLabels, onToggle, isLoading }: LabelOptionsProps) {
+export function LabelOptions({
+  currentLabels,
+  projectLabels,
+  onToggle,
+  isLoading,
+}: LabelOptionsProps) {
   const [search, setSearch] = useState('');
   const labelIds = new Set(currentLabels.map((l) => l.id));
   const query = search.toLowerCase();
@@ -41,7 +46,12 @@ export function LabelOptions({ currentLabels, projectLabels, onToggle, isLoading
           className="w-full px-3 py-1.5 text-base md:text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
         />
       </div>
-      <div className="max-h-48 overflow-y-auto" role="listbox" aria-multiselectable="true" aria-label="Labels">
+      <div
+        className="max-h-48 overflow-y-auto"
+        role="listbox"
+        aria-multiselectable="true"
+        aria-label="Labels"
+      >
         {filteredLabels.length === 0 ? (
           <div className="px-3 py-4 text-sm text-gray-400 text-center">
             {search ? 'No labels found' : 'No labels available'}
@@ -64,7 +74,9 @@ export function LabelOptions({ currentLabels, projectLabels, onToggle, isLoading
               >
                 <ColorDot color={label.color} size="md" />
                 <span className="flex-1 text-sm text-gray-700 truncate">{label.name}</span>
-                {isSelected && <Check className="w-4 h-4 text-primary-600 flex-shrink-0" aria-hidden />}
+                {isSelected && (
+                  <Check className="w-4 h-4 text-primary-600 flex-shrink-0" aria-hidden />
+                )}
               </button>
             );
           })
@@ -75,7 +87,13 @@ export function LabelOptions({ currentLabels, projectLabels, onToggle, isLoading
 }
 
 /** Label chips plus an "Add label" popover with search (stays open to toggle several). */
-export function LabelPicker({ currentLabels, projectLabels, onAdd, onRemove, isLoading }: LabelPickerProps) {
+export function LabelPicker({
+  currentLabels,
+  projectLabels,
+  onAdd,
+  onRemove,
+  isLoading,
+}: LabelPickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const labelIds = new Set(currentLabels.map((l) => l.id));
 
@@ -134,7 +152,12 @@ export function LabelPicker({ currentLabels, projectLabels, onAdd, onRemove, isL
           </button>
         </PopoverTrigger>
         <PopoverContent className="w-56 p-0 overflow-hidden" aria-label="Pick labels">
-          <LabelOptions currentLabels={currentLabels} projectLabels={projectLabels} onToggle={handleToggle} isLoading={isLoading} />
+          <LabelOptions
+            currentLabels={currentLabels}
+            projectLabels={projectLabels}
+            onToggle={handleToggle}
+            isLoading={isLoading}
+          />
         </PopoverContent>
       </Popover>
     </div>

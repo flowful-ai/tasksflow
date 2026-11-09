@@ -2,7 +2,12 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { getDatabase } from '../db/index.js';
 import { CommentService } from '../domain/index.js';
-import { CreateCommentSchema, UpdateCommentSchema, PaginationQuerySchema, REALTIME_EVENTS } from '@flowtask/shared';
+import {
+  CreateCommentSchema,
+  UpdateCommentSchema,
+  PaginationQuerySchema,
+  REALTIME_EVENTS,
+} from '@flowtask/shared';
 import { publishEvent } from '../sse/manager.js';
 import { hasPermission } from '../auth/index.js';
 import { requireTask } from '../lib/authorize.js';
@@ -60,11 +65,14 @@ comments.post('/:taskId/comments', zValidator('json', CreateCommentSchema), asyn
   const { task, workspaceId, user } = await requireTask(c, c.req.param('taskId'), 'comment:create');
   const data = c.req.valid('json');
 
-  const comment = fromResult(await commentService.create({ taskId: task.id, userId: user.id, content: data.content }), {
-    status: 400,
-    code: 'CREATE_FAILED',
-    message: 'Failed to create comment',
-  });
+  const comment = fromResult(
+    await commentService.create({ taskId: task.id, userId: user.id, content: data.content }),
+    {
+      status: 400,
+      code: 'CREATE_FAILED',
+      message: 'Failed to create comment',
+    }
+  );
 
   publishEvent(
     workspaceId,
@@ -85,31 +93,46 @@ comments.get('/:taskId/comments/:commentId', async (c) => {
 });
 
 // Update a comment (author only, enforced by CommentService)
-comments.patch('/:taskId/comments/:commentId', zValidator('json', UpdateCommentSchema), async (c) => {
-  const { task, workspaceId, user } = await requireTask(c, c.req.param('taskId'), 'comment:update');
-  const existing = await loadTaskComment(task.id, c.req.param('commentId'));
-  const data = c.req.valid('json');
+comments.patch(
+  '/:taskId/comments/:commentId',
+  zValidator('json', UpdateCommentSchema),
+  async (c) => {
+    const { task, workspaceId, user } = await requireTask(
+      c,
+      c.req.param('taskId'),
+      'comment:update'
+    );
+    const existing = await loadTaskComment(task.id, c.req.param('commentId'));
+    const data = c.req.valid('json');
 
-  const comment = fromResult(await commentService.update(existing.id, { content: data.content, updatedBy: user.id }), {
-    status: 400,
-    code: 'UPDATE_FAILED',
-    message: 'Failed to update comment',
-  });
+    const comment = fromResult(
+      await commentService.update(existing.id, { content: data.content, updatedBy: user.id }),
+      {
+        status: 400,
+        code: 'UPDATE_FAILED',
+        message: 'Failed to update comment',
+      }
+    );
 
-  publishEvent(
-    workspaceId,
-    REALTIME_EVENTS.COMMENT_UPDATED,
-    { taskId: task.id, projectId: task.projectId, comment },
-    { projectId: task.projectId }
-  );
+    publishEvent(
+      workspaceId,
+      REALTIME_EVENTS.COMMENT_UPDATED,
+      { taskId: task.id, projectId: task.projectId, comment },
+      { projectId: task.projectId }
+    );
 
-  return c.json({ success: true, data: comment });
-});
+    return c.json({ success: true, data: comment });
+  }
+);
 
 // Delete a comment (soft delete). Authors can delete their own comments;
 // roles with comment:delete (admins, owners) can moderate any comment.
 comments.delete('/:taskId/comments/:commentId', async (c) => {
-  const { task, workspaceId, user, role } = await requireTask(c, c.req.param('taskId'), 'comment:read');
+  const { task, workspaceId, user, role } = await requireTask(
+    c,
+    c.req.param('taskId'),
+    'comment:read'
+  );
   const existing = await loadTaskComment(task.id, c.req.param('commentId'));
 
   fromResult(

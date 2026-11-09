@@ -12,13 +12,19 @@ export const OUTGOING_WEBHOOK_EVENTS = [
 export const OutgoingWebhookEventSchema = z.enum(OUTGOING_WEBHOOK_EVENTS);
 export type OutgoingWebhookEvent = z.infer<typeof OutgoingWebhookEventSchema>;
 
-export const OutgoingWebhookEventSelectorSchema = z.union([OutgoingWebhookEventSchema, z.literal('*')]);
+export const OutgoingWebhookEventSelectorSchema = z.union([
+  OutgoingWebhookEventSchema,
+  z.literal('*'),
+]);
 
 export const CreateOutgoingWebhookSchema = z.object({
   workspaceId: z.string().uuid(),
   url: z.string().url().max(2048),
   description: z.string().max(500).optional(),
-  events: z.array(OutgoingWebhookEventSelectorSchema).min(1).max(OUTGOING_WEBHOOK_EVENTS.length + 1),
+  events: z
+    .array(OutgoingWebhookEventSelectorSchema)
+    .min(1)
+    .max(OUTGOING_WEBHOOK_EVENTS.length + 1),
   enabled: z.boolean().optional(),
 });
 export type CreateOutgoingWebhook = z.infer<typeof CreateOutgoingWebhookSchema>;
@@ -26,7 +32,11 @@ export type CreateOutgoingWebhook = z.infer<typeof CreateOutgoingWebhookSchema>;
 export const UpdateOutgoingWebhookSchema = z.object({
   url: z.string().url().max(2048).optional(),
   description: z.string().max(500).nullable().optional(),
-  events: z.array(OutgoingWebhookEventSelectorSchema).min(1).max(OUTGOING_WEBHOOK_EVENTS.length + 1).optional(),
+  events: z
+    .array(OutgoingWebhookEventSelectorSchema)
+    .min(1)
+    .max(OUTGOING_WEBHOOK_EVENTS.length + 1)
+    .optional(),
   enabled: z.boolean().optional(),
   /** When true, a new signing secret is generated and returned once. */
   rotateSecret: z.boolean().optional(),

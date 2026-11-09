@@ -84,10 +84,16 @@ export async function requireAuth(ctx: Context, next: Next) {
         },
       } satisfies AuthContext);
     } else {
-      return ctx.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, 401);
+      return ctx.json(
+        { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
+        401
+      );
     }
   } catch {
-    return ctx.json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } }, 401);
+    return ctx.json(
+      { success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } },
+      401
+    );
   }
 
   await next();

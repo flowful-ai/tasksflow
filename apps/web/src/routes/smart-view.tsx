@@ -77,20 +77,27 @@ export function SmartViewPage() {
     enabled: !showShareDialog,
   });
   const selectedTasks = useMemo(
-    () => (keyboard.selectedIds.size === 0 ? [] : tasks.filter((task) => keyboard.selectedIds.has(task.id))),
+    () =>
+      keyboard.selectedIds.size === 0
+        ? []
+        : tasks.filter((task) => keyboard.selectedIds.has(task.id)),
     [tasks, keyboard.selectedIds]
   );
 
   const onTaskMove = useCallback(
-    (move: MoveTaskInput) => moveAsync(move).then(
-      () => undefined,
-      () => undefined
-    ),
+    (move: MoveTaskInput) =>
+      moveAsync(move).then(
+        () => undefined,
+        () => undefined
+      ),
     [moveAsync]
   );
   const onInvalidDrop = useCallback((message: string) => toast.warning(message), []);
 
-  const activePublicShares = useMemo(() => view?.publicShares?.filter((share) => share.isActive) ?? [], [view?.publicShares]);
+  const activePublicShares = useMemo(
+    () => view?.publicShares?.filter((share) => share.isActive) ?? [],
+    [view?.publicShares]
+  );
   const primaryActiveShare = activePublicShares[0];
 
   if (viewQuery.isLoading) {
@@ -136,8 +143,14 @@ export function SmartViewPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <ShareButton hasActiveShares={activePublicShares.length > 0} onClick={() => setShowShareDialog(true)} />
-          <Link to={`/settings/views/${viewId}/edit`} className="btn btn-secondary inline-flex items-center">
+          <ShareButton
+            hasActiveShares={activePublicShares.length > 0}
+            onClick={() => setShowShareDialog(true)}
+          />
+          <Link
+            to={`/settings/views/${viewId}/edit`}
+            className="btn btn-secondary inline-flex items-center"
+          >
             <Pencil className="w-4 h-4 mr-2" aria-hidden />
             Edit
           </Link>
@@ -154,7 +167,6 @@ export function SmartViewPage() {
           onManage={() => setShowShareDialog(true)}
         />
       )}
-
 
       <div ref={boardRef} className="min-h-0 min-w-0 flex-1 pb-20">
         {tasks.length === 0 && viewQuery.isComplete ? (
@@ -197,7 +209,6 @@ export function SmartViewPage() {
         onDeleteOne={deleteOne}
       />
 
-
       {showShareDialog && (
         <ShareDialog
           viewName={view.name}
@@ -206,7 +217,9 @@ export function SmartViewPage() {
           isDisabling={shares.disable.isPending}
           isDeleting={shares.remove.isPending}
           onClose={() => setShowShareDialog(false)}
-          onCreate={(shareData) => shares.create.mutate(shareData, { onSuccess: () => setShowShareDialog(false) })}
+          onCreate={(shareData) =>
+            shares.create.mutate(shareData, { onSuccess: () => setShowShareDialog(false) })
+          }
           onDisable={(shareId) => shares.disable.mutate(shareId)}
           onDelete={(shareId) => shares.remove.mutate(shareId)}
         />

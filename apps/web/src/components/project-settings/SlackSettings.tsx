@@ -33,7 +33,11 @@ export function SlackSettings({ projectId }: SlackSettingsProps) {
   const [isStarting, setIsStarting] = useState(false);
   const [confirmDisconnect, setConfirmDisconnect] = useState(false);
   const { data: slack, isLoading, error, refetch } = useSlackIntegration(projectId);
-  const { data: channels, isLoading: channelsLoading, error: channelsError } = useSlackChannels(projectId, Boolean(slack?.connected));
+  const {
+    data: channels,
+    isLoading: channelsLoading,
+    error: channelsError,
+  } = useSlackChannels(projectId, Boolean(slack?.connected));
   const { update, disconnect } = useSlackMutations(projectId);
 
   // The OAuth callback lands here with ?slack=connected or ?slack_error=<code>.
@@ -43,7 +47,8 @@ export function SlackSettings({ projectId }: SlackSettingsProps) {
     const connected = params.get('slack');
     if (!slackError && !connected) return;
     window.history.replaceState({}, '', window.location.pathname);
-    if (slackError) setCallbackError(SLACK_ERROR_MESSAGES[slackError] ?? 'Slack connection failed.');
+    if (slackError)
+      setCallbackError(SLACK_ERROR_MESSAGES[slackError] ?? 'Slack connection failed.');
     else toast.success('Slack connected');
     void refetch();
   }, [refetch]);
@@ -81,19 +86,27 @@ export function SlackSettings({ projectId }: SlackSettingsProps) {
     <div className="card p-6 space-y-4">
       <div>
         <h2 className="text-lg font-semibold text-gray-900">Slack Notifications</h2>
-        <p className="text-sm text-gray-500 mt-1">Post task activity from this project to a Slack channel.</p>
+        <p className="text-sm text-gray-500 mt-1">
+          Post task activity from this project to a Slack channel.
+        </p>
       </div>
 
       {callbackError && <Banner variant="error">{callbackError}</Banner>}
 
       {!slack.connected ? (
         slack.canConnect ? (
-          <button type="button" onClick={() => void connect()} className="btn btn-primary" disabled={isStarting}>
+          <button
+            type="button"
+            onClick={() => void connect()}
+            className="btn btn-primary"
+            disabled={isStarting}
+          >
             {isStarting ? 'Redirecting to Slack…' : 'Connect Slack'}
           </button>
         ) : (
           <Banner variant="warning">
-            Slack is not configured. Set SLACK_CLIENT_ID, SLACK_CLIENT_SECRET and SLACK_SIGNING_SECRET on the server.
+            Slack is not configured. Set SLACK_CLIENT_ID, SLACK_CLIENT_SECRET and
+            SLACK_SIGNING_SECRET on the server.
           </Banner>
         )
       ) : (
@@ -115,7 +128,10 @@ export function SlackSettings({ projectId }: SlackSettingsProps) {
               onChange={(e) =>
                 update.mutate(
                   { channelId: e.target.value },
-                  { onSuccess: (view) => toast.success(`Posting to #${view.channelName ?? 'channel'}`) }
+                  {
+                    onSuccess: (view) =>
+                      toast.success(`Posting to #${view.channelName ?? 'channel'}`),
+                  }
                 )
               }
               disabled={update.isPending || channelsLoading || !channels}
@@ -161,7 +177,12 @@ export function SlackSettings({ projectId }: SlackSettingsProps) {
                 onChange={(e) =>
                   update.mutate(
                     { isEnabled: e.target.checked },
-                    { onSuccess: (view) => toast.success(view.isEnabled ? 'Slack notifications on' : 'Slack notifications paused') }
+                    {
+                      onSuccess: (view) =>
+                        toast.success(
+                          view.isEnabled ? 'Slack notifications on' : 'Slack notifications paused'
+                        ),
+                    }
                   )
                 }
                 disabled={update.isPending}

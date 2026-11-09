@@ -33,7 +33,9 @@ export function TaskTitle({ title, readOnly = false, onSave }: TitleProps) {
   };
 
   if (readOnly) {
-    return <h2 className="text-xl font-semibold leading-snug text-neutral-900 sm:text-2xl">{title}</h2>;
+    return (
+      <h2 className="text-xl font-semibold leading-snug text-neutral-900 sm:text-2xl">{title}</h2>
+    );
   }
 
   if (editing) {
@@ -132,7 +134,11 @@ export function TaskDescription({ description, readOnly = false, onSave }: Descr
           <button type="button" className="btn btn-ghost px-3 py-1.5 text-sm" onClick={cancel}>
             Cancel
           </button>
-          <button type="button" className="btn btn-primary px-3 py-1.5 text-sm" onClick={() => void save()}>
+          <button
+            type="button"
+            className="btn btn-primary px-3 py-1.5 text-sm"
+            onClick={() => void save()}
+          >
             Save
           </button>
         </div>
@@ -141,7 +147,11 @@ export function TaskDescription({ description, readOnly = false, onSave }: Descr
   }
 
   if (readOnly) {
-    return description ? <Markdown>{description}</Markdown> : <p className="text-sm italic text-neutral-400">No description</p>;
+    return description ? (
+      <Markdown>{description}</Markdown>
+    ) : (
+      <p className="text-sm italic text-neutral-400">No description</p>
+    );
   }
 
   return (
@@ -160,7 +170,9 @@ export function TaskDescription({ description, readOnly = false, onSave }: Descr
           setEditing(true);
         }
       }}
-      className={clsx('-mx-2 min-h-[48px] cursor-text rounded-lg px-2 py-1.5 transition-colors hover:bg-neutral-50')}
+      className={clsx(
+        '-mx-2 min-h-[48px] cursor-text rounded-lg px-2 py-1.5 transition-colors hover:bg-neutral-50'
+      )}
     >
       {description ? (
         <Markdown>{description}</Markdown>

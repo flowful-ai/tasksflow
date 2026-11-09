@@ -27,12 +27,19 @@ export interface RekeyReport {
   tasksUpdated: number;
 }
 
-export async function rekeyTaskPositions(db: Database, options: RekeyOptions = {}): Promise<RekeyReport> {
+export async function rekeyTaskPositions(
+  db: Database,
+  options: RekeyOptions = {}
+): Promise<RekeyReport> {
   const columns = await db
     .selectDistinct({ projectId: tasks.projectId, stateId: tasks.stateId })
     .from(tasks)
     .orderBy(tasks.projectId, tasks.stateId);
-  const report: RekeyReport = { columnsScanned: columns.length, columnsRekeyed: 0, tasksUpdated: 0 };
+  const report: RekeyReport = {
+    columnsScanned: columns.length,
+    columnsRekeyed: 0,
+    tasksUpdated: 0,
+  };
 
   for (const column of columns) {
     await db.transaction(async (tx) => {

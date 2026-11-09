@@ -83,7 +83,9 @@ function buildAuthorizeErrorRedirect(
  */
 function renderAuthorizeErrorPage(c: Context, error: unknown): Response {
   const description =
-    error instanceof OAuthError ? error.message : 'The authorization request could not be processed.';
+    error instanceof OAuthError
+      ? error.message
+      : 'The authorization request could not be processed.';
   const code = error instanceof OAuthError ? error.oauthError : 'server_error';
   const status = error instanceof OAuthError ? 400 : 500;
   return c.html(
@@ -112,7 +114,9 @@ function renderAuthorizeErrorPage(c: Context, error: unknown): Response {
   );
 }
 
-async function getSessionUser(c: Context): Promise<{ id: string; email: string; name?: string | null } | null> {
+async function getSessionUser(
+  c: Context
+): Promise<{ id: string; email: string; name?: string | null } | null> {
   const auth = getAuth();
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
   if (!session?.user) {
@@ -131,7 +135,11 @@ function describeToolScope(toolName: string): { label: string; badge: string | n
     return { label: toolName, badge: null };
   }
   const annotations = tool.annotations;
-  const badge = annotations?.destructiveHint ? 'destructive' : annotations?.readOnlyHint ? 'read-only' : 'writes';
+  const badge = annotations?.destructiveHint
+    ? 'destructive'
+    : annotations?.readOnlyHint
+      ? 'read-only'
+      : 'writes';
   return { label: annotations?.title ?? toolName, badge };
 }
 
@@ -157,11 +165,15 @@ function buildConsentHtml(input: {
     .map((scope) => {
       const toolName = scope.slice(McpScope.toolPrefix.length);
       const { label, badge } = describeToolScope(toolName);
-      const badgeHtml = badge ? ` <span class="badge badge-${escapeHtml(badge)}">${escapeHtml(badge)}</span>` : '';
+      const badgeHtml = badge
+        ? ` <span class="badge badge-${escapeHtml(badge)}">${escapeHtml(badge)}</span>`
+        : '';
       return `<label class="tool"><input type="checkbox" name="approved_tools" value="${escapeHtml(toolName)}" checked /> <span>${escapeHtml(label)}</span> <code>${escapeHtml(toolName)}</code>${badgeHtml}</label>`;
     })
     .join('');
-  const selectedWorkspace = input.workspaces.find((workspace) => workspace.id === input.selectedWorkspaceId);
+  const selectedWorkspace = input.workspaces.find(
+    (workspace) => workspace.id === input.selectedWorkspaceId
+  );
   const workspaceOptions = input.workspaces
     .map((workspace) => {
       const selected = workspace.id === input.selectedWorkspaceId ? ' selected' : '';
@@ -208,17 +220,21 @@ function buildConsentHtml(input: {
       <div class="panel">
         <div><strong>Signed in as:</strong> ${escapeHtml(input.userEmail)}</div>
         <div><strong>Redirects to:</strong> <code>${escapeHtml(redirectTarget)}</code></div>
-        ${input.workspaceLocked
-          ? `<div><strong>Workspace:</strong> ${escapeHtml(selectedWorkspace?.name || 'Unknown')} (${escapeHtml(selectedWorkspace?.role || '')})</div>`
-          : '<div><strong>Workspace:</strong> Select below</div>'}
+        ${
+          input.workspaceLocked
+            ? `<div><strong>Workspace:</strong> ${escapeHtml(selectedWorkspace?.name || 'Unknown')} (${escapeHtml(selectedWorkspace?.role || '')})</div>`
+            : '<div><strong>Workspace:</strong> Select below</div>'
+        }
       </div>
 
       <form method="post" action="/api/mcp/oauth/authorize">
         <h3>Workspace</h3>
-        ${input.workspaceLocked
-          ? `<input type="hidden" name="workspace_id" value="${escapeHtml(input.selectedWorkspaceId)}" />
+        ${
+          input.workspaceLocked
+            ? `<input type="hidden" name="workspace_id" value="${escapeHtml(input.selectedWorkspaceId)}" />
              <div style="margin:6px 0 12px 0;">${escapeHtml(selectedWorkspace?.name || '')} (${escapeHtml(selectedWorkspace?.role || '')})</div>`
-          : `<select name="workspace_id" style="width:100%;padding:8px;border-radius:8px;border:1px solid #cbd5e1;margin:6px 0 12px 0;">${workspaceOptions}</select>`}
+            : `<select name="workspace_id" style="width:100%;padding:8px;border-radius:8px;border:1px solid #cbd5e1;margin:6px 0 12px 0;">${workspaceOptions}</select>`
+        }
 
         <h3>Requested tool permissions</h3>
         <label class="inline"><input id="approve-all" type="checkbox" checked /> Select all requested tools</label>
@@ -263,7 +279,9 @@ function buildConsentHtml(input: {
 }
 
 function requestedToolScopesOrAll(requested: string[]): string[] {
-  return (requested.length > 0 ? requested : getAllMcpToolNames()).map((tool) => `${McpScope.toolPrefix}${tool}`);
+  return (requested.length > 0 ? requested : getAllMcpToolNames()).map(
+    (tool) => `${McpScope.toolPrefix}${tool}`
+  );
 }
 
 mcpOAuth.get('/.well-known/oauth-authorization-server', (c) => {
@@ -281,7 +299,10 @@ mcpOAuth.post('/oauth/register', ipRateLimit('register', rateLimitedJson), async
   try {
     payload = await c.req.json();
   } catch {
-    return c.json({ error: 'invalid_client_metadata', error_description: 'Request body must be JSON' }, 400);
+    return c.json(
+      { error: 'invalid_client_metadata', error_description: 'Request body must be JSON' },
+      400
+    );
   }
 
   try {
@@ -291,7 +312,10 @@ mcpOAuth.post('/oauth/register', ipRateLimit('register', rateLimitedJson), async
     if (error instanceof OAuthError) {
       return oauthJsonError(c, error);
     }
-    console.error('MCP OAuth client registration failed', error instanceof Error ? error.message : error);
+    console.error(
+      'MCP OAuth client registration failed',
+      error instanceof Error ? error.message : error
+    );
     return c.json({ error: 'server_error', error_description: 'Unable to register client' }, 500);
   }
 });
@@ -332,16 +356,26 @@ mcpOAuth.get('/oauth/authorize', async (c) => {
 
     const workspaces = await oauthService.listAuthorizableWorkspaces(user.id);
     if (workspaces.length === 0) {
-      throw new OAuthError('access_denied', 'No admin/owner workspace available for authorization', 403);
+      throw new OAuthError(
+        'access_denied',
+        'No admin/owner workspace available for authorization',
+        403
+      );
     }
 
     const selectedWorkspace = parsed.requestedWorkspaceId
       ? workspaces.find((workspace) => workspace.id === parsed.requestedWorkspaceId)
       : workspaces[0];
     if (!selectedWorkspace) {
-      throw new OAuthError('access_denied', 'Requested workspace is not available for authorization', 403);
+      throw new OAuthError(
+        'access_denied',
+        'Requested workspace is not available for authorization',
+        403
+      );
     }
-    oauthService.ensureAdminRole(await oauthService.getUserWorkspaceRole(selectedWorkspace.id, user.id));
+    oauthService.ensureAdminRole(
+      await oauthService.getUserWorkspaceRole(selectedWorkspace.id, user.id)
+    );
 
     return c.html(
       buildConsentHtml({
@@ -422,8 +456,15 @@ mcpOAuth.post('/oauth/authorize', async (c) => {
       throw new OAuthError('invalid_request', 'workspace_id is required');
     }
 
-    if (parsed.requestedWorkspaceId && workspaceIdFromBody && parsed.requestedWorkspaceId !== workspaceIdFromBody) {
-      throw new OAuthError('invalid_request', 'workspace_id does not match requested workspace scope');
+    if (
+      parsed.requestedWorkspaceId &&
+      workspaceIdFromBody &&
+      parsed.requestedWorkspaceId !== workspaceIdFromBody
+    ) {
+      throw new OAuthError(
+        'invalid_request',
+        'workspace_id does not match requested workspace scope'
+      );
     }
 
     const requestedToolScopes = requestedToolScopesOrAll(parsed.requestedToolScopes);
@@ -506,7 +547,10 @@ mcpOAuth.post('/oauth/token', ipRateLimit('token', rateLimitedJson), async (c) =
       const codeVerifier = readBodyValue(body, 'code_verifier');
 
       if (!code || !clientId || !redirectUri || !codeVerifier) {
-        throw new OAuthError('invalid_request', 'code, client_id, redirect_uri, and code_verifier are required');
+        throw new OAuthError(
+          'invalid_request',
+          'code, client_id, redirect_uri, and code_verifier are required'
+        );
       }
 
       const tokenResponse = await oauthService.exchangeAuthorizationCode({
@@ -578,7 +622,10 @@ mcpOAuth.post('/oauth/revoke', ipRateLimit('token', rateLimitedJson), async (c) 
   await oauthService.revokeToken({
     token,
     clientId,
-    tokenTypeHint: tokenTypeHint === 'access_token' || tokenTypeHint === 'refresh_token' ? tokenTypeHint : undefined,
+    tokenTypeHint:
+      tokenTypeHint === 'access_token' || tokenTypeHint === 'refresh_token'
+        ? tokenTypeHint
+        : undefined,
   });
 
   return c.body(null, 200);

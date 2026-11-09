@@ -58,7 +58,9 @@ export class SlackClient {
 
   /** Channel name lookup (falls back to the id). */
   async getChannelName(channelId: string): Promise<string> {
-    const result: webApi.ConversationsInfoResponse = await this.web.conversations.info({ channel: channelId });
+    const result: webApi.ConversationsInfoResponse = await this.web.conversations.info({
+      channel: channelId,
+    });
     return result.channel?.name ?? channelId;
   }
 

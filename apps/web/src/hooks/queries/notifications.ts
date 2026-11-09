@@ -1,6 +1,12 @@
 /** Inbox notifications and ⌘K search. */
 import { useMemo } from 'react';
-import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import type { NotificationFilter } from '@flowtask/shared';
 import { queryKeys } from '../../api/queryKeys';
 import { notificationsApi, searchApi } from '../../api/notifications';
@@ -8,7 +14,11 @@ import type { NotificationDto } from '../../api/types';
 import { FIRST_CURSOR } from './workspaces';
 
 /** Notifications of the current user in a workspace (newest first, cursor pages). */
-export function useNotifications(workspaceId: string | null | undefined, filter: NotificationFilter = 'inbox', limit = 30) {
+export function useNotifications(
+  workspaceId: string | null | undefined,
+  filter: NotificationFilter = 'inbox',
+  limit = 30
+) {
   const query = useInfiniteQuery({
     queryKey: queryKeys.notifications.list(workspaceId ?? '', filter),
     queryFn: ({ pageParam }) =>
@@ -18,7 +28,10 @@ export function useNotifications(workspaceId: string | null | undefined, filter:
     enabled: Boolean(workspaceId),
     placeholderData: keepPreviousData,
   });
-  const notifications = useMemo<NotificationDto[]>(() => query.data?.pages.flatMap((p) => p.data) ?? [], [query.data]);
+  const notifications = useMemo<NotificationDto[]>(
+    () => query.data?.pages.flatMap((p) => p.data) ?? [],
+    [query.data]
+  );
   return { ...query, notifications };
 }
 
@@ -46,11 +59,16 @@ export function useNotificationActions(workspaceId: string) {
     archive: useMutation({ mutationFn: notificationsApi.archive, onSettled, meta }),
     unarchive: useMutation({ mutationFn: notificationsApi.unarchive, onSettled, meta }),
     snooze: useMutation({
-      mutationFn: ({ id, until }: { id: string; until: string }) => notificationsApi.snooze(id, until),
+      mutationFn: ({ id, until }: { id: string; until: string }) =>
+        notificationsApi.snooze(id, until),
       onSettled,
       meta,
     }),
-    readAll: useMutation({ mutationFn: () => notificationsApi.readAll(workspaceId), onSettled, meta }),
+    readAll: useMutation({
+      mutationFn: () => notificationsApi.readAll(workspaceId),
+      onSettled,
+      meta,
+    }),
   };
 }
 

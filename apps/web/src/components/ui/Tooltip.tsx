@@ -30,7 +30,14 @@ export interface TooltipProps {
   disabled?: boolean;
 }
 
-export function Tooltip({ content, children, side = 'top', align = 'center', shortcut, disabled }: TooltipProps) {
+export function Tooltip({
+  content,
+  children,
+  side = 'top',
+  align = 'center',
+  shortcut,
+  disabled,
+}: TooltipProps) {
   if (disabled) return <>{children}</>;
   return (
     <RadixTooltip.Root>

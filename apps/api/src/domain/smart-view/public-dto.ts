@@ -93,10 +93,18 @@ export function toPublicTask(task: TaskWithRelations, options: PublicTaskOptions
       : null;
   }
   if (show('assignee')) {
-    dto.assignees = task.assignees.map((user) => ({ id: user.id, name: user.name, avatarUrl: user.avatarUrl }));
+    dto.assignees = task.assignees.map((user) => ({
+      id: user.id,
+      name: user.name,
+      avatarUrl: user.avatarUrl,
+    }));
   }
   if (show('labels')) {
-    dto.labels = task.labels.map((label) => ({ id: label.id, name: label.name, color: label.color }));
+    dto.labels = task.labels.map((label) => ({
+      id: label.id,
+      name: label.name,
+      color: label.color,
+    }));
   }
   if (show('due_date')) dto.dueDate = task.dueDate;
   if (show('start_date')) dto.startDate = task.startDate;
@@ -104,7 +112,11 @@ export function toPublicTask(task: TaskWithRelations, options: PublicTaskOptions
   if (show('updated_at')) dto.updatedAt = task.updatedAt;
   if (show('project')) {
     dto.projectId = task.projectId;
-    dto.project = { id: task.project.id, identifier: task.project.identifier, name: task.project.name };
+    dto.project = {
+      id: task.project.id,
+      identifier: task.project.identifier,
+      name: task.project.name,
+    };
   }
   if (options.showExternalLinks) {
     dto.externalLinks = task.externalLinks.map((link) => ({

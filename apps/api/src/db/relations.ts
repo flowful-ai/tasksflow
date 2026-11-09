@@ -142,20 +142,23 @@ export const mcpOAuthConsentsRelations = relations(mcpOAuthConsents, ({ one }) =
   }),
 }));
 
-export const mcpOAuthAuthorizationCodesRelations = relations(mcpOAuthAuthorizationCodes, ({ one }) => ({
-  user: one(users, {
-    fields: [mcpOAuthAuthorizationCodes.userId],
-    references: [users.id],
-  }),
-  workspace: one(workspaces, {
-    fields: [mcpOAuthAuthorizationCodes.workspaceId],
-    references: [workspaces.id],
-  }),
-  client: one(mcpOAuthClients, {
-    fields: [mcpOAuthAuthorizationCodes.clientId],
-    references: [mcpOAuthClients.id],
-  }),
-}));
+export const mcpOAuthAuthorizationCodesRelations = relations(
+  mcpOAuthAuthorizationCodes,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [mcpOAuthAuthorizationCodes.userId],
+      references: [users.id],
+    }),
+    workspace: one(workspaces, {
+      fields: [mcpOAuthAuthorizationCodes.workspaceId],
+      references: [workspaces.id],
+    }),
+    client: one(mcpOAuthClients, {
+      fields: [mcpOAuthAuthorizationCodes.clientId],
+      references: [mcpOAuthClients.id],
+    }),
+  })
+);
 
 export const mcpOAuthAccessTokensRelations = relations(mcpOAuthAccessTokens, ({ one, many }) => ({
   user: one(users, {

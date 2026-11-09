@@ -51,7 +51,9 @@ export function PublicSharePage() {
           error={error}
           resource="share link"
           onRetry={() => window.location.reload()}
-          notFoundAction={<p className="text-sm text-gray-500">The link may have expired or been disabled.</p>}
+          notFoundAction={
+            <p className="text-sm text-gray-500">The link may have expired or been disabled.</p>
+          }
         />
       </main>
     );
@@ -129,8 +131,17 @@ export function PublicSharePage() {
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center space-x-2">
-            <div aria-hidden className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <div
+              aria-hidden
+              className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center"
+            >
+              <svg
+                className="w-5 h-5 text-white"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+              >
                 <path d="M5 12l5 5L19 7" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
@@ -150,7 +161,10 @@ export function PublicSharePage() {
 
         <div className="card p-4">
           {taskCards.length === 0 ? (
-            <EmptyState title="No tasks to display" body="This view has no matching tasks right now." />
+            <EmptyState
+              title="No tasks to display"
+              body="This view has no matching tasks right now."
+            />
           ) : (
             <TaskDisplayContainer
               tasks={taskCards}

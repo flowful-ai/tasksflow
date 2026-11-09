@@ -11,10 +11,20 @@ describe.skipIf(!integrationEnabled)('public shares', () => {
   }, 120_000);
 
   async function createShare(body: object): Promise<string> {
-    const res = await h.request('adminA', 'POST', `/api/smart-views/${h.seed.teamViewA}/public`, body);
+    const res = await h.request(
+      'adminA',
+      'POST',
+      `/api/smart-views/${h.seed.teamViewA}/public`,
+      body
+    );
     expect(res.status).toBe(201);
     const data = res.body.data;
-    if (typeof data !== 'object' || data === null || !('token' in data) || typeof data.token !== 'string') {
+    if (
+      typeof data !== 'object' ||
+      data === null ||
+      !('token' in data) ||
+      typeof data.token !== 'string'
+    ) {
       throw new Error('share token missing');
     }
     return data.token;
@@ -48,23 +58,35 @@ describe.skipIf(!integrationEnabled)('public shares', () => {
     expect(res.text).not.toContain('"projectId"');
   });
 
-  it('runs with the creator\'s access and dies when the creator loses it', async () => {
+  it("runs with the creator's access and dies when the creator loses it", async () => {
     const before = await h.request(null, 'GET', `/api/public/share/${h.seed.publicShareA.token}`);
     expect(before.text).toContain('Secret task A'); // admin creator sees restricted projects
 
     await h.db
       .update(workspaceMembers)
       .set({ role: 'member' })
-      .where(and(eq(workspaceMembers.workspaceId, h.seed.workspaceA.id), eq(workspaceMembers.userId, h.seed.users.adminA.id)));
+      .where(
+        and(
+          eq(workspaceMembers.workspaceId, h.seed.workspaceA.id),
+          eq(workspaceMembers.userId, h.seed.users.adminA.id)
+        )
+      );
     const after = await h.request(null, 'GET', `/api/public/share/${h.seed.publicShareA.token}`);
     expect(after.status).toBe(404);
   });
 
   it('returns 404 for unknown, malformed and disabled tokens', async () => {
-    expect((await h.request(null, 'GET', `/api/public/share/${crypto.randomUUID()}`)).status).toBe(404);
+    expect((await h.request(null, 'GET', `/api/public/share/${crypto.randomUUID()}`)).status).toBe(
+      404
+    );
     expect((await h.request(null, 'GET', '/api/public/share/not-a-uuid')).status).toBe(404);
-    await h.db.update(publicShares).set({ isActive: false }).where(eq(publicShares.id, h.seed.publicShareA.id));
-    expect((await h.request(null, 'GET', `/api/public/share/${h.seed.publicShareA.token}`)).status).toBe(404);
+    await h.db
+      .update(publicShares)
+      .set({ isActive: false })
+      .where(eq(publicShares.id, h.seed.publicShareA.id));
+    expect(
+      (await h.request(null, 'GET', `/api/public/share/${h.seed.publicShareA.token}`)).status
+    ).toBe(404);
   });
 
   it('requires the password and accepts the right one', async () => {
@@ -73,9 +95,13 @@ describe.skipIf(!integrationEnabled)('public shares', () => {
     expect(locked.body.data).toMatchObject({ requiresPassword: true });
     expect(locked.text).not.toContain('Open task A');
 
-    const wrong = await h.request(null, 'POST', `/api/public/share/${token}/verify`, { password: 'nope' });
+    const wrong = await h.request(null, 'POST', `/api/public/share/${token}/verify`, {
+      password: 'nope',
+    });
     expect(wrong.status).toBe(401);
-    const right = await h.request(null, 'POST', `/api/public/share/${token}/verify`, { password: 'correct horse' });
+    const right = await h.request(null, 'POST', `/api/public/share/${token}/verify`, {
+      password: 'correct horse',
+    });
     expect(right.status).toBe(200);
     expect(right.text).toContain('Open task A');
   });
@@ -84,15 +110,37 @@ describe.skipIf(!integrationEnabled)('public shares', () => {
     const token = await createShare({ password: 'correct horse' });
     const headers = { 'x-forwarded-for': '203.0.113.10' };
     for (let i = 0; i < SHARE_PASSWORD_LIMITS.perIpAndToken; i++) {
-      expect((await h.request(null, 'POST', `/api/public/share/${token}/verify`, { password: `bad-${i}` }, headers)).status).toBe(401);
+      expect(
+        (
+          await h.request(
+            null,
+            'POST',
+            `/api/public/share/${token}/verify`,
+            { password: `bad-${i}` },
+            headers
+          )
+        ).status
+      ).toBe(401);
     }
-    const blocked = await h.request(null, 'POST', `/api/public/share/${token}/verify`, { password: 'correct horse' }, headers);
+    const blocked = await h.request(
+      null,
+      'POST',
+      `/api/public/share/${token}/verify`,
+      { password: 'correct horse' },
+      headers
+    );
     expect(blocked.status).toBe(429);
 
     // A different client is not affected by this IP's lockout.
-    const other = await h.request(null, 'POST', `/api/public/share/${token}/verify`, { password: 'correct horse' }, {
-      'x-forwarded-for': '203.0.113.11',
-    });
+    const other = await h.request(
+      null,
+      'POST',
+      `/api/public/share/${token}/verify`,
+      { password: 'correct horse' },
+      {
+        'x-forwarded-for': '203.0.113.11',
+      }
+    );
     expect(other.status).toBe(200);
   }, 60_000);
 
@@ -101,24 +149,48 @@ describe.skipIf(!integrationEnabled)('public shares', () => {
     for (let i = 0; i < SHARE_PASSWORD_LIMITS.perIpAndToken; i++) {
       // The client controls everything left of the entry appended by the trusted proxy.
       const spoofed = { 'x-forwarded-for': `10.9.${i}.1, 198.51.100.7` };
-      await h.request(null, 'POST', `/api/public/share/${token}/verify`, { password: 'bad' }, spoofed);
+      await h.request(
+        null,
+        'POST',
+        `/api/public/share/${token}/verify`,
+        { password: 'bad' },
+        spoofed
+      );
     }
-    const res = await h.request(null, 'POST', `/api/public/share/${token}/verify`, { password: 'bad' }, {
-      'x-forwarded-for': '1.2.3.4, 198.51.100.7',
-    });
+    const res = await h.request(
+      null,
+      'POST',
+      `/api/public/share/${token}/verify`,
+      { password: 'bad' },
+      {
+        'x-forwarded-for': '1.2.3.4, 198.51.100.7',
+      }
+    );
     expect(res.status).toBe(429);
   }, 60_000);
 
   it('locks the token itself regardless of IP', async () => {
     const token = await createShare({ password: 'correct horse' });
     for (let i = 0; i < SHARE_PASSWORD_LIMITS.perToken; i++) {
-      await h.request(null, 'POST', `/api/public/share/${token}/verify`, { password: 'bad' }, {
-        'x-forwarded-for': `192.0.2.${i + 1}`,
-      });
+      await h.request(
+        null,
+        'POST',
+        `/api/public/share/${token}/verify`,
+        { password: 'bad' },
+        {
+          'x-forwarded-for': `192.0.2.${i + 1}`,
+        }
+      );
     }
-    const res = await h.request(null, 'POST', `/api/public/share/${token}/verify`, { password: 'correct horse' }, {
-      'x-forwarded-for': '192.0.2.250',
-    });
+    const res = await h.request(
+      null,
+      'POST',
+      `/api/public/share/${token}/verify`,
+      { password: 'correct horse' },
+      {
+        'x-forwarded-for': '192.0.2.250',
+      }
+    );
     expect(res.text).not.toContain('Open task A');
     expect(res.status).toBe(429);
   }, 60_000);

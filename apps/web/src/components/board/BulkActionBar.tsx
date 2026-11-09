@@ -71,7 +71,11 @@ export interface BulkActionBarProps {
 }
 
 const CATEGORY_ORDER = ['backlog', 'in_progress', 'done'];
-const CATEGORY_NAMES: Record<string, string> = { backlog: 'Backlog', in_progress: 'In progress', done: 'Done' };
+const CATEGORY_NAMES: Record<string, string> = {
+  backlog: 'Backlog',
+  in_progress: 'In progress',
+  done: 'Done',
+};
 
 interface StatusOption {
   key: string;
@@ -85,7 +89,9 @@ interface StatusOption {
 function intersect<T extends { id: string }>(lists: T[][]): T[] {
   if (lists.length === 0) return [];
   const [first, ...rest] = lists;
-  return (first ?? []).filter((item) => rest.every((list) => list.some((other) => other.id === item.id)));
+  return (first ?? []).filter((item) =>
+    rest.every((list) => list.some((other) => other.id === item.id))
+  );
 }
 
 interface BarButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -94,7 +100,10 @@ interface BarButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 /** A bar action with its key hint; forwards ref/props so it works as a Radix trigger. */
-const BarButton = forwardRef<HTMLButtonElement, BarButtonProps>(function BarButton({ label, shortcut, className, ...props }, ref) {
+const BarButton = forwardRef<HTMLButtonElement, BarButtonProps>(function BarButton(
+  { label, shortcut, className, ...props },
+  ref
+) {
   return (
     <button
       ref={ref}
@@ -129,7 +138,11 @@ export function BulkActionBar({
   const projectIds = useMemo(() => [...new Set(tasks.map((t) => t.project.id))], [tasks]);
   const isMultiProject = projectIds.length > 1;
 
-  const run = async (action: string, groups: Array<{ taskIds: string[]; op: BulkTaskOperation }>, skipped = 0) => {
+  const run = async (
+    action: string,
+    groups: Array<{ taskIds: string[]; op: BulkTaskOperation }>,
+    skipped = 0
+  ) => {
     const runnable = groups.filter((g) => g.taskIds.length > 0);
     if (runnable.length === 0) {
       toast.warning(`${action}: nothing to change.`);
@@ -148,7 +161,12 @@ export function BulkActionBar({
     } catch {
       return; // toasted by the global mutation handler
     }
-    const { level, message } = describeBulkSummary(action, { updated, unchanged, failed, results: [] });
+    const { level, message } = describeBulkSummary(action, {
+      updated,
+      unchanged,
+      failed,
+      results: [],
+    });
     toast[level](message);
   };
 
@@ -160,13 +178,16 @@ export function BulkActionBar({
         .map((s) => ({ key: s.id, name: s.name, color: s.color, stateFor: () => s.id }));
     }
     const categories = CATEGORY_ORDER.filter((category) =>
-      projectIds.every((projectId) => states.some((s) => s.projectId === projectId && s.category === category))
+      projectIds.every((projectId) =>
+        states.some((s) => s.projectId === projectId && s.category === category)
+      )
     );
     return categories.map((category) => ({
       key: category,
       name: CATEGORY_NAMES[category] ?? category,
       color: states.find((s) => s.category === category)?.color ?? null,
-      stateFor: (projectId) => states.find((s) => s.projectId === projectId && s.category === category)?.id ?? null,
+      stateFor: (projectId) =>
+        states.find((s) => s.projectId === projectId && s.category === category)?.id ?? null,
     }));
   }, [isMultiProject, projectIds, states]);
 
@@ -181,11 +202,17 @@ export function BulkActionBar({
       }
       byState.set(stateId, [...(byState.get(stateId) ?? []), task.id]);
     }
-    void run(`Status → ${option.name}`, [...byState].map(([stateId, taskIds]) => ({ taskIds, op: { stateId } })), skipped);
+    void run(
+      `Status → ${option.name}`,
+      [...byState].map(([stateId, taskIds]) => ({ taskIds, op: { stateId } })),
+      skipped
+    );
   };
 
   const applyPriority = (priority: TaskPriority) => {
-    void run(`Priority → ${PRIORITY_LABELS[priority]}`, [{ taskIds: ids, op: { priority: priority === 'none' ? null : priority } }]);
+    void run(`Priority → ${PRIORITY_LABELS[priority]}`, [
+      { taskIds: ids, op: { priority: priority === 'none' ? null : priority } },
+    ]);
   };
 
   // Label ids are "projectId:labelId" when the selection spans projects.
@@ -194,7 +221,9 @@ export function BulkActionBar({
       projectIds.flatMap((projectId) => {
         const identifier = tasks.find((t) => t.project.id === projectId)?.project.identifier ?? '';
         return (labelsByProject.get(projectId) ?? []).map((label) =>
-          isMultiProject ? { ...label, id: `${projectId}:${label.id}`, name: `${identifier} · ${label.name}` } : label
+          isMultiProject
+            ? { ...label, id: `${projectId}:${label.id}`, name: `${identifier} · ${label.name}` }
+            : label
         );
       }),
     [projectIds, labelsByProject, isMultiProject, tasks]
@@ -219,7 +248,10 @@ export function BulkActionBar({
     const member = members.find((m) => m.user.id === userId)?.user;
     const name = member ? member.name || member.email : 'member';
     void run(mode === 'add' ? `Assigned ${name}` : `Unassigned ${name}`, [
-      { taskIds: ids, op: mode === 'add' ? { addAssigneeIds: [userId] } : { removeAssigneeIds: [userId] } },
+      {
+        taskIds: ids,
+        op: mode === 'add' ? { addAssigneeIds: [userId] } : { removeAssigneeIds: [userId] },
+      },
     ]);
   };
 
@@ -246,10 +278,19 @@ export function BulkActionBar({
           <DropdownMenuTrigger asChild>
             <BarButton label="Status" shortcut="S" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent side="top" align="start" aria-label="Set status" className="max-h-80 overflow-y-auto">
+          <DropdownMenuContent
+            side="top"
+            align="start"
+            aria-label="Set status"
+            className="max-h-80 overflow-y-auto"
+          >
             <DropdownMenuLabel>Move {count} to…</DropdownMenuLabel>
             {statusOptions.map((option) => (
-              <DropdownMenuItem key={option.key} icon={<ColorDot color={option.color} size="md" />} onSelect={() => applyStatus(option)}>
+              <DropdownMenuItem
+                key={option.key}
+                icon={<ColorDot color={option.color} size="md" />}
+                onSelect={() => applyStatus(option)}
+              >
                 {option.name}
               </DropdownMenuItem>
             ))}
@@ -265,7 +306,10 @@ export function BulkActionBar({
               currentAssignees={commonAssignees}
               workspaceMembers={members}
               onToggle={(userId) =>
-                assigneeAction(userId, commonAssignees.some((a) => a.id === userId) ? 'remove' : 'add')
+                assigneeAction(
+                  userId,
+                  commonAssignees.some((a) => a.id === userId) ? 'remove' : 'add'
+                )
               }
               isLoading={bulk.isPending}
             />
@@ -280,7 +324,9 @@ export function BulkActionBar({
             <LabelOptions
               currentLabels={commonLabels}
               projectLabels={labelOptions}
-              onToggle={(id) => labelAction(id, commonLabels.some((l) => l.id === id) ? 'remove' : 'add')}
+              onToggle={(id) =>
+                labelAction(id, commonLabels.some((l) => l.id === id) ? 'remove' : 'add')
+              }
               isLoading={bulk.isPending}
             />
           </PopoverContent>
@@ -292,7 +338,11 @@ export function BulkActionBar({
           </DropdownMenuTrigger>
           <DropdownMenuContent side="top" align="start" aria-label="Set priority">
             {PRIORITY_VALUES.map((priority) => (
-              <DropdownMenuItem key={priority} icon={<PriorityIcon priority={priority} />} onSelect={() => applyPriority(priority)}>
+              <DropdownMenuItem
+                key={priority}
+                icon={<PriorityIcon priority={priority} />}
+                onSelect={() => applyPriority(priority)}
+              >
                 {PRIORITY_LABELS[priority]}
               </DropdownMenuItem>
             ))}

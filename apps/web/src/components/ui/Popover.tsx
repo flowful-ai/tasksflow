@@ -16,22 +16,26 @@ export const PopoverTrigger = Radix.Trigger;
 export const PopoverAnchor = Radix.Anchor;
 export const PopoverClose = Radix.Close;
 
-export const PopoverContent = forwardRef<ElementRef<typeof Radix.Content>, ComponentPropsWithoutRef<typeof Radix.Content>>(
-  function PopoverContent({ className, sideOffset = 6, align = 'start', collisionPadding = 8, ...props }, ref) {
-    return (
-      <Radix.Portal>
-        <Radix.Content
-          ref={ref}
-          sideOffset={sideOffset}
-          align={align}
-          collisionPadding={collisionPadding}
-          className={clsx(
-            'z-[60] rounded-xl border border-neutral-200 bg-white p-2 text-sm shadow-lg outline-none animate-scale-in [animation-duration:120ms]',
-            className
-          )}
-          {...props}
-        />
-      </Radix.Portal>
-    );
-  }
-);
+export const PopoverContent = forwardRef<
+  ElementRef<typeof Radix.Content>,
+  ComponentPropsWithoutRef<typeof Radix.Content>
+>(function PopoverContent(
+  { className, sideOffset = 6, align = 'start', collisionPadding = 8, ...props },
+  ref
+) {
+  return (
+    <Radix.Portal>
+      <Radix.Content
+        ref={ref}
+        sideOffset={sideOffset}
+        align={align}
+        collisionPadding={collisionPadding}
+        className={clsx(
+          'z-[60] rounded-xl border border-neutral-200 bg-white p-2 text-sm shadow-lg outline-none animate-scale-in [animation-duration:120ms]',
+          className
+        )}
+        {...props}
+      />
+    </Radix.Portal>
+  );
+});

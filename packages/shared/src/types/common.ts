@@ -54,7 +54,11 @@ export const ApiResponseSchema = <T extends z.ZodTypeAny>(dataSchema: T) =>
 
 export type ApiResponse<T> =
   | { success: true; data: T; error?: never }
-  | { success: false; data?: never; error: { code: string; message: string; details?: Record<string, unknown> } };
+  | {
+      success: false;
+      data?: never;
+      error: { code: string; message: string; details?: Record<string, unknown> };
+    };
 
 // Result type for operations
 export type Result<T, E = Error> = { ok: true; value: T } | { ok: false; error: E };

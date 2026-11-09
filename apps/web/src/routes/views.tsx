@@ -1,6 +1,18 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, LayoutGrid, List, Table2, Calendar, Lock, Globe, Eye, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import {
+  Plus,
+  LayoutGrid,
+  List,
+  Table2,
+  Calendar,
+  Lock,
+  Globe,
+  Eye,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+} from 'lucide-react';
 import type { DisplayType } from '@flowtask/shared';
 import type { SmartViewDto } from '../api/types';
 import { useCurrentWorkspace, useDeleteSmartView, useSmartViews } from '../hooks/queries';
@@ -43,20 +55,33 @@ function ViewCard({ view, onDelete }: ViewCardProps) {
   return (
     <li className="card p-4 hover:shadow-md transition-shadow relative group">
       <div className="flex items-start gap-3">
-        <div aria-hidden className="w-10 h-10 rounded-lg bg-primary-100 text-primary-600 flex items-center justify-center">
+        <div
+          aria-hidden
+          className="w-10 h-10 rounded-lg bg-primary-100 text-primary-600 flex items-center justify-center"
+        >
           {displayTypeIcons[view.displayType]}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <h3 className="font-medium text-gray-900 truncate">
               {/* The link's ::after covers the card so the whole card is clickable. */}
-              <Link to={`/view/${view.id}`} className="after:absolute after:inset-0 after:content-[''] focus-visible:outline-none">
+              <Link
+                to={`/view/${view.id}`}
+                className="after:absolute after:inset-0 after:content-[''] focus-visible:outline-none"
+              >
                 {view.name}
               </Link>
             </h3>
-            {view.isPersonal && <Lock className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" aria-label="Personal view" />}
+            {view.isPersonal && (
+              <Lock
+                className="w-3.5 h-3.5 text-gray-400 flex-shrink-0"
+                aria-label="Personal view"
+              />
+            )}
           </div>
-          {view.description && <p className="text-sm text-gray-500 mt-1 line-clamp-2">{view.description}</p>}
+          {view.description && (
+            <p className="text-sm text-gray-500 mt-1 line-clamp-2">{view.description}</p>
+          )}
           <div className="flex items-center gap-3 mt-2">
             <span className="inline-flex items-center text-xs text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
               {displayTypeLabels[view.displayType]}
@@ -80,7 +105,10 @@ function ViewCard({ view, onDelete }: ViewCardProps) {
               />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem icon={<Pencil />} onSelect={() => navigate(`/settings/workspace/views/${view.id}/edit`)}>
+              <DropdownMenuItem
+                icon={<Pencil />}
+                onSelect={() => navigate(`/settings/workspace/views/${view.id}/edit`)}
+              >
                 Edit
               </DropdownMenuItem>
               <DropdownMenuItem destructive icon={<Trash2 />} onSelect={() => onDelete(view)}>
@@ -116,7 +144,8 @@ export function ViewsPage() {
   }
 
   if (isLoading) return <PageSpinner label="Loading views" />;
-  if (error) return <ErrorState error={error} resource="list of views" onRetry={() => void refetch()} />;
+  if (error)
+    return <ErrorState error={error} resource="list of views" onRetry={() => void refetch()} />;
 
   return (
     <div>
@@ -125,7 +154,10 @@ export function ViewsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Views</h1>
           <p className="text-gray-600 mt-1">Saved filtered views in {currentWorkspace.name}</p>
         </div>
-        <Link to="/settings/workspace/views/new" className="btn btn-primary inline-flex items-center">
+        <Link
+          to="/settings/workspace/views/new"
+          className="btn btn-primary inline-flex items-center"
+        >
           <Plus aria-hidden className="w-4 h-4 mr-2" />
           New View
         </Link>
@@ -138,7 +170,10 @@ export function ViewsPage() {
             title="No views yet"
             body="Create custom views to filter and organize your tasks."
             action={
-              <Link to="/settings/workspace/views/new" className="btn btn-primary inline-flex items-center">
+              <Link
+                to="/settings/workspace/views/new"
+                className="btn btn-primary inline-flex items-center"
+              >
                 <Plus aria-hidden className="w-4 h-4 mr-2" />
                 Create View
               </Link>

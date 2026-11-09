@@ -11,8 +11,11 @@ const NOW = new Date('2026-03-08T12:00:00.000Z'); // Sunday; US DST starts this 
 
 const ctx = FilterEngine.createContext(USER, { now: NOW });
 
-function render(condition: FilterCondition | FilterGroup): { sql: string; params: unknown[] } | null {
-  const group: FilterGroup = 'operator' in condition ? condition : { operator: 'AND', conditions: [condition] };
+function render(
+  condition: FilterCondition | FilterGroup
+): { sql: string; params: unknown[] } | null {
+  const group: FilterGroup =
+    'operator' in condition ? condition : { operator: 'AND', conditions: [condition] };
   return toQuery(FilterEngine.buildWhereClause(group, ctx));
 }
 
@@ -37,7 +40,12 @@ describe('FilterEngine operators on a scalar column (tasks.priority)', () => {
     { op: 'gte', value: 'a', sql: '"tasks"."priority" >= $1', params: ['a'] },
     { op: 'lt', value: 'z', sql: '"tasks"."priority" < $1', params: ['z'] },
     { op: 'lte', value: 'z', sql: '"tasks"."priority" <= $1', params: ['z'] },
-    { op: 'in', value: ['high', 'urgent'], sql: '"tasks"."priority" in ($1, $2)', params: ['high', 'urgent'] },
+    {
+      op: 'in',
+      value: ['high', 'urgent'],
+      sql: '"tasks"."priority" in ($1, $2)',
+      params: ['high', 'urgent'],
+    },
     {
       op: 'nin',
       value: ['high', 'urgent'],
@@ -59,13 +67,20 @@ describe('FilterEngine operators on a scalar column (tasks.priority)', () => {
 
   for (const c of cases) {
     it(c.op, () => {
-      expect(render({ field: 'priority', op: c.op, value: c.value })).toEqual({ sql: c.sql, params: c.params });
+      expect(render({ field: 'priority', op: c.op, value: c.value })).toEqual({
+        sql: c.sql,
+        params: c.params,
+      });
     });
   }
 
   it('eq/neq null map to IS NULL / IS NOT NULL', () => {
-    expect(render({ field: 'priority', op: 'eq', value: null })?.sql).toBe('"tasks"."priority" is null');
-    expect(render({ field: 'priority', op: 'neq', value: null })?.sql).toBe('"tasks"."priority" is not null');
+    expect(render({ field: 'priority', op: 'eq', value: null })?.sql).toBe(
+      '"tasks"."priority" is null'
+    );
+    expect(render({ field: 'priority', op: 'neq', value: null })?.sql).toBe(
+      '"tasks"."priority" is not null'
+    );
   });
 
   it('in/nin with null entries', () => {
@@ -119,7 +134,12 @@ describe('FilterEngine operators on a scalar column (tasks.priority)', () => {
 describe('FilterEngine operators on the joined state (task_states.category)', () => {
   const cases: OperatorCase[] = [
     { op: 'eq', value: 'done', sql: '"task_states"."category" = $1', params: ['done'] },
-    { op: 'neq', value: 'done', sql: '"task_states"."category" IS DISTINCT FROM $1', params: ['done'] },
+    {
+      op: 'neq',
+      value: 'done',
+      sql: '"task_states"."category" IS DISTINCT FROM $1',
+      params: ['done'],
+    },
     { op: 'gt', value: 'b', sql: '"task_states"."category" > $1', params: ['b'] },
     { op: 'gte', value: 'b', sql: '"task_states"."category" >= $1', params: ['b'] },
     { op: 'lt', value: 'b', sql: '"task_states"."category" < $1', params: ['b'] },
@@ -146,7 +166,10 @@ describe('FilterEngine operators on the joined state (task_states.category)', ()
 
   for (const c of cases) {
     it(c.op, () => {
-      expect(render({ field: 'state.category', op: c.op, value: c.value })).toEqual({ sql: c.sql, params: c.params });
+      expect(render({ field: 'state.category', op: c.op, value: c.value })).toEqual({
+        sql: c.sql,
+        params: c.params,
+      });
     });
   }
 });
@@ -186,7 +209,13 @@ describe('FilterEngine many-to-many fields use EXISTS', () => {
       sql: `NOT ${assigneeExists(' AND "task_assignees"."user_id" in ($1)')}`,
       params: [USER],
     },
-    { field: 'assignee_id', op: 'is_null', value: null, sql: `NOT ${assigneeExists('')}`, params: [] },
+    {
+      field: 'assignee_id',
+      op: 'is_null',
+      value: null,
+      sql: `NOT ${assigneeExists('')}`,
+      params: [],
+    },
     { field: 'assignee_id', op: 'is_not_null', value: null, sql: assigneeExists(''), params: [] },
     {
       field: 'label_id',
@@ -222,7 +251,10 @@ describe('FilterEngine many-to-many fields use EXISTS', () => {
 
   for (const c of cases) {
     it(`${c.field} ${c.op}`, () => {
-      expect(render({ field: c.field, op: c.op, value: c.value })).toEqual({ sql: c.sql, params: c.params });
+      expect(render({ field: c.field, op: c.op, value: c.value })).toEqual({
+        sql: c.sql,
+        params: c.params,
+      });
     });
   }
 
@@ -233,7 +265,16 @@ describe('FilterEngine many-to-many fields use EXISTS', () => {
   });
 
   it('comparison and string operators are ignored on id sets', () => {
-    for (const op of ['gt', 'gte', 'lt', 'lte', 'contains', 'not_contains', 'starts_with', 'ends_with'] as const) {
+    for (const op of [
+      'gt',
+      'gte',
+      'lt',
+      'lte',
+      'contains',
+      'not_contains',
+      'starts_with',
+      'ends_with',
+    ] as const) {
       expect(render({ field: 'assignee_id', op, value: USER })).toBeNull();
     }
   });
@@ -253,7 +294,9 @@ describe('FilterEngine many-to-many fields use EXISTS', () => {
 
 describe('FilterEngine AND/OR nesting', () => {
   it('collapses a single condition', () => {
-    expect(render({ operator: 'OR', conditions: [{ field: 'priority', op: 'eq', value: 'high' }] })).toEqual({
+    expect(
+      render({ operator: 'OR', conditions: [{ field: 'priority', op: 'eq', value: 'high' }] })
+    ).toEqual({
       sql: '"tasks"."priority" = $1',
       params: ['high'],
     });
@@ -385,7 +428,10 @@ describe('FilterEngine date templates and timezones', () => {
       // Month arithmetic clamps the day.
       timezone: 'UTC',
       now: '2026-01-31T12:00:00.000Z',
-      expected: { '{{now + 1m}}': '2026-02-28T12:00:00.000Z', '{{now - 2m}}': '2025-11-30T12:00:00.000Z' },
+      expected: {
+        '{{now + 1m}}': '2026-02-28T12:00:00.000Z',
+        '{{now - 2m}}': '2025-11-30T12:00:00.000Z',
+      },
     },
   ];
 

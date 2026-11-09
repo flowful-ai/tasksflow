@@ -16,7 +16,11 @@ async function requireWorkspaceAdminOrOwner(workspaceId: string, userId: string)
   const roleResult = await workspaceService.getMemberRole(workspaceId, userId);
   const role = roleResult.ok ? roleResult.value : null;
   if (!role || (role !== 'owner' && role !== 'admin')) {
-    throw new OAuthError('access_denied', 'Only workspace owners and admins can manage MCP OAuth connections', 403);
+    throw new OAuthError(
+      'access_denied',
+      'Only workspace owners and admins can manage MCP OAuth connections',
+      403
+    );
   }
 }
 
@@ -31,10 +35,19 @@ mcpConnectionsRoutes.get('/:workspaceId/mcp-connections', async (c) => {
     return c.json({ success: true, data: { connections } });
   } catch (error) {
     if (error instanceof OAuthError) {
-      return c.json({ success: false, error: { code: error.oauthError.toUpperCase(), message: error.message } }, error.statusCode);
+      return c.json(
+        { success: false, error: { code: error.oauthError.toUpperCase(), message: error.message } },
+        error.statusCode
+      );
     }
 
-    return c.json({ success: false, error: { code: 'LIST_FAILED', message: 'Failed to list MCP OAuth connections' } }, 500);
+    return c.json(
+      {
+        success: false,
+        error: { code: 'LIST_FAILED', message: 'Failed to list MCP OAuth connections' },
+      },
+      500
+    );
   }
 });
 
@@ -65,10 +78,22 @@ mcpConnectionsRoutes.patch(
       return c.json({ success: true, data: connection });
     } catch (error) {
       if (error instanceof OAuthError) {
-        return c.json({ success: false, error: { code: error.oauthError.toUpperCase(), message: error.message } }, error.statusCode);
+        return c.json(
+          {
+            success: false,
+            error: { code: error.oauthError.toUpperCase(), message: error.message },
+          },
+          error.statusCode
+        );
       }
 
-      return c.json({ success: false, error: { code: 'UPDATE_FAILED', message: 'Failed to update MCP OAuth scopes' } }, 500);
+      return c.json(
+        {
+          success: false,
+          error: { code: 'UPDATE_FAILED', message: 'Failed to update MCP OAuth scopes' },
+        },
+        500
+      );
     }
   }
 );
@@ -85,10 +110,19 @@ mcpConnectionsRoutes.delete('/:workspaceId/mcp-connections/:consentId', async (c
     return c.json({ success: true, data: null });
   } catch (error) {
     if (error instanceof OAuthError) {
-      return c.json({ success: false, error: { code: error.oauthError.toUpperCase(), message: error.message } }, error.statusCode);
+      return c.json(
+        { success: false, error: { code: error.oauthError.toUpperCase(), message: error.message } },
+        error.statusCode
+      );
     }
 
-    return c.json({ success: false, error: { code: 'DELETE_FAILED', message: 'Failed to delete MCP OAuth connection' } }, 500);
+    return c.json(
+      {
+        success: false,
+        error: { code: 'DELETE_FAILED', message: 'Failed to delete MCP OAuth connection' },
+      },
+      500
+    );
   }
 });
 

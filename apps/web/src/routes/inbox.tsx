@@ -7,7 +7,16 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Archive, ArchiveRestore, ArrowLeft, CheckCheck, Clock, Inbox as InboxIcon, Mail, MailOpen } from 'lucide-react';
+import {
+  Archive,
+  ArchiveRestore,
+  ArrowLeft,
+  CheckCheck,
+  Clock,
+  Inbox as InboxIcon,
+  Mail,
+  MailOpen,
+} from 'lucide-react';
 import clsx from 'clsx';
 import type { NotificationFilter } from '@flowtask/shared';
 import type { NotificationDto } from '../api/types';
@@ -16,9 +25,21 @@ import { useHotkey } from '../lib/hotkeys';
 import { useMediaQuery } from '../lib/useMediaQuery';
 import { shortRelativeTime, tomorrowMorning } from '../lib/time';
 import { useUiStore } from '../stores/ui';
-import { EmptyState, ErrorState, IconButton, Kbd, PageSpinner, Spinner, toast } from '../components/ui';
+import {
+  EmptyState,
+  ErrorState,
+  IconButton,
+  Kbd,
+  PageSpinner,
+  Spinner,
+  toast,
+} from '../components/ui';
 import { TaskDetailView } from '../components/tasks/detail/TaskDetailView';
-import { describeNotification, initials, notificationSentence } from '../components/inbox/notificationText';
+import {
+  describeNotification,
+  initials,
+  notificationSentence,
+} from '../components/inbox/notificationText';
 import { projectColor } from '../lib/color';
 
 const TABS: { filter: NotificationFilter; label: string }[] = [
@@ -29,9 +50,15 @@ const TABS: { filter: NotificationFilter; label: string }[] = [
 ];
 
 const EMPTY: Record<string, { title: string; body: string }> = {
-  inbox: { title: "You're all caught up", body: 'Mentions, assignments and comments on your tasks show up here.' },
+  inbox: {
+    title: "You're all caught up",
+    body: 'Mentions, assignments and comments on your tasks show up here.',
+  },
   unread: { title: "You're all caught up", body: 'No unread notifications.' },
-  snoozed: { title: 'Nothing snoozed', body: 'Press H on a notification to snooze it until tomorrow morning.' },
+  snoozed: {
+    title: 'Nothing snoozed',
+    body: 'Press H on a notification to snooze it until tomorrow morning.',
+  },
   archived: { title: 'No archived notifications', body: 'Press E to mark a notification done.' },
 };
 
@@ -39,14 +66,24 @@ function ActorAvatar({ notification }: { notification: NotificationDto }) {
   const system = notification.type === 'overdue' || notification.type === 'due_soon';
   const gh = notification.type === 'github' && !notification.actor;
   if (notification.actor?.avatarUrl) {
-    return <img src={notification.actor.avatarUrl} alt="" className="h-7 w-7 shrink-0 rounded-full object-cover" />;
+    return (
+      <img
+        src={notification.actor.avatarUrl}
+        alt=""
+        className="h-7 w-7 shrink-0 rounded-full object-cover"
+      />
+    );
   }
   return (
     <span
       aria-hidden
       className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white"
       style={{
-        background: system ? '#ef4444' : gh ? '#57534e' : projectColor(notification.actor?.id ?? notification.id),
+        background: system
+          ? '#ef4444'
+          : gh
+            ? '#57534e'
+            : projectColor(notification.actor?.id ?? notification.id),
       }}
     >
       {system ? <Clock className="h-3.5 w-3.5" /> : gh ? 'GH' : initials(notification.actor?.name)}
@@ -87,17 +124,34 @@ function NotificationRow({
           active && 'outline outline-2 -outline-offset-2 outline-primary-300'
         )}
       >
-        {unread && <span aria-hidden className="absolute left-1.5 top-[22px] h-1.5 w-1.5 rounded-full bg-primary-500" />}
+        {unread && (
+          <span
+            aria-hidden
+            className="absolute left-1.5 top-[22px] h-1.5 w-1.5 rounded-full bg-primary-500"
+          />
+        )}
         <ActorAvatar notification={notification} />
         <span className="min-w-0 flex-1">
-          <span className={clsx('block truncate text-sm', unread ? 'text-neutral-900' : 'text-neutral-600')}>
+          <span
+            className={clsx(
+              'block truncate text-sm',
+              unread ? 'text-neutral-900' : 'text-neutral-600'
+            )}
+          >
             {t.actor && <b className="font-semibold">{t.actor}</b>} {t.verb}{' '}
-            <span className="font-mono text-xs text-neutral-500">{notification.task?.key ?? 'a task'}</span>
+            <span className="font-mono text-xs text-neutral-500">
+              {notification.task?.key ?? 'a task'}
+            </span>
             {t.suffix && ` ${t.suffix}`}
           </span>
-          {t.snippet && <span className="mt-0.5 block truncate text-[13px] text-neutral-500">{t.snippet}</span>}
+          {t.snippet && (
+            <span className="mt-0.5 block truncate text-[13px] text-neutral-500">{t.snippet}</span>
+          )}
         </span>
-        <time dateTime={notification.createdAt} className="shrink-0 pt-0.5 text-xs tabular-nums text-neutral-400">
+        <time
+          dateTime={notification.createdAt}
+          className="shrink-0 pt-0.5 text-xs tabular-nums text-neutral-400"
+        >
           {shortRelativeTime(notification.createdAt)}
         </time>
       </button>
@@ -130,7 +184,9 @@ export function InboxPage() {
   // Keep the opened notification even when it leaves the list (e.g. archived).
   const [openedSnapshot, setOpenedSnapshot] = useState<NotificationDto | null>(null);
   const opened = useMemo(
-    () => notifications.find((n) => n.id === openedId) ?? (openedSnapshot?.id === openedId ? openedSnapshot : null),
+    () =>
+      notifications.find((n) => n.id === openedId) ??
+      (openedSnapshot?.id === openedId ? openedSnapshot : null),
     [notifications, openedId, openedSnapshot]
   );
   const active = notifications[activeIndex];
@@ -153,10 +209,16 @@ export function InboxPage() {
     const until = tomorrowMorning();
     actions.snooze.mutate(
       { id: n.id, until: until.toISOString() },
-      { onSuccess: () => toast.success(`Snoozed until ${until.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })}`) }
+      {
+        onSuccess: () =>
+          toast.success(
+            `Snoozed until ${until.toLocaleString(undefined, { weekday: 'short', hour: 'numeric', minute: '2-digit' })}`
+          ),
+      }
     );
   };
-  const toggleRead = (n: NotificationDto) => (n.readAt ? actions.markUnread.mutate(n.id) : actions.markRead.mutate(n.id));
+  const toggleRead = (n: NotificationDto) =>
+    n.readAt ? actions.markUnread.mutate(n.id) : actions.markRead.mutate(n.id);
 
   const move = (delta: number) => {
     if (notifications.length === 0) return;
@@ -174,7 +236,10 @@ export function InboxPage() {
   // Enter on a focused control keeps its native action (a focused row opens itself).
   useHotkey('enter', () => active && open(active, activeIndex), {
     enabled: Boolean(active),
-    when: (event) => !(event.target instanceof HTMLElement) || event.target === document.body || event.target.id === 'main',
+    when: (event) =>
+      !(event.target instanceof HTMLElement) ||
+      event.target === document.body ||
+      event.target.id === 'main',
   });
   useHotkey('e', () => {
     const n = target();
@@ -188,7 +253,9 @@ export function InboxPage() {
     const n = target();
     if (n) toggleRead(n);
   });
-  useHotkey('shift+i', () => actions.readAll.mutate(undefined, { onSuccess: () => toast.success('All marked as read') }));
+  useHotkey('shift+i', () =>
+    actions.readAll.mutate(undefined, { onSuccess: () => toast.success('All marked as read') })
+  );
   useHotkey('escape', () => setOpenedId(null), { enabled: !isDesktop && openedId !== null });
 
   if (!workspaceId) return <PageSpinner label="Loading inbox" />;
@@ -200,7 +267,10 @@ export function InboxPage() {
   return (
     <div className="flex flex-col lg:-m-10 lg:h-screen lg:flex-row">
       {showList && (
-        <section aria-labelledby="inbox-title" className="flex min-h-0 flex-col border-neutral-200 lg:w-[420px] lg:shrink-0 lg:border-r">
+        <section
+          aria-labelledby="inbox-title"
+          className="flex min-h-0 flex-col border-neutral-200 lg:w-[420px] lg:shrink-0 lg:border-r"
+        >
           <header className="border-b border-neutral-200 px-4 pb-0 pt-4 lg:pt-6">
             <div className="mb-3 flex items-center gap-2">
               <h1 id="inbox-title" className="text-xl font-bold text-neutral-900">
@@ -209,7 +279,11 @@ export function InboxPage() {
               {list.isFetching && !list.isLoading && <Spinner size="sm" label="Refreshing" />}
               <button
                 type="button"
-                onClick={() => actions.readAll.mutate(undefined, { onSuccess: () => toast.success('All marked as read') })}
+                onClick={() =>
+                  actions.readAll.mutate(undefined, {
+                    onSuccess: () => toast.success('All marked as read'),
+                  })
+                }
                 className="ml-auto inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800"
                 aria-keyshortcuts="Shift+I"
               >
@@ -239,7 +313,12 @@ export function InboxPage() {
             </div>
           </header>
 
-          <div id="inbox-list" role="tabpanel" aria-label={`${TABS.find((t) => t.filter === filter)?.label} notifications`} className="min-h-0 flex-1 overflow-y-auto">
+          <div
+            id="inbox-list"
+            role="tabpanel"
+            aria-label={`${TABS.find((t) => t.filter === filter)?.label} notifications`}
+            className="min-h-0 flex-1 overflow-y-auto"
+          >
             {list.isLoading ? (
               <PageSpinner label="Loading notifications" />
             ) : list.isError && notifications.length === 0 ? (
@@ -280,12 +359,25 @@ export function InboxPage() {
             )}
           </div>
 
-          <p className="hidden items-center gap-3 border-t border-neutral-200 px-4 py-2 text-xs text-neutral-500 lg:flex" aria-hidden>
-            <span><Kbd>J</Kbd> <Kbd>K</Kbd> move</span>
-            <span><Kbd>↵</Kbd> open</span>
-            <span><Kbd>E</Kbd> done</span>
-            <span><Kbd>H</Kbd> snooze</span>
-            <span><Kbd>U</Kbd> unread</span>
+          <p
+            className="hidden items-center gap-3 border-t border-neutral-200 px-4 py-2 text-xs text-neutral-500 lg:flex"
+            aria-hidden
+          >
+            <span>
+              <Kbd>J</Kbd> <Kbd>K</Kbd> move
+            </span>
+            <span>
+              <Kbd>↵</Kbd> open
+            </span>
+            <span>
+              <Kbd>E</Kbd> done
+            </span>
+            <span>
+              <Kbd>H</Kbd> snooze
+            </span>
+            <span>
+              <Kbd>U</Kbd> unread
+            </span>
           </p>
         </section>
       )}
@@ -296,9 +388,15 @@ export function InboxPage() {
             <>
               <div className="flex items-center gap-1 border-b border-neutral-200 px-2 py-1.5 sm:px-4">
                 {!isDesktop && (
-                  <IconButton label="Back to the inbox" icon={<ArrowLeft />} onClick={() => setOpenedId(null)} />
+                  <IconButton
+                    label="Back to the inbox"
+                    icon={<ArrowLeft />}
+                    onClick={() => setOpenedId(null)}
+                  />
                 )}
-                <span className="truncate px-1 text-sm text-neutral-600">{notificationSentence(opened)}</span>
+                <span className="truncate px-1 text-sm text-neutral-600">
+                  {notificationSentence(opened)}
+                </span>
                 <span className="ml-auto flex shrink-0 items-center">
                   <IconButton
                     label={opened.archivedAt ? 'Move to inbox' : 'Mark done'}
@@ -307,7 +405,12 @@ export function InboxPage() {
                     onClick={() => archiveToggle(opened)}
                   />
                   {!opened.archivedAt && (
-                    <IconButton label="Snooze until tomorrow 9:00" shortcut="H" icon={<Clock />} onClick={() => snooze(opened)} />
+                    <IconButton
+                      label="Snooze until tomorrow 9:00"
+                      shortcut="H"
+                      icon={<Clock />}
+                      onClick={() => snooze(opened)}
+                    />
                   )}
                   <IconButton
                     label={opened.readAt ? 'Mark unread' : 'Mark read'}
@@ -319,7 +422,12 @@ export function InboxPage() {
               </div>
               <div className="min-h-0 flex-1">
                 {opened.task && !opened.task.deleted ? (
-                  <TaskDetailView key={opened.task.id} taskId={opened.task.id} mode="inline" onOpenTask={openTaskSheet} />
+                  <TaskDetailView
+                    key={opened.task.id}
+                    taskId={opened.task.id}
+                    mode="inline"
+                    onOpenTask={openTaskSheet}
+                  />
                 ) : (
                   <EmptyState
                     icon={<Archive />}
@@ -327,7 +435,10 @@ export function InboxPage() {
                     body="It may still be in the project trash."
                     action={
                       opened.task ? (
-                        <Link to={`/project/${opened.task.projectId}/trash`} className="btn btn-secondary">
+                        <Link
+                          to={`/project/${opened.task.projectId}/trash`}
+                          className="btn btn-secondary"
+                        >
                           Open trash
                         </Link>
                       ) : undefined
@@ -339,10 +450,12 @@ export function InboxPage() {
           ) : (
             <div className="hidden h-full items-center justify-center p-8 text-center text-sm text-neutral-500 lg:flex">
               <div>
-                <p className="mb-2 font-medium text-neutral-700">Select a notification to preview its task</p>
+                <p className="mb-2 font-medium text-neutral-700">
+                  Select a notification to preview its task
+                </p>
                 <p>
-                  <Kbd>J</Kbd> <Kbd>K</Kbd> to move, <Kbd>↵</Kbd> to open, <Kbd>E</Kbd> marks done, <Kbd>H</Kbd> snoozes until
-                  tomorrow.
+                  <Kbd>J</Kbd> <Kbd>K</Kbd> to move, <Kbd>↵</Kbd> to open, <Kbd>E</Kbd> marks done,{' '}
+                  <Kbd>H</Kbd> snoozes until tomorrow.
                 </p>
               </div>
             </div>

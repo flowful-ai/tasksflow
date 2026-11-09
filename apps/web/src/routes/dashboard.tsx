@@ -48,27 +48,82 @@ function formatRelativeTime(dateStr: string): string {
 function getActivityPresentation(eventType: WorkspaceActivityItem['eventType']) {
   switch (eventType) {
     case 'created':
-      return { icon: Plus, iconClass: 'text-emerald-600', bgClass: 'bg-emerald-100', label: 'created this task' };
+      return {
+        icon: Plus,
+        iconClass: 'text-emerald-600',
+        bgClass: 'bg-emerald-100',
+        label: 'created this task',
+      };
     case 'updated':
-      return { icon: Sparkles, iconClass: 'text-blue-600', bgClass: 'bg-blue-100', label: 'updated this task' };
+      return {
+        icon: Sparkles,
+        iconClass: 'text-blue-600',
+        bgClass: 'bg-blue-100',
+        label: 'updated this task',
+      };
     case 'moved':
-      return { icon: ArrowRightLeft, iconClass: 'text-indigo-600', bgClass: 'bg-indigo-100', label: 'moved this task' };
+      return {
+        icon: ArrowRightLeft,
+        iconClass: 'text-indigo-600',
+        bgClass: 'bg-indigo-100',
+        label: 'moved this task',
+      };
     case 'assigned':
-      return { icon: UserPlus, iconClass: 'text-cyan-600', bgClass: 'bg-cyan-100', label: 'assigned someone' };
+      return {
+        icon: UserPlus,
+        iconClass: 'text-cyan-600',
+        bgClass: 'bg-cyan-100',
+        label: 'assigned someone',
+      };
     case 'unassigned':
-      return { icon: UserMinus, iconClass: 'text-slate-600', bgClass: 'bg-slate-200', label: 'removed an assignee' };
+      return {
+        icon: UserMinus,
+        iconClass: 'text-slate-600',
+        bgClass: 'bg-slate-200',
+        label: 'removed an assignee',
+      };
     case 'labeled':
-      return { icon: Tag, iconClass: 'text-amber-600', bgClass: 'bg-amber-100', label: 'added a label' };
+      return {
+        icon: Tag,
+        iconClass: 'text-amber-600',
+        bgClass: 'bg-amber-100',
+        label: 'added a label',
+      };
     case 'unlabeled':
-      return { icon: Tag, iconClass: 'text-neutral-600', bgClass: 'bg-neutral-200', label: 'removed a label' };
+      return {
+        icon: Tag,
+        iconClass: 'text-neutral-600',
+        bgClass: 'bg-neutral-200',
+        label: 'removed a label',
+      };
     case 'commented':
-      return { icon: MessageSquare, iconClass: 'text-fuchsia-600', bgClass: 'bg-fuchsia-100', label: 'commented' };
+      return {
+        icon: MessageSquare,
+        iconClass: 'text-fuchsia-600',
+        bgClass: 'bg-fuchsia-100',
+        label: 'commented',
+      };
     case 'deleted':
-      return { icon: Trash2, iconClass: 'text-red-600', bgClass: 'bg-red-100', label: 'deleted this task' };
+      return {
+        icon: Trash2,
+        iconClass: 'text-red-600',
+        bgClass: 'bg-red-100',
+        label: 'deleted this task',
+      };
     case 'restored':
-      return { icon: RotateCcw, iconClass: 'text-green-700', bgClass: 'bg-green-100', label: 'restored this task' };
+      return {
+        icon: RotateCcw,
+        iconClass: 'text-green-700',
+        bgClass: 'bg-green-100',
+        label: 'restored this task',
+      };
     default:
-      return { icon: CircleDot, iconClass: 'text-neutral-600', bgClass: 'bg-neutral-200', label: 'changed this task' };
+      return {
+        icon: CircleDot,
+        iconClass: 'text-neutral-600',
+        bgClass: 'bg-neutral-200',
+        label: 'changed this task',
+      };
   }
 }
 
@@ -114,14 +169,20 @@ export function DashboardPage() {
   const firstName = user?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'there';
   const projectIds = projects.map((project) => project.id);
 
-  const { data: taskStats, isLoading: statsLoading, isError: statsError } = useQuery({
+  const {
+    data: taskStats,
+    isLoading: statsLoading,
+    isError: statsError,
+  } = useQuery({
     queryKey: queryKeys.workspaces.taskStats(workspaceId ?? '', projectIds),
     queryFn: async () => {
       if (!currentWorkspace || projects.length === 0) {
         return { completed: 0, inProgress: 0, overdue: 0 };
       }
 
-      const projectTasks = await Promise.all(projects.map((project) => fetchProjectTasks(project.id)));
+      const projectTasks = await Promise.all(
+        projects.map((project) => fetchProjectTasks(project.id))
+      );
       const allTasks = projectTasks.flat();
       const now = Date.now();
 
@@ -172,7 +233,9 @@ export function DashboardPage() {
           {firstName}
         </h1>
         <p className="text-neutral-500 mt-2">
-          {currentWorkspace ? `Here's what's happening in ${currentWorkspace.name}` : 'Welcome to TasksFlow'}
+          {currentWorkspace
+            ? `Here's what's happening in ${currentWorkspace.name}`
+            : 'Welcome to TasksFlow'}
         </p>
       </header>
 
@@ -183,7 +246,7 @@ export function DashboardPage() {
             <div>
               <p className="text-sm font-medium text-neutral-600">Completed</p>
               <p className="text-3xl font-display font-bold text-neutral-900 mt-1">
-                {statsLoading ? '...' : taskStats?.completed ?? 0}
+                {statsLoading ? '...' : (taskStats?.completed ?? 0)}
               </p>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center">
@@ -207,7 +270,7 @@ export function DashboardPage() {
             <div>
               <p className="text-sm font-medium text-neutral-600">In Progress</p>
               <p className="text-3xl font-display font-bold text-neutral-900 mt-1">
-                {statsLoading ? '...' : taskStats?.inProgress ?? 0}
+                {statsLoading ? '...' : (taskStats?.inProgress ?? 0)}
               </p>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-blue-100 flex items-center justify-center">
@@ -230,7 +293,7 @@ export function DashboardPage() {
             <div>
               <p className="text-sm font-medium text-neutral-600">Overdue</p>
               <p className="text-3xl font-display font-bold text-neutral-900 mt-1">
-                {statsLoading ? '...' : taskStats?.overdue ?? 0}
+                {statsLoading ? '...' : (taskStats?.overdue ?? 0)}
               </p>
             </div>
             <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center">
@@ -254,10 +317,7 @@ export function DashboardPage() {
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-display font-semibold text-neutral-900">Projects</h2>
           {currentWorkspace && (
-            <Link
-              to="/projects/new"
-              className="btn btn-primary"
-            >
+            <Link to="/projects/new" className="btn btn-primary">
               <Plus className="w-4 h-4 mr-2" />
               New Project
             </Link>
@@ -269,7 +329,9 @@ export function DashboardPage() {
             <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-neutral-100 flex items-center justify-center">
               <FolderKanban className="w-8 h-8 text-neutral-400" />
             </div>
-            <h3 className="text-xl font-display font-semibold text-neutral-900 mb-2">No workspace selected</h3>
+            <h3 className="text-xl font-display font-semibold text-neutral-900 mb-2">
+              No workspace selected
+            </h3>
             <p className="text-neutral-500 mb-8 max-w-sm mx-auto">
               Create or join a workspace to start organizing your projects and tasks
             </p>
@@ -283,7 +345,9 @@ export function DashboardPage() {
             <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-neutral-100 flex items-center justify-center">
               <FolderKanban className="w-8 h-8 text-neutral-400" />
             </div>
-            <h3 className="text-xl font-display font-semibold text-neutral-900 mb-2">No projects yet</h3>
+            <h3 className="text-xl font-display font-semibold text-neutral-900 mb-2">
+              No projects yet
+            </h3>
             <p className="text-neutral-500 mb-8 max-w-sm mx-auto">
               Create your first project to start organizing and tracking tasks
             </p>
@@ -344,14 +408,18 @@ export function DashboardPage() {
                 <History className="w-5 h-5 text-neutral-700" />
               </div>
               <div>
-                <h2 className="text-xl font-display font-semibold text-neutral-900">Recent activity</h2>
+                <h2 className="text-xl font-display font-semibold text-neutral-900">
+                  Recent activity
+                </h2>
                 <p className="text-sm text-neutral-500">Latest actions across this workspace</p>
               </div>
             </div>
           </div>
 
           {!currentWorkspace ? (
-            <div className="px-6 py-10 text-sm text-neutral-500">Select a workspace to view activity.</div>
+            <div className="px-6 py-10 text-sm text-neutral-500">
+              Select a workspace to view activity.
+            </div>
           ) : activityLoading ? (
             <div className="divide-y divide-neutral-200/70">
               {Array.from({ length: 6 }).map((_, index) => (
@@ -362,9 +430,19 @@ export function DashboardPage() {
               ))}
             </div>
           ) : activityError ? (
-            <ErrorState error={activityQueryError} resource="activity feed" onRetry={() => void refetchActivity()} className="py-10" />
+            <ErrorState
+              error={activityQueryError}
+              resource="activity feed"
+              onRetry={() => void refetchActivity()}
+              className="py-10"
+            />
           ) : activities.length === 0 ? (
-            <EmptyState compact icon={<History />} title="No activity yet" body="Changes to tasks in this workspace show up here." />
+            <EmptyState
+              compact
+              icon={<History />}
+              title="No activity yet"
+              body="Changes to tasks in this workspace show up here."
+            />
           ) : (
             <>
               <div className="divide-y divide-neutral-200/70">
@@ -377,17 +455,28 @@ export function DashboardPage() {
                       to={`/task/${activity.task.id}`}
                       className="px-6 py-4 flex items-start gap-3 hover:bg-white/80 transition-colors"
                     >
-                      <div className={clsx('w-9 h-9 rounded-xl flex items-center justify-center shrink-0', presentation.bgClass)}>
+                      <div
+                        className={clsx(
+                          'w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
+                          presentation.bgClass
+                        )}
+                      >
                         <Icon aria-hidden className={clsx('w-4 h-4', presentation.iconClass)} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm text-neutral-700">
-                          <span className="font-medium text-neutral-900">{activityText(activity)}</span>{' '}
+                          <span className="font-medium text-neutral-900">
+                            {activityText(activity)}
+                          </span>{' '}
                           <span className="text-neutral-600">on</span>{' '}
-                          <span className="font-medium text-neutral-900">{activity.task.title}</span>
+                          <span className="font-medium text-neutral-900">
+                            {activity.task.title}
+                          </span>
                         </p>
                         <p className="mt-1 text-xs text-neutral-500">
-                          <span className="font-semibold text-neutral-600">{activity.task.project.identifier}-{activity.task.sequenceNumber}</span>
+                          <span className="font-semibold text-neutral-600">
+                            {activity.task.project.identifier}-{activity.task.sequenceNumber}
+                          </span>
                           <span className="mx-1.5">•</span>
                           <span>{activity.task.project.name}</span>
                           <span className="mx-1.5">•</span>

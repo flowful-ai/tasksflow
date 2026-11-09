@@ -25,7 +25,9 @@ export const useRealtimeStore = create<RealtimeState>()((set) => ({
   lastEventAt: null,
   setStatus: (status) =>
     set((state) =>
-      state.status === status ? state : { status, connectedAt: status === 'live' ? Date.now() : state.connectedAt }
+      state.status === status
+        ? state
+        : { status, connectedAt: status === 'live' ? Date.now() : state.connectedAt }
     ),
   markEvent: () => set({ lastEventAt: Date.now() }),
 }));

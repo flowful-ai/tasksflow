@@ -33,18 +33,45 @@ describe('ordering', () => {
 
   test('done columns prefer completedAt, so editing an old done task does not reorder it', () => {
     const tasks = [
-      { id: 'edited', position: 'a0', updatedAt: '2026-11-09T00:00:00Z', completedAt: '2026-10-01T00:00:00Z' },
-      { id: 'recent', position: 'a1', updatedAt: '2026-11-05T00:00:00Z', completedAt: '2026-11-05T00:00:00Z' },
+      {
+        id: 'edited',
+        position: 'a0',
+        updatedAt: '2026-11-09T00:00:00Z',
+        completedAt: '2026-10-01T00:00:00Z',
+      },
+      {
+        id: 'recent',
+        position: 'a1',
+        updatedAt: '2026-11-05T00:00:00Z',
+        completedAt: '2026-11-05T00:00:00Z',
+      },
       { id: 'legacy', position: 'a2', updatedAt: '2026-10-15T00:00:00Z', completedAt: null },
     ];
     expect(sortColumnTasks(tasks, 'done').map((t) => t.id)).toEqual(['recent', 'legacy', 'edited']);
   });
 
   test('neighbours exclude the dragged card and skip other server columns', () => {
-    expect(neighboursAt(['a', 'x', 'b'], 'x')).toEqual({ afterTaskId: 'a', beforeTaskId: 'b', index: 1, count: 3 });
-    expect(neighboursAt(['x', 'a'], 'x')).toEqual({ afterTaskId: null, beforeTaskId: 'a', index: 0, count: 2 });
-    expect(neighboursAt(['a', 'x'], 'x')).toEqual({ afterTaskId: 'a', beforeTaskId: null, index: 1, count: 2 });
-    expect(neighboursAt(['a', 'other', 'x', 'other2', 'b'], 'x', (id) => !id.startsWith('other'))).toMatchObject({
+    expect(neighboursAt(['a', 'x', 'b'], 'x')).toEqual({
+      afterTaskId: 'a',
+      beforeTaskId: 'b',
+      index: 1,
+      count: 3,
+    });
+    expect(neighboursAt(['x', 'a'], 'x')).toEqual({
+      afterTaskId: null,
+      beforeTaskId: 'a',
+      index: 0,
+      count: 2,
+    });
+    expect(neighboursAt(['a', 'x'], 'x')).toEqual({
+      afterTaskId: 'a',
+      beforeTaskId: null,
+      index: 1,
+      count: 2,
+    });
+    expect(
+      neighboursAt(['a', 'other', 'x', 'other2', 'b'], 'x', (id) => !id.startsWith('other'))
+    ).toMatchObject({
       afterTaskId: 'a',
       beforeTaskId: 'b',
     });
@@ -57,7 +84,14 @@ describe('ordering', () => {
 });
 
 function task(overrides: Partial<FilterableTask>): FilterableTask {
-  return { priority: null, dueDate: null, state: { category: 'backlog' }, assignees: [], labels: [], ...overrides };
+  return {
+    priority: null,
+    dueDate: null,
+    state: { category: 'backlog' },
+    assignees: [],
+    labels: [],
+    ...overrides,
+  };
 }
 
 describe('filters', () => {
@@ -66,11 +100,15 @@ describe('filters', () => {
 
   test('sub-tasks never reach the board', () => {
     const task = { priority: null, dueDate: null, state: null, assignees: [], labels: [] };
-    expect(applyBoardFilters([task, { ...task, parentId: 'p1' }], EMPTY_FILTERS, now)).toEqual([task]);
+    expect(applyBoardFilters([task, { ...task, parentId: 'p1' }], EMPTY_FILTERS, now)).toEqual([
+      task,
+    ]);
   });
 
   test('only single values go to the API', () => {
-    expect(toApiFilters(filters({ assigneeIds: ['u1'], priorities: ['high'], labelIds: ['l1', 'l2'] }))).toEqual({
+    expect(
+      toApiFilters(filters({ assigneeIds: ['u1'], priorities: ['high'], labelIds: ['l1', 'l2'] }))
+    ).toEqual({
       parentId: 'none',
       assigneeId: 'u1',
       priority: 'high',
@@ -84,8 +122,12 @@ describe('filters', () => {
       task({ priority: 'low', labels: [{ id: 'l1' }] }),
       task({ priority: null, labels: [{ id: 'l2' }] }),
     ];
-    expect(applyBoardFilters(tasks, filters({ priorities: ['high', 'none'] }), now)).toHaveLength(2);
-    expect(applyBoardFilters(tasks, filters({ priorities: ['high', 'low'], labelIds: ['l1'] }), now)).toHaveLength(2);
+    expect(applyBoardFilters(tasks, filters({ priorities: ['high', 'none'] }), now)).toHaveLength(
+      2
+    );
+    expect(
+      applyBoardFilters(tasks, filters({ priorities: ['high', 'low'], labelIds: ['l1'] }), now)
+    ).toHaveLength(2);
     expect(applyBoardFilters(tasks, filters({ labelIds: ['l2'] }), now)).toHaveLength(1);
   });
 

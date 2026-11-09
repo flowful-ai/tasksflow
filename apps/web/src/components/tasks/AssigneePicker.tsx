@@ -25,14 +25,25 @@ interface AssigneePickerProps {
   isLoading?: boolean;
 }
 
-const getInitial = (name: string | null, email: string) => (name?.[0] || email[0] || '?').toUpperCase();
+const getInitial = (name: string | null, email: string) =>
+  (name?.[0] || email[0] || '?').toUpperCase();
 
 export function Avatar({ person, size }: { person: Assignee; size: 'sm' | 'md' }) {
   const box = size === 'sm' ? 'w-5 h-5 text-xs' : 'w-7 h-7 text-sm';
   return person.avatarUrl ? (
-    <img src={person.avatarUrl} alt="" className={clsx(box, 'rounded-full object-cover flex-shrink-0')} />
+    <img
+      src={person.avatarUrl}
+      alt=""
+      className={clsx(box, 'rounded-full object-cover flex-shrink-0')}
+    />
   ) : (
-    <span aria-hidden className={clsx(box, 'rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0 font-medium text-primary-700')}>
+    <span
+      aria-hidden
+      className={clsx(
+        box,
+        'rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0 font-medium text-primary-700'
+      )}
+    >
       {getInitial(person.name, person.email)}
     </span>
   );
@@ -47,7 +58,12 @@ export interface AssigneeOptionsProps {
 }
 
 /** Searchable member list (the body of the assignee popover); reusable in other popovers. */
-export function AssigneeOptions({ currentAssignees, workspaceMembers, onToggle, isLoading }: AssigneeOptionsProps) {
+export function AssigneeOptions({
+  currentAssignees,
+  workspaceMembers,
+  onToggle,
+  isLoading,
+}: AssigneeOptionsProps) {
   const [search, setSearch] = useState('');
   const assigneeIds = new Set(currentAssignees.map((a) => a.id));
   const query = search.toLowerCase();
@@ -92,10 +108,16 @@ export function AssigneeOptions({ currentAssignees, workspaceMembers, onToggle, 
               >
                 <Avatar person={member.user} size="md" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{member.user.name || member.user.email}</p>
-                  {member.user.name && <p className="text-xs text-gray-500 truncate">{member.user.email}</p>}
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {member.user.name || member.user.email}
+                  </p>
+                  {member.user.name && (
+                    <p className="text-xs text-gray-500 truncate">{member.user.email}</p>
+                  )}
                 </div>
-                {isAssigned && <Check className="w-4 h-4 text-primary-600 flex-shrink-0" aria-hidden />}
+                {isAssigned && (
+                  <Check className="w-4 h-4 text-primary-600 flex-shrink-0" aria-hidden />
+                )}
               </button>
             );
           })
@@ -136,7 +158,10 @@ export function AssigneePicker({
       {currentAssignees.length > 0 && (
         <ul className="flex flex-wrap gap-2 mb-2" aria-label="Current assignees">
           {currentAssignees.map((assignee) => (
-            <li key={assignee.id} className="flex items-center gap-2 py-1 pl-2.5 pr-1 bg-gray-100 rounded-full">
+            <li
+              key={assignee.id}
+              className="flex items-center gap-2 py-1 pl-2.5 pr-1 bg-gray-100 rounded-full"
+            >
               <Avatar person={assignee} size="sm" />
               <span className="text-sm text-gray-700">{assignee.name || assignee.email}</span>
               <IconButton

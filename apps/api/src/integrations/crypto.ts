@@ -1,4 +1,11 @@
-import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  createHmac,
+  randomBytes,
+  timingSafeEqual,
+} from 'crypto';
 import { readSecretEnv } from './env.js';
 
 /**
@@ -25,9 +32,12 @@ export function randomToken(bytes = 32): string {
 const SECRET_PREFIX = 'v1';
 
 function getEncryptionKey(): Buffer {
-  const raw = readSecretEnv('INTEGRATION_ENCRYPTION_KEY') ?? readSecretEnv('API_KEY_ENCRYPTION_KEY');
+  const raw =
+    readSecretEnv('INTEGRATION_ENCRYPTION_KEY') ?? readSecretEnv('API_KEY_ENCRYPTION_KEY');
   if (!raw) {
-    throw new Error('INTEGRATION_ENCRYPTION_KEY (or API_KEY_ENCRYPTION_KEY) is required to store integration tokens');
+    throw new Error(
+      'INTEGRATION_ENCRYPTION_KEY (or API_KEY_ENCRYPTION_KEY) is required to store integration tokens'
+    );
   }
   // Derive a 256-bit key from whatever format the operator supplied.
   return createHash('sha256').update(raw).digest();
@@ -39,7 +49,11 @@ export function encryptSecret(plaintext: string): string {
   const cipher = createCipheriv('aes-256-gcm', getEncryptionKey(), iv);
   const ciphertext = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
   const tag = cipher.getAuthTag();
-  return [SECRET_PREFIX, iv.toString('base64'), Buffer.concat([tag, ciphertext]).toString('base64')].join(':');
+  return [
+    SECRET_PREFIX,
+    iv.toString('base64'),
+    Buffer.concat([tag, ciphertext]).toString('base64'),
+  ].join(':');
 }
 
 export function decryptSecret(encoded: string): string {
@@ -48,7 +62,11 @@ export function decryptSecret(encoded: string): string {
     throw new Error('Unsupported encrypted secret format');
   }
   const payload = Buffer.from(payloadB64, 'base64');
-  const decipher = createDecipheriv('aes-256-gcm', getEncryptionKey(), Buffer.from(ivB64, 'base64'));
+  const decipher = createDecipheriv(
+    'aes-256-gcm',
+    getEncryptionKey(),
+    Buffer.from(ivB64, 'base64')
+  );
   decipher.setAuthTag(payload.subarray(0, 16));
   return Buffer.concat([decipher.update(payload.subarray(16)), decipher.final()]).toString('utf8');
 }

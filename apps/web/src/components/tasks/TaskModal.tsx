@@ -22,7 +22,15 @@ interface TaskModalProps {
 }
 
 /** Create (or edit) a task. Render it while open; closing unmounts it. */
-export function TaskModal({ taskId, projectId, states, defaultStateId, onClose, onCreated, onUpdated }: TaskModalProps) {
+export function TaskModal({
+  taskId,
+  projectId,
+  states,
+  defaultStateId,
+  onClose,
+  onCreated,
+  onUpdated,
+}: TaskModalProps) {
   const isEditing = !!taskId;
 
   const [title, setTitle] = useState('');
@@ -106,158 +114,153 @@ export function TaskModal({ taskId, projectId, states, defaultStateId, onClose, 
       dismissible={!isLoading}
       bodyClassName="!p-0"
     >
-        {/* Form */}
-        <form onSubmit={submit} className="p-4 space-y-4">
+      {/* Form */}
+      <form onSubmit={submit} className="p-4 space-y-4">
+        <div>
+          <label htmlFor="task-title" className="block text-sm font-medium text-gray-700 mb-1">
+            Title *
+          </label>
+          <input
+            id="task-title"
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="input"
+            placeholder="Task title"
+            required
+            autoFocus
+          />
+        </div>
+
+        <div>
+          <label
+            htmlFor="task-description"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Description
+          </label>
+          <textarea
+            id="task-description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="input min-h-[100px]"
+            placeholder="Add a description..."
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
           <div>
-            <label htmlFor="task-title" className="block text-sm font-medium text-gray-700 mb-1">
-              Title *
+            <label htmlFor="task-status" className="block text-sm font-medium text-gray-700 mb-1">
+              Status
             </label>
-            <input
-              id="task-title"
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
+            <select
+              id="task-status"
+              value={stateId}
+              onChange={(e) => setStateId(e.target.value)}
               className="input"
-              placeholder="Task title"
-              required
-              autoFocus
-            />
+            >
+              <option value="">Select status</option>
+              {states.map((state) => (
+                <option key={state.id} value={state.id}>
+                  {state.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
-            <label htmlFor="task-description" className="block text-sm font-medium text-gray-700 mb-1">
-              Description
+            <label htmlFor="task-priority" className="block text-sm font-medium text-gray-700 mb-1">
+              Priority
             </label>
-            <textarea
-              id="task-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="input min-h-[100px]"
-              placeholder="Add a description..."
-            />
+            <select
+              id="task-priority"
+              value={priority}
+              onChange={(e) => setPriority(e.target.value)}
+              className="input"
+            >
+              <option value="">No priority</option>
+              <option value="urgent">Urgent</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
           </div>
+        </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="task-status" className="block text-sm font-medium text-gray-700 mb-1">
-                Status
+        {/* Assign to me - only show for new tasks */}
+        {!isEditing && (
+          <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+            <input
+              type="checkbox"
+              id="assignToMe"
+              checked={assignToMe}
+              onChange={(e) => setAssignToMe(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <label htmlFor="assignToMe" className="text-sm text-gray-700">
+              Assign to me
+            </label>
+          </div>
+        )}
+
+        {/* GitHub Integration - only show for new tasks when repos are linked */}
+        {!isEditing && hasGitHub && (
+          <div className="pt-2 space-y-2 border-t border-gray-100">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="createOnGitHub"
+                checked={createOnGitHub}
+                onChange={(e) => {
+                  setCreateOnGitHub(e.target.checked);
+                  if (e.target.checked && linkedRepos.length === 1) {
+                    setSelectedRepo({
+                      owner: linkedRepos[0].owner,
+                      repo: linkedRepos[0].repo,
+                    });
+                  }
+                  if (!e.target.checked) {
+                    setSelectedRepo(null);
+                  }
+                }}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="createOnGitHub" className="text-sm text-gray-700">
+                Also create GitHub issue
               </label>
+            </div>
+
+            {createOnGitHub && linkedRepos.length > 1 && (
               <select
-                id="task-status"
-                value={stateId}
-                onChange={(e) => setStateId(e.target.value)}
+                aria-label="GitHub repository"
+                value={selectedRepo ? `${selectedRepo.owner}/${selectedRepo.repo}` : ''}
+                onChange={(e) => {
+                  const [owner, repo] = e.target.value.split('/');
+                  setSelectedRepo(owner && repo ? { owner, repo } : null);
+                }}
                 className="input"
               >
-                <option value="">Select status</option>
-                {states.map((state) => (
-                  <option key={state.id} value={state.id}>
-                    {state.name}
+                <option value="">Select repository</option>
+                {linkedRepos.map((r) => (
+                  <option key={`${r.owner}/${r.repo}`} value={`${r.owner}/${r.repo}`}>
+                    {r.owner}/{r.repo}
                   </option>
                 ))}
               </select>
-            </div>
-
-            <div>
-              <label htmlFor="task-priority" className="block text-sm font-medium text-gray-700 mb-1">
-                Priority
-              </label>
-              <select
-                id="task-priority"
-                value={priority}
-                onChange={(e) => setPriority(e.target.value)}
-                className="input"
-              >
-                <option value="">No priority</option>
-                <option value="urgent">Urgent</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-              </select>
-            </div>
+            )}
           </div>
+        )}
 
-          {/* Assign to me - only show for new tasks */}
-          {!isEditing && (
-            <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-              <input
-                type="checkbox"
-                id="assignToMe"
-                checked={assignToMe}
-                onChange={(e) => setAssignToMe(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <label htmlFor="assignToMe" className="text-sm text-gray-700">
-                Assign to me
-              </label>
-            </div>
-          )}
-
-          {/* GitHub Integration - only show for new tasks when repos are linked */}
-          {!isEditing && hasGitHub && (
-            <div className="pt-2 space-y-2 border-t border-gray-100">
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="createOnGitHub"
-                  checked={createOnGitHub}
-                  onChange={(e) => {
-                    setCreateOnGitHub(e.target.checked);
-                    if (e.target.checked && linkedRepos.length === 1) {
-                      setSelectedRepo({
-                        owner: linkedRepos[0].owner,
-                        repo: linkedRepos[0].repo,
-                      });
-                    }
-                    if (!e.target.checked) {
-                      setSelectedRepo(null);
-                    }
-                  }}
-                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <label htmlFor="createOnGitHub" className="text-sm text-gray-700">
-                  Also create GitHub issue
-                </label>
-              </div>
-
-              {createOnGitHub && linkedRepos.length > 1 && (
-                <select
-                  aria-label="GitHub repository"
-                  value={selectedRepo ? `${selectedRepo.owner}/${selectedRepo.repo}` : ''}
-                  onChange={(e) => {
-                    const [owner, repo] = e.target.value.split('/');
-                    setSelectedRepo(owner && repo ? { owner, repo } : null);
-                  }}
-                  className="input"
-                >
-                  <option value="">Select repository</option>
-                  {linkedRepos.map((r) => (
-                    <option key={`${r.owner}/${r.repo}`} value={`${r.owner}/${r.repo}`}>
-                      {r.owner}/{r.repo}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="flex justify-end space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="btn btn-secondary"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isLoading || !title.trim()}
-              className="btn btn-primary"
-            >
-              {isLoading ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Task'}
-            </button>
-          </div>
-        </form>
+        {/* Actions */}
+        <div className="flex justify-end space-x-3 pt-4">
+          <button type="button" onClick={onClose} className="btn btn-secondary">
+            Cancel
+          </button>
+          <button type="submit" disabled={isLoading || !title.trim()} className="btn btn-primary">
+            {isLoading ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Task'}
+          </button>
+        </div>
+      </form>
     </Dialog>
   );
 }

@@ -45,7 +45,11 @@ taskHistoryRoutes.get(
       console.error('[task-history]', result.error);
       return fail(c, 500, 'HISTORY_FAILED', 'Failed to load history');
     }
-    return c.json({ success: true, data: result.value.items, meta: { nextCursor: result.value.nextCursor } });
+    return c.json({
+      success: true,
+      data: result.value.items,
+      meta: { nextCursor: result.value.nextCursor },
+    });
   }
 );
 

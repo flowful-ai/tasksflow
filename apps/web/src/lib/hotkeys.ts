@@ -70,8 +70,19 @@ const KEY_ALIASES: Record<string, string> = {
 
 function parseStroke(stroke: string): KeyStroke {
   // "shift++" style is not supported; use "plus".
-  const parts = stroke.trim().toLowerCase().split('+').filter((p) => p.length > 0);
-  const result: KeyStroke = { key: '', mod: false, ctrl: false, meta: false, alt: false, shift: undefined };
+  const parts = stroke
+    .trim()
+    .toLowerCase()
+    .split('+')
+    .filter((p) => p.length > 0);
+  const result: KeyStroke = {
+    key: '',
+    mod: false,
+    ctrl: false,
+    meta: false,
+    alt: false,
+    shift: undefined,
+  };
   for (const part of parts) {
     if (part === 'mod') result.mod = true;
     else if (part === 'ctrl' || part === 'control') result.ctrl = true;
@@ -123,12 +134,17 @@ export function isEditableTarget(target: EventTarget | null): boolean {
 
 /** Menus, listboxes and comboboxes use letters and arrows themselves (typeahead, navigation). */
 function isWidgetTarget(target: EventTarget | null): boolean {
-  return target instanceof Element && target.closest('[role="menu"], [role="listbox"], [role="combobox"], [cmdk-root]') !== null;
+  return (
+    target instanceof Element &&
+    target.closest('[role="menu"], [role="listbox"], [role="combobox"], [cmdk-root]') !== null
+  );
 }
 
 function hasOpenModal(): boolean {
   return (
-    document.querySelector('[role="dialog"][aria-modal="true"], [role="alertdialog"], [role="menu"][data-state="open"]') !== null
+    document.querySelector(
+      '[role="dialog"][aria-modal="true"], [role="alertdialog"], [role="menu"][data-state="open"]'
+    ) !== null
   );
 }
 
@@ -177,7 +193,10 @@ function onKeyDown(event: KeyboardEvent): void {
   pending = null;
   if (previous && Date.now() - previous.at <= SEQUENCE_TIMEOUT_MS) {
     const completed = candidates.find(
-      (r) => r.strokes.length === 2 && matchesStroke(r.strokes[0], previous.event) && matchesStroke(r.strokes[1], event)
+      (r) =>
+        r.strokes.length === 2 &&
+        matchesStroke(r.strokes[0], previous.event) &&
+        matchesStroke(r.strokes[1], event)
     );
     if (completed) {
       fire(completed, event);
@@ -189,7 +208,9 @@ function onKeyDown(event: KeyboardEvent): void {
     pending = { event: snapshot(event), at: Date.now() };
   }
 
-  const single = candidates.find((r) => r.strokes.length === 1 && matchesStroke(r.strokes[0], event));
+  const single = candidates.find(
+    (r) => r.strokes.length === 1 && matchesStroke(r.strokes[0], event)
+  );
   if (single) fire(single, event);
 }
 
@@ -211,7 +232,11 @@ function register(registration: Registration): () => void {
 }
 
 /** Bind `combo` while the component is mounted. The handler may change on every render. */
-export function useHotkey(combo: string, handler: HotkeyHandler, options: HotkeyOptions = {}): void {
+export function useHotkey(
+  combo: string,
+  handler: HotkeyHandler,
+  options: HotkeyOptions = {}
+): void {
   const handlerRef = useRef(handler);
   const optionsRef = useRef(options);
   handlerRef.current = handler;
@@ -223,7 +248,10 @@ export function useHotkey(combo: string, handler: HotkeyHandler, options: Hotkey
 }
 
 export function isMac(): boolean {
-  return typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent);
+  return (
+    typeof navigator !== 'undefined' &&
+    /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent)
+  );
 }
 
 export function modKeyLabel(): string {

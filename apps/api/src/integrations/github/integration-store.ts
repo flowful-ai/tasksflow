@@ -27,7 +27,11 @@ export interface ProjectGitHubIntegration {
  * Find every enabled GitHub integration that links owner/repo, with a JSONB
  * query instead of loading and filtering all integrations in memory.
  */
-export async function findGitHubTargetsForRepo(db: Database, owner: string, repo: string): Promise<GitHubRepoTarget[]> {
+export async function findGitHubTargetsForRepo(
+  db: Database,
+  owner: string,
+  repo: string
+): Promise<GitHubRepoTarget[]> {
   const ownerLc = owner.toLowerCase();
   const repoLc = repo.toLowerCase();
   const rows = await db
@@ -82,11 +86,22 @@ export async function getProjectGitHubIntegration(
   projectId: string,
   options: { enabledOnly?: boolean } = {}
 ): Promise<ProjectGitHubIntegration | null> {
-  const conditions = [eq(projectIntegrations.projectId, projectId), eq(projectIntegrations.integrationType, 'github')];
+  const conditions = [
+    eq(projectIntegrations.projectId, projectId),
+    eq(projectIntegrations.integrationType, 'github'),
+  ];
   if (options.enabledOnly) conditions.push(eq(projectIntegrations.isEnabled, true));
-  const [row] = await db.select().from(projectIntegrations).where(and(...conditions));
+  const [row] = await db
+    .select()
+    .from(projectIntegrations)
+    .where(and(...conditions));
   if (!row) return null;
-  return { id: row.id, projectId: row.projectId, isEnabled: row.isEnabled, config: parseGitHubConfig(row.config) };
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    isEnabled: row.isEnabled,
+    config: parseGitHubConfig(row.config),
+  };
 }
 
 /** Resolve a repo target for a project, or null when the repo isn't linked to it. */
@@ -113,7 +128,9 @@ export async function getGitHubTargetForProjectRepo(
     );
   if (!row) return null;
   const linked = findLinkedRepository(parseGitHubConfig(row.config), owner, repo);
-  return linked ? { integrationId: row.integrationId, projectId, workspaceId: row.workspaceId, repo: linked } : null;
+  return linked
+    ? { integrationId: row.integrationId, projectId, workspaceId: row.workspaceId, repo: linked }
+    : null;
 }
 
 /**
@@ -125,18 +142,34 @@ export async function updateGitHubConfig(
   db: Database,
   projectId: string,
   mutate: (config: GitHubConfig) => GitHubConfig,
-  extra: { syncStatus?: 'idle' | 'syncing' | 'synced' | 'error'; syncError?: string | null; lastSyncAt?: Date } = {}
+  extra: {
+    syncStatus?: 'idle' | 'syncing' | 'synced' | 'error';
+    syncError?: string | null;
+    lastSyncAt?: Date;
+  } = {}
 ): Promise<ProjectGitHubIntegration> {
   return db.transaction(async (tx) => {
     await tx
       .insert(projectIntegrations)
-      .values({ projectId, integrationType: 'github', config: { repositories: [] }, isEnabled: true })
-      .onConflictDoNothing({ target: [projectIntegrations.projectId, projectIntegrations.integrationType] });
+      .values({
+        projectId,
+        integrationType: 'github',
+        config: { repositories: [] },
+        isEnabled: true,
+      })
+      .onConflictDoNothing({
+        target: [projectIntegrations.projectId, projectIntegrations.integrationType],
+      });
 
     const [row] = await tx
       .select()
       .from(projectIntegrations)
-      .where(and(eq(projectIntegrations.projectId, projectId), eq(projectIntegrations.integrationType, 'github')))
+      .where(
+        and(
+          eq(projectIntegrations.projectId, projectId),
+          eq(projectIntegrations.integrationType, 'github')
+        )
+      )
       .for('update');
     if (!row) {
       throw new Error('GitHub integration row missing after upsert');
@@ -171,7 +204,9 @@ export async function updateRepoSyncStatus(
     projectId,
     (config) => ({
       repositories: config.repositories.map((r) =>
-        r.owner.toLowerCase() === owner.toLowerCase() && r.repo.toLowerCase() === repo.toLowerCase() ? { ...r, ...patch } : r
+        r.owner.toLowerCase() === owner.toLowerCase() && r.repo.toLowerCase() === repo.toLowerCase()
+          ? { ...r, ...patch }
+          : r
       ),
     }),
     {

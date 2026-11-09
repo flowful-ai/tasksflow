@@ -101,7 +101,10 @@ export function positionAfter(lastPosition?: string | null): string {
   if (isValidPosition(lastPosition)) return generateKeyBetween(lastPosition, null);
   const above = validKeyAbove(lastPosition);
   if (!above) {
-    throw new InvalidPositionError(`No valid position sorts after ${JSON.stringify(lastPosition)}`, [lastPosition, null]);
+    throw new InvalidPositionError(
+      `No valid position sorts after ${JSON.stringify(lastPosition)}`,
+      [lastPosition, null]
+    );
   }
   return above;
 }
@@ -115,7 +118,10 @@ export function positionBefore(firstPosition?: string | null): string {
   if (isValidPosition(firstPosition)) return generateKeyBetween(null, firstPosition);
   const below = validKeyBelow(firstPosition);
   if (!below) {
-    throw new InvalidPositionError(`No valid position sorts before ${JSON.stringify(firstPosition)}`, [null, firstPosition]);
+    throw new InvalidPositionError(
+      `No valid position sorts before ${JSON.stringify(firstPosition)}`,
+      [null, firstPosition]
+    );
   }
   return below;
 }
@@ -127,10 +133,16 @@ export function positionBefore(firstPosition?: string | null): string {
  */
 export function positionBetween(before: string, after: string): string {
   if (!isValidPosition(before) || !isValidPosition(after)) {
-    throw new InvalidPositionError(`Invalid neighbour position ("${before}", "${after}")`, [before, after]);
+    throw new InvalidPositionError(`Invalid neighbour position ("${before}", "${after}")`, [
+      before,
+      after,
+    ]);
   }
   if (comparePositions(before, after) >= 0) {
-    throw new InvalidPositionError(`Positions are not ascending ("${before}" >= "${after}")`, [before, after]);
+    throw new InvalidPositionError(`Positions are not ascending ("${before}" >= "${after}")`, [
+      before,
+      after,
+    ]);
   }
   return generateKeyBetween(before, after);
 }
@@ -153,13 +165,23 @@ export function generatePosition(before?: string | null, after?: string | null):
  *
  * @throws InvalidPositionError when a neighbour is invalid or they are not ascending.
  */
-export function generatePositions(n: number, before?: string | null, after?: string | null): string[] {
+export function generatePositions(
+  n: number,
+  before?: string | null,
+  after?: string | null
+): string[] {
   if (n <= 0) return [];
   if ((before && !isValidPosition(before)) || (after && !isValidPosition(after))) {
-    throw new InvalidPositionError(`Invalid neighbour position ("${before}", "${after}")`, [before ?? null, after ?? null]);
+    throw new InvalidPositionError(`Invalid neighbour position ("${before}", "${after}")`, [
+      before ?? null,
+      after ?? null,
+    ]);
   }
   if (before && after && comparePositions(before, after) >= 0) {
-    throw new InvalidPositionError(`Positions are not ascending ("${before}" >= "${after}")`, [before, after]);
+    throw new InvalidPositionError(`Positions are not ascending ("${before}" >= "${after}")`, [
+      before,
+      after,
+    ]);
   }
   return generateNKeysBetween(before ?? null, after ?? null, n);
 }

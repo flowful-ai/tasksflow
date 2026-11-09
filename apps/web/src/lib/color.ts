@@ -58,7 +58,11 @@ export function contrastRatio(a: string, b: string): number | null {
  * Text colour (ink or white) with the higher WCAG contrast on `background`.
  * Invalid input falls back to ink.
  */
-export function readableTextColor(background: string | null | undefined, dark: string = INK, light: string = WHITE): string {
+export function readableTextColor(
+  background: string | null | undefined,
+  dark: string = INK,
+  light: string = WHITE
+): string {
   const hex = normalizeHex(background);
   if (!hex) return dark;
   const onDark = contrastRatio(hex, light) ?? 0;
@@ -86,7 +90,16 @@ export function colorDot(color: string | null | undefined): CSSProperties {
   return { backgroundColor: dotColor(color) };
 }
 
-const PROJECT_COLORS = ['#ef4444', '#2563eb', '#16a34a', '#d97706', '#7c3aed', '#0891b2', '#db2777', '#65a30d'];
+const PROJECT_COLORS = [
+  '#ef4444',
+  '#2563eb',
+  '#16a34a',
+  '#d97706',
+  '#7c3aed',
+  '#0891b2',
+  '#db2777',
+  '#65a30d',
+];
 
 /** Stable colour per project (projects have no colour of their own). */
 export function projectColor(projectId: string): string {

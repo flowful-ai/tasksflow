@@ -115,9 +115,16 @@ export class TaskRelationService {
           const inverse = await tx
             .select({ id: taskRelations.id })
             .from(taskRelations)
-            .where(and(eq(taskRelations.type, 'blocks'), eq(taskRelations.taskId, to), eq(taskRelations.relatedTaskId, from)))
+            .where(
+              and(
+                eq(taskRelations.type, 'blocks'),
+                eq(taskRelations.taskId, to),
+                eq(taskRelations.relatedTaskId, from)
+              )
+            )
             .limit(1);
-          if (inverse.length) throw new TaskError('INVALID_RELATION', 'The related task already blocks this task');
+          if (inverse.length)
+            throw new TaskError('INVALID_RELATION', 'The related task already blocks this task');
         }
 
         const [row] = await tx
@@ -129,8 +136,20 @@ export class TaskRelationService {
 
         const value = { relationId: row.id, type: input.type, taskId: from, relatedTaskId: to };
         await recordTaskEvents(tx, [
-          { taskId: from, actorId: input.createdBy, mcpClientId: input.mcpClientId, eventType: 'relation_added', newValue: value },
-          { taskId: to, actorId: input.createdBy, mcpClientId: input.mcpClientId, eventType: 'relation_added', newValue: value },
+          {
+            taskId: from,
+            actorId: input.createdBy,
+            mcpClientId: input.mcpClientId,
+            eventType: 'relation_added',
+            newValue: value,
+          },
+          {
+            taskId: to,
+            actorId: input.createdBy,
+            mcpClientId: input.mcpClientId,
+            eventType: 'relation_added',
+            newValue: value,
+          },
         ]);
         return row.id;
       });
@@ -163,9 +182,20 @@ export class TaskRelationService {
           )
           .returning();
         if (!row) throw new TaskError('RELATION_NOT_FOUND', 'Relation not found', [relationId]);
-        const value = { relationId: row.id, type: row.type, taskId: row.taskId, relatedTaskId: row.relatedTaskId };
+        const value = {
+          relationId: row.id,
+          type: row.type,
+          taskId: row.taskId,
+          relatedTaskId: row.relatedTaskId,
+        };
         await recordTaskEvents(tx, [
-          { taskId: row.taskId, actorId: removedBy, mcpClientId: options?.mcpClientId, eventType: 'relation_removed', oldValue: value },
+          {
+            taskId: row.taskId,
+            actorId: removedBy,
+            mcpClientId: options?.mcpClientId,
+            eventType: 'relation_removed',
+            oldValue: value,
+          },
           {
             taskId: row.relatedTaskId,
             actorId: removedBy,

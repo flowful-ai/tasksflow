@@ -6,10 +6,18 @@ import { AgentToolSchema, type AgentTool } from '@flowtask/shared';
 import { buildToolContext } from '../lib/mcp/tool-context.js';
 import { setMcpRateLimiter } from '../lib/mcp/rate-limit.js';
 import { createMcpServer, mcpSseRoutes } from './mcp-sse.js';
-import { USER_ADMIN, WS_A, createScopeDeps, createServices } from '../services/agent-tools/test-fixtures.js';
+import {
+  USER_ADMIN,
+  WS_A,
+  createScopeDeps,
+  createServices,
+} from '../services/agent-tools/test-fixtures.js';
 
 async function connect(grantedTools: AgentTool[]) {
-  const ctx = buildToolContext({ workspaceId: WS_A, userId: USER_ADMIN, role: 'admin', grantedTools }, createScopeDeps());
+  const ctx = buildToolContext(
+    { workspaceId: WS_A, userId: USER_ADMIN, role: 'admin', grantedTools },
+    createScopeDeps()
+  );
   const { services } = createServices();
   const server = createMcpServer(ctx, services);
   const client = new Client({ name: 'test', version: '1.0.0' });
@@ -34,7 +42,9 @@ describe('MCP server', () => {
     await client.listTools();
     const projects = await client.callTool({ name: 'list_projects', arguments: {} });
     expect(projects.isError).toBeFalsy();
-    expect(projects.structuredContent).toMatchObject({ projects: [{ identifier: 'ENG' }, { identifier: 'SEC' }] });
+    expect(projects.structuredContent).toMatchObject({
+      projects: [{ identifier: 'ENG' }, { identifier: 'SEC' }],
+    });
 
     const tasks = await client.callTool({ name: 'query_tasks', arguments: { limit: 1 } });
     expect(tasks.isError).toBeFalsy();
@@ -47,8 +57,12 @@ describe('MCP server', () => {
 
   it('answers unknown and non-granted tools with a JSON-RPC error', async () => {
     const client = await connect(['query_tasks']);
-    await expect(client.callTool({ name: 'delete_task', arguments: { taskId: 'ENG-1' } })).rejects.toThrow(/not granted/);
-    await expect(client.callTool({ name: 'drop_database', arguments: {} })).rejects.toThrow(/not found/);
+    await expect(
+      client.callTool({ name: 'delete_task', arguments: { taskId: 'ENG-1' } })
+    ).rejects.toThrow(/not granted/);
+    await expect(client.callTool({ name: 'drop_database', arguments: {} })).rejects.toThrow(
+      /not found/
+    );
   });
 
   it('returns validation errors to the model as tool errors', async () => {
@@ -78,7 +92,9 @@ describe('MCP HTTP routes', () => {
     for (const path of ['/api/mcp', '/api/mcp/sse']) {
       const response = await app.request(`http://localhost${path}`, { method: 'POST', body: '{}' });
       expect(response.status).toBe(401);
-      expect(response.headers.get('WWW-Authenticate')).toContain(`/.well-known/oauth-protected-resource${path}"`);
+      expect(response.headers.get('WWW-Authenticate')).toContain(
+        `/.well-known/oauth-protected-resource${path}"`
+      );
     }
     expect(calls.every((key) => key.startsWith('mcp:mcp:'))).toBe(true);
   });
@@ -93,7 +109,9 @@ describe('MCP HTTP routes', () => {
   });
 
   it('rejects requests over the per-IP limit', async () => {
-    setMcpRateLimiter({ checkMinuteLimit: async () => ({ allowed: false, remaining: 0, resetIn: 42 }) });
+    setMcpRateLimiter({
+      checkMinuteLimit: async () => ({ allowed: false, remaining: 0, resetIn: 42 }),
+    });
     const response = await app.request('http://localhost/api/mcp', { method: 'POST', body: '{}' });
     expect(response.status).toBe(429);
     expect(response.headers.get('Retry-After')).toBe('42');

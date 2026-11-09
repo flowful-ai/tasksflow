@@ -10,7 +10,16 @@ import type { ToolOutput } from '../../lib/mcp/response-shaping.js';
 export interface ToolServices {
   tasks: Pick<
     TaskService,
-    'create' | 'getById' | 'update' | 'move' | 'delete' | 'list' | 'addAssignee' | 'removeAssignee' | 'addLabel' | 'removeLabel'
+    | 'create'
+    | 'getById'
+    | 'update'
+    | 'move'
+    | 'delete'
+    | 'list'
+    | 'addAssignee'
+    | 'removeAssignee'
+    | 'addLabel'
+    | 'removeLabel'
   >;
   comments: Pick<CommentService, 'create' | 'list'>;
   smartViews: Pick<SmartViewService, 'create' | 'getById' | 'list'>;
@@ -23,7 +32,11 @@ export interface ToolServices {
   withTaskTransaction<T>(fn: (tasks: ToolServices['tasks']) => Promise<T>): Promise<T>;
 }
 
-export type ToolHandler = (args: JsonRecord, ctx: ToolContext, services: ToolServices) => Promise<ToolOutput>;
+export type ToolHandler = (
+  args: JsonRecord,
+  ctx: ToolContext,
+  services: ToolServices
+) => Promise<ToolOutput>;
 
 let defaultServices: ToolServices | null = null;
 

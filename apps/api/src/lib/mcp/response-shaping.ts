@@ -2,7 +2,12 @@ import type { TaskWithRelations } from '../../domain/index.js';
 import { UNTRUSTED_TEXT_KEY } from '../../domain/index.js';
 import { ToolExecutionError } from './errors.js';
 import type { JsonRecord } from './json-schema-zod.js';
-import { resolveMcpTaskViewArgs, resolveMcpWriteReturnMode, type McpTaskViewArgs, type McpWriteReturnMode } from './tool-args.js';
+import {
+  resolveMcpTaskViewArgs,
+  resolveMcpWriteReturnMode,
+  type McpTaskViewArgs,
+  type McpWriteReturnMode,
+} from './tool-args.js';
 
 /**
  * Tool output shaping. Outputs are serialized to JSON for the model, so they
@@ -22,7 +27,16 @@ export function untrusted(value: string | null): UntrustedText | null {
   return value === null ? null : { [UNTRUSTED_TEXT_KEY]: value };
 }
 
-const COMPACT_TASK_FIELDS = ['id', 'key', 'projectId', 'title', 'stateId', 'priority', 'updatedAt', 'dueDate'] as const;
+const COMPACT_TASK_FIELDS = [
+  'id',
+  'key',
+  'projectId',
+  'title',
+  'stateId',
+  'priority',
+  'updatedAt',
+  'dueDate',
+] as const;
 
 const TASK_CUSTOM_FIELDS = [
   'id',
@@ -49,7 +63,10 @@ const TASK_CUSTOM_FIELDS = [
   'externalLinks',
 ] as const;
 
-const RELATION_FIELD_FLAGS: Record<string, 'includeAssignees' | 'includeLabels' | 'includeExternalLinks' | null> = {
+const RELATION_FIELD_FLAGS: Record<
+  string,
+  'includeAssignees' | 'includeLabels' | 'includeExternalLinks' | null
+> = {
   assignees: 'includeAssignees',
   labels: 'includeLabels',
   externalLinks: 'includeExternalLinks',
@@ -120,7 +137,9 @@ function modelTask(task: TaskWithRelations): ToolOutput {
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
     deletedAt: task.deletedAt,
-    state: task.state ? { id: task.state.id, name: task.state.name, category: task.state.category } : null,
+    state: task.state
+      ? { id: task.state.id, name: task.state.name, category: task.state.category }
+      : null,
     project: task.project,
     assignees: task.assignees.map(summarizeUser),
     labels: task.labels.map((label) => ({ id: label.id, name: label.name, color: label.color })),
@@ -178,7 +197,11 @@ const WRITE_PROJECTION: TaskProjectionOptions = {
   includeExternalLinks: false,
 };
 
-export function formatWriteTaskResult(tool: string, task: TaskWithRelations, mode: McpWriteReturnMode): ToolOutput {
+export function formatWriteTaskResult(
+  tool: string,
+  task: TaskWithRelations,
+  mode: McpWriteReturnMode
+): ToolOutput {
   if (mode === 'ack') {
     return { ok: true, tool, id: task.id, key: taskKey(task) };
   }
@@ -217,7 +240,11 @@ export function projectComment(comment: CommentForModel): ToolOutput {
   };
 }
 
-export function formatWriteCommentResult(tool: string, comment: CommentForModel, mode: McpWriteReturnMode): ToolOutput {
+export function formatWriteCommentResult(
+  tool: string,
+  comment: CommentForModel,
+  mode: McpWriteReturnMode
+): ToolOutput {
   if (mode === 'ack') {
     return { ok: true, tool, id: comment.id };
   }

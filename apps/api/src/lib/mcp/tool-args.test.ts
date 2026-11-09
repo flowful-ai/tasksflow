@@ -14,18 +14,30 @@ describe('resolveUpdateTaskGitHubPrArgs', () => {
 
   it('parses and normalizes pull request arguments', () => {
     expect(
-      resolveUpdateTaskGitHubPrArgs({ githubPrOwner: '  octo ', githubPrRepo: ' repo ', githubPrNumber: 42 })
+      resolveUpdateTaskGitHubPrArgs({
+        githubPrOwner: '  octo ',
+        githubPrRepo: ' repo ',
+        githubPrNumber: 42,
+      })
     ).toEqual({ owner: 'octo', repo: 'repo', prNumber: 42 });
   });
 
   it('throws a model-visible error when pull request arguments are incomplete', () => {
-    expect(() => resolveUpdateTaskGitHubPrArgs({ githubPrOwner: 'octo' })).toThrow(ToolExecutionError);
-    expect(() => resolveUpdateTaskGitHubPrArgs({ githubPrOwner: 'octo' })).toThrow('githubPrRepo is required');
+    expect(() => resolveUpdateTaskGitHubPrArgs({ githubPrOwner: 'octo' })).toThrow(
+      ToolExecutionError
+    );
+    expect(() => resolveUpdateTaskGitHubPrArgs({ githubPrOwner: 'octo' })).toThrow(
+      'githubPrRepo is required'
+    );
   });
 
   it('throws when pull request number is not a positive integer', () => {
     expect(() =>
-      resolveUpdateTaskGitHubPrArgs({ githubPrOwner: 'octo', githubPrRepo: 'repo', githubPrNumber: 0 })
+      resolveUpdateTaskGitHubPrArgs({
+        githubPrOwner: 'octo',
+        githubPrRepo: 'repo',
+        githubPrNumber: 0,
+      })
     ).toThrow('githubPrNumber must be a positive integer');
   });
 });
@@ -42,7 +54,9 @@ describe('resolveMcpTaskViewArgs', () => {
   });
 
   it('requires fields for custom view', () => {
-    expect(() => resolveMcpTaskViewArgs({ view: 'custom' })).toThrow('fields is required when view is custom');
+    expect(() => resolveMcpTaskViewArgs({ view: 'custom' })).toThrow(
+      'fields is required when view is custom'
+    );
   });
 
   it('rejects fields for non-custom views', () => {
@@ -53,7 +67,11 @@ describe('resolveMcpTaskViewArgs', () => {
 
   it('normalizes custom fields and include flags', () => {
     expect(
-      resolveMcpTaskViewArgs({ view: 'custom', fields: [' id ', 'title', 'id'], includeAssignees: true })
+      resolveMcpTaskViewArgs({
+        view: 'custom',
+        fields: [' id ', 'title', 'id'],
+        includeAssignees: true,
+      })
     ).toEqual({
       view: 'custom',
       fields: ['id', 'title'],
@@ -85,7 +103,9 @@ describe('parseDueDate', () => {
   });
 
   it('accepts ISO datetimes', () => {
-    expect(parseDueDate('2026-12-01T15:30:00+02:00').toISOString()).toBe('2026-12-01T13:30:00.000Z');
+    expect(parseDueDate('2026-12-01T15:30:00+02:00').toISOString()).toBe(
+      '2026-12-01T13:30:00.000Z'
+    );
   });
 
   it('rejects garbage with a model-visible error', () => {

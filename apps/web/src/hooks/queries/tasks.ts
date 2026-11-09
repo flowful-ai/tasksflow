@@ -53,7 +53,8 @@ export function useProjectTasks(
 ) {
   const query = useInfiniteQuery({
     queryKey: queryKeys.tasks.list(projectId ?? '', filters),
-    queryFn: ({ pageParam, signal }) => tasksApi.listPage(projectId ?? '', pageParam, filters, TASK_PAGE_SIZE, signal),
+    queryFn: ({ pageParam, signal }) =>
+      tasksApi.listPage(projectId ?? '', pageParam, filters, TASK_PAGE_SIZE, signal),
     initialPageParam: 1,
     getNextPageParam: (lastPage: TaskListPage, pages: TaskListPage[]) => {
       const loaded = pages.reduce((sum, page) => sum + page.data.length, 0);
@@ -83,7 +84,10 @@ export function useProjectTasks(
 }
 
 /** Task detail (parent, sub-tasks, blocking relations). Seeded from a cached list copy. */
-export function useTask(taskId: string | null | undefined, options: { includeDeleted?: boolean; enabled?: boolean } = {}) {
+export function useTask(
+  taskId: string | null | undefined,
+  options: { includeDeleted?: boolean; enabled?: boolean } = {}
+) {
   const queryClient = useQueryClient();
   return useQuery({
     queryKey: queryKeys.tasks.detail(taskId ?? ''),
@@ -104,14 +108,19 @@ export function useTaskComments(taskId: string | null | undefined) {
 // ============ Mutations ============
 
 /** Refresh what a task change can affect (counts, filtered lists, smart views, history). */
-export function invalidateAfterTaskChange(queryClient: QueryClient, task: { id?: string; projectId?: string | null }) {
+export function invalidateAfterTaskChange(
+  queryClient: QueryClient,
+  task: { id?: string; projectId?: string | null }
+) {
   return Promise.all([
     task.projectId
       ? queryClient.invalidateQueries({ queryKey: queryKeys.tasks.project(task.projectId) })
       : queryClient.invalidateQueries({ queryKey: queryKeys.tasks.lists() }),
     queryClient.invalidateQueries({ queryKey: queryKeys.smartViews.executions() }),
     queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.activities() }),
-    task.id ? queryClient.invalidateQueries({ queryKey: queryKeys.tasks.history(task.id) }) : undefined,
+    task.id
+      ? queryClient.invalidateQueries({ queryKey: queryKeys.tasks.history(task.id) })
+      : undefined,
   ]);
 }
 
@@ -261,18 +270,25 @@ export function useBulkTasks() {
   return useMutation({
     mutationFn: ({ taskIds, op }: BulkTaskVariables) => tasksApi.bulk(taskIds, op),
     onSuccess: (response, { op }) => {
-      const touched = new Set(response.results.filter((r) => r.status === 'updated').map((r) => r.taskId));
+      const touched = new Set(
+        response.results.filter((r) => r.status === 'updated').map((r) => r.taskId)
+      );
       if (op.delete) {
         for (const taskId of touched) removeTaskEverywhere(queryClient, taskId);
       } else {
-        for (const task of response.tasks) upsertTaskEverywhere(queryClient, task, { created: Boolean(op.restore) });
+        for (const task of response.tasks)
+          upsertTaskEverywhere(queryClient, task, { created: Boolean(op.restore) });
       }
     },
     onSettled: (response) => {
       const projectIds = new Set((response?.tasks ?? []).map((t: TaskDto) => t.projectId));
       return Promise.all([
         projectIds.size > 0
-          ? Promise.all([...projectIds].map((id) => queryClient.invalidateQueries({ queryKey: queryKeys.tasks.project(id) })))
+          ? Promise.all(
+              [...projectIds].map((id) =>
+                queryClient.invalidateQueries({ queryKey: queryKeys.tasks.project(id) })
+              )
+            )
           : queryClient.invalidateQueries({ queryKey: queryKeys.tasks.lists() }),
         queryClient.invalidateQueries({ queryKey: queryKeys.smartViews.executions() }),
         queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.activities() }),

@@ -40,7 +40,9 @@ async function pruneDeliveries(): Promise<void> {
   if (Date.now() - lastPruneAt < PRUNE_INTERVAL_MS) return;
   lastPruneAt = Date.now();
   try {
-    await db.delete(webhookDeliveries).where(lt(webhookDeliveries.receivedAt, new Date(Date.now() - DELIVERY_RETENTION_MS)));
+    await db
+      .delete(webhookDeliveries)
+      .where(lt(webhookDeliveries.receivedAt, new Date(Date.now() - DELIVERY_RETENTION_MS)));
   } catch (error) {
     console.error('Failed to prune webhook deliveries:', error);
   }
@@ -170,7 +172,9 @@ async function slackHelpText(teamId: string | null): Promise<string> {
     if (connected.length > 0) {
       lines.push('', '*Connected projects:*');
       for (const p of connected) {
-        lines.push(`• <${webUrl}/project/${p.projectId}|${slackEscape(`${p.identifier} · ${p.name}`)}>`);
+        lines.push(
+          `• <${webUrl}/project/${p.projectId}|${slackEscape(`${p.identifier} · ${p.name}`)}>`
+        );
       }
     }
   }
@@ -194,7 +198,12 @@ webhooks.post('/slack', async (c) => {
   }
   const verification = verifySlackRequest({ body, timestamp, signature, secret });
   if (!verification.ok) {
-    return c.json({ error: verification.reason === 'stale_timestamp' ? 'Request too old' : 'Invalid signature' }, 401);
+    return c.json(
+      {
+        error: verification.reason === 'stale_timestamp' ? 'Request too old' : 'Invalid signature',
+      },
+      401
+    );
   }
 
   // Slash commands are form-encoded.
@@ -207,8 +216,14 @@ webhooks.post('/slack', async (c) => {
   }
 
   const payload = parseJson(body);
-  if (payload && typeof payload === 'object' && 'type' in payload && payload.type === 'url_verification') {
-    const challenge = 'challenge' in payload && typeof payload.challenge === 'string' ? payload.challenge : '';
+  if (
+    payload &&
+    typeof payload === 'object' &&
+    'type' in payload &&
+    payload.type === 'url_verification'
+  ) {
+    const challenge =
+      'challenge' in payload && typeof payload.challenge === 'string' ? payload.challenge : '';
     return c.json({ challenge });
   }
 
@@ -240,16 +255,25 @@ webhooks.get('/slack/oauth', authMiddleware, async (c) => {
 
   const binding = await consumeOAuthState(db, state, 'slack');
   if (!binding) return fail('invalid_state');
-  if (binding.userId !== user.id || binding.sessionId !== sessionId) return fail('session_mismatch', binding.projectId);
+  if (binding.userId !== user.id || binding.sessionId !== sessionId)
+    return fail('session_mismatch', binding.projectId);
 
-  const access = await authorizeProjectIntegration(binding.projectId, user.id, 'project:manage_integrations');
+  const access = await authorizeProjectIntegration(
+    binding.projectId,
+    user.id,
+    'project:manage_integrations'
+  );
   if (!access.ok) return fail('forbidden', binding.projectId);
 
   const credentials = getSlackOAuthCredentials();
   if (!credentials) return fail('not_configured', binding.projectId);
 
   try {
-    const installation = await exchangeSlackOAuthCode({ code, redirectUri: getSlackRedirectUri(), credentials });
+    const installation = await exchangeSlackOAuthCode({
+      code,
+      redirectUri: getSlackRedirectUri(),
+      credentials,
+    });
     if (!installation.channel) return fail('no_channel', binding.projectId);
 
     const config: SlackConfig = {
@@ -270,7 +294,9 @@ webhooks.get('/slack/oauth', authMiddleware, async (c) => {
         set: { config, isEnabled: true, updatedAt: new Date(), syncError: null },
       });
 
-    return c.redirect(`${webUrl}/project/${binding.projectId}/settings?section=slack&slack=connected`);
+    return c.redirect(
+      `${webUrl}/project/${binding.projectId}/settings?section=slack&slack=connected`
+    );
   } catch (error) {
     console.error('Slack OAuth failed:', error instanceof SlackOAuthError ? error.message : error);
     return fail('oauth_failed', binding.projectId);

@@ -13,9 +13,19 @@ import {
   type DragStartEvent,
   type UniqueIdentifier,
 } from '@dnd-kit/core';
-import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 import { KeyboardCode } from '@dnd-kit/core';
-import { TaskCard, TaskCardOverlay, taskKeyOf, type TaskCardTask, type TaskOpenEvent } from './TaskCard';
+import {
+  TaskCard,
+  TaskCardOverlay,
+  taskKeyOf,
+  type TaskCardTask,
+  type TaskOpenEvent,
+} from './TaskCard';
 import { GroupedKanbanColumn } from './GroupedKanbanColumn';
 import {
   COLUMN_RENDER_LIMIT,
@@ -104,7 +114,8 @@ export function GroupedKanbanBoard({
   const isStateGrouping = groupBy === 'state' || secondaryGroupBy === 'state';
   const dragEnabled = allowDragDrop && isStateGrouping && Boolean(onTaskMove);
   const showState = !isStateGrouping;
-  const effectiveShowProject = showProject && groupBy !== 'project' && secondaryGroupBy !== 'project';
+  const effectiveShowProject =
+    showProject && groupBy !== 'project' && secondaryGroupBy !== 'project';
   const canCreateInColumn = groupBy === 'state' && !secondaryGroupBy && !mergeStatesByCategory;
 
   const sensors = useSensors(
@@ -136,13 +147,25 @@ export function GroupedKanbanBoard({
     [tasks, groupBy, availableStates, mergeStatesByCategory]
   );
   const rows = useMemo(
-    () => (secondaryGroupBy ? groupTasks(tasks, secondaryGroupBy, undefined, mergeStatesByCategory) : null),
+    () =>
+      secondaryGroupBy
+        ? groupTasks(tasks, secondaryGroupBy, undefined, mergeStatesByCategory)
+        : null,
     [tasks, secondaryGroupBy, mergeStatesByCategory]
   );
 
   const containers = useMemo<BoardContainer[]>(() => {
-    const build = (column: TaskGroup, row: TaskGroup | null, columnTasks: TaskCardTask[]): BoardContainer => {
-      const category = groupBy === 'state' ? column.category : secondaryGroupBy === 'state' ? row?.category : undefined;
+    const build = (
+      column: TaskGroup,
+      row: TaskGroup | null,
+      columnTasks: TaskCardTask[]
+    ): BoardContainer => {
+      const category =
+        groupBy === 'state'
+          ? column.category
+          : secondaryGroupBy === 'state'
+            ? row?.category
+            : undefined;
       return {
         id: row ? `${row.id}${CELL_SEPARATOR}${column.id}` : column.id,
         column,
@@ -151,7 +174,8 @@ export function GroupedKanbanBoard({
         taskIds: sortTasksForColumn(columnTasks, category).map((t) => t.id),
       };
     };
-    if (!rows || !secondaryGroupBy) return columns.map((column) => build(column, null, column.tasks));
+    if (!rows || !secondaryGroupBy)
+      return columns.map((column) => build(column, null, column.tasks));
     return rows.flatMap((row) =>
       columns.map((column) =>
         build(
@@ -164,7 +188,10 @@ export function GroupedKanbanBoard({
   }, [columns, rows, groupBy, secondaryGroupBy, mergeStatesByCategory]);
 
   const containerById = useMemo(() => new Map(containers.map((c) => [c.id, c])), [containers]);
-  const baseItems = useMemo<Items>(() => Object.fromEntries(containers.map((c) => [c.id, c.taskIds])), [containers]);
+  const baseItems = useMemo<Items>(
+    () => Object.fromEntries(containers.map((c) => [c.id, c.taskIds])),
+    [containers]
+  );
   const items = dragItems ?? settlingItems ?? baseItems;
   const itemsRef = useRef(items);
   itemsRef.current = items;
@@ -179,7 +206,8 @@ export function GroupedKanbanBoard({
 
   const findStateForProject = useCallback(
     (projectId: string, category: string): string | null =>
-      availableStates?.find((s) => s.projectId === projectId && s.category === category)?.id ?? null,
+      availableStates?.find((s) => s.projectId === projectId && s.category === category)?.id ??
+      null,
     [availableStates]
   );
 
@@ -190,16 +218,28 @@ export function GroupedKanbanBoard({
       const otherGroup = groupBy === 'state' ? container.row : container.column;
       const otherBy = groupBy === 'state' ? secondaryGroupBy : groupBy;
       if (!stateGroup || stateGroup.id === 'no-state') return { error: 'Tasks need a status' };
-      if (otherGroup && otherBy && !taskMatchesGroup(task, otherBy, otherGroup.id, mergeStatesByCategory)) {
-        return { error: otherBy === 'project' ? 'Cannot move task to a different project' : 'Dragging only changes the status' };
+      if (
+        otherGroup &&
+        otherBy &&
+        !taskMatchesGroup(task, otherBy, otherGroup.id, mergeStatesByCategory)
+      ) {
+        return {
+          error:
+            otherBy === 'project'
+              ? 'Cannot move task to a different project'
+              : 'Dragging only changes the status',
+        };
       }
       if (mergeStatesByCategory) {
         const category = stateGroup.category ?? stateGroup.id;
         const stateId = findStateForProject(task.project.id, category);
-        return stateId ? { stateId } : { error: `No ${stateGroup.name} state found for project ${task.project.name}` };
+        return stateId
+          ? { stateId }
+          : { error: `No ${stateGroup.name} state found for project ${task.project.name}` };
       }
       const state = availableStates?.find((s) => s.id === stateGroup.id);
-      if (state?.projectId && state.projectId !== task.project.id) return { error: 'Cannot move to a state from another project' };
+      if (state?.projectId && state.projectId !== task.project.id)
+        return { error: 'Cannot move to a state from another project' };
       return { stateId: stateGroup.id };
     },
     [groupBy, secondaryGroupBy, mergeStatesByCategory, availableStates, findStateForProject]
@@ -207,7 +247,8 @@ export function GroupedKanbanBoard({
 
   const visibleLimit = useCallback(
     (container: BoardContainer) =>
-      limits[container.id] ?? (isDoneCategory(container.category) ? DONE_COLUMN_INITIAL_LIMIT : COLUMN_RENDER_LIMIT),
+      limits[container.id] ??
+      (isDoneCategory(container.category) ? DONE_COLUMN_INITIAL_LIMIT : COLUMN_RENDER_LIMIT),
     [limits]
   );
 
@@ -251,7 +292,11 @@ export function GroupedKanbanBoard({
         index = overIndex < 0 ? toItems.length : overIndex + (isBelow ? 1 : 0);
       }
       toItems.splice(index, 0, activeKey);
-      return { ...previous, [from]: previous[from].filter((id) => id !== activeKey), [to]: toItems };
+      return {
+        ...previous,
+        [from]: previous[from].filter((id) => id !== activeKey),
+        [to]: toItems,
+      };
     });
   };
 
@@ -280,7 +325,8 @@ export function GroupedKanbanBoard({
       list = moveItem(list, list.indexOf(taskId), list.indexOf(overKey));
     }
     const originalContainer = findContainer(baseItems, taskId);
-    if (originalContainer === containerId && (isDone || sameOrder(baseItems[containerId], list))) return;
+    if (originalContainer === containerId && (isDone || sameOrder(baseItems[containerId], list)))
+      return;
 
     const target = resolveTarget(container, dragged);
     if ('error' in target) {
@@ -289,7 +335,9 @@ export function GroupedKanbanBoard({
     }
     const neighbours = neighboursAt(list, taskId, (id) => {
       const other = taskById.get(id);
-      return !!other && other.state?.id === target.stateId && other.project.id === dragged.project.id;
+      return (
+        !!other && other.state?.id === target.stateId && other.project.id === dragged.project.id
+      );
     });
     lastAnnouncement.current = `Moved ${taskKeyOf(dragged)} to ${containerName(container)}, position ${neighbours.index + 1} of ${neighbours.count}`;
     setSettlingItems({ ...current, [containerId]: list });
@@ -301,7 +349,10 @@ export function GroupedKanbanBoard({
     });
   };
 
-  const describePosition = (activeKey: UniqueIdentifier, overKey: UniqueIdentifier | undefined): string => {
+  const describePosition = (
+    activeKey: UniqueIdentifier,
+    overKey: UniqueIdentifier | undefined
+  ): string => {
     const task = taskById.get(String(activeKey));
     const label = task ? taskKeyOf(task) : 'Task';
     if (overKey === undefined) return `${label} is no longer over a column`;
@@ -348,14 +399,20 @@ export function GroupedKanbanBoard({
     const limit = visibleLimit(container);
     const visibleIds = ids.slice(0, limit);
     // Keep the dragged card rendered (as the placeholder) even past the cap.
-    if (activeId && ids.includes(activeId) && !visibleIds.includes(activeId)) visibleIds.push(activeId);
+    if (activeId && ids.includes(activeId) && !visibleIds.includes(activeId))
+      visibleIds.push(activeId);
     const hiddenCount = ids.length - visibleIds.length;
     const stateId = container.column.id;
     const isDone = isDoneCategory(container.category);
     const isCollapsed = !container.row && collapsed.has(container.id);
 
     return (
-      <SortableContext key={container.id} id={container.id} items={visibleIds} strategy={verticalListSortingStrategy}>
+      <SortableContext
+        key={container.id}
+        id={container.id}
+        items={visibleIds}
+        strategy={verticalListSortingStrategy}
+      >
         <GroupedKanbanColumn
           id={container.id}
           name={container.column.name}
@@ -367,7 +424,9 @@ export function GroupedKanbanBoard({
           collapsed={isCollapsed}
           onToggleCollapsed={() => toggleCollapsed(container.id)}
           onAddTask={canCreateInColumn && onAddTask ? () => onAddTask(stateId) : undefined}
-          onQuickAdd={canCreateInColumn && onQuickAdd ? (title) => onQuickAdd(stateId, title) : undefined}
+          onQuickAdd={
+            canCreateInColumn && onQuickAdd ? (title) => onQuickAdd(stateId, title) : undefined
+          }
           emptyText={isDone ? 'Nothing done yet' : 'No tasks'}
         >
           {visibleIds.map((id) => {
@@ -389,7 +448,12 @@ export function GroupedKanbanBoard({
           {hiddenCount > 0 && (
             <button
               type="button"
-              onClick={() => setLimits((previous) => ({ ...previous, [container.id]: limit + COLUMN_RENDER_LIMIT }))}
+              onClick={() =>
+                setLimits((previous) => ({
+                  ...previous,
+                  [container.id]: limit + COLUMN_RENDER_LIMIT,
+                }))
+              }
               className="w-full rounded-lg px-2 py-1.5 text-left text-[12.5px] text-neutral-500 hover:bg-white hover:text-neutral-700"
             >
               Show {Math.min(hiddenCount, COLUMN_RENDER_LIMIT)} more
@@ -401,7 +465,9 @@ export function GroupedKanbanBoard({
   };
 
   if (containers.length === 0) {
-    return <div className="flex h-64 items-center justify-center text-neutral-500">No tasks found</div>;
+    return (
+      <div className="flex h-64 items-center justify-center text-neutral-500">No tasks found</div>
+    );
   }
 
   const activeTask = activeId ? taskById.get(activeId) : undefined;
@@ -417,28 +483,52 @@ export function GroupedKanbanBoard({
       accessibility={{ announcements, screenReaderInstructions }}
     >
       {rows ? (
-        <div data-dragging={activeId ? 'true' : undefined} className="flex flex-col gap-6 overflow-x-auto pb-4">
+        <div
+          data-dragging={activeId ? 'true' : undefined}
+          className="flex flex-col gap-6 overflow-x-auto pb-4"
+        >
           {rows.map((row) => (
-            <section key={row.id} aria-label={`${row.name}, ${row.tasks.length} tasks`} className="flex flex-col gap-2">
+            <section
+              key={row.id}
+              aria-label={`${row.name}, ${row.tasks.length} tasks`}
+              className="flex flex-col gap-2"
+            >
               <h3 className="flex items-center gap-2 px-1 text-[13px] font-semibold text-neutral-900">
-                {row.color && <span aria-hidden className="h-2 w-2 rounded-full" style={{ backgroundColor: row.color }} />}
+                {row.color && (
+                  <span
+                    aria-hidden
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: row.color }}
+                  />
+                )}
                 {row.name}
                 <span className="font-medium text-neutral-400">{row.tasks.length}</span>
               </h3>
               <div className="flex gap-3">
-                {containers.filter((c) => c.row?.id === row.id).map((container) => renderContainer(container, true))}
+                {containers
+                  .filter((c) => c.row?.id === row.id)
+                  .map((container) => renderContainer(container, true))}
               </div>
             </section>
           ))}
         </div>
       ) : (
-        <div data-dragging={activeId ? 'true' : undefined} className="flex min-h-[60vh] items-stretch gap-3 overflow-x-auto pb-4">
+        <div
+          data-dragging={activeId ? 'true' : undefined}
+          className="flex min-h-[60vh] items-stretch gap-3 overflow-x-auto pb-4"
+        >
           {containers.map((container) => renderContainer(container, false))}
         </div>
       )}
 
       <DragOverlay>
-        {activeTask ? <TaskCardOverlay task={activeTask} showProject={effectiveShowProject} showState={showState} /> : null}
+        {activeTask ? (
+          <TaskCardOverlay
+            task={activeTask}
+            showProject={effectiveShowProject}
+            showState={showState}
+          />
+        ) : null}
       </DragOverlay>
     </DndContext>
   );

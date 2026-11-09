@@ -57,7 +57,10 @@ export function NewProjectPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="new-project-name" className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor="new-project-name"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
               Project Name
             </label>
             <input
@@ -75,7 +78,10 @@ export function NewProjectPage() {
           </div>
 
           <div>
-            <label htmlFor="new-project-identifier" className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor="new-project-identifier"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
               Project Identifier
             </label>
             <input

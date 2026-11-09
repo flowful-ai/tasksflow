@@ -17,12 +17,18 @@ export function getAuthorizationServerMetadata(baseUrl: string) {
   };
 }
 
-export function protectedResourceMetadataUrl(baseUrl: string, resourcePath: McpResourcePath): string {
+export function protectedResourceMetadataUrl(
+  baseUrl: string,
+  resourcePath: McpResourcePath
+): string {
   return `${baseUrl}/.well-known/oauth-protected-resource${resourcePath}`;
 }
 
 /** RFC 9728 metadata. `resource` must equal the URL the client derived the metadata URL from. */
-export function getProtectedResourceMetadata(baseUrl: string, resourcePath: McpResourcePath = MCP_CANONICAL_PATH) {
+export function getProtectedResourceMetadata(
+  baseUrl: string,
+  resourcePath: McpResourcePath = MCP_CANONICAL_PATH
+) {
   return {
     resource: mcpResourceForPath(baseUrl, resourcePath),
     resource_name: 'FlowTask MCP',
@@ -46,7 +52,10 @@ export function buildWwwAuthenticateHeader(
     `resource_metadata="${protectedResourceMetadataUrl(baseUrl, resourcePath)}"`,
   ];
   if (error) {
-    parts.push(`error="${error.code}"`, `error_description="${quoteHeaderValue(error.description)}"`);
+    parts.push(
+      `error="${error.code}"`,
+      `error_description="${quoteHeaderValue(error.description)}"`
+    );
   }
   return `Bearer ${parts.join(', ')}`;
 }

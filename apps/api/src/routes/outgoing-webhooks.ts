@@ -13,7 +13,11 @@ import { Hono, type Context } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { getDatabase } from '../db/index.js';
-import { OutgoingWebhookService, WorkspaceService, type OutgoingWebhookError } from '../domain/index.js';
+import {
+  OutgoingWebhookService,
+  WorkspaceService,
+  type OutgoingWebhookError,
+} from '../domain/index.js';
 import { getCurrentUser } from '../auth/index.js';
 import { CreateOutgoingWebhookSchema, UpdateOutgoingWebhookSchema } from '@flowtask/shared';
 
@@ -37,13 +41,19 @@ async function isWorkspaceAdmin(workspaceId: string, userId: string): Promise<bo
 
 function forbidden(c: Context) {
   return c.json(
-    { success: false, error: { code: 'FORBIDDEN', message: 'Only workspace owners and admins can manage webhooks' } },
+    {
+      success: false,
+      error: { code: 'FORBIDDEN', message: 'Only workspace owners and admins can manage webhooks' },
+    },
     403
   );
 }
 
 function fail(c: Context, error: OutgoingWebhookError) {
-  return c.json({ success: false, error: { code: error.code, message: error.message } }, error.status);
+  return c.json(
+    { success: false, error: { code: error.code, message: error.message } },
+    error.status
+  );
 }
 
 /** Load the webhook and check the caller administers its workspace. */
@@ -51,7 +61,8 @@ async function loadOwned(c: Context, id: string) {
   const user = getCurrentUser(c);
   const hook = await webhookService.getById(id);
   if (!hook.ok) return { response: fail(c, hook.error) } as const;
-  if (!(await isWorkspaceAdmin(hook.value.workspaceId, user.id))) return { response: forbidden(c) } as const;
+  if (!(await isWorkspaceAdmin(hook.value.workspaceId, user.id)))
+    return { response: forbidden(c) } as const;
   return { hook: hook.value } as const;
 }
 
@@ -121,7 +132,11 @@ outgoingWebhookRoutes.get(
     if ('response' in owned) return owned.response;
     const result = await webhookService.listDeliveries(id, c.req.valid('query'));
     if (!result.ok) return fail(c, result.error);
-    return c.json({ success: true, data: result.value.items, meta: { nextCursor: result.value.nextCursor } });
+    return c.json({
+      success: true,
+      data: result.value.items,
+      meta: { nextCursor: result.value.nextCursor },
+    });
   }
 );
 

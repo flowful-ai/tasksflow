@@ -31,7 +31,11 @@ export {
   type CommentForGitHub,
   type ReverseSyncResult,
 } from './reverse-sync.js';
-export { GitHubWebhookProcessor, type GitHubWebhookProcessorDeps, type WebhookTargetResult } from './webhook-processor.js';
+export {
+  GitHubWebhookProcessor,
+  type GitHubWebhookProcessorDeps,
+  type WebhookTargetResult,
+} from './webhook-processor.js';
 export {
   findGitHubTargetsForRepo,
   getProjectGitHubIntegration,

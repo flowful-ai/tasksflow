@@ -76,7 +76,14 @@ function sampleTask(): TaskWithRelations {
     updatedAt: now,
     deletedAt: null,
     completedAt: null,
-    state: { id: 'state-1', projectId: 'project-1', name: 'Todo', category: 'backlog', position: 'a0', color: '#fff' },
+    state: {
+      id: 'state-1',
+      projectId: 'project-1',
+      name: 'Todo',
+      category: 'backlog',
+      position: 'a0',
+      color: '#fff',
+    },
     assignees: [
       {
         id: 'user-1',
@@ -92,7 +99,14 @@ function sampleTask(): TaskWithRelations {
     labels: [{ id: 'label-1', projectId: 'project-1', name: 'bug', color: null }],
     project: { id: 'project-1', identifier: 'FLOW', name: 'Flow' },
     agent: null,
-    externalLinks: [{ id: 'l1', externalType: 'github_issue', externalId: '12', externalUrl: 'https://github.com/acme/private/issues/12' }],
+    externalLinks: [
+      {
+        id: 'l1',
+        externalType: 'github_issue',
+        externalId: '12',
+        externalUrl: 'https://github.com/acme/private/issues/12',
+      },
+    ],
   };
 }
 
@@ -100,7 +114,9 @@ describe('toPublicTask', () => {
   it('exposes assignee name and avatar only, and no external links by default', () => {
     const dto = toPublicTask(sampleTask(), { hiddenFields: new Set(), showExternalLinks: false });
     const json = JSON.stringify(dto);
-    expect(dto.assignees).toEqual([{ id: 'user-1', name: 'Alice', avatarUrl: 'https://img/alice' }]);
+    expect(dto.assignees).toEqual([
+      { id: 'user-1', name: 'Alice', avatarUrl: 'https://img/alice' },
+    ]);
     expect(json).not.toContain('alice@example.com');
     expect(json).not.toContain('app_manager');
     expect(json).not.toContain('github.com');
@@ -113,7 +129,16 @@ describe('toPublicTask', () => {
   });
 
   it('hides fields including their nested objects', () => {
-    const hidden = parseHiddenFields(['assignee', 'description', 'state', 'due_date', 'labels', 'project', 'nope', 3]);
+    const hidden = parseHiddenFields([
+      'assignee',
+      'description',
+      'state',
+      'due_date',
+      'labels',
+      'project',
+      'nope',
+      3,
+    ]);
     const dto = toPublicTask(sampleTask(), { hiddenFields: hidden, showExternalLinks: false });
     expect(dto).not.toHaveProperty('assignees');
     expect(dto).not.toHaveProperty('description');

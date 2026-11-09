@@ -35,7 +35,8 @@ export const queryKeys = {
   app: {
     all: ['app'] as const,
     me: () => ['app', 'me'] as const,
-    users: (params: { search?: string; limit?: number; offset?: number }) => ['app', 'users', params] as const,
+    users: (params: { search?: string; limit?: number; offset?: number }) =>
+      ['app', 'users', params] as const,
   },
 
   workspaces: {
@@ -50,11 +51,14 @@ export const queryKeys = {
     invitations: (workspaceId: string) => ['workspaces', 'invitations', workspaceId] as const,
     apiKeys: (workspaceId: string) => ['workspaces', 'api-keys', workspaceId] as const,
     aiSettings: (workspaceId: string) => ['workspaces', 'ai-settings', workspaceId] as const,
-    mcpConnections: (workspaceId: string) => ['workspaces', 'mcp-connections', workspaceId] as const,
+    mcpConnections: (workspaceId: string) =>
+      ['workspaces', 'mcp-connections', workspaceId] as const,
     /** Every `active` variant of a workspace's agent list. */
     agentLists: (workspaceId: string) => ['workspaces', 'agents', workspaceId] as const,
-    agents: (workspaceId: string, active: boolean | 'all' = 'all') => ['workspaces', 'agents', workspaceId, active] as const,
-    agentAvailability: (workspaceId: string) => ['workspaces', 'agent-availability', workspaceId] as const,
+    agents: (workspaceId: string, active: boolean | 'all' = 'all') =>
+      ['workspaces', 'agents', workspaceId, active] as const,
+    agentAvailability: (workspaceId: string) =>
+      ['workspaces', 'agent-availability', workspaceId] as const,
     webhooks: (workspaceId: string) => ['workspaces', 'webhooks', workspaceId] as const,
     /** Dashboard task statistics across the given projects. */
     taskStats: (workspaceId: string, projectIds: readonly string[]) =>
@@ -120,7 +124,8 @@ export const queryKeys = {
 
   search: {
     all: ['search'] as const,
-    query: (workspaceId: string, q: string) => ['search', workspaceId, q.trim().toLowerCase()] as const,
+    query: (workspaceId: string, q: string) =>
+      ['search', workspaceId, q.trim().toLowerCase()] as const,
   },
 
   github: {

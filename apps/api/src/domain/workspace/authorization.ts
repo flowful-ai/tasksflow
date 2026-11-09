@@ -1,6 +1,14 @@
 import { and, eq, gt, inArray, or } from 'drizzle-orm';
 import type { Database, Project, Task } from '../../db/index.js';
-import { projects, projectMembers, tasks, workspaceMembers, taskStates, labels, sessions } from '../../db/index.js';
+import {
+  projects,
+  projectMembers,
+  tasks,
+  workspaceMembers,
+  taskStates,
+  labels,
+  sessions,
+} from '../../db/index.js';
 import type { WorkspaceRole } from '@flowtask/shared';
 import { isWorkspaceRole } from './role-policy.js';
 
@@ -90,11 +98,17 @@ export class AuthorizationService<P extends string> {
     const [member] = await this.db
       .select({ role: workspaceMembers.role })
       .from(workspaceMembers)
-      .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)));
+      .where(
+        and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId))
+      );
     return member && isWorkspaceRole(member.role) ? member.role : null;
   }
 
-  async authorizeWorkspace(workspaceId: string, userId: string, permission: P): Promise<AuthzResult<WorkspaceGrant>> {
+  async authorizeWorkspace(
+    workspaceId: string,
+    userId: string,
+    permission: P
+  ): Promise<AuthzResult<WorkspaceGrant>> {
     const role = await this.getRole(workspaceId, userId);
     if (!role) {
       return forbidden('Not a workspace member');
@@ -105,7 +119,11 @@ export class AuthorizationService<P extends string> {
     return { ok: true, workspaceId, role };
   }
 
-  async authorizeProject(projectId: string, userId: string, permission: P): Promise<AuthzResult<ProjectGrant>> {
+  async authorizeProject(
+    projectId: string,
+    userId: string,
+    permission: P
+  ): Promise<AuthzResult<ProjectGrant>> {
     if (!isUuid(projectId)) return notFound('Project');
     const [project] = await this.db.select().from(projects).where(eq(projects.id, projectId));
     if (!project) return notFound('Project');
@@ -135,7 +153,11 @@ export class AuthorizationService<P extends string> {
   }
 
   /** Project ACL check for a user whose role is already known. */
-  async canAccessProject(project: Pick<Project, 'id' | 'access'>, userId: string, role: WorkspaceRole): Promise<boolean> {
+  async canAccessProject(
+    project: Pick<Project, 'id' | 'access'>,
+    userId: string,
+    role: WorkspaceRole
+  ): Promise<boolean> {
     if (projectAclAllows(project.access, role, false)) return true;
     if (project.access !== 'members') return false;
     return this.isProjectMember(project.id, userId);
@@ -145,7 +167,10 @@ export class AuthorizationService<P extends string> {
    * Whether an arbitrary user (not necessarily the caller) is a workspace
    * member who can access the project. Used to validate assignees.
    */
-  async userCanAccessProject(project: Pick<Project, 'id' | 'access' | 'workspaceId'>, userId: string): Promise<boolean> {
+  async userCanAccessProject(
+    project: Pick<Project, 'id' | 'access' | 'workspaceId'>,
+    userId: string
+  ): Promise<boolean> {
     const role = await this.getRole(project.workspaceId, userId);
     if (!role) return false;
     return this.canAccessProject(project, userId, role);
@@ -241,14 +266,19 @@ export class AuthorizationService<P extends string> {
     const rows = await this.db
       .select({ userId: workspaceMembers.userId })
       .from(workspaceMembers)
-      .where(and(eq(workspaceMembers.workspaceId, workspaceId), inArray(workspaceMembers.userId, unique)));
+      .where(
+        and(eq(workspaceMembers.workspaceId, workspaceId), inArray(workspaceMembers.userId, unique))
+      );
     return rows.length === unique.length;
   }
 
   /** Project of a task (deleted tasks included), or null. */
   async getTaskProjectId(taskId: string): Promise<string | null> {
     if (!isUuid(taskId)) return null;
-    const [row] = await this.db.select({ projectId: tasks.projectId }).from(tasks).where(eq(tasks.id, taskId));
+    const [row] = await this.db
+      .select({ projectId: tasks.projectId })
+      .from(tasks)
+      .where(eq(tasks.id, taskId));
     return row?.projectId ?? null;
   }
 

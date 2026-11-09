@@ -39,7 +39,10 @@ export interface McpOAuthConnection {
   lastActivityAt: Date | null;
 }
 
-export async function listAuthorizableWorkspaces(db: Database, userId: string): Promise<Array<{ id: string; name: string; role: string }>> {
+export async function listAuthorizableWorkspaces(
+  db: Database,
+  userId: string
+): Promise<Array<{ id: string; name: string; role: string }>> {
   const rows = await db
     .select({
       id: workspaces.id,
@@ -48,12 +51,18 @@ export async function listAuthorizableWorkspaces(db: Database, userId: string): 
     })
     .from(workspaceMembers)
     .innerJoin(workspaces, eq(workspaceMembers.workspaceId, workspaces.id))
-    .where(and(eq(workspaceMembers.userId, userId), inArray(workspaceMembers.role, ['owner', 'admin'])));
+    .where(
+      and(eq(workspaceMembers.userId, userId), inArray(workspaceMembers.role, ['owner', 'admin']))
+    );
 
   return rows.map((row) => ({ id: row.id, name: row.name, role: row.role }));
 }
 
-export async function getUserWorkspaceRole(db: Database, workspaceId: string, userId: string): Promise<string | null> {
+export async function getUserWorkspaceRole(
+  db: Database,
+  workspaceId: string,
+  userId: string
+): Promise<string | null> {
   const [row] = await db
     .select({ role: workspaceMembers.role })
     .from(workspaceMembers)
@@ -62,7 +71,10 @@ export async function getUserWorkspaceRole(db: Database, workspaceId: string, us
   return row?.role || null;
 }
 
-export async function listWorkspaceConnections(db: Database, workspaceId: string): Promise<McpOAuthConnection[]> {
+export async function listWorkspaceConnections(
+  db: Database,
+  workspaceId: string
+): Promise<McpOAuthConnection[]> {
   const rows = await db
     .select({
       consentId: mcpOAuthConsents.id,
@@ -98,11 +110,18 @@ export async function listWorkspaceConnections(db: Database, workspaceId: string
     })
     .from(mcpOAuthAccessTokens)
     .where(eq(mcpOAuthAccessTokens.workspaceId, workspaceId))
-    .groupBy(mcpOAuthAccessTokens.userId, mcpOAuthAccessTokens.clientId, mcpOAuthAccessTokens.workspaceId);
+    .groupBy(
+      mcpOAuthAccessTokens.userId,
+      mcpOAuthAccessTokens.clientId,
+      mcpOAuthAccessTokens.workspaceId
+    );
 
   const activityMap = new Map<string, Date | null>();
   for (const row of activityRows) {
-    activityMap.set(`${row.userId}:${row.clientInternalId}:${row.workspaceId}`, row.lastActivityAt || null);
+    activityMap.set(
+      `${row.userId}:${row.clientInternalId}:${row.workspaceId}`,
+      row.lastActivityAt || null
+    );
   }
 
   return rows.map((row) => {
@@ -130,27 +149,40 @@ export async function listWorkspaceConnections(db: Database, workspaceId: string
   });
 }
 
-export async function updateConsentToolScopes(db: Database, input: {
-  consentId: string;
-  workspaceId: string;
-  toolScopes: string[];
-  actorUserId: string;
-}): Promise<McpOAuthConnection> {
+export async function updateConsentToolScopes(
+  db: Database,
+  input: {
+    consentId: string;
+    workspaceId: string;
+    toolScopes: string[];
+    actorUserId: string;
+  }
+): Promise<McpOAuthConnection> {
   const normalizedTools = normalizeScopes(input.toolScopes);
   if (normalizedTools.length === 0) {
     throw new OAuthError('invalid_scope', 'At least one tool scope is required');
   }
 
-  const scopeValidation = validateToolScopes(normalizedTools.map((tool) => `${TOOL_SCOPE_PREFIX}${tool}`));
+  const scopeValidation = validateToolScopes(
+    normalizedTools.map((tool) => `${TOOL_SCOPE_PREFIX}${tool}`)
+  );
   if (!scopeValidation.ok) {
-    throw new OAuthError('invalid_scope', `Unknown tool scopes: ${scopeValidation.invalidTools.join(', ')}`);
+    throw new OAuthError(
+      'invalid_scope',
+      `Unknown tool scopes: ${scopeValidation.invalidTools.join(', ')}`
+    );
   }
 
   const result = await db.transaction(async (tx) => {
     const [consent] = await tx
       .select()
       .from(mcpOAuthConsents)
-      .where(and(eq(mcpOAuthConsents.id, input.consentId), eq(mcpOAuthConsents.workspaceId, input.workspaceId)));
+      .where(
+        and(
+          eq(mcpOAuthConsents.id, input.consentId),
+          eq(mcpOAuthConsents.workspaceId, input.workspaceId)
+        )
+      );
 
     if (!consent) {
       throw new OAuthError('not_found', 'OAuth connection not found', 404);
@@ -166,7 +198,9 @@ export async function updateConsentToolScopes(db: Database, input: {
       throw new OAuthError('invalid_scope', 'Stored consent is missing workspace scope', 400);
     }
 
-    const nextScopeString = normalizeScopeString([workspaceScope, ...normalizedTools.map((tool) => `${TOOL_SCOPE_PREFIX}${tool}`)].join(' '));
+    const nextScopeString = normalizeScopeString(
+      [workspaceScope, ...normalizedTools.map((tool) => `${TOOL_SCOPE_PREFIX}${tool}`)].join(' ')
+    );
     const nextScopeArray = nextScopeString.split(' ').filter(Boolean);
     const now = new Date();
 
@@ -210,44 +244,58 @@ export async function updateConsentToolScopes(db: Database, input: {
   });
 
   const workspaceConnections = await listWorkspaceConnections(db, input.workspaceId);
-  const connection = workspaceConnections.find((connectionItem) => connectionItem.consentId === result.consentId);
+  const connection = workspaceConnections.find(
+    (connectionItem) => connectionItem.consentId === result.consentId
+  );
   if (!connection) {
     throw new OAuthError('server_error', 'Failed to load updated OAuth connection', 500);
   }
   return connection;
 }
 
-export async function deleteConsent(db: Database, input: {
-  consentId: string;
-  workspaceId: string;
-}): Promise<void> {
+export async function deleteConsent(
+  db: Database,
+  input: {
+    consentId: string;
+    workspaceId: string;
+  }
+): Promise<void> {
   await db.transaction(async (tx) => {
     const [consent] = await tx
       .select()
       .from(mcpOAuthConsents)
-      .where(and(eq(mcpOAuthConsents.id, input.consentId), eq(mcpOAuthConsents.workspaceId, input.workspaceId)));
+      .where(
+        and(
+          eq(mcpOAuthConsents.id, input.consentId),
+          eq(mcpOAuthConsents.workspaceId, input.workspaceId)
+        )
+      );
 
     if (!consent) {
       throw new OAuthError('not_found', 'OAuth connection not found', 404);
     }
 
     // Delete refresh tokens first (foreign key to access tokens)
-    await tx.delete(mcpOAuthRefreshTokens).where(
-      and(
-        eq(mcpOAuthRefreshTokens.userId, consent.userId),
-        eq(mcpOAuthRefreshTokens.clientId, consent.clientId),
-        eq(mcpOAuthRefreshTokens.workspaceId, consent.workspaceId)
-      )
-    );
+    await tx
+      .delete(mcpOAuthRefreshTokens)
+      .where(
+        and(
+          eq(mcpOAuthRefreshTokens.userId, consent.userId),
+          eq(mcpOAuthRefreshTokens.clientId, consent.clientId),
+          eq(mcpOAuthRefreshTokens.workspaceId, consent.workspaceId)
+        )
+      );
 
     // Delete access tokens
-    await tx.delete(mcpOAuthAccessTokens).where(
-      and(
-        eq(mcpOAuthAccessTokens.userId, consent.userId),
-        eq(mcpOAuthAccessTokens.clientId, consent.clientId),
-        eq(mcpOAuthAccessTokens.workspaceId, consent.workspaceId)
-      )
-    );
+    await tx
+      .delete(mcpOAuthAccessTokens)
+      .where(
+        and(
+          eq(mcpOAuthAccessTokens.userId, consent.userId),
+          eq(mcpOAuthAccessTokens.clientId, consent.clientId),
+          eq(mcpOAuthAccessTokens.workspaceId, consent.workspaceId)
+        )
+      );
 
     // Delete the consent record
     await tx.delete(mcpOAuthConsents).where(eq(mcpOAuthConsents.id, consent.id));

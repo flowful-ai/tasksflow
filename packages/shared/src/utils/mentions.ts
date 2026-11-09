@@ -42,14 +42,21 @@ export function extractMentionedUserIds(text: string | null | undefined): string
 }
 
 /** User ids mentioned in `next` that were not already mentioned in `previous`. */
-export function newlyMentionedUserIds(previous: string | null | undefined, next: string | null | undefined): string[] {
+export function newlyMentionedUserIds(
+  previous: string | null | undefined,
+  next: string | null | undefined
+): string[] {
   const before = new Set(extractMentionedUserIds(previous));
   return extractMentionedUserIds(next).filter((id) => !before.has(id));
 }
 
 /** Build a mention token for the editor. */
 export function formatMention(name: string, userId: string): string {
-  const safeName = name.replace(/[\]\n]/g, '').trim().slice(0, 100) || 'user';
+  const safeName =
+    name
+      .replace(/[\]\n]/g, '')
+      .trim()
+      .slice(0, 100) || 'user';
   return `@[${safeName}](user:${userId})`;
 }
 

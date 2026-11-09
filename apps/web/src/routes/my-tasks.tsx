@@ -52,22 +52,36 @@ export function MyTasksPage() {
   const [results, setResults] = useState<Record<string, ProjectResult>>({});
 
   const onResult = useCallback((projectId: string, result: ProjectResult) => {
-    setResults((previous) => (previous[projectId] === result ? previous : { ...previous, [projectId]: result }));
+    setResults((previous) =>
+      previous[projectId] === result ? previous : { ...previous, [projectId]: result }
+    );
   }, []);
 
   const projectIds = useMemo(() => new Set(projects.map((p) => p.id)), [projects]);
   const allTasks = useMemo(
-    () => Object.entries(results).flatMap(([projectId, r]) => (projectIds.has(projectId) ? r.tasks : [])),
+    () =>
+      Object.entries(results).flatMap(([projectId, r]) =>
+        projectIds.has(projectId) ? r.tasks : []
+      ),
     [results, projectIds]
   );
-  const tasks = useMemo(() => (hideDone ? allTasks.filter((t) => t.state?.category !== 'done') : allTasks), [allTasks, hideDone]);
+  const tasks = useMemo(
+    () => (hideDone ? allTasks.filter((t) => t.state?.category !== 'done') : allTasks),
+    [allTasks, hideDone]
+  );
   const loading = projectsLoading || projects.some((p) => results[p.id]?.loading ?? true);
 
   // Status grouping merges same-category states across projects.
   const states = useMemo<AvailableState[]>(
     () =>
       projects.flatMap((p) =>
-        p.taskStates.map((s) => ({ id: s.id, name: s.name, color: s.color, category: s.category, projectId: p.id }))
+        p.taskStates.map((s) => ({
+          id: s.id,
+          name: s.name,
+          color: s.color,
+          category: s.category,
+          projectId: p.id,
+        }))
       ),
     [projects]
   );
@@ -75,7 +89,9 @@ export function MyTasksPage() {
   return (
     <div className="mx-auto max-w-5xl">
       {userId &&
-        projects.map((p) => <ProjectAssignedTasks key={p.id} projectId={p.id} userId={userId} onResult={onResult} />)}
+        projects.map((p) => (
+          <ProjectAssignedTasks key={p.id} projectId={p.id} userId={userId} onResult={onResult} />
+        ))}
 
       <header className="mb-6 flex flex-wrap items-end gap-3">
         <div className="min-w-0 flex-1">
@@ -84,7 +100,8 @@ export function MyTasksPage() {
             {loading && <Spinner size="sm" label="Loading tasks" />}
           </h1>
           <p className="mt-1 text-sm text-neutral-500">
-            {tasks.length} task{tasks.length === 1 ? '' : 's'} assigned to you across {projects.length} project
+            {tasks.length} task{tasks.length === 1 ? '' : 's'} assigned to you across{' '}
+            {projects.length} project
             {projects.length === 1 ? '' : 's'}
           </p>
         </div>
@@ -97,7 +114,11 @@ export function MyTasksPage() {
           />
           Hide done
         </label>
-        <div role="group" aria-label="Group by" className="flex items-center rounded-lg border border-neutral-200 p-0.5">
+        <div
+          role="group"
+          aria-label="Group by"
+          className="flex items-center rounded-lg border border-neutral-200 p-0.5"
+        >
           {GROUPINGS.map((g) => (
             <button
               key={g.value}
@@ -106,7 +127,9 @@ export function MyTasksPage() {
               onClick={() => setGroupBy(g.value)}
               className={clsx(
                 'rounded-md px-3 py-1 text-sm font-medium transition-colors',
-                groupBy === g.value ? 'bg-neutral-100 text-neutral-900' : 'text-neutral-500 hover:text-neutral-800'
+                groupBy === g.value
+                  ? 'bg-neutral-100 text-neutral-900'
+                  : 'text-neutral-500 hover:text-neutral-800'
               )}
             >
               {g.label}
@@ -120,7 +143,9 @@ export function MyTasksPage() {
       ) : tasks.length === 0 && !loading ? (
         <EmptyState
           icon={<Target />}
-          title={hideDone && allTasks.length > 0 ? 'All your tasks are done' : 'Nothing assigned to you'}
+          title={
+            hideDone && allTasks.length > 0 ? 'All your tasks are done' : 'Nothing assigned to you'
+          }
           body="Tasks assigned to you in any project show up here."
         />
       ) : (

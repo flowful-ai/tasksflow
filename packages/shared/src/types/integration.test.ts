@@ -13,14 +13,29 @@ import {
 describe('parseGitHubConfig', () => {
   test('parses the canonical shape', () => {
     const config = parseGitHubConfig({
-      repositories: [{ owner: 'acme', repo: 'api', installationId: 11, linkedAt: '2026-01-01', syncStatus: 'idle' }],
+      repositories: [
+        {
+          owner: 'acme',
+          repo: 'api',
+          installationId: 11,
+          linkedAt: '2026-01-01',
+          syncStatus: 'idle',
+        },
+      ],
     });
     expect(config.repositories).toHaveLength(1);
-    expect(config.repositories[0]).toMatchObject({ owner: 'acme', repo: 'api', installationId: 11 });
+    expect(config.repositories[0]).toMatchObject({
+      owner: 'acme',
+      repo: 'api',
+      installationId: 11,
+    });
   });
 
   test('repository entries inherit a legacy top-level installationId', () => {
-    const config = parseGitHubConfig({ installationId: 7, repositories: [{ owner: 'acme', repo: 'web' }] });
+    const config = parseGitHubConfig({
+      installationId: 7,
+      repositories: [{ owner: 'acme', repo: 'web' }],
+    });
     expect(config.repositories[0]?.installationId).toBe(7);
   });
 
@@ -33,7 +48,12 @@ describe('parseGitHubConfig', () => {
 
   test('drops malformed entries and entries without any installation', () => {
     const config = parseGitHubConfig({
-      repositories: [{ owner: 'acme' }, { owner: 'acme', repo: 'no-install' }, 'junk', { owner: 'a', repo: 'b', installationId: 3 }],
+      repositories: [
+        { owner: 'acme' },
+        { owner: 'acme', repo: 'no-install' },
+        'junk',
+        { owner: 'a', repo: 'b', installationId: 3 },
+      ],
     });
     expect(config.repositories.map((r) => r.repo)).toEqual(['b']);
   });
@@ -74,7 +94,9 @@ describe('GitHub external ids', () => {
   });
 
   test('issue numbers in different repos produce different ids', () => {
-    expect(formatGitHubExternalId('acme', 'api', 1)).not.toBe(formatGitHubExternalId('acme', 'web', 1));
+    expect(formatGitHubExternalId('acme', 'api', 1)).not.toBe(
+      formatGitHubExternalId('acme', 'web', 1)
+    );
   });
 
   test('rejects legacy bare numbers', () => {
@@ -82,13 +104,25 @@ describe('GitHub external ids', () => {
   });
 
   test('parses issue and PR URLs', () => {
-    expect(parseGitHubItemUrl('https://github.com/acme/api/issues/5')).toEqual({ owner: 'acme', repo: 'api', kind: 'issue', number: 5 });
-    expect(parseGitHubItemUrl('https://github.com/acme/api/pull/6')).toEqual({ owner: 'acme', repo: 'api', kind: 'pull', number: 6 });
+    expect(parseGitHubItemUrl('https://github.com/acme/api/issues/5')).toEqual({
+      owner: 'acme',
+      repo: 'api',
+      kind: 'issue',
+      number: 5,
+    });
+    expect(parseGitHubItemUrl('https://github.com/acme/api/pull/6')).toEqual({
+      owner: 'acme',
+      repo: 'api',
+      kind: 'pull',
+      number: 6,
+    });
     expect(parseGitHubItemUrl('https://example.com/acme/api/issues/5')).toBeNull();
   });
 
   test('resolveGitHubLinkRef falls back to the URL for legacy links', () => {
-    expect(resolveGitHubLinkRef({ externalId: '5', externalUrl: 'https://github.com/acme/api/issues/5' })).toEqual({
+    expect(
+      resolveGitHubLinkRef({ externalId: '5', externalUrl: 'https://github.com/acme/api/issues/5' })
+    ).toEqual({
       owner: 'acme',
       repo: 'api',
       number: 5,
@@ -106,11 +140,15 @@ describe('parseTaskReferences', () => {
   });
 
   test('finds references in branch names, case-insensitively', () => {
-    expect(parseTaskReferences('feature/flow-123-login-fix')).toEqual([{ identifier: 'FLOW', sequenceNumber: 123 }]);
+    expect(parseTaskReferences('feature/flow-123-login-fix')).toEqual([
+      { identifier: 'FLOW', sequenceNumber: 123 },
+    ]);
   });
 
   test('deduplicates', () => {
-    expect(parseTaskReferences('FLOW-1 flow-1 FLOW-1')).toEqual([{ identifier: 'FLOW', sequenceNumber: 1 }]);
+    expect(parseTaskReferences('FLOW-1 flow-1 FLOW-1')).toEqual([
+      { identifier: 'FLOW', sequenceNumber: 1 },
+    ]);
   });
 
   test('ignores parts of longer tokens and zero sequence numbers', () => {

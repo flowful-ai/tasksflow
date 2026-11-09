@@ -31,7 +31,13 @@ import type { TaskFieldChange } from '../events/types.js';
 import type { DbExecutor, Tx } from './db.js';
 import { TaskError, toError } from './errors.js';
 import { placeTask, positionOrder } from './positions.js';
-import { hydrateTasks, selectTaskRefs, taskRowSelection, toTaskRef, type TaskRowWithJoins } from './queries.js';
+import {
+  hydrateTasks,
+  selectTaskRefs,
+  taskRowSelection,
+  toTaskRef,
+  type TaskRowWithJoins,
+} from './queries.js';
 import {
   assertAssigneesCanAccess,
   assertLabelsInProject,
@@ -50,7 +56,6 @@ import type {
   TaskListOptions,
   TaskEventInput,
   GetTaskOptions,
-
 } from './types.js';
 
 function escapeLike(value: string): string {
@@ -64,7 +69,10 @@ type JoinName = 'task_states' | 'task_assignees' | 'task_labels';
  * EXISTS subqueries, so this is only true for legacy filterSql that references
  * task_assignees columns directly.
  */
-export function taskListNeedsAssigneeJoin(_filters: TaskFilters, requiredJoins: Set<JoinName>): boolean {
+export function taskListNeedsAssigneeJoin(
+  _filters: TaskFilters,
+  requiredJoins: Set<JoinName>
+): boolean {
   return requiredJoins.has('task_assignees');
 }
 
@@ -126,7 +134,10 @@ export function buildTextSearchCondition(query: string): SQL {
 
 /** Condition matching a task key ("TF-12"). */
 export function buildTaskKeyCondition(identifier: string, sequenceNumber: number): SQL {
-  return and(sql`upper(${projects.identifier}) = ${identifier}`, eq(tasks.sequenceNumber, sequenceNumber))!;
+  return and(
+    sql`upper(${projects.identifier}) = ${identifier}`,
+    eq(tasks.sequenceNumber, sequenceNumber)
+  )!;
 }
 
 const PRIORITY_RANK = sql`CASE ${tasks.priority} WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 WHEN 'none' THEN 4 ELSE 5 END`;
@@ -137,14 +148,20 @@ function toJson(value: Date | string | number | null | undefined): JsonValue {
   return value;
 }
 
-function sameValue(a: Date | string | null | undefined, b: Date | string | null | undefined): boolean {
+function sameValue(
+  a: Date | string | null | undefined,
+  b: Date | string | null | undefined
+): boolean {
   const left = a instanceof Date ? a.getTime() : (a ?? null);
   const right = b instanceof Date ? b.getTime() : (b ?? null);
   return left === right;
 }
 
 /** Insert task events (one statement). */
-export async function recordTaskEvents(db: DbExecutor, inputs: readonly TaskEventInput[]): Promise<void> {
+export async function recordTaskEvents(
+  db: DbExecutor,
+  inputs: readonly TaskEventInput[]
+): Promise<void> {
   if (inputs.length === 0) return;
   await db.insert(taskEvents).values(
     inputs.map((input) => ({
@@ -210,7 +227,11 @@ export function stateMetadata(
 }
 
 /** Lock a live task row for update; throws TASK_NOT_FOUND. */
-export async function lockTask(db: DbExecutor, taskId: string, opts: { includeDeleted?: boolean } = {}) {
+export async function lockTask(
+  db: DbExecutor,
+  taskId: string,
+  opts: { includeDeleted?: boolean } = {}
+) {
   const conditions: SQL[] = [eq(tasks.id, taskId)];
   if (!opts.includeDeleted) conditions.push(isNull(tasks.deletedAt));
   const [row] = await db
@@ -278,7 +299,10 @@ export class TaskService {
    * events they emit are held back until the outer transaction commits (and
    * dropped if it rolls back), so listeners never see uncommitted data.
    */
-  static async transaction<T>(db: Database, fn: (service: TaskService, tx: Tx) => Promise<T>): Promise<T> {
+  static async transaction<T>(
+    db: Database,
+    fn: (service: TaskService, tx: Tx) => Promise<T>
+  ): Promise<T> {
     const buffer = new BufferedEventSink(domainEvents);
     const result = await db.transaction((tx) => fn(new TaskService(tx, buffer), tx));
     buffer.flush();
@@ -309,7 +333,8 @@ export class TaskService {
         }
 
         if (input.labelIds?.length) await assertLabelsInProject(tx, project.id, input.labelIds);
-        if (input.assigneeIds?.length) await assertAssigneesCanAccess(tx, project, input.assigneeIds);
+        if (input.assigneeIds?.length)
+          await assertAssigneesCanAccess(tx, project, input.assigneeIds);
         if (input.parentId) await assertValidParent(tx, project.id, input.parentId);
 
         const sequenceNumber = await allocateSequenceNumber(tx, project.id);
@@ -337,11 +362,15 @@ export class TaskService {
 
         const assigneeIds = [...new Set(input.assigneeIds ?? [])];
         if (assigneeIds.length) {
-          await tx.insert(taskAssignees).values(assigneeIds.map((userId) => ({ taskId: task.id, userId })));
+          await tx
+            .insert(taskAssignees)
+            .values(assigneeIds.map((userId) => ({ taskId: task.id, userId })));
         }
         const labelIds = [...new Set(input.labelIds ?? [])];
         if (labelIds.length) {
-          await tx.insert(taskLabels).values(labelIds.map((labelId) => ({ taskId: task.id, labelId })));
+          await tx
+            .insert(taskLabels)
+            .values(labelIds.map((labelId) => ({ taskId: task.id, labelId })));
         }
 
         await recordTaskEvents(tx, [
@@ -386,7 +415,11 @@ export class TaskService {
     }
   }
 
-  private async loadDetail(db: DbExecutor, taskId: string, options: GetTaskOptions): Promise<TaskDetail> {
+  private async loadDetail(
+    db: DbExecutor,
+    taskId: string,
+    options: GetTaskOptions
+  ): Promise<TaskDetail> {
     const conditions: SQL[] = [eq(tasks.id, taskId)];
     if (!options.includeDeleted) conditions.push(isNull(tasks.deletedAt));
 
@@ -409,11 +442,21 @@ export class TaskService {
         .orderBy(...positionOrder()),
       selectTaskRefs(db)
         .innerJoin(taskRelations, eq(taskRelations.relatedTaskId, tasks.id))
-        .where(and(eq(taskRelations.taskId, taskId), eq(taskRelations.type, 'blocks'), isNull(tasks.deletedAt))),
+        .where(
+          and(
+            eq(taskRelations.taskId, taskId),
+            eq(taskRelations.type, 'blocks'),
+            isNull(tasks.deletedAt)
+          )
+        ),
       selectTaskRefs(db)
         .innerJoin(taskRelations, eq(taskRelations.taskId, tasks.id))
         .where(
-          and(eq(taskRelations.relatedTaskId, taskId), eq(taskRelations.type, 'blocks'), isNull(tasks.deletedAt))
+          and(
+            eq(taskRelations.relatedTaskId, taskId),
+            eq(taskRelations.type, 'blocks'),
+            isNull(tasks.deletedAt)
+          )
         ),
     ]);
 
@@ -438,7 +481,8 @@ export class TaskService {
         const project = await loadProjectScope(tx, current.projectId);
 
         const stateChanged = input.stateId !== undefined && input.stateId !== current.stateId;
-        if (stateChanged && input.stateId) await assertStateInProject(tx, project.id, input.stateId);
+        if (stateChanged && input.stateId)
+          await assertStateInProject(tx, project.id, input.stateId);
         if (input.parentId) await assertValidParent(tx, project.id, input.parentId, taskId);
         if (input.labelIds) await assertLabelsInProject(tx, project.id, input.labelIds);
         if (input.assigneeIds) await assertAssigneesCanAccess(tx, project, input.assigneeIds);
@@ -455,15 +499,23 @@ export class TaskService {
           return true;
         };
 
-        if (input.title !== undefined && track('title', current.title, input.title)) set.title = input.title;
-        if (input.description !== undefined && track('description', current.description, input.description ?? null)) {
+        if (input.title !== undefined && track('title', current.title, input.title))
+          set.title = input.title;
+        if (
+          input.description !== undefined &&
+          track('description', current.description, input.description ?? null)
+        ) {
           set.description = input.description ?? null;
         }
         if (input.priority !== undefined && track('priority', current.priority, input.priority)) {
           set.priority = input.priority;
         }
-        if (input.dueDate !== undefined && track('dueDate', current.dueDate, input.dueDate)) set.dueDate = input.dueDate;
-        if (input.startDate !== undefined && track('startDate', current.startDate, input.startDate)) {
+        if (input.dueDate !== undefined && track('dueDate', current.dueDate, input.dueDate))
+          set.dueDate = input.dueDate;
+        if (
+          input.startDate !== undefined &&
+          track('startDate', current.startDate, input.startDate)
+        ) {
           set.startDate = input.startDate;
         }
         if (input.parentId !== undefined && track('parentId', current.parentId, input.parentId)) {
@@ -493,7 +545,11 @@ export class TaskService {
 
         const hasRowChange = Object.keys(set).length > 0;
         const hasSetChange =
-          diff.addedAssigneeIds.length + diff.removedAssigneeIds.length + diff.addedLabelIds.length + diff.removedLabelIds.length > 0;
+          diff.addedAssigneeIds.length +
+            diff.removedAssigneeIds.length +
+            diff.addedLabelIds.length +
+            diff.removedLabelIds.length >
+          0;
         if (hasRowChange || hasSetChange) {
           await tx
             .update(tasks)
@@ -501,7 +557,8 @@ export class TaskService {
             .where(eq(tasks.id, taskId));
         }
 
-        const snapshots = stateChanged ? await stateSnapshots(tx, [current.stateId, input.stateId ?? null])
+        const snapshots = stateChanged
+          ? await stateSnapshots(tx, [current.stateId, input.stateId ?? null])
           : new Map<string, { id: string; name: string; category: string }>();
         const events: TaskEventInput[] = changes.map((change) =>
           change.field === 'stateId'
@@ -569,12 +626,20 @@ export class TaskService {
     assigneeIds: string[] | undefined,
     labelIds: string[] | undefined
   ): Promise<AssigneeLabelDiff> {
-    const diff: AssigneeLabelDiff = { addedAssigneeIds: [], removedAssigneeIds: [], addedLabelIds: [], removedLabelIds: [] };
+    const diff: AssigneeLabelDiff = {
+      addedAssigneeIds: [],
+      removedAssigneeIds: [],
+      addedLabelIds: [],
+      removedLabelIds: [],
+    };
     if (assigneeIds) {
       const existing = new Set(
-        (await tx.select({ id: taskAssignees.userId }).from(taskAssignees).where(eq(taskAssignees.taskId, taskId))).map(
-          (r) => r.id
-        )
+        (
+          await tx
+            .select({ id: taskAssignees.userId })
+            .from(taskAssignees)
+            .where(eq(taskAssignees.taskId, taskId))
+        ).map((r) => r.id)
       );
       const wanted = new Set(assigneeIds);
       diff.addedAssigneeIds = [...wanted].filter((id) => !existing.has(id));
@@ -582,7 +647,12 @@ export class TaskService {
       if (diff.removedAssigneeIds.length) {
         await tx
           .delete(taskAssignees)
-          .where(and(eq(taskAssignees.taskId, taskId), inArray(taskAssignees.userId, diff.removedAssigneeIds)));
+          .where(
+            and(
+              eq(taskAssignees.taskId, taskId),
+              inArray(taskAssignees.userId, diff.removedAssigneeIds)
+            )
+          );
       }
       if (diff.addedAssigneeIds.length) {
         await tx
@@ -593,7 +663,12 @@ export class TaskService {
     }
     if (labelIds) {
       const existing = new Set(
-        (await tx.select({ id: taskLabels.labelId }).from(taskLabels).where(eq(taskLabels.taskId, taskId))).map((r) => r.id)
+        (
+          await tx
+            .select({ id: taskLabels.labelId })
+            .from(taskLabels)
+            .where(eq(taskLabels.taskId, taskId))
+        ).map((r) => r.id)
       );
       const wanted = new Set(labelIds);
       diff.addedLabelIds = [...wanted].filter((id) => !existing.has(id));
@@ -601,7 +676,9 @@ export class TaskService {
       if (diff.removedLabelIds.length) {
         await tx
           .delete(taskLabels)
-          .where(and(eq(taskLabels.taskId, taskId), inArray(taskLabels.labelId, diff.removedLabelIds)));
+          .where(
+            and(eq(taskLabels.taskId, taskId), inArray(taskLabels.labelId, diff.removedLabelIds))
+          );
       }
       if (diff.addedLabelIds.length) {
         await tx
@@ -620,13 +697,41 @@ export class TaskService {
     diff: AssigneeLabelDiff
   ): TaskEventInput[] {
     return [
-      ...diff.addedAssigneeIds.map((id): TaskEventInput => ({ taskId, actorId, mcpClientId, eventType: 'assigned', newValue: id })),
-      ...diff.removedAssigneeIds.map(
-        (id): TaskEventInput => ({ taskId, actorId, mcpClientId, eventType: 'unassigned', oldValue: id })
+      ...diff.addedAssigneeIds.map(
+        (id): TaskEventInput => ({
+          taskId,
+          actorId,
+          mcpClientId,
+          eventType: 'assigned',
+          newValue: id,
+        })
       ),
-      ...diff.addedLabelIds.map((id): TaskEventInput => ({ taskId, actorId, mcpClientId, eventType: 'labeled', newValue: id })),
+      ...diff.removedAssigneeIds.map(
+        (id): TaskEventInput => ({
+          taskId,
+          actorId,
+          mcpClientId,
+          eventType: 'unassigned',
+          oldValue: id,
+        })
+      ),
+      ...diff.addedLabelIds.map(
+        (id): TaskEventInput => ({
+          taskId,
+          actorId,
+          mcpClientId,
+          eventType: 'labeled',
+          newValue: id,
+        })
+      ),
       ...diff.removedLabelIds.map(
-        (id): TaskEventInput => ({ taskId, actorId, mcpClientId, eventType: 'unlabeled', oldValue: id })
+        (id): TaskEventInput => ({
+          taskId,
+          actorId,
+          mcpClientId,
+          eventType: 'unlabeled',
+          oldValue: id,
+        })
       ),
     ];
   }
@@ -748,7 +853,10 @@ export class TaskService {
         const current = await lockTask(tx, taskId, { includeDeleted: true });
         if (!current.deletedAt) return null;
         const project = await loadProjectScope(tx, current.projectId);
-        await tx.update(tasks).set({ deletedAt: null, updatedAt: new Date() }).where(eq(tasks.id, taskId));
+        await tx
+          .update(tasks)
+          .set({ deletedAt: null, updatedAt: new Date() })
+          .where(eq(tasks.id, taskId));
         await recordTaskEvents(tx, [
           { taskId, actorId: restoredBy, mcpClientId: options?.mcpClientId, eventType: 'restored' },
         ]);
@@ -777,7 +885,9 @@ export class TaskService {
    * projectIds or workspaceId is given (an empty projectIds matches nothing).
    * Ordering always ends with tasks.id so pages are deterministic.
    */
-  async list(options: TaskListOptions = {}): Promise<Result<{ tasks: TaskWithRelations[]; total: number }, Error>> {
+  async list(
+    options: TaskListOptions = {}
+  ): Promise<Result<{ tasks: TaskWithRelations[]; total: number }, Error>> {
     try {
       const {
         filters = {},
@@ -791,7 +901,10 @@ export class TaskService {
 
       if (!filters.projectId && !filters.projectIds && !filters.workspaceId) {
         return err(
-          new TaskError('MISSING_SCOPE', 'TaskService.list requires projectId, projectIds or workspaceId')
+          new TaskError(
+            'MISSING_SCOPE',
+            'TaskService.list requires projectId, projectIds or workspaceId'
+          )
         );
       }
 
@@ -802,10 +915,13 @@ export class TaskService {
       if (filters.projectId) conditions.push(eq(tasks.projectId, filters.projectId));
       if (filters.projectIds) {
         // An explicitly-empty list means "match nothing".
-        conditions.push(filters.projectIds.length ? inArray(tasks.projectId, filters.projectIds) : sql`false`);
+        conditions.push(
+          filters.projectIds.length ? inArray(tasks.projectId, filters.projectIds) : sql`false`
+        );
       }
       if (filters.workspaceId) conditions.push(eq(projects.workspaceId, filters.workspaceId));
-      if (filters.ids) conditions.push(filters.ids.length ? inArray(tasks.id, filters.ids) : sql`false`);
+      if (filters.ids)
+        conditions.push(filters.ids.length ? inArray(tasks.id, filters.ids) : sql`false`);
       if (filters.stateId) conditions.push(eq(tasks.stateId, filters.stateId));
       if (filters.stateIds?.length) conditions.push(inArray(tasks.stateId, filters.stateIds));
       conditions.push(...buildTaskAssigneeConditions(filters));
@@ -816,7 +932,9 @@ export class TaskService {
       if (filters.dueBefore) conditions.push(lt(tasks.dueDate, filters.dueBefore));
       if (filters.dueAfter) conditions.push(gt(tasks.dueDate, filters.dueAfter));
       if (filters.parentId !== undefined) {
-        conditions.push(filters.parentId === null ? isNull(tasks.parentId) : eq(tasks.parentId, filters.parentId));
+        conditions.push(
+          filters.parentId === null ? isNull(tasks.parentId) : eq(tasks.parentId, filters.parentId)
+        );
       }
       if (filters.search?.trim()) {
         conditions.push(await this.searchCondition(filters.search));
@@ -834,20 +952,26 @@ export class TaskService {
         .leftJoin(taskStates, eq(tasks.stateId, taskStates.id))
         .innerJoin(projects, eq(tasks.projectId, projects.id))
         .$dynamic();
-      if (needsAssigneeJoin) countQuery = countQuery.leftJoin(taskAssignees, eq(tasks.id, taskAssignees.taskId));
-      if (needsLabelJoin) countQuery = countQuery.leftJoin(taskLabels, eq(tasks.id, taskLabels.taskId));
+      if (needsAssigneeJoin)
+        countQuery = countQuery.leftJoin(taskAssignees, eq(tasks.id, taskAssignees.taskId));
+      if (needsLabelJoin)
+        countQuery = countQuery.leftJoin(taskLabels, eq(tasks.id, taskLabels.taskId));
       const [countResult] = await countQuery.where(whereClause);
       const total = Number(countResult?.count ?? 0);
 
-      const base = distinct ? this.db.selectDistinct(taskRowSelection) : this.db.select(taskRowSelection);
+      const base = distinct
+        ? this.db.selectDistinct(taskRowSelection)
+        : this.db.select(taskRowSelection);
       let taskQuery = base
         .from(tasks)
         .leftJoin(taskStates, eq(tasks.stateId, taskStates.id))
         .innerJoin(projects, eq(tasks.projectId, projects.id))
         .leftJoin(workspaceAgents, eq(tasks.agentId, workspaceAgents.id))
         .$dynamic();
-      if (needsAssigneeJoin) taskQuery = taskQuery.leftJoin(taskAssignees, eq(tasks.id, taskAssignees.taskId));
-      if (needsLabelJoin) taskQuery = taskQuery.leftJoin(taskLabels, eq(tasks.id, taskLabels.taskId));
+      if (needsAssigneeJoin)
+        taskQuery = taskQuery.leftJoin(taskAssignees, eq(tasks.id, taskAssignees.taskId));
+      if (needsLabelJoin)
+        taskQuery = taskQuery.leftJoin(taskLabels, eq(tasks.id, taskLabels.taskId));
 
       const rows: TaskRowWithJoins[] = await taskQuery
         .where(whereClause)
@@ -861,7 +985,11 @@ export class TaskService {
     }
   }
 
-  private orderBy(sortBy: NonNullable<TaskListOptions['sortBy']>, sortOrder: 'asc' | 'desc', distinct: boolean): SQL[] {
+  private orderBy(
+    sortBy: NonNullable<TaskListOptions['sortBy']>,
+    sortOrder: 'asc' | 'desc',
+    distinct: boolean
+  ): SQL[] {
     const dir = sortOrder === 'desc' ? desc : asc;
     switch (sortBy) {
       case 'position':
@@ -869,15 +997,27 @@ export class TaskService {
         // expressions must be in the select list, so use the bare column.
         return distinct
           ? [dir(tasks.position), dir(tasks.id)]
-          : [sortOrder === 'desc' ? sql`${tasks.position} COLLATE "C" DESC` : sql`${tasks.position} COLLATE "C"`, dir(tasks.id)];
+          : [
+              sortOrder === 'desc'
+                ? sql`${tasks.position} COLLATE "C" DESC`
+                : sql`${tasks.position} COLLATE "C"`,
+              dir(tasks.id),
+            ];
       case 'priority':
-        return distinct ? [dir(tasks.priority), asc(tasks.id)] : [dir(PRIORITY_RANK), asc(tasks.id)];
+        return distinct
+          ? [dir(tasks.priority), asc(tasks.id)]
+          : [dir(PRIORITY_RANK), asc(tasks.id)];
       case 'created_at':
         return [dir(tasks.createdAt), asc(tasks.id)];
       case 'updated_at':
         return [dir(tasks.updatedAt), asc(tasks.id)];
       case 'due_date':
-        return [sortOrder === 'desc' ? sql`${tasks.dueDate} DESC NULLS LAST` : sql`${tasks.dueDate} ASC NULLS LAST`, asc(tasks.id)];
+        return [
+          sortOrder === 'desc'
+            ? sql`${tasks.dueDate} DESC NULLS LAST`
+            : sql`${tasks.dueDate} ASC NULLS LAST`,
+          asc(tasks.id),
+        ];
       case 'sequence_number':
         return [dir(tasks.sequenceNumber), asc(tasks.id)];
       case 'deleted_at':
@@ -934,15 +1074,25 @@ export class TaskService {
     removedBy: string | null,
     options?: { mcpClientId?: string | null }
   ): Promise<Result<void, Error>> {
-    return this.changeSets(taskId, removedBy, options?.mcpClientId, { removeAssigneeIds: [userId] });
+    return this.changeSets(taskId, removedBy, options?.mcpClientId, {
+      removeAssigneeIds: [userId],
+    });
   }
 
   /** Add a label (must belong to the task's project). */
-  async addLabel(taskId: string, labelId: string, addedBy: string | null): Promise<Result<void, Error>> {
+  async addLabel(
+    taskId: string,
+    labelId: string,
+    addedBy: string | null
+  ): Promise<Result<void, Error>> {
     return this.changeSets(taskId, addedBy, null, { addLabelIds: [labelId] });
   }
 
-  async removeLabel(taskId: string, labelId: string, removedBy: string | null): Promise<Result<void, Error>> {
+  async removeLabel(
+    taskId: string,
+    labelId: string,
+    removedBy: string | null
+  ): Promise<Result<void, Error>> {
     return this.changeSets(taskId, removedBy, null, { removeLabelIds: [labelId] });
   }
 
@@ -950,7 +1100,12 @@ export class TaskService {
     taskId: string,
     actorId: string | null,
     mcpClientId: string | null | undefined,
-    change: { addAssigneeIds?: string[]; removeAssigneeIds?: string[]; addLabelIds?: string[]; removeLabelIds?: string[] }
+    change: {
+      addAssigneeIds?: string[];
+      removeAssigneeIds?: string[];
+      addLabelIds?: string[];
+      removeLabelIds?: string[];
+    }
   ): Promise<Result<void, Error>> {
     try {
       const outcome = await this.db.transaction(async (tx) => {
@@ -959,8 +1114,13 @@ export class TaskService {
         const diff = await applySetChanges(tx, project, taskId, change);
         await recordTaskEvents(tx, this.setChangeEvents(taskId, actorId, mcpClientId, diff));
         const changed =
-          diff.addedAssigneeIds.length + diff.removedAssigneeIds.length + diff.addedLabelIds.length + diff.removedLabelIds.length > 0;
-        if (changed) await tx.update(tasks).set({ updatedAt: new Date() }).where(eq(tasks.id, taskId));
+          diff.addedAssigneeIds.length +
+            diff.removedAssigneeIds.length +
+            diff.addedLabelIds.length +
+            diff.removedLabelIds.length >
+          0;
+        if (changed)
+          await tx.update(tasks).set({ updatedAt: new Date() }).where(eq(tasks.id, taskId));
         return { project, diff, changed };
       });
       if (outcome.changed) {
@@ -1003,7 +1163,11 @@ export class TaskService {
   }
 
   private emitRekeyed(project: ProjectScope, stateId: string | null): void {
-    this.events.emit('tasks.rekeyed', { workspaceId: project.workspaceId, projectId: project.id, stateId });
+    this.events.emit('tasks.rekeyed', {
+      workspaceId: project.workspaceId,
+      projectId: project.id,
+      stateId,
+    });
   }
 }
 
@@ -1012,9 +1176,19 @@ export async function applySetChanges(
   tx: DbExecutor,
   project: ProjectScope,
   taskId: string,
-  change: { addAssigneeIds?: string[]; removeAssigneeIds?: string[]; addLabelIds?: string[]; removeLabelIds?: string[] }
+  change: {
+    addAssigneeIds?: string[];
+    removeAssigneeIds?: string[];
+    addLabelIds?: string[];
+    removeLabelIds?: string[];
+  }
 ): Promise<AssigneeLabelDiff> {
-  const diff: AssigneeLabelDiff = { addedAssigneeIds: [], removedAssigneeIds: [], addedLabelIds: [], removedLabelIds: [] };
+  const diff: AssigneeLabelDiff = {
+    addedAssigneeIds: [],
+    removedAssigneeIds: [],
+    addedLabelIds: [],
+    removedLabelIds: [],
+  };
   if (change.addAssigneeIds?.length) {
     await assertAssigneesCanAccess(tx, project, change.addAssigneeIds);
     const inserted = await tx
@@ -1027,7 +1201,12 @@ export async function applySetChanges(
   if (change.removeAssigneeIds?.length) {
     const removed = await tx
       .delete(taskAssignees)
-      .where(and(eq(taskAssignees.taskId, taskId), inArray(taskAssignees.userId, change.removeAssigneeIds)))
+      .where(
+        and(
+          eq(taskAssignees.taskId, taskId),
+          inArray(taskAssignees.userId, change.removeAssigneeIds)
+        )
+      )
       .returning({ userId: taskAssignees.userId });
     diff.removedAssigneeIds = removed.map((r) => r.userId);
   }

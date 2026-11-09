@@ -39,7 +39,9 @@ export function canAccessSmartView(
     case 'read':
       return true;
     case 'update':
-      return isCreator || share?.permission === 'edit' || (!view.isPersonal && rolePermissions.update);
+      return (
+        isCreator || share?.permission === 'edit' || (!view.isPersonal && rolePermissions.update)
+      );
     case 'delete':
       return isCreator || (!view.isPersonal && rolePermissions.delete);
     case 'share':

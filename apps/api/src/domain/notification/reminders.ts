@@ -43,12 +43,21 @@ export async function runDueDateReminders(db: Database, now: Date = new Date()):
     )
     .limit(SCAN_LIMIT);
 
-  const byTask = new Map<string, { projectId: string; workspaceId: string; dueDate: Date; userIds: string[] }>();
+  const byTask = new Map<
+    string,
+    { projectId: string; workspaceId: string; dueDate: Date; userIds: string[] }
+  >();
   for (const row of rows) {
     if (!row.dueDate) continue;
     const entry = byTask.get(row.taskId);
     if (entry) entry.userIds.push(row.userId);
-    else byTask.set(row.taskId, { projectId: row.projectId, workspaceId: row.workspaceId, dueDate: row.dueDate, userIds: [row.userId] });
+    else
+      byTask.set(row.taskId, {
+        projectId: row.projectId,
+        workspaceId: row.workspaceId,
+        dueDate: row.dueDate,
+        userIds: [row.userId],
+      });
   }
 
   const inputs: NotificationInput[] = [];

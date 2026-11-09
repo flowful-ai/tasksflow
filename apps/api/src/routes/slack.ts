@@ -33,12 +33,19 @@ async function getSlackIntegration(projectId: string) {
   const [row] = await db
     .select()
     .from(projectIntegrations)
-    .where(and(eq(projectIntegrations.projectId, projectId), eq(projectIntegrations.integrationType, 'slack')));
+    .where(
+      and(
+        eq(projectIntegrations.projectId, projectId),
+        eq(projectIntegrations.integrationType, 'slack')
+      )
+    );
   if (!row) return null;
   return { id: row.id, isEnabled: row.isEnabled, config: parseSlackConfig(row.config) };
 }
 
-function publicView(integration: { id: string; isEnabled: boolean; config: SlackConfig | null } | null) {
+function publicView(
+  integration: { id: string; isEnabled: boolean; config: SlackConfig | null } | null
+) {
   return {
     connected: Boolean(integration?.config),
     id: integration?.id ?? null,
@@ -67,11 +74,21 @@ slack.get('/:projectId/slack', async (c) => {
 slack.post('/:projectId/slack/install/start', async (c) => {
   const user = getCurrentUser(c);
   const projectId = c.req.param('projectId');
-  const access = await authorizeProjectIntegration(projectId, user.id, 'project:manage_integrations');
+  const access = await authorizeProjectIntegration(
+    projectId,
+    user.id,
+    'project:manage_integrations'
+  );
   if (!access.ok) return apiError(c, access.status, access.code, access.message);
 
   const credentials = getSlackOAuthCredentials();
-  if (!credentials) return apiError(c, 400, 'NOT_CONFIGURED', 'Slack is not configured (SLACK_CLIENT_ID / SLACK_CLIENT_SECRET)');
+  if (!credentials)
+    return apiError(
+      c,
+      400,
+      'NOT_CONFIGURED',
+      'Slack is not configured (SLACK_CLIENT_ID / SLACK_CLIENT_SECRET)'
+    );
 
   let sessionId: string;
   try {
@@ -80,17 +97,32 @@ slack.post('/:projectId/slack/install/start', async (c) => {
     return apiError(c, 401, 'UNAUTHORIZED', 'A browser session is required');
   }
 
-  const state = await createOAuthState(db, { provider: 'slack', userId: user.id, sessionId, projectId });
+  const state = await createOAuthState(db, {
+    provider: 'slack',
+    userId: user.id,
+    sessionId,
+    projectId,
+  });
   return c.json({
     success: true,
-    data: { url: buildSlackAuthorizeUrl({ clientId: credentials.clientId, state, redirectUri: getSlackRedirectUri() }) },
+    data: {
+      url: buildSlackAuthorizeUrl({
+        clientId: credentials.clientId,
+        state,
+        redirectUri: getSlackRedirectUri(),
+      }),
+    },
   });
 });
 
 slack.get('/:projectId/slack/channels', async (c) => {
   const user = getCurrentUser(c);
   const projectId = c.req.param('projectId');
-  const access = await authorizeProjectIntegration(projectId, user.id, 'project:manage_integrations');
+  const access = await authorizeProjectIntegration(
+    projectId,
+    user.id,
+    'project:manage_integrations'
+  );
   if (!access.ok) return apiError(c, access.status, access.code, access.message);
 
   const integration = await getSlackIntegration(projectId);
@@ -109,7 +141,11 @@ slack.get('/:projectId/slack/channels', async (c) => {
 slack.patch('/:projectId/slack', async (c) => {
   const user = getCurrentUser(c);
   const projectId = c.req.param('projectId');
-  const access = await authorizeProjectIntegration(projectId, user.id, 'project:manage_integrations');
+  const access = await authorizeProjectIntegration(
+    projectId,
+    user.id,
+    'project:manage_integrations'
+  );
   if (!access.ok) return apiError(c, access.status, access.code, access.message);
 
   let body: unknown = null;
@@ -122,7 +158,8 @@ slack.patch('/:projectId/slack', async (c) => {
   if (!parsed.success) return apiError(c, 400, 'INVALID_BODY', 'Invalid Slack settings');
 
   const integration = await getSlackIntegration(projectId);
-  if (!integration?.config) return apiError(c, 404, 'NOT_CONNECTED', 'Slack is not connected for this project');
+  if (!integration?.config)
+    return apiError(c, 404, 'NOT_CONNECTED', 'Slack is not connected for this project');
   const config = integration.config;
   const next: SlackConfig = {
     ...config,
@@ -131,11 +168,18 @@ slack.patch('/:projectId/slack', async (c) => {
 
   if (parsed.data.channelId && parsed.data.channelId !== config.channelId) {
     const token = botTokenFor(config);
-    if (!token) return apiError(c, 400, 'NOT_CONNECTED', 'Slack bot token missing; reconnect Slack');
+    if (!token)
+      return apiError(c, 400, 'NOT_CONNECTED', 'Slack bot token missing; reconnect Slack');
     try {
       const client = createSlackClient(token);
       const channel = (await client.listChannels()).find((ch) => ch.id === parsed.data.channelId);
-      if (!channel) return apiError(c, 400, 'INVALID_CHANNEL', 'Channel not found or not visible to the FlowTask app');
+      if (!channel)
+        return apiError(
+          c,
+          400,
+          'INVALID_CHANNEL',
+          'Channel not found or not visible to the FlowTask app'
+        );
       if (!channel.isPrivate && !channel.isMember) await client.joinChannel(channel.id);
       next.channelId = channel.id;
       next.channelName = channel.name;
@@ -160,12 +204,21 @@ slack.patch('/:projectId/slack', async (c) => {
 slack.delete('/:projectId/slack', async (c) => {
   const user = getCurrentUser(c);
   const projectId = c.req.param('projectId');
-  const access = await authorizeProjectIntegration(projectId, user.id, 'project:manage_integrations');
+  const access = await authorizeProjectIntegration(
+    projectId,
+    user.id,
+    'project:manage_integrations'
+  );
   if (!access.ok) return apiError(c, access.status, access.code, access.message);
 
   await db
     .delete(projectIntegrations)
-    .where(and(eq(projectIntegrations.projectId, projectId), eq(projectIntegrations.integrationType, 'slack')));
+    .where(
+      and(
+        eq(projectIntegrations.projectId, projectId),
+        eq(projectIntegrations.integrationType, 'slack')
+      )
+    );
   return c.json({ success: true });
 });
 

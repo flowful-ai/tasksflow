@@ -4,7 +4,10 @@ import { useUpdateProject } from '../../hooks/queries';
 import { toast } from '../ui';
 
 interface GeneralSettingsProps {
-  project: Pick<ProjectDetailDto, 'id' | 'name' | 'identifier' | 'description' | 'icon' | 'isArchived'>;
+  project: Pick<
+    ProjectDetailDto,
+    'id' | 'name' | 'identifier' | 'description' | 'icon' | 'isArchived'
+  >;
 }
 
 export function GeneralSettings({ project }: GeneralSettingsProps) {
@@ -42,11 +45,21 @@ export function GeneralSettings({ project }: GeneralSettingsProps) {
           <label htmlFor="project-name" className="block text-sm font-medium text-gray-700 mb-1">
             Project Name
           </label>
-          <input id="project-name" type="text" className="input" value={name} onChange={(e) => setName(e.target.value)} required />
+          <input
+            id="project-name"
+            type="text"
+            className="input"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
         </div>
 
         <div>
-          <label htmlFor="project-identifier" className="block text-sm font-medium text-gray-700 mb-1">
+          <label
+            htmlFor="project-identifier"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
             Identifier
           </label>
           <input
@@ -63,7 +76,10 @@ export function GeneralSettings({ project }: GeneralSettingsProps) {
         </div>
 
         <div>
-          <label htmlFor="project-description" className="block text-sm font-medium text-gray-700 mb-1">
+          <label
+            htmlFor="project-description"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
             Description
           </label>
           <textarea
@@ -103,7 +119,11 @@ export function GeneralSettings({ project }: GeneralSettingsProps) {
         </div>
 
         <div className="pt-2 flex gap-3">
-          <button type="submit" className="btn btn-primary" disabled={updateProject.isPending || !name.trim()}>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={updateProject.isPending || !name.trim()}
+          >
             {updateProject.isPending ? 'Saving...' : 'Save Changes'}
           </button>
         </div>

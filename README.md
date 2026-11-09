@@ -17,15 +17,15 @@ A comprehensive task management platform with GitHub/Slack integrations, AI agen
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| Runtime | **Bun** |
-| Frontend | React + TypeScript + Vite + Tailwind CSS |
-| Backend | Hono (running on Bun) |
-| Database | PostgreSQL + Drizzle ORM |
-| Cache/Queue | Redis |
-| Authentication | Better Auth |
-| Real-time | Bun WebSockets + Redis Pub/Sub |
+| Layer          | Technology                               |
+| -------------- | ---------------------------------------- |
+| Runtime        | **Bun**                                  |
+| Frontend       | React + TypeScript + Vite + Tailwind CSS |
+| Backend        | Hono (running on Bun)                    |
+| Database       | PostgreSQL + Drizzle ORM                 |
+| Cache/Queue    | Redis                                    |
+| Authentication | Better Auth                              |
+| Real-time      | Bun WebSockets + Redis Pub/Sub           |
 
 ## Prerequisites
 
@@ -40,27 +40,32 @@ A comprehensive task management platform with GitHub/Slack integrations, AI agen
 ### macOS / Linux
 
 1. **Install Bun** (if not installed)
+
    ```bash
    curl -fsSL https://bun.sh/install | bash
    ```
 
 2. **Clone the repository**
+
    ```bash
    git clone https://github.com/flowful-ai/tasksflow.git
    cd tasksflow
    ```
 
 3. **Install dependencies**
+
    ```bash
    bun install
    ```
 
 4. **Set up environment variables**
+
    ```bash
    cp .env.example .env
    ```
 
    Edit `.env` and configure:
+
    ```env
    # Database
    DATABASE_URL=postgresql://flowtask:flowtask@localhost:5432/flowtask
@@ -91,6 +96,7 @@ A comprehensive task management platform with GitHub/Slack integrations, AI agen
    ```
 
 5. **Start infrastructure services**
+
    ```bash
    docker-compose up -d
    ```
@@ -98,12 +104,14 @@ A comprehensive task management platform with GitHub/Slack integrations, AI agen
    This starts PostgreSQL, Redis, and MinIO (S3-compatible storage).
 
 6. **Run database migrations**
+
    ```bash
    bun run db:generate
    bun run db:migrate
    ```
 
 7. **Start development servers**
+
    ```bash
    bun run dev
    ```
@@ -115,11 +123,13 @@ A comprehensive task management platform with GitHub/Slack integrations, AI agen
 ### Windows
 
 1. **Install Bun**
+
    ```powershell
    powershell -c "irm bun.sh/install.ps1 | iex"
    ```
 
    Or use WSL2 (recommended for best compatibility):
+
    ```bash
    # In WSL2
    curl -fsSL https://bun.sh/install | bash
@@ -130,6 +140,7 @@ A comprehensive task management platform with GitHub/Slack integrations, AI agen
    - Enable WSL2 backend in Docker Desktop settings
 
 3. **Clone and setup**
+
    ```powershell
    git clone https://github.com/flowful-ai/tasksflow.git
    cd tasksflow
@@ -137,6 +148,7 @@ A comprehensive task management platform with GitHub/Slack integrations, AI agen
    ```
 
 4. **Set up environment variables**
+
    ```powershell
    copy .env.example .env
    ```
@@ -144,11 +156,13 @@ A comprehensive task management platform with GitHub/Slack integrations, AI agen
    Edit `.env` with your preferred text editor (same variables as macOS/Linux).
 
 5. **Start infrastructure services**
+
    ```powershell
    docker-compose up -d
    ```
 
 6. **Run database migrations**
+
    ```powershell
    bun run db:generate
    bun run db:migrate
@@ -253,6 +267,7 @@ docker exec -it flowtask-redis redis-cli MONITOR
 ### Using Docker Compose
 
 1. **Clone and configure**
+
    ```bash
    git clone https://github.com/flowful-ai/tasksflow.git
    cd tasksflow
@@ -260,6 +275,7 @@ docker exec -it flowtask-redis redis-cli MONITOR
    ```
 
 2. **Edit `.env` for production**
+
    ```env
    NODE_ENV=production
 
@@ -274,11 +290,13 @@ docker exec -it flowtask-redis redis-cli MONITOR
    ```
 
 3. **Build and start**
+
    ```bash
    docker-compose -f docker-compose.prod.yml up -d --build
    ```
 
 4. **Run migrations**
+
    ```bash
    docker-compose -f docker-compose.prod.yml exec api bun run db:migrate
    ```
@@ -291,12 +309,14 @@ docker exec -it flowtask-redis redis-cli MONITOR
 ### Manual Deployment
 
 1. **Build all packages**
+
    ```bash
    bun install --frozen-lockfile
    bun run build
    ```
 
 2. **Deploy the API**
+
    ```bash
    cd apps/api
    bun run dist/index.js
@@ -305,7 +325,6 @@ docker exec -it flowtask-redis redis-cli MONITOR
 3. **Deploy the Web App**
 
    The web app builds to static files in `apps/web/dist/`. Deploy to any static hosting:
-
    - **Nginx**: Copy `dist/` to `/usr/share/nginx/html/`
    - **Vercel/Netlify**: Point to `apps/web` directory
    - **S3 + CloudFront**: Upload `dist/` to S3 bucket
@@ -313,6 +332,7 @@ docker exec -it flowtask-redis redis-cli MONITOR
 4. **Configure reverse proxy**
 
    Example Nginx configuration:
+
    ```nginx
    server {
        listen 80;
@@ -347,29 +367,29 @@ docker exec -it flowtask-redis redis-cli MONITOR
 
 ### Environment Variables Reference
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `REDIS_URL` | Yes | Redis connection string |
-| `BETTER_AUTH_SECRET` | Yes | Secret for signing auth tokens (min 32 chars) |
-| `BETTER_AUTH_URL` | Yes | Base URL for auth callbacks |
-| `API_PORT` | No | API server port (default: 3001) |
-| `WS_PORT` | No | WebSocket server port (default: 3002) |
-| `CORS_ORIGIN` | No | Allowed CORS origin (default: localhost:5173) |
-| `GITHUB_CLIENT_ID` | No | GitHub OAuth app client ID |
-| `GITHUB_CLIENT_SECRET` | No | GitHub OAuth app client secret |
-| `GOOGLE_CLIENT_ID` | No | Google OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | No | Google OAuth client secret |
-| `GITHUB_APP_ID` | No | GitHub App ID for integration |
-| `GITHUB_APP_PRIVATE_KEY` | No | GitHub App private key (base64 encoded) |
-| `GITHUB_WEBHOOK_SECRET` | No | Secret for verifying GitHub webhooks |
-| `SLACK_BOT_TOKEN` | No | Slack bot OAuth token |
-| `SLACK_SIGNING_SECRET` | No | Secret for verifying Slack requests |
-| `OPENROUTER_API_KEY` | No | OpenRouter API key for AI features |
-| `ENCRYPTION_KEY` | No | 32-byte key for encrypting stored API keys |
-| `MINIO_ENDPOINT` | No | S3/MinIO endpoint for file storage |
-| `MINIO_ACCESS_KEY` | No | S3/MinIO access key |
-| `MINIO_SECRET_KEY` | No | S3/MinIO secret key |
+| Variable                 | Required | Description                                   |
+| ------------------------ | -------- | --------------------------------------------- |
+| `DATABASE_URL`           | Yes      | PostgreSQL connection string                  |
+| `REDIS_URL`              | Yes      | Redis connection string                       |
+| `BETTER_AUTH_SECRET`     | Yes      | Secret for signing auth tokens (min 32 chars) |
+| `BETTER_AUTH_URL`        | Yes      | Base URL for auth callbacks                   |
+| `API_PORT`               | No       | API server port (default: 3001)               |
+| `WS_PORT`                | No       | WebSocket server port (default: 3002)         |
+| `CORS_ORIGIN`            | No       | Allowed CORS origin (default: localhost:5173) |
+| `GITHUB_CLIENT_ID`       | No       | GitHub OAuth app client ID                    |
+| `GITHUB_CLIENT_SECRET`   | No       | GitHub OAuth app client secret                |
+| `GOOGLE_CLIENT_ID`       | No       | Google OAuth client ID                        |
+| `GOOGLE_CLIENT_SECRET`   | No       | Google OAuth client secret                    |
+| `GITHUB_APP_ID`          | No       | GitHub App ID for integration                 |
+| `GITHUB_APP_PRIVATE_KEY` | No       | GitHub App private key (base64 encoded)       |
+| `GITHUB_WEBHOOK_SECRET`  | No       | Secret for verifying GitHub webhooks          |
+| `SLACK_BOT_TOKEN`        | No       | Slack bot OAuth token                         |
+| `SLACK_SIGNING_SECRET`   | No       | Secret for verifying Slack requests           |
+| `OPENROUTER_API_KEY`     | No       | OpenRouter API key for AI features            |
+| `ENCRYPTION_KEY`         | No       | 32-byte key for encrypting stored API keys    |
+| `MINIO_ENDPOINT`         | No       | S3/MinIO endpoint for file storage            |
+| `MINIO_ACCESS_KEY`       | No       | S3/MinIO access key                           |
+| `MINIO_SECRET_KEY`       | No       | S3/MinIO secret key                           |
 
 ---
 

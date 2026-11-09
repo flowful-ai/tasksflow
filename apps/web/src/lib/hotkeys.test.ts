@@ -12,7 +12,9 @@ const key = (k: string, mods: Partial<Omit<KeyLike, 'key'>> = {}): KeyLike => ({
 
 describe('parseCombo', () => {
   test('single key, modifiers and sequences', () => {
-    expect(parseCombo('c')).toEqual([{ key: 'c', mod: false, ctrl: false, meta: false, alt: false, shift: undefined }]);
+    expect(parseCombo('c')).toEqual([
+      { key: 'c', mod: false, ctrl: false, meta: false, alt: false, shift: undefined },
+    ]);
     expect(parseCombo('mod+k')[0]).toMatchObject({ key: 'k', mod: true });
     expect(parseCombo('g then i').map((s) => s.key)).toEqual(['g', 'i']);
     expect(parseCombo('Shift+I')[0]).toMatchObject({ key: 'i', shift: true });

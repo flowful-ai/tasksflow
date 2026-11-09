@@ -56,7 +56,8 @@ export const agentApi = {
     http.get(`/api/agents${qs({ workspaceId, isActive: String(isActive) })}`),
   get: (agentId: string): Promise<AgentDetail> => http.get(`/api/agents/${agentId}`),
   create: (data: CreateAgentInput): Promise<AgentDetail> => http.post('/api/agents', data),
-  update: (agentId: string, data: UpdateAgentInput): Promise<AgentDetail> => http.patch(`/api/agents/${agentId}`, data),
+  update: (agentId: string, data: UpdateAgentInput): Promise<AgentDetail> =>
+    http.patch(`/api/agents/${agentId}`, data),
   delete: (agentId: string): Promise<null> => http.delete(`/api/agents/${agentId}`),
   availability: (workspaceId: string): Promise<AgentAvailability> =>
     http.get(`/api/agents/availability${qs({ workspaceId })}`),
@@ -68,8 +69,9 @@ export type AppUsersListResponse = AppUsersListResponseDto;
 
 export const appAdminApi = {
   me: (): Promise<AppContext> => http.get('/api/app/me'),
-  listUsers: (params: { search?: string; limit?: number; offset?: number } = {}): Promise<AppUsersListResponse> =>
-    http.get(`/api/app/users${qs(params)}`),
+  listUsers: (
+    params: { search?: string; limit?: number; offset?: number } = {}
+  ): Promise<AppUsersListResponse> => http.get(`/api/app/users${qs(params)}`),
   updateRole: (userId: string, appRole: AppRole): Promise<AppManagedUser> =>
     http.patch(`/api/app/users/${userId}/role`, { appRole }),
 };

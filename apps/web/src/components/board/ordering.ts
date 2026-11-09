@@ -31,7 +31,8 @@ function timeOf(value: string | null | undefined): number {
 
 export function compareByRecentlyCompleted(a: OrderableTask, b: OrderableTask): number {
   return (
-    timeOf(b.completedAt ?? b.updatedAt) - timeOf(a.completedAt ?? a.updatedAt) || compareIds(a.id, b.id)
+    timeOf(b.completedAt ?? b.updatedAt) - timeOf(a.completedAt ?? a.updatedAt) ||
+    compareIds(a.id, b.id)
   );
 }
 
@@ -40,7 +41,10 @@ export function isDoneCategory(category: string | undefined | null): boolean {
 }
 
 /** A sorted copy of a column's tasks. */
-export function sortColumnTasks<T extends OrderableTask>(tasks: readonly T[], category?: string | null): T[] {
+export function sortColumnTasks<T extends OrderableTask>(
+  tasks: readonly T[],
+  category?: string | null
+): T[] {
   return [...tasks].sort(isDoneCategory(category) ? compareByRecentlyCompleted : compareByPosition);
 }
 
@@ -65,7 +69,8 @@ export function neighboursAt(
   isSameColumn: (taskId: string) => boolean = () => true
 ): DropNeighbours {
   const index = orderedIds.indexOf(draggedId);
-  if (index < 0) return { afterTaskId: null, beforeTaskId: null, index: -1, count: orderedIds.length };
+  if (index < 0)
+    return { afterTaskId: null, beforeTaskId: null, index: -1, count: orderedIds.length };
   let afterTaskId: string | null = null;
   for (let i = index - 1; i >= 0; i--) {
     const id = orderedIds[i];

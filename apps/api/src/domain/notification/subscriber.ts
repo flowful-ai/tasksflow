@@ -11,7 +11,12 @@
 import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
 import { comments, projects, taskAssignees, taskStates, tasks } from '../../db/index.js';
-import { extractMentionedUserIds, newlyMentionedUserIds, stripMentions, type JsonObject } from '@flowtask/shared';
+import {
+  extractMentionedUserIds,
+  newlyMentionedUserIds,
+  stripMentions,
+  type JsonObject,
+} from '@flowtask/shared';
 import { domainEvents, type DomainEventBus } from '../events/bus.js';
 import type { TaskWithRelations } from '../task/types.js';
 import { NotificationService, type NotificationInput } from './service.js';
@@ -23,7 +28,9 @@ function excerpt(text: string | null | undefined, max = 160): string | null {
 }
 
 function stateRef(task: TaskWithRelations): JsonObject | null {
-  return task.state ? { id: task.state.id, name: task.state.name, category: task.state.category } : null;
+  return task.state
+    ? { id: task.state.id, name: task.state.name, category: task.state.category }
+    : null;
 }
 
 async function loadStateRef(db: Database, stateId: string | null): Promise<JsonObject | null> {
@@ -45,11 +52,17 @@ function ctxOf(task: TaskWithRelations, workspaceId: string): TaskContext {
   return { workspaceId, projectId: task.projectId, taskId: task.id };
 }
 
-function base(ctx: TaskContext, actorId: string | null): Omit<NotificationInput, 'userIds' | 'type'> {
+function base(
+  ctx: TaskContext,
+  actorId: string | null
+): Omit<NotificationInput, 'userIds' | 'type'> {
   return { workspaceId: ctx.workspaceId, projectId: ctx.projectId, taskId: ctx.taskId, actorId };
 }
 
-export function registerNotificationSubscribers(db: Database, bus: DomainEventBus = domainEvents): () => void {
+export function registerNotificationSubscribers(
+  db: Database,
+  bus: DomainEventBus = domainEvents
+): () => void {
   const service = new NotificationService(db);
 
   const statusChanged = async (
@@ -58,7 +71,10 @@ export function registerNotificationSubscribers(db: Database, bus: DomainEventBu
     actorId: string | null,
     fromStateId: string | null
   ) => {
-    const recipients = [...task.assignees.map((a) => a.id), ...(task.createdBy ? [task.createdBy] : [])];
+    const recipients = [
+      ...task.assignees.map((a) => a.id),
+      ...(task.createdBy ? [task.createdBy] : []),
+    ];
     await service.createMany([
       {
         ...base(ctxOf(task, workspaceId), actorId),
@@ -73,7 +89,9 @@ export function registerNotificationSubscribers(db: Database, bus: DomainEventBu
     bus.on('task.created', async (e) => {
       const ctx = ctxOf(e.task, e.workspaceId);
       const assigned = e.task.assignees.map((a) => a.id);
-      const mentioned = extractMentionedUserIds(e.task.description).filter((id) => !assigned.includes(id));
+      const mentioned = extractMentionedUserIds(e.task.description).filter(
+        (id) => !assigned.includes(id)
+      );
       await service.createMany([
         { ...base(ctx, e.actorId), userIds: assigned, type: 'assigned', data: {} },
         {
@@ -89,7 +107,12 @@ export function registerNotificationSubscribers(db: Database, bus: DomainEventBu
       const ctx = ctxOf(e.task, e.workspaceId);
       const inputs: NotificationInput[] = [];
       if (e.addedAssigneeIds.length) {
-        inputs.push({ ...base(ctx, e.actorId), userIds: e.addedAssigneeIds, type: 'assigned', data: {} });
+        inputs.push({
+          ...base(ctx, e.actorId),
+          userIds: e.addedAssigneeIds,
+          type: 'assigned',
+          data: {},
+        });
       }
       if (e.previousDescription !== undefined) {
         const mentioned = newlyMentionedUserIds(e.previousDescription, e.task.description).filter(
@@ -107,7 +130,12 @@ export function registerNotificationSubscribers(db: Database, bus: DomainEventBu
       if (inputs.length) await service.createMany(inputs);
       const stateChange = e.changes.find((c) => c.field === 'stateId');
       if (stateChange) {
-        await statusChanged(e.task, e.workspaceId, e.actorId, typeof stateChange.from === 'string' ? stateChange.from : null);
+        await statusChanged(
+          e.task,
+          e.workspaceId,
+          e.actorId,
+          typeof stateChange.from === 'string' ? stateChange.from : null
+        );
       }
     }),
 
@@ -128,14 +156,27 @@ export function registerNotificationSubscribers(db: Database, bus: DomainEventBu
         .innerJoin(projects, eq(tasks.projectId, projects.id))
         .where(and(eq(tasks.id, e.taskId), isNull(tasks.deletedAt)));
       if (!task) return;
-      const ctx: TaskContext = { workspaceId: task.workspaceId, projectId: task.projectId, taskId: task.id };
+      const ctx: TaskContext = {
+        workspaceId: task.workspaceId,
+        projectId: task.projectId,
+        taskId: task.id,
+      };
 
       const [assigneeRows, commenterRows] = await Promise.all([
-        db.select({ id: taskAssignees.userId }).from(taskAssignees).where(eq(taskAssignees.taskId, task.id)),
+        db
+          .select({ id: taskAssignees.userId })
+          .from(taskAssignees)
+          .where(eq(taskAssignees.taskId, task.id)),
         db
           .selectDistinct({ id: comments.userId })
           .from(comments)
-          .where(and(eq(comments.taskId, task.id), isNull(comments.deletedAt), isNotNull(comments.userId))),
+          .where(
+            and(
+              eq(comments.taskId, task.id),
+              isNull(comments.deletedAt),
+              isNotNull(comments.userId)
+            )
+          ),
       ]);
       const mentioned = extractMentionedUserIds(e.content);
       const participants = [
@@ -145,7 +186,12 @@ export function registerNotificationSubscribers(db: Database, bus: DomainEventBu
       ].filter((id) => !mentioned.includes(id));
       const data = { commentId: e.commentId, excerpt: excerpt(e.content) };
       await service.createMany([
-        { ...base(ctx, e.actorId), userIds: mentioned, type: 'mentioned', data: { ...data, source: 'comment' } },
+        {
+          ...base(ctx, e.actorId),
+          userIds: mentioned,
+          type: 'mentioned',
+          data: { ...data, source: 'comment' },
+        },
         { ...base(ctx, e.actorId), userIds: participants, type: 'commented', data },
       ]);
     }),

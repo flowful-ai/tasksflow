@@ -27,7 +27,14 @@ import {
   Kbd,
 } from '../components/ui';
 import type { MoveTaskInput } from '../api/types';
-import { useCreateTask, useDeleteTask, useMoveTask, useProject, useProjectTasks, useWorkspace } from '../hooks/queries';
+import {
+  useCreateTask,
+  useDeleteTask,
+  useMoveTask,
+  useProject,
+  useProjectTasks,
+  useWorkspace,
+} from '../hooks/queries';
 import { useAuthStore } from '../stores/auth';
 import { useWorkspaceStore, type ProjectViewMode } from '../stores/workspace';
 import { useUiStore } from '../stores/ui';
@@ -35,7 +42,9 @@ import { useUiStore } from '../stores/ui';
 export function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const currentUserId = useAuthStore((s) => s.user?.id ?? null);
-  const storedMode = useWorkspaceStore((s): ProjectViewMode | undefined => (projectId ? s.projectViewModes[projectId] : undefined));
+  const storedMode = useWorkspaceStore((s): ProjectViewMode | undefined =>
+    projectId ? s.projectViewModes[projectId] : undefined
+  );
   const setProjectViewMode = useWorkspaceStore((s) => s.setProjectViewMode);
   const setCurrentProjectId = useWorkspaceStore((s) => s.setCurrentProjectId);
   const isMobile = useIsMobile();
@@ -52,7 +61,7 @@ export function ProjectPage() {
   }, [projectId, setCurrentProjectId]);
 
   // Phones default to the list (mockup section 7); the stored choice is the desktop one.
-  const viewMode: ProjectViewMode = isMobile ? mobileMode ?? 'list' : storedMode ?? 'kanban';
+  const viewMode: ProjectViewMode = isMobile ? (mobileMode ?? 'list') : (storedMode ?? 'kanban');
 
   const projectQuery = useProject(projectId);
   const project = projectQuery.data;
@@ -86,16 +95,18 @@ export function ProjectPage() {
     onDeleteOne: deleteOne,
   });
   const selectedTasks = useMemo(
-    () => (keyboard.selectedIds.size === 0 ? [] : tasks.filter((t) => keyboard.selectedIds.has(t.id))),
+    () =>
+      keyboard.selectedIds.size === 0 ? [] : tasks.filter((t) => keyboard.selectedIds.has(t.id)),
     [tasks, keyboard.selectedIds]
   );
 
   const moveAsync = useMoveTask().mutateAsync;
   const onTaskMove = useCallback(
-    (move: MoveTaskInput) => moveAsync(move).then(
-      () => undefined,
-      () => undefined
-    ),
+    (move: MoveTaskInput) =>
+      moveAsync(move).then(
+        () => undefined,
+        () => undefined
+      ),
     [moveAsync]
   );
   const createAsync = useCreateTask().mutateAsync;
@@ -106,7 +117,10 @@ export function ProjectPage() {
     },
     [createAsync, projectId]
   );
-  const onAddTask = useCallback((stateId: string) => openCreateTask({ projectId, stateId }), [openCreateTask, projectId]);
+  const onAddTask = useCallback(
+    (stateId: string) => openCreateTask({ projectId, stateId }),
+    [openCreateTask, projectId]
+  );
 
   const members = useMemo(() => workspaceDetail?.members ?? [], [workspaceDetail?.members]);
   const memberOptions = useMemo<FilterOption[]>(
@@ -138,7 +152,8 @@ export function ProjectPage() {
     );
   }
 
-  const setViewMode = (mode: ProjectViewMode) => (isMobile ? setMobileMode(mode) : setProjectViewMode(project.id, mode));
+  const setViewMode = (mode: ProjectViewMode) =>
+    isMobile ? setMobileMode(mode) : setProjectViewMode(project.id, mode);
   const openCreate = () => openCreateTask({ projectId: project.id });
   const chips = describeFilters(filters, {
     currentUserId,
@@ -155,15 +170,29 @@ export function ProjectPage() {
   if (tasksQuery.isLoading && loadedTasks.length === 0) {
     content = <BoardSkeleton variant={viewMode} />;
   } else if (tasksQuery.isError && loadedTasks.length === 0) {
-    content = <ErrorState error={tasksQuery.error} resource="task list" onRetry={() => void tasksQuery.refetch()} />;
+    content = (
+      <ErrorState
+        error={tasksQuery.error}
+        resource="task list"
+        onRetry={() => void tasksQuery.refetch()}
+      />
+    );
   } else if (tasks.length === 0 && isComplete && !tasksQuery.isPlaceholderData) {
     content = isFiltered ? (
       <EmptyState
         icon={<SearchX />}
         title={`No tasks match ${chips.map((c) => `"${c.label}"`).join(' + ')}`}
-        body={<>Clear the filter, or press <Kbd>C</Kbd> to create one.</>}
+        body={
+          <>
+            Clear the filter, or press <Kbd>C</Kbd> to create one.
+          </>
+        }
         action={
-          <button type="button" className="btn btn-secondary" onClick={() => setFilters(EMPTY_FILTERS)}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setFilters(EMPTY_FILTERS)}
+          >
             Clear filter
           </button>
         }
@@ -254,7 +283,6 @@ export function ProjectPage() {
           <Plus aria-hidden className="h-6 w-6" />
         </button>
       )}
-
     </div>
   );
 }

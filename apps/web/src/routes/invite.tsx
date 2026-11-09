@@ -23,7 +23,9 @@ import { invitationApi, ApiError } from '../api/client';
 export function InvitePage() {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
-  const { isAuthenticated, user } = useAuthStore(useShallow((s) => ({ isAuthenticated: s.isAuthenticated, user: s.user })));
+  const { isAuthenticated, user } = useAuthStore(
+    useShallow((s) => ({ isAuthenticated: s.isAuthenticated, user: s.user }))
+  );
   const queryClient = useQueryClient();
   const setWorkspaceId = useWorkspaceStore((state) => state.setCurrentWorkspaceId);
 
@@ -31,7 +33,9 @@ export function InvitePage() {
   const invitation = invitationQuery.data ?? null;
   const isLoading = invitationQuery.isLoading;
   const loadError = token ? invitationQuery.error : new Error('Invalid invitation link');
-  const [acceptedWorkspace, setAcceptedWorkspace] = useState<{ id: string; name: string } | null>(null);
+  const [acceptedWorkspace, setAcceptedWorkspace] = useState<{ id: string; name: string } | null>(
+    null
+  );
 
   // The error is rendered inline, so the global toast is skipped.
   const acceptMutation = useMutation({
@@ -96,7 +100,8 @@ export function InvitePage() {
             Welcome to {acceptedWorkspace.name}!
           </h1>
           <p className="text-gray-600 mb-6">
-            You've successfully joined the workspace. You can now start collaborating with your team.
+            You've successfully joined the workspace. You can now start collaborating with your
+            team.
           </p>
           <button type="button" onClick={handleGoToWorkspace} className="btn btn-primary">
             Go to Dashboard
@@ -124,18 +129,14 @@ export function InvitePage() {
             <Users className="w-8 h-8" />
             <h1 className="text-xl font-semibold">Workspace Invitation</h1>
           </div>
-          <p className="text-primary-100">
-            You've been invited to join a workspace
-          </p>
+          <p className="text-primary-100">You've been invited to join a workspace</p>
         </div>
 
         {/* Content */}
         <div className="p-6 space-y-6">
           {/* Workspace info */}
           <div className="text-center">
-            <h2 className="text-2xl font-bold text-gray-900 mb-1">
-              {invitation?.workspaceName}
-            </h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-1">{invitation?.workspaceName}</h2>
             <div className="flex items-center justify-center gap-2 text-gray-600">
               {invitation?.role === 'admin' ? (
                 <>
@@ -195,9 +196,7 @@ export function InvitePage() {
           </div>
 
           {/* Error message */}
-          {error && (
-            <div className="p-3 text-sm text-red-600 bg-red-50 rounded-lg">{error}</div>
-          )}
+          {error && <div className="p-3 text-sm text-red-600 bg-red-50 rounded-lg">{error}</div>}
 
           {/* Email mismatch warning */}
           {isEmailMismatch && (

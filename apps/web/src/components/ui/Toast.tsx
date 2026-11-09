@@ -49,7 +49,11 @@ export interface ToastUndoOptions {
  * Show "message · Undo". `onUndo` may be async: the toast shows "Undoing…",
  * then success or an error toast. Returns the toast id (for toast.dismiss).
  */
-export function toastUndo(message: string, onUndo: () => void | Promise<void>, options: ToastUndoOptions = {}): string | number {
+export function toastUndo(
+  message: string,
+  onUndo: () => void | Promise<void>,
+  options: ToastUndoOptions = {}
+): string | number {
   const { description, kbdHint, duration = 6000, undoneMessage = 'Restored' } = options;
   let used = false;
 
@@ -61,7 +65,9 @@ export function toastUndo(message: string, onUndo: () => void | Promise<void>, o
       >
         <span className="min-w-0">
           <span className="block truncate">{message}</span>
-          {description && <span className="block truncate text-xs text-neutral-400">{description}</span>}
+          {description && (
+            <span className="block truncate text-xs text-neutral-400">{description}</span>
+          )}
         </span>
         <button
           type="button"
@@ -76,7 +82,10 @@ export function toastUndo(message: string, onUndo: () => void | Promise<void>, o
               if (undoneMessage) toast.success(undoneMessage, { id: pending });
               else toast.dismiss(pending);
             } catch (error) {
-              toast.error(error instanceof Error ? `Undo failed: ${error.message}` : 'Undo failed', { id: pending });
+              toast.error(
+                error instanceof Error ? `Undo failed: ${error.message}` : 'Undo failed',
+                { id: pending }
+              );
             }
           }}
         >

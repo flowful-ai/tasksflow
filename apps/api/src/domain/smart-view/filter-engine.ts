@@ -1,4 +1,20 @@
-import { eq, and, or, gt, gte, lt, lte, inArray, notInArray, like, isNull, isNotNull, bindIfParam, SQL, sql } from 'drizzle-orm';
+import {
+  eq,
+  and,
+  or,
+  gt,
+  gte,
+  lt,
+  lte,
+  inArray,
+  notInArray,
+  like,
+  isNull,
+  isNotNull,
+  bindIfParam,
+  SQL,
+  sql,
+} from 'drizzle-orm';
 import type { PgColumn } from 'drizzle-orm/pg-core';
 import { tasks, taskStates, taskAssignees, taskLabels } from '../../db/index.js';
 import { FilterOperatorSchema } from '@flowtask/shared';
@@ -238,7 +254,10 @@ function anchorInstant(anchor: DateAnchor, ctx: FilterContext, timezone: string)
  * Resolve a date template (`{{now}}`, `{{start_of_week - 1w}}`, …) to an
  * instant. Returns null when the string is not a date template.
  */
-function resolveDateTemplate(template: string, ctx: FilterContext & { timezone?: string }): Date | null {
+function resolveDateTemplate(
+  template: string,
+  ctx: FilterContext & { timezone?: string }
+): Date | null {
   const match = TEMPLATE_RE.exec(template.trim());
   if (!match) return null;
   const [, name, sign, amountText, unit] = match;
@@ -273,7 +292,10 @@ function isScalar(value: unknown): value is FilterScalar {
   );
 }
 
-function resolveScalar(value: FilterScalar, ctx: FilterContext & { timezone?: string }): FilterScalar {
+function resolveScalar(
+  value: FilterScalar,
+  ctx: FilterContext & { timezone?: string }
+): FilterScalar {
   if (typeof value !== 'string' || !value.startsWith('{{')) return value;
   if (value.trim() === '{{current_user}}') return ctx.currentUserId;
   return resolveDateTemplate(value, ctx) ?? value;
@@ -284,7 +306,10 @@ function resolveScalar(value: FilterScalar, ctx: FilterContext & { timezone?: st
  * the stored JSON. Returns undefined for shapes the engine cannot use (objects,
  * nested arrays), which makes the condition a no-op.
  */
-function resolveValue(value: unknown, ctx: FilterContext & { timezone?: string }): ResolvedValue | undefined {
+function resolveValue(
+  value: unknown,
+  ctx: FilterContext & { timezone?: string }
+): ResolvedValue | undefined {
   if (Array.isArray(value)) {
     const items: FilterScalar[] = [];
     for (const item of value) {
@@ -418,7 +443,9 @@ function buildColumnCondition(field: ColumnField, op: string, value: ResolvedVal
     if (value === null) return op === 'eq' ? isNull(column) : isNotNull(column);
     const coerced = coerce(value, kind);
     if (coerced === undefined) return op === 'eq' ? sql`false` : null;
-    return op === 'eq' ? eq(column, coerced) : sql`${column} IS DISTINCT FROM ${bindIfParam(coerced, column)}`;
+    return op === 'eq'
+      ? eq(column, coerced)
+      : sql`${column} IS DISTINCT FROM ${bindIfParam(coerced, column)}`;
   }
 
   if (op === 'gt' || op === 'gte' || op === 'lt' || op === 'lte') {
@@ -469,7 +496,11 @@ function relationNotExists(relation: RelationField['relation'], values: string[]
   return sql`NOT ${relationExists(relation, values)}`;
 }
 
-function buildRelationCondition(field: RelationField, op: string, value: ResolvedValue): SQL | null {
+function buildRelationCondition(
+  field: RelationField,
+  op: string,
+  value: ResolvedValue
+): SQL | null {
   const { relation } = field;
 
   if (op === 'is_null') return relationNotExists(relation, null);
@@ -477,7 +508,8 @@ function buildRelationCondition(field: RelationField, op: string, value: Resolve
 
   if (op === 'eq' || op === 'neq') {
     if (Array.isArray(value)) return null;
-    if (value === null) return op === 'eq' ? relationNotExists(relation, null) : relationExists(relation, null);
+    if (value === null)
+      return op === 'eq' ? relationNotExists(relation, null) : relationExists(relation, null);
     const id = coerce(value, 'uuid');
     if (typeof id !== 'string') return op === 'eq' ? sql`false` : null;
     return op === 'eq' ? relationExists(relation, [id]) : relationNotExists(relation, [id]);
@@ -506,7 +538,10 @@ function buildRelationCondition(field: RelationField, op: string, value: Resolve
 }
 
 // Build SQL condition from a filter condition
-function buildCondition(condition: FilterCondition, ctx: FilterContext & { timezone?: string }): SQL | null {
+function buildCondition(
+  condition: FilterCondition,
+  ctx: FilterContext & { timezone?: string }
+): SQL | null {
   const mapping = FIELD_MAP[condition.field];
   if (!mapping) {
     console.warn(`Unknown filter field: ${condition.field}`);
@@ -532,11 +567,16 @@ function isFilterGroup(condition: FilterCondition | FilterGroup): condition is F
 }
 
 // Build SQL conditions from a filter group
-function buildGroupConditions(group: FilterGroup, ctx: FilterContext & { timezone?: string }): SQL | null {
+function buildGroupConditions(
+  group: FilterGroup,
+  ctx: FilterContext & { timezone?: string }
+): SQL | null {
   const conditions: SQL[] = [];
 
   for (const item of group.conditions) {
-    const condition = isFilterGroup(item) ? buildGroupConditions(item, ctx) : buildCondition(item, ctx);
+    const condition = isFilterGroup(item)
+      ? buildGroupConditions(item, ctx)
+      : buildCondition(item, ctx);
     if (condition) {
       conditions.push(condition);
     }
@@ -556,7 +596,10 @@ export class FilterEngine {
    * Create a filter context with the current user and calendar anchors computed
    * in `options.timezone` (IANA, default/invalid → UTC).
    */
-  static createContext(userId: string, options: CreateFilterContextOptions = {}): FilterEngineContext {
+  static createContext(
+    userId: string,
+    options: CreateFilterContextOptions = {}
+  ): FilterEngineContext {
     const timezone = resolveTimezone(options.timezone);
     const now = options.now ? new Date(options.now.getTime()) : new Date();
 
@@ -564,9 +607,13 @@ export class FilterEngine {
     const weekday = new Date(Date.UTC(today.year, today.month - 1, today.day)).getUTCDay(); // 0 = Sunday
 
     const startOfWeek = fromZoned({ ...today, day: today.day - weekday }, timezone);
-    const endOfWeek = new Date(fromZoned({ ...today, day: today.day - weekday + 7 }, timezone).getTime() - 1);
+    const endOfWeek = new Date(
+      fromZoned({ ...today, day: today.day - weekday + 7 }, timezone).getTime() - 1
+    );
     const startOfMonth = fromZoned({ ...today, day: 1 }, timezone);
-    const endOfMonth = new Date(fromZoned({ ...today, month: today.month + 1, day: 1 }, timezone).getTime() - 1);
+    const endOfMonth = new Date(
+      fromZoned({ ...today, month: today.month + 1, day: 1 }, timezone).getTime() - 1
+    );
 
     return {
       currentUserId: userId,
@@ -583,7 +630,10 @@ export class FilterEngine {
    * Resolve a date template such as `{{now + 7d}}` against a context.
    * Returns null when the string is not a date template.
    */
-  static resolveDateTemplate(template: string, ctx: FilterContext & { timezone?: string }): Date | null {
+  static resolveDateTemplate(
+    template: string,
+    ctx: FilterContext & { timezone?: string }
+  ): Date | null {
     return resolveDateTemplate(template, ctx);
   }
 
@@ -591,7 +641,10 @@ export class FilterEngine {
    * Build SQL WHERE clause from a filter configuration. A context without a
    * timezone is treated as UTC.
    */
-  static buildWhereClause(filters: FilterGroup, ctx: FilterContext & { timezone?: string }): SQL | null {
+  static buildWhereClause(
+    filters: FilterGroup,
+    ctx: FilterContext & { timezone?: string }
+  ): SQL | null {
     return buildGroupConditions(filters, ctx);
   }
 
@@ -600,7 +653,9 @@ export class FilterEngine {
    * label fields compile to EXISTS subqueries, so only state fields need a join
    * (TaskService always left-joins task_states).
    */
-  static getRequiredJoins(filters: FilterGroup): Set<'task_states' | 'task_assignees' | 'task_labels'> {
+  static getRequiredJoins(
+    filters: FilterGroup
+  ): Set<'task_states' | 'task_assignees' | 'task_labels'> {
     const joins = new Set<'task_states' | 'task_assignees' | 'task_labels'>();
 
     function checkConditions(group: FilterGroup) {

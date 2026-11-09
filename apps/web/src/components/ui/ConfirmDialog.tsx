@@ -80,7 +80,9 @@ export function ConfirmDialog({
       }}
       title={
         <span className="flex items-center gap-2">
-          {variant === 'danger' && <AlertTriangle className="h-5 w-5 text-primary-600" aria-hidden />}
+          {variant === 'danger' && (
+            <AlertTriangle className="h-5 w-5 text-primary-600" aria-hidden />
+          )}
           {title}
         </span>
       }
@@ -91,7 +93,13 @@ export function ConfirmDialog({
       initialFocus={variant === 'danger' ? cancelRef : undefined}
       footer={
         <>
-          <button ref={cancelRef} type="button" className="btn btn-secondary" disabled={busy} onClick={() => onOpenChange(false)}>
+          <button
+            ref={cancelRef}
+            type="button"
+            className="btn btn-secondary"
+            disabled={busy}
+            onClick={() => onOpenChange(false)}
+          >
             {cancelLabel}
           </button>
           <button
@@ -109,7 +117,10 @@ export function ConfirmDialog({
     >
       {children}
       {error && (
-        <p role="alert" className="mt-3 rounded-lg bg-primary-50 px-3 py-2 text-sm text-primary-700">
+        <p
+          role="alert"
+          className="mt-3 rounded-lg bg-primary-50 px-3 py-2 text-sm text-primary-700"
+        >
           {error}
         </p>
       )}

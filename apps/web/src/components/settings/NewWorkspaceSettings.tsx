@@ -33,7 +33,9 @@ export function NewWorkspaceSettings() {
   return (
     <div className="card p-6">
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Create Workspace</h2>
-      <p className="text-gray-600 mb-6">Create a new workspace to organize your projects and tasks.</p>
+      <p className="text-gray-600 mb-6">
+        Create a new workspace to organize your projects and tasks.
+      </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>

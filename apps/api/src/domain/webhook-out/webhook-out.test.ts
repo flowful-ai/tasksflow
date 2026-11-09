@@ -36,7 +36,14 @@ function fakeTask(): TaskWithRelations {
     updatedAt: now,
     deletedAt: null,
     completedAt: null,
-    state: { id: 's1', projectId: 'p', name: 'Todo', category: 'backlog', position: 'a0', color: null },
+    state: {
+      id: 's1',
+      projectId: 'p',
+      name: 'Todo',
+      category: 'backlog',
+      position: 'a0',
+      color: null,
+    },
     assignees: [
       {
         id: 'u1',
@@ -75,7 +82,8 @@ describe.skipIf(!TEST_DB)('outgoing webhooks (integration)', () => {
   let server: ReturnType<typeof Bun.serve>;
   const received: { headers: Headers; body: string }[] = [];
   let failNext = 0;
-  const service = () => new OutgoingWebhookService(db, { urlPolicy: { allowPrivate: true, production: false } });
+  const service = () =>
+    new OutgoingWebhookService(db, { urlPolicy: { allowPrivate: true, production: false } });
   const ctx = (): JobContext => ({ db, workerId: 'test' });
   const job = (deliveryId: string, attempts: number, maxAttempts = 3): ClaimedJob => ({
     id: randomUUID(),
@@ -114,16 +122,27 @@ describe.skipIf(!TEST_DB)('outgoing webhooks (integration)', () => {
       const deliveries = await db
         .select({ id: outgoingWebhookDeliveries.id })
         .from(outgoingWebhookDeliveries)
-        .where(inArray(outgoingWebhookDeliveries.webhookId, hooks.value.map((h) => h.id)));
+        .where(
+          inArray(
+            outgoingWebhookDeliveries.webhookId,
+            hooks.value.map((h) => h.id)
+          )
+        );
       const ids = deliveries.map((d) => d.id);
-      if (ids.length) await db.delete(jobs).where(inArray(sql`${jobs.payload}->>'deliveryId'`, ids));
+      if (ids.length)
+        await db.delete(jobs).where(inArray(sql`${jobs.payload}->>'deliveryId'`, ids));
     }
     await db.delete(workspaces).where(eq(workspaces.id, workspaceId));
   });
 
   it('rejects private targets unless allowed', async () => {
     const strict = new OutgoingWebhookService(db, { urlPolicy: { allowPrivate: false } });
-    const result = await strict.create({ workspaceId, url: 'http://127.0.0.1:1/x', events: ['*'], createdBy: null });
+    const result = await strict.create({
+      workspaceId,
+      url: 'http://127.0.0.1:1/x',
+      events: ['*'],
+      createdBy: null,
+    });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.code).toBe('PRIVATE_ADDRESS');
   });
@@ -141,7 +160,9 @@ describe.skipIf(!TEST_DB)('outgoing webhooks (integration)', () => {
     expect(created.value.events).toEqual(['task.created']);
 
     const listed = await service().list(workspaceId);
-    expect(listed.ok && listed.value[0]).toMatchObject({ secretPreview: `whsec_…${created.value.secret.slice(-4)}` });
+    expect(listed.ok && listed.value[0]).toMatchObject({
+      secretPreview: `whsec_…${created.value.secret.slice(-4)}`,
+    });
     expect(JSON.stringify(listed)).not.toContain(created.value.secret);
 
     const rotated = await service().update(created.value.id, { rotateSecret: true, events: ['*'] });
@@ -177,18 +198,32 @@ describe.skipIf(!TEST_DB)('outgoing webhooks (integration)', () => {
       .where(eq(outgoingWebhookDeliveries.webhookId, created.value.id));
     expect(deliveries).toHaveLength(1);
     const delivery = deliveries[0]!;
-    const [queued] = await db.select().from(jobs).where(sql`${jobs.payload}->>'deliveryId' = ${delivery.id}`);
+    const [queued] = await db
+      .select()
+      .from(jobs)
+      .where(sql`${jobs.payload}->>'deliveryId' = ${delivery.id}`);
     expect(queued?.type).toBe('webhooks.deliver');
 
     const handler = createWebhookDeliveryHandler({ urlPolicy: { allowPrivate: true } });
     failNext = 1;
     const before = received.length;
     await expect(handler(job(delivery.id, 1), ctx())).rejects.toThrow('HTTP 500');
-    let [row] = await db.select().from(outgoingWebhookDeliveries).where(eq(outgoingWebhookDeliveries.id, delivery.id));
-    expect(row).toMatchObject({ status: 'pending', responseCode: 500, attempt: 1, error: 'HTTP 500' });
+    let [row] = await db
+      .select()
+      .from(outgoingWebhookDeliveries)
+      .where(eq(outgoingWebhookDeliveries.id, delivery.id));
+    expect(row).toMatchObject({
+      status: 'pending',
+      responseCode: 500,
+      attempt: 1,
+      error: 'HTTP 500',
+    });
 
     await handler(job(delivery.id, 2), ctx());
-    [row] = await db.select().from(outgoingWebhookDeliveries).where(eq(outgoingWebhookDeliveries.id, delivery.id));
+    [row] = await db
+      .select()
+      .from(outgoingWebhookDeliveries)
+      .where(eq(outgoingWebhookDeliveries.id, delivery.id));
     expect(row).toMatchObject({ status: 'success', responseCode: 200, attempt: 2, error: null });
     expect(row?.deliveredAt).not.toBeNull();
 

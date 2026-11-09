@@ -37,10 +37,12 @@ export const CreateTaskSchema = z.object({
   parentId: z.string().uuid().nullable().optional(),
   // GitHub integration: optionally create a linked GitHub issue
   createOnGitHub: z.boolean().optional(),
-  githubRepo: z.object({
-    owner: z.string(),
-    repo: z.string(),
-  }).optional(),
+  githubRepo: z
+    .object({
+      owner: z.string(),
+      repo: z.string(),
+    })
+    .optional(),
 });
 
 export type CreateTask = z.infer<typeof CreateTaskSchema>;
@@ -204,7 +206,9 @@ export const BulkTaskOperationSchema = z
     delete: z.boolean().optional(),
     restore: z.boolean().optional(),
   })
-  .refine((op) => !(op.delete && op.restore), { message: 'delete and restore are mutually exclusive' })
+  .refine((op) => !(op.delete && op.restore), {
+    message: 'delete and restore are mutually exclusive',
+  })
   .refine(
     (op) =>
       op.stateId !== undefined ||

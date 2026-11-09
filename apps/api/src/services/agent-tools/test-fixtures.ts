@@ -2,7 +2,12 @@
  * In-memory fakes for agent tool tests (two workspaces, an ACL-restricted
  * project). Not imported by production code.
  */
-import type { ProjectWithRelations, TaskFilters, TaskListOptions, TaskWithRelations } from '../../domain/index.js';
+import type {
+  ProjectWithRelations,
+  TaskFilters,
+  TaskListOptions,
+  TaskWithRelations,
+} from '../../domain/index.js';
 import { err, ok, type WorkspaceRole } from '@flowtask/shared';
 import type { ToolScopeDeps, WorkspaceMemberSummary } from '../../lib/mcp/tool-context.js';
 import type { ToolServices } from './types.js';
@@ -21,7 +26,13 @@ export const STATE_B_TODO = '00000000-0000-4000-8000-0000000b1001';
 
 const created = new Date('2026-11-01T00:00:00.000Z');
 
-function project(id: string, workspaceId: string, identifier: string, access: 'all' | 'admin', states: ProjectWithRelations['taskStates']): ProjectWithRelations {
+function project(
+  id: string,
+  workspaceId: string,
+  identifier: string,
+  access: 'all' | 'admin',
+  states: ProjectWithRelations['taskStates']
+): ProjectWithRelations {
   return {
     id,
     workspaceId,
@@ -55,7 +66,13 @@ export const PROJECTS: ProjectWithRelations[] = [
   project(PROJECT_B, WS_B, 'OPS', 'all', [state(STATE_B_TODO, PROJECT_B, 'Todo', 'backlog', 'a0')]),
 ];
 
-export function task(id: string, projectId: string, sequenceNumber: number, stateId: string, position: string): TaskWithRelations {
+export function task(
+  id: string,
+  projectId: string,
+  sequenceNumber: number,
+  stateId: string,
+  position: string
+): TaskWithRelations {
   const owner = PROJECTS.find((candidate) => candidate.id === projectId);
   return {
     id,
@@ -111,16 +128,25 @@ export function createScopeDeps(tasks: TaskWithRelations[] = createTasks()): Too
     return Boolean(target) && (role !== 'member' || target?.access === 'all');
   };
   return {
-    getProject: async (projectId) => PROJECTS.find((candidate) => candidate.id === projectId) ?? null,
+    getProject: async (projectId) =>
+      PROJECTS.find((candidate) => candidate.id === projectId) ?? null,
     hasProjectAccess: async (projectId, _userId, role) => canSee(projectId, role),
     listAccessibleProjects: async (workspaceId, _userId, role) =>
-      PROJECTS.filter((candidate) => candidate.workspaceId === workspaceId && canSee(candidate.id, role)),
+      PROJECTS.filter(
+        (candidate) => candidate.workspaceId === workspaceId && canSee(candidate.id, role)
+      ),
     getTask: async (taskId) => tasks.find((candidate) => candidate.id === taskId) ?? null,
     findTaskIdByKey: async (workspaceId, key) => {
       const owner = PROJECTS.find(
-        (candidate) => candidate.workspaceId === workspaceId && candidate.identifier === key.identifier
+        (candidate) =>
+          candidate.workspaceId === workspaceId && candidate.identifier === key.identifier
       );
-      return tasks.find((candidate) => candidate.projectId === owner?.id && candidate.sequenceNumber === key.sequenceNumber)?.id ?? null;
+      return (
+        tasks.find(
+          (candidate) =>
+            candidate.projectId === owner?.id && candidate.sequenceNumber === key.sequenceNumber
+        )?.id ?? null
+      );
     },
     listMembers: async (workspaceId) => MEMBERS[workspaceId] ?? [],
   };
@@ -143,7 +169,10 @@ function matches(candidate: TaskWithRelations, filters: TaskFilters): boolean {
 }
 
 /** Fake services that behave like TaskService.list regarding projectIds (undefined = every workspace). */
-export function createServices(tasks: TaskWithRelations[] = createTasks()): { services: ToolServices; calls: RecordedCalls } {
+export function createServices(tasks: TaskWithRelations[] = createTasks()): {
+  services: ToolServices;
+  calls: RecordedCalls;
+} {
   const calls: RecordedCalls = { list: [], move: [], delete: [], addAssignee: [], published: [] };
   const byId = (taskId: string) => tasks.find((candidate) => candidate.id === taskId);
   const unsupported = async () => err(new Error('not supported in this fake'));
@@ -174,7 +203,9 @@ export function createServices(tasks: TaskWithRelations[] = createTasks()): { se
       move: async (taskId, input) => {
         calls.move.push({ taskId, stateId: input.stateId, position: input.position });
         const found = byId(taskId);
-        return found ? ok({ ...found, stateId: input.stateId, position: input.position ?? found.position }) : err(new Error('Task not found'));
+        return found
+          ? ok({ ...found, stateId: input.stateId, position: input.position ?? found.position })
+          : err(new Error('Task not found'));
       },
       delete: async (taskId) => {
         calls.delete.push(taskId);

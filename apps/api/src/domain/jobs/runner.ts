@@ -64,7 +64,11 @@ function toClaimedJob(row: Job): ClaimedJob {
 }
 
 /** Create a runner without starting it. */
-export function createJobRunner(db: Database, handlers: JobHandlers, opts: JobRunnerOptions = {}): JobRunner {
+export function createJobRunner(
+  db: Database,
+  handlers: JobHandlers,
+  opts: JobRunnerOptions = {}
+): JobRunner {
   const concurrency = Math.max(1, opts.concurrency ?? 4);
   const pollMs = Math.max(10, opts.pollMs ?? 1000);
   const lockTimeoutMs = opts.lockTimeoutMs ?? 5 * 60 * 1000;
@@ -72,7 +76,8 @@ export function createJobRunner(db: Database, handlers: JobHandlers, opts: JobRu
   const workerId = opts.workerId ?? `${hostname()}:${process.pid}:${randomUUID().slice(0, 8)}`;
   const onError =
     opts.onError ??
-    ((job: ClaimedJob, error: Error) => console.error(`[jobs] ${job.type} ${job.id} failed (attempt ${job.attempts}):`, error));
+    ((job: ClaimedJob, error: Error) =>
+      console.error(`[jobs] ${job.type} ${job.id} failed (attempt ${job.attempts}):`, error));
   const types = Object.keys(handlers);
 
   const inFlight = new Set<Promise<void>>();
@@ -269,7 +274,11 @@ export function createJobRunner(db: Database, handlers: JobHandlers, opts: JobRu
 }
 
 /** Create and start a job runner. Call `stop()` on shutdown. */
-export function startJobRunner(db: Database, handlers: JobHandlers, opts: JobRunnerOptions = {}): JobRunner {
+export function startJobRunner(
+  db: Database,
+  handlers: JobHandlers,
+  opts: JobRunnerOptions = {}
+): JobRunner {
   const runner = createJobRunner(db, handlers, opts);
   runner.start();
   return runner;

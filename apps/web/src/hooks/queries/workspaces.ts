@@ -10,7 +10,11 @@ export const FIRST_CURSOR: string | null = null;
 
 /** Workspaces the current user belongs to. */
 export function useWorkspaces() {
-  return useQuery({ queryKey: queryKeys.workspaces.list(), queryFn: workspacesApi.list, staleTime: 5 * 60_000 });
+  return useQuery({
+    queryKey: queryKeys.workspaces.list(),
+    queryFn: workspacesApi.list,
+    staleTime: 5 * 60_000,
+  });
 }
 
 /**
@@ -78,7 +82,8 @@ export function useWorkspaceMembers(workspaceId: string | null | undefined) {
 export function useWorkspaceActivity(workspaceId: string | null | undefined, limit = 20) {
   return useInfiniteQuery({
     queryKey: queryKeys.workspaces.activity(workspaceId ?? ''),
-    queryFn: ({ pageParam }) => workspacesApi.activity(workspaceId ?? '', { limit, cursor: pageParam }),
+    queryFn: ({ pageParam }) =>
+      workspacesApi.activity(workspaceId ?? '', { limit, cursor: pageParam }),
     initialPageParam: FIRST_CURSOR,
     getNextPageParam: (last) => last.meta?.nextCursor ?? null,
     enabled: Boolean(workspaceId),

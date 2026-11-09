@@ -16,14 +16,49 @@ import {
 import { ConfirmDialog, ErrorState, Spinner, toast } from '../ui';
 import { AVAILABLE_PERMISSIONS } from './AgentSettings';
 
-const API_KEY_PROVIDERS: { provider: ApiKeyProvider; label: string; placeholder: string; docsUrl: string; docsLabel: string }[] = [
-  { provider: 'openai', label: 'OpenAI', placeholder: 'sk-...', docsUrl: 'https://platform.openai.com/api-keys', docsLabel: 'platform.openai.com' },
-  { provider: 'anthropic', label: 'Anthropic', placeholder: 'sk-ant-...', docsUrl: 'https://console.anthropic.com/settings/keys', docsLabel: 'console.anthropic.com' },
-  { provider: 'google', label: 'Google AI', placeholder: 'AIza...', docsUrl: 'https://aistudio.google.com/app/apikey', docsLabel: 'aistudio.google.com' },
-  { provider: 'openrouter', label: 'OpenRouter', placeholder: 'sk-or-...', docsUrl: 'https://openrouter.ai/keys', docsLabel: 'openrouter.ai' },
+const API_KEY_PROVIDERS: {
+  provider: ApiKeyProvider;
+  label: string;
+  placeholder: string;
+  docsUrl: string;
+  docsLabel: string;
+}[] = [
+  {
+    provider: 'openai',
+    label: 'OpenAI',
+    placeholder: 'sk-...',
+    docsUrl: 'https://platform.openai.com/api-keys',
+    docsLabel: 'platform.openai.com',
+  },
+  {
+    provider: 'anthropic',
+    label: 'Anthropic',
+    placeholder: 'sk-ant-...',
+    docsUrl: 'https://console.anthropic.com/settings/keys',
+    docsLabel: 'console.anthropic.com',
+  },
+  {
+    provider: 'google',
+    label: 'Google AI',
+    placeholder: 'AIza...',
+    docsUrl: 'https://aistudio.google.com/app/apikey',
+    docsLabel: 'aistudio.google.com',
+  },
+  {
+    provider: 'openrouter',
+    label: 'OpenRouter',
+    placeholder: 'sk-or-...',
+    docsUrl: 'https://openrouter.ai/keys',
+    docsLabel: 'openrouter.ai',
+  },
 ];
 
-const EMPTY_PROVIDER_INPUTS: Record<ApiKeyProvider, string> = { openai: '', anthropic: '', google: '', openrouter: '' };
+const EMPTY_PROVIDER_INPUTS: Record<ApiKeyProvider, string> = {
+  openai: '',
+  anthropic: '',
+  google: '',
+  openrouter: '',
+};
 const DEFAULT_AGENT_TOOLS = ['query_tasks', 'get_task', 'list_projects'];
 
 interface AgentFormState {
@@ -102,7 +137,11 @@ export function AiSettings() {
   if (keyStatus.error) {
     return (
       <div className="card p-6">
-        <ErrorState error={keyStatus.error} resource="AI configuration" onRetry={() => void keyStatus.refetch()} />
+        <ErrorState
+          error={keyStatus.error}
+          resource="AI configuration"
+          onRetry={() => void keyStatus.refetch()}
+        />
       </div>
     );
   }
@@ -146,7 +185,10 @@ export function AiSettings() {
     }
   };
 
-  const saveDefaultAgent = async (agentId: string | null, current: WorkspaceAiSettings | undefined = aiSettings) => {
+  const saveDefaultAgent = async (
+    agentId: string | null,
+    current: WorkspaceAiSettings | undefined = aiSettings
+  ) => {
     if (!current) return;
     await updateAiSettings.mutateAsync({ ...current, defaultAgentId: agentId });
   };
@@ -155,12 +197,15 @@ export function AiSettings() {
     const name = agentForm.name.trim();
     const model = agentForm.model.trim();
     if (!name) return setAgentFormError('Agent name is required.');
-    if (!model || !model.includes('/')) return setAgentFormError('Model must follow "provider/model" format.');
+    if (!model || !model.includes('/'))
+      return setAgentFormError('Model must follow "provider/model" format.');
     if (agentForm.tools.length === 0) return setAgentFormError('Select at least one tool.');
     const requestsPerMinute = parsePositiveInt(agentForm.requestsPerMinute);
-    if (!requestsPerMinute) return setAgentFormError('Requests per minute must be a positive whole number.');
+    if (!requestsPerMinute)
+      return setAgentFormError('Requests per minute must be a positive whole number.');
     const tokensPerDay = parsePositiveInt(agentForm.tokensPerDay);
-    if (!tokensPerDay) return setAgentFormError('Daily token limit must be a positive whole number.');
+    if (!tokensPerDay)
+      return setAgentFormError('Daily token limit must be a positive whole number.');
     setAgentFormError(null);
 
     const payload = {
@@ -176,7 +221,10 @@ export function AiSettings() {
       resetAgentForm();
     };
     if (editingAgentId) {
-      agentMutations.update.mutate({ agentId: editingAgentId, ...payload, isActive: agentForm.isActive }, { onSuccess });
+      agentMutations.update.mutate(
+        { agentId: editingAgentId, ...payload, isActive: agentForm.isActive },
+        { onSuccess }
+      );
     } else {
       agentMutations.create.mutate(payload, { onSuccess });
     }
@@ -209,7 +257,9 @@ export function AiSettings() {
       </div>
       <div className="mb-6 rounded-lg border border-primary-100 bg-primary-50 p-4 text-sm text-primary-900">
         <div className="font-medium">Recommended flow</div>
-        <div className="mt-1">1. Add at least one provider key. 2. Create agents. 3. Pick a default chat agent.</div>
+        <div className="mt-1">
+          1. Add at least one provider key. 2. Create agents. 3. Pick a default chat agent.
+        </div>
       </div>
 
       {keyStatus.isLoading && <Spinner label="Loading key status" className="mb-4" />}
@@ -217,7 +267,9 @@ export function AiSettings() {
       <section aria-label="Provider API keys" className="space-y-5">
         {API_KEY_PROVIDERS.map((config) => {
           const hasKey = statusByProvider?.[config.provider] ?? false;
-          const isSaving = keyMutations.save.isPending && keyMutations.save.variables?.provider === config.provider;
+          const isSaving =
+            keyMutations.save.isPending &&
+            keyMutations.save.variables?.provider === config.provider;
           const keyValue = apiKeys[config.provider];
           const inputId = `api-key-${config.provider}`;
           return (
@@ -226,7 +278,9 @@ export function AiSettings() {
                 <h3 className="text-base font-medium text-gray-900">{config.label}</h3>
                 <div className="text-sm text-gray-600">
                   Status:{' '}
-                  <span className={hasKey ? 'text-green-700 font-medium' : 'text-amber-700 font-medium'}>
+                  <span
+                    className={hasKey ? 'text-green-700 font-medium' : 'text-amber-700 font-medium'}
+                  >
                     {hasKey ? 'Configured' : 'Not configured'}
                   </span>
                 </div>
@@ -241,11 +295,18 @@ export function AiSettings() {
                 className="input"
                 placeholder={config.placeholder}
                 value={keyValue}
-                onChange={(e) => setApiKeys((prev) => ({ ...prev, [config.provider]: e.target.value }))}
+                onChange={(e) =>
+                  setApiKeys((prev) => ({ ...prev, [config.provider]: e.target.value }))
+                }
               />
               <p className="mt-1 text-sm text-gray-500">
                 Get your API key from{' '}
-                <a href={config.docsUrl} target="_blank" rel="noopener noreferrer" className="text-primary-600 hover:underline">
+                <a
+                  href={config.docsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary-600 hover:underline"
+                >
                   {config.docsLabel}
                 </a>
               </p>
@@ -272,11 +333,16 @@ export function AiSettings() {
         })}
       </section>
 
-      <section aria-labelledby="agents-heading" className="mt-8 rounded-lg border border-gray-200 p-4">
+      <section
+        aria-labelledby="agents-heading"
+        className="mt-8 rounded-lg border border-gray-200 p-4"
+      >
         <h3 id="agents-heading" className="text-base font-medium text-gray-900">
           Agents
         </h3>
-        <p className="mt-1 text-sm text-gray-600">Create and manage reusable assistant profiles for workspace chat.</p>
+        <p className="mt-1 text-sm text-gray-600">
+          Create and manage reusable assistant profiles for workspace chat.
+        </p>
         {!hasProviderKey && (
           <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
             Configure at least one provider key before creating agents.
@@ -287,7 +353,9 @@ export function AiSettings() {
         ) : (
           <ul className="mt-4 space-y-2">
             {agents.length === 0 ? (
-              <li className="text-sm text-gray-500">No agents yet. Create your first agent below.</li>
+              <li className="text-sm text-gray-500">
+                No agents yet. Create your first agent below.
+              </li>
             ) : (
               agents.map((agent) => (
                 <li key={agent.id} className="rounded-md border border-gray-200 px-3 py-3">
@@ -298,7 +366,9 @@ export function AiSettings() {
                         <span
                           className={clsx(
                             'rounded px-2 py-0.5 text-xs font-medium',
-                            agent.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                            agent.isActive
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-gray-100 text-gray-600'
                           )}
                         >
                           {agent.isActive ? 'Active' : 'Inactive'}
@@ -312,7 +382,11 @@ export function AiSettings() {
                       <div className="mt-1 text-xs font-mono text-gray-600">{agent.model}</div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <button type="button" className="btn btn-secondary !px-2 !py-1 text-xs" onClick={() => void beginEditAgent(agent)}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary !px-2 !py-1 text-xs"
+                        onClick={() => void beginEditAgent(agent)}
+                      >
                         Edit
                       </button>
                       <button
@@ -331,11 +405,19 @@ export function AiSettings() {
                             .then(() => toast.success('Chat defaults saved'))
                             .catch(() => undefined)
                         }
-                        disabled={!agent.isActive || aiSettings?.defaultAgentId === agent.id || updateAiSettings.isPending}
+                        disabled={
+                          !agent.isActive ||
+                          aiSettings?.defaultAgentId === agent.id ||
+                          updateAiSettings.isPending
+                        }
                       >
                         Set default
                       </button>
-                      <button type="button" className="btn btn-secondary !px-2 !py-1 text-xs" onClick={() => setDeletingAgent(agent)}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary !px-2 !py-1 text-xs"
+                        onClick={() => setDeletingAgent(agent)}
+                      >
                         Delete
                       </button>
                     </div>
@@ -353,41 +435,91 @@ export function AiSettings() {
             saveAgent();
           }}
         >
-          <h4 className="text-sm font-semibold text-gray-900">{editingAgentId ? 'Edit Agent' : 'Create Agent'}</h4>
+          <h4 className="text-sm font-semibold text-gray-900">
+            {editingAgentId ? 'Edit Agent' : 'Create Agent'}
+          </h4>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
             <div>
-              <label htmlFor="agent-name" className="mb-1 block text-sm font-medium text-gray-700">Name</label>
-              <input id="agent-name" className="input" value={agentForm.name} onChange={(e) => setField('name', e.target.value)} placeholder="Support assistant" />
+              <label htmlFor="agent-name" className="mb-1 block text-sm font-medium text-gray-700">
+                Name
+              </label>
+              <input
+                id="agent-name"
+                className="input"
+                value={agentForm.name}
+                onChange={(e) => setField('name', e.target.value)}
+                placeholder="Support assistant"
+              />
             </div>
             <div>
-              <label htmlFor="agent-model" className="mb-1 block text-sm font-medium text-gray-700">Model</label>
-              <input id="agent-model" className="input" value={agentForm.model} onChange={(e) => setField('model', e.target.value)} placeholder="openai/gpt-4.1" />
+              <label htmlFor="agent-model" className="mb-1 block text-sm font-medium text-gray-700">
+                Model
+              </label>
+              <input
+                id="agent-model"
+                className="input"
+                value={agentForm.model}
+                onChange={(e) => setField('model', e.target.value)}
+                placeholder="openai/gpt-4.1"
+              />
             </div>
             <div className="md:col-span-2">
-              <label htmlFor="agent-prompt" className="mb-1 block text-sm font-medium text-gray-700">System Prompt (optional)</label>
-              <textarea id="agent-prompt" className="input min-h-[96px]" value={agentForm.systemPrompt} onChange={(e) => setField('systemPrompt', e.target.value)} placeholder="You are a concise project assistant..." />
+              <label
+                htmlFor="agent-prompt"
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
+                System Prompt (optional)
+              </label>
+              <textarea
+                id="agent-prompt"
+                className="input min-h-[96px]"
+                value={agentForm.systemPrompt}
+                onChange={(e) => setField('systemPrompt', e.target.value)}
+                placeholder="You are a concise project assistant..."
+              />
             </div>
             <div>
-              <label htmlFor="agent-rpm" className="mb-1 block text-sm font-medium text-gray-700">Requests / minute</label>
-              <input id="agent-rpm" inputMode="numeric" className="input" value={agentForm.requestsPerMinute} onChange={(e) => setField('requestsPerMinute', e.target.value)} />
+              <label htmlFor="agent-rpm" className="mb-1 block text-sm font-medium text-gray-700">
+                Requests / minute
+              </label>
+              <input
+                id="agent-rpm"
+                inputMode="numeric"
+                className="input"
+                value={agentForm.requestsPerMinute}
+                onChange={(e) => setField('requestsPerMinute', e.target.value)}
+              />
             </div>
             <div>
-              <label htmlFor="agent-tpd" className="mb-1 block text-sm font-medium text-gray-700">Tokens / day</label>
-              <input id="agent-tpd" inputMode="numeric" className="input" value={agentForm.tokensPerDay} onChange={(e) => setField('tokensPerDay', e.target.value)} />
+              <label htmlFor="agent-tpd" className="mb-1 block text-sm font-medium text-gray-700">
+                Tokens / day
+              </label>
+              <input
+                id="agent-tpd"
+                inputMode="numeric"
+                className="input"
+                value={agentForm.tokensPerDay}
+                onChange={(e) => setField('tokensPerDay', e.target.value)}
+              />
             </div>
           </div>
           <fieldset className="mt-4">
             <legend className="mb-2 block text-sm font-medium text-gray-700">Tools</legend>
             <div className="grid gap-2 md:grid-cols-2">
               {AVAILABLE_PERMISSIONS.map((tool) => (
-                <label key={tool.id} className="flex items-center gap-2 rounded border border-gray-200 px-2 py-1.5 text-sm text-gray-700">
+                <label
+                  key={tool.id}
+                  className="flex items-center gap-2 rounded border border-gray-200 px-2 py-1.5 text-sm text-gray-700"
+                >
                   <input
                     type="checkbox"
                     checked={agentForm.tools.includes(tool.id)}
                     onChange={() =>
                       setField(
                         'tools',
-                        agentForm.tools.includes(tool.id) ? agentForm.tools.filter((id) => id !== tool.id) : [...agentForm.tools, tool.id]
+                        agentForm.tools.includes(tool.id)
+                          ? agentForm.tools.filter((id) => id !== tool.id)
+                          : [...agentForm.tools, tool.id]
                       )
                     }
                   />
@@ -398,7 +530,11 @@ export function AiSettings() {
           </fieldset>
           {editingAgentId && (
             <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
-              <input type="checkbox" checked={agentForm.isActive} onChange={(e) => setField('isActive', e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={agentForm.isActive}
+                onChange={(e) => setField('isActive', e.target.checked)}
+              />
               Agent is active
             </label>
           )}
@@ -408,7 +544,11 @@ export function AiSettings() {
             </p>
           )}
           <div className="mt-4 flex items-center gap-2">
-            <button type="submit" className="btn btn-primary" disabled={isSavingAgent || !hasProviderKey}>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={isSavingAgent || !hasProviderKey}
+            >
               {isSavingAgent ? 'Saving...' : editingAgentId ? 'Save Agent' : 'Create Agent'}
             </button>
             {editingAgentId && (
@@ -420,13 +560,22 @@ export function AiSettings() {
         </form>
       </section>
 
-      <section aria-labelledby="chat-defaults-heading" className="mt-8 rounded-lg border border-gray-200 p-4">
+      <section
+        aria-labelledby="chat-defaults-heading"
+        className="mt-8 rounded-lg border border-gray-200 p-4"
+      >
         <h3 id="chat-defaults-heading" className="text-base font-medium text-gray-900">
           Chat Defaults
         </h3>
-        <p className="mt-1 text-sm text-gray-600">Choose the default agent used by in-app workspace chat.</p>
+        <p className="mt-1 text-sm text-gray-600">
+          Choose the default agent used by in-app workspace chat.
+        </p>
         {aiSettingsQuery.error ? (
-          <ErrorState error={aiSettingsQuery.error} resource="chat defaults" onRetry={() => void aiSettingsQuery.refetch()} />
+          <ErrorState
+            error={aiSettingsQuery.error}
+            resource="chat defaults"
+            onRetry={() => void aiSettingsQuery.refetch()}
+          />
         ) : !aiSettings ? (
           <Spinner label="Loading chat defaults" className="mt-3" />
         ) : (

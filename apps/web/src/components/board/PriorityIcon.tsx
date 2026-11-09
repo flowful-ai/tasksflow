@@ -16,7 +16,13 @@ export function priorityLabel(priority: string | null | undefined): string | nul
  * Priority as a shape (mockup section 1): 1–3 filled bars, or a red "!" tile
  * for urgent. The label is sr-only text, so meaning never relies on colour.
  */
-export function PriorityIcon({ priority, className }: { priority: string | null | undefined; className?: string }) {
+export function PriorityIcon({
+  priority,
+  className,
+}: {
+  priority: string | null | undefined;
+  className?: string;
+}) {
   const label = priorityLabel(priority);
   if (!label) return null;
   const sr = <span className="sr-only">Priority: {label}</span>;
@@ -25,7 +31,14 @@ export function PriorityIcon({ priority, className }: { priority: string | null 
       <>
         <svg aria-hidden viewBox="0 0 16 16" className={clsx('h-3.5 w-3.5 shrink-0', className)}>
           <rect width="16" height="16" rx="4" className="fill-primary-500" />
-          <text x="8" y="12" fontSize="11" fontWeight="800" textAnchor="middle" className="fill-white">
+          <text
+            x="8"
+            y="12"
+            fontSize="11"
+            fontWeight="800"
+            textAnchor="middle"
+            className="fill-white"
+          >
             !
           </text>
         </svg>
@@ -41,7 +54,11 @@ export function PriorityIcon({ priority, className }: { priority: string | null 
   ];
   return (
     <>
-      <svg aria-hidden viewBox="0 0 16 16" className={clsx('h-3.5 w-3.5 shrink-0 text-neutral-600', className)}>
+      <svg
+        aria-hidden
+        viewBox="0 0 16 16"
+        className={clsx('h-3.5 w-3.5 shrink-0 text-neutral-600', className)}
+      >
         {bars.map((bar, i) => (
           <rect
             key={bar.x}

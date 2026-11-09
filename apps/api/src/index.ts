@@ -3,7 +3,12 @@ import { createApp } from './app.js';
 import { startApiBackground } from './background/index.js';
 import { applyClientIp, parseTrustedProxyHops, resolveClientIp } from './lib/client-ip.js';
 import { resolveMigrationsDir, shouldRunMigrations } from './lib/migrations.js';
-import { markShuttingDown, registerShutdownHook, runShutdownHooks, withTimeout } from './lib/shutdown.js';
+import {
+  markShuttingDown,
+  registerShutdownHook,
+  runShutdownHooks,
+  withTimeout,
+} from './lib/shutdown.js';
 import { initSSE, shutdownSSE } from './sse/manager.js';
 import { checkApiKeyEncryptionConfig, rekeyTaskPositions } from './domain/index.js';
 
@@ -33,7 +38,9 @@ function repairTaskPositions(): void {
   rekeyTaskPositions(getDatabase(), { onlyInvalid: true })
     .then((report) => {
       if (report.columnsRekeyed > 0) {
-        console.log(`Re-keyed ${report.columnsRekeyed} task column(s), ${report.tasksUpdated} task(s) updated`);
+        console.log(
+          `Re-keyed ${report.columnsRekeyed} task column(s), ${report.tasksUpdated} task(s) updated`
+        );
       }
     })
     .catch((error: Error) => console.error('Task position repair failed:', error.message));

@@ -16,7 +16,14 @@ const MAX_RECENTS = 8;
 const storageKey = (workspaceId: string) => `flowtask-recent:${workspaceId}`;
 
 function isRecentItem(value: object | null): value is RecentItem {
-  if (value === null || !('kind' in value) || !('id' in value) || !('key' in value) || !('title' in value)) return false;
+  if (
+    value === null ||
+    !('kind' in value) ||
+    !('id' in value) ||
+    !('key' in value) ||
+    !('title' in value)
+  )
+    return false;
   return (
     (value.kind === 'task' || value.kind === 'project') &&
     typeof value.id === 'string' &&
@@ -32,7 +39,9 @@ export function parseRecents(raw: string | null): RecentItem[] {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
     const items: unknown[] = parsed;
-    return items.filter((item): item is RecentItem => typeof item === 'object' && isRecentItem(item)).slice(0, MAX_RECENTS);
+    return items
+      .filter((item): item is RecentItem => typeof item === 'object' && isRecentItem(item))
+      .slice(0, MAX_RECENTS);
   } catch {
     return [];
   }
@@ -40,7 +49,10 @@ export function parseRecents(raw: string | null): RecentItem[] {
 
 /** Put `item` first, de-duplicated, capped. */
 export function pushRecent(list: RecentItem[], item: RecentItem): RecentItem[] {
-  return [item, ...list.filter((r) => !(r.kind === item.kind && r.id === item.id))].slice(0, MAX_RECENTS);
+  return [item, ...list.filter((r) => !(r.kind === item.kind && r.id === item.id))].slice(
+    0,
+    MAX_RECENTS
+  );
 }
 
 export function readRecents(workspaceId: string | null | undefined): RecentItem[] {

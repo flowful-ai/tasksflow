@@ -25,9 +25,15 @@ export function verifySlackRequest(params: {
 }): SlackVerificationResult {
   const ts = Number(params.timestamp);
   const now = params.nowSeconds ?? Math.floor(Date.now() / 1000);
-  if (!/^\d+$/.test(params.timestamp) || !Number.isSafeInteger(ts) || Math.abs(now - ts) > SLACK_MAX_REQUEST_AGE_SECONDS) {
+  if (
+    !/^\d+$/.test(params.timestamp) ||
+    !Number.isSafeInteger(ts) ||
+    Math.abs(now - ts) > SLACK_MAX_REQUEST_AGE_SECONDS
+  ) {
     return { ok: false, reason: 'stale_timestamp' };
   }
   const expected = `v0=${hmacSha256Hex(params.secret, `v0:${params.timestamp}:${params.body}`)}`;
-  return safeEqual(params.signature, expected) ? { ok: true } : { ok: false, reason: 'invalid_signature' };
+  return safeEqual(params.signature, expected)
+    ? { ok: true }
+    : { ok: false, reason: 'invalid_signature' };
 }

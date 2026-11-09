@@ -18,7 +18,9 @@ export function toWebhookTask(task: TaskWithRelations): JsonObject {
     title: task.title,
     description: task.description,
     priority: task.priority,
-    state: task.state ? { id: task.state.id, name: task.state.name, category: task.state.category } : null,
+    state: task.state
+      ? { id: task.state.id, name: task.state.name, category: task.state.category }
+      : null,
     assignees: task.assignees.map((user) => ({ id: user.id, name: user.name })),
     labels: task.labels.map((label) => ({ id: label.id, name: label.name, color: label.color })),
     dueDate: task.dueDate ? task.dueDate.toISOString() : null,
@@ -47,7 +49,9 @@ export function registerOutgoingWebhookSubscribers(
   };
 
   const unsubscribers = [
-    bus.on('task.created', (e) => dispatch(e.workspaceId, 'task.created', { task: toWebhookTask(e.task), actorId: e.actorId })),
+    bus.on('task.created', (e) =>
+      dispatch(e.workspaceId, 'task.created', { task: toWebhookTask(e.task), actorId: e.actorId })
+    ),
     bus.on('task.updated', (e) =>
       dispatch(e.workspaceId, 'task.updated', {
         task: toWebhookTask(e.task),
@@ -68,7 +72,9 @@ export function registerOutgoingWebhookSubscribers(
         positionOnly: e.positionOnly,
       })
     ),
-    bus.on('task.restored', (e) => dispatch(e.workspaceId, 'task.restored', { task: toWebhookTask(e.task), actorId: e.actorId })),
+    bus.on('task.restored', (e) =>
+      dispatch(e.workspaceId, 'task.restored', { task: toWebhookTask(e.task), actorId: e.actorId })
+    ),
     bus.on('task.deleted', async (e) => {
       const [project] = await db
         .select({ identifier: projects.identifier })

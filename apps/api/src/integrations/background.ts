@@ -135,10 +135,16 @@ export function getBackgroundJobRunners(): ReadonlyMap<string, BackgroundJobRunn
  * Schedule a registered job. Never throws: an enqueue failure falls back to
  * running in-process so the work isn't silently dropped.
  */
-export function scheduleBackgroundJob(type: string, payload: BackgroundJobPayload, options: BackgroundTaskOptions = {}): void {
+export function scheduleBackgroundJob(
+  type: string,
+  payload: BackgroundJobPayload,
+  options: BackgroundTaskOptions = {}
+): void {
   const run = jobRunners.get(type);
   if (!run) {
-    console.error(JSON.stringify({ level: 'error', msg: 'background_job_unregistered', task: type }));
+    console.error(
+      JSON.stringify({ level: 'error', msg: 'background_job_unregistered', task: type })
+    );
     return;
   }
   const inProcess = () => void runInBackground(type, () => run(payload), options);
@@ -148,7 +154,13 @@ export function scheduleBackgroundJob(type: string, payload: BackgroundJobPayloa
   }
   durableQueue.enqueue(type, payload).catch((error: unknown) => {
     console.error(
-      JSON.stringify({ level: 'warn', msg: 'background_job_enqueue_failed', task: type, ...options.context, ...errorFields(error) })
+      JSON.stringify({
+        level: 'warn',
+        msg: 'background_job_enqueue_failed',
+        task: type,
+        ...options.context,
+        ...errorFields(error),
+      })
     );
     inProcess();
   });

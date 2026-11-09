@@ -25,7 +25,11 @@ export interface WorkspaceMemberSummary {
 export interface ToolScopeDeps {
   getProject(projectId: string): Promise<ProjectWithRelations | null>;
   hasProjectAccess(projectId: string, userId: string, role: WorkspaceRole): Promise<boolean>;
-  listAccessibleProjects(workspaceId: string, userId: string, role: WorkspaceRole): Promise<ProjectWithRelations[]>;
+  listAccessibleProjects(
+    workspaceId: string,
+    userId: string,
+    role: WorkspaceRole
+  ): Promise<ProjectWithRelations[]>;
   getTask(taskId: string): Promise<TaskWithRelations | null>;
   findTaskIdByKey(workspaceId: string, key: TaskKey): Promise<string | null>;
   listMembers(workspaceId: string): Promise<WorkspaceMemberSummary[]>;
@@ -78,7 +82,8 @@ export function createDefaultToolScopeDeps(): ToolScopeDeps {
       const result = await projectService.getById(projectId);
       return result.ok ? result.value : null;
     },
-    hasProjectAccess: (projectId, userId, role) => projectService.hasAccess(projectId, userId, role),
+    hasProjectAccess: (projectId, userId, role) =>
+      projectService.hasAccess(projectId, userId, role),
     async listAccessibleProjects(workspaceId, userId, role) {
       const result = await projectService.list({
         filters: { workspaceId, userId, workspaceRole: role, includeArchived: true },
@@ -130,7 +135,10 @@ function memoize<T>(load: () => Promise<T>): () => Promise<T> {
   };
 }
 
-export function buildToolContext(input: ToolContextInput, deps: ToolScopeDeps = getDefaultDeps()): ToolContext {
+export function buildToolContext(
+  input: ToolContextInput,
+  deps: ToolScopeDeps = getDefaultDeps()
+): ToolContext {
   const grantedTools = new Set<AgentTool>();
   for (const tool of input.grantedTools) {
     if (isAgentTool(tool)) {
@@ -149,7 +157,10 @@ export function buildToolContext(input: ToolContextInput, deps: ToolScopeDeps = 
 
   const requireProject = async (projectId: string): Promise<ProjectWithRelations> => {
     if (!isUuid(projectId)) {
-      throw new ToolExecutionError('projectId must be a project id (uuid) from list_projects', 'VALIDATION_ERROR');
+      throw new ToolExecutionError(
+        'projectId must be a project id (uuid) from list_projects',
+        'VALIDATION_ERROR'
+      );
     }
     const project = await deps.getProject(projectId);
     if (!project || project.workspaceId !== input.workspaceId) {
@@ -173,7 +184,10 @@ export function buildToolContext(input: ToolContextInput, deps: ToolScopeDeps = 
         throw new ToolExecutionError(`Tool "${toolName}" not found`, 'UNKNOWN_TOOL');
       }
       if (!grantedTools.has(toolName)) {
-        throw new ToolExecutionError(`Tool "${toolName}" is not granted to this client`, 'TOOL_NOT_GRANTED');
+        throw new ToolExecutionError(
+          `Tool "${toolName}" is not granted to this client`,
+          'TOOL_NOT_GRANTED'
+        );
       }
       return toolName;
     },

@@ -13,7 +13,9 @@ describe('queryKeys', () => {
   });
 
   test('empty filters share one cache entry', () => {
-    expect(queryKeys.tasks.list('p1')).toEqual(queryKeys.tasks.list('p1', { assigneeId: undefined, search: '  ' }));
+    expect(queryKeys.tasks.list('p1')).toEqual(
+      queryKeys.tasks.list('p1', { assigneeId: undefined, search: '  ' })
+    );
     expect(hasActiveFilters({})).toBe(false);
     expect(hasActiveFilters({ labelId: 'l1' })).toBe(true);
     expect(normalizeFilters({ search: ' bug ' })).toEqual({ search: 'bug' });
@@ -26,20 +28,37 @@ describe('queryKeys', () => {
 
   test('every factory returns a fresh array rooted in its domain', () => {
     expect(queryKeys.notifications.list('w1')).toEqual(['notifications', 'list', 'w1', 'inbox']);
-    expect(isKeyPrefix(queryKeys.notifications.all, queryKeys.notifications.unreadCount('w1'))).toBe(true);
-    expect(isKeyPrefix(queryKeys.smartViews.executions(), queryKeys.smartViews.execute('v1'))).toBe(true);
+    expect(
+      isKeyPrefix(queryKeys.notifications.all, queryKeys.notifications.unreadCount('w1'))
+    ).toBe(true);
+    expect(isKeyPrefix(queryKeys.smartViews.executions(), queryKeys.smartViews.execute('v1'))).toBe(
+      true
+    );
     expect(queryKeys.search.query('w1', ' TF-12 ')).toEqual(['search', 'w1', 'tf-12']);
-    expect(queryKeys.workspaces.taskStats('w1', ['b', 'a'])).toEqual(['workspaces', 'task-stats', 'w1', ['a', 'b']]);
+    expect(queryKeys.workspaces.taskStats('w1', ['b', 'a'])).toEqual([
+      'workspaces',
+      'task-stats',
+      'w1',
+      ['a', 'b'],
+    ]);
   });
 });
 
 describe('workspace store migration', () => {
   test('v0 objects are reduced to ids', () => {
-    expect(migrateWorkspaceState({ currentWorkspace: { id: 'w1' }, currentProject: { id: 'p1' } })).toEqual({
+    expect(
+      migrateWorkspaceState({ currentWorkspace: { id: 'w1' }, currentProject: { id: 'p1' } })
+    ).toEqual({
       currentWorkspaceId: 'w1',
       currentProjectId: 'p1',
     });
-    expect(migrateWorkspaceState({ currentWorkspace: null })).toEqual({ currentWorkspaceId: null, currentProjectId: null });
-    expect(migrateWorkspaceState(undefined)).toEqual({ currentWorkspaceId: null, currentProjectId: null });
+    expect(migrateWorkspaceState({ currentWorkspace: null })).toEqual({
+      currentWorkspaceId: null,
+      currentProjectId: null,
+    });
+    expect(migrateWorkspaceState(undefined)).toEqual({
+      currentWorkspaceId: null,
+      currentProjectId: null,
+    });
   });
 });

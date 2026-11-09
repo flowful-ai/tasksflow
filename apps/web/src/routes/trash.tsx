@@ -7,7 +7,15 @@ import { tasksApi, trashApi } from '../api/tasks';
 import { queryKeys } from '../api/queryKeys';
 import type { TaskDto } from '../api/types';
 import { useProject, useRestoreTask, useTrash } from '../hooks/queries';
-import { ColorDot, ConfirmDialog, EmptyState, ErrorState, PageSpinner, Spinner, toast } from '../components/ui';
+import {
+  ColorDot,
+  ConfirmDialog,
+  EmptyState,
+  ErrorState,
+  PageSpinner,
+  Spinner,
+  toast,
+} from '../components/ui';
 import { formatDateTime, relativeTime } from '../lib/time';
 
 const PAGE_SIZE = 50;
@@ -25,7 +33,15 @@ function useDeletedBy(taskId: string) {
   });
 }
 
-function TrashRow({ task, onRestore, restoring }: { task: TaskDto; onRestore: () => void; restoring: boolean }) {
+function TrashRow({
+  task,
+  onRestore,
+  restoring,
+}: {
+  task: TaskDto;
+  onRestore: () => void;
+  restoring: boolean;
+}) {
   const deletedBy = useDeletedBy(task.id);
   const key = task.key ?? `${task.project.identifier}-${task.sequenceNumber}`;
   return (
@@ -58,7 +74,11 @@ function TrashRow({ task, onRestore, restoring }: { task: TaskDto; onRestore: ()
         className="btn btn-secondary shrink-0 px-3 py-1.5 text-sm"
         aria-label={`Restore ${key}: ${task.title}`}
       >
-        {restoring ? <Spinner size="sm" label="Restoring" /> : <RotateCcw aria-hidden className="mr-1.5 h-4 w-4" />}
+        {restoring ? (
+          <Spinner size="sm" label="Restoring" />
+        ) : (
+          <RotateCcw aria-hidden className="mr-1.5 h-4 w-4" />
+        )}
         Restore
       </button>
     </li>
@@ -104,7 +124,9 @@ export function TrashPage() {
     for (let round = 0; round < 20; round++) {
       const batch = (await trashApi.list(projectId, { page: 1, limit: 100 })).data;
       if (batch.length === 0) break;
-      const results = await Promise.allSettled(batch.map((t) => restore.mutateAsync({ projectId, taskId: t.id })));
+      const results = await Promise.allSettled(
+        batch.map((t) => restore.mutateAsync({ projectId, taskId: t.id }))
+      );
       restored += results.filter((r) => r.status === 'fulfilled').length;
       failed += results.filter((r) => r.status === 'rejected').length;
       if (failed > 0) break;
@@ -132,7 +154,8 @@ export function TrashPage() {
         <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold text-neutral-900">Trash</h1>
           <p className="mt-1 text-sm text-neutral-500">
-            Deleted tasks stay here for {meta?.retentionDays ?? 30} days, then they are removed for good.
+            Deleted tasks stay here for {meta?.retentionDays ?? 30} days, then they are removed for
+            good.
           </p>
         </div>
         {total > 0 && (
@@ -145,24 +168,46 @@ export function TrashPage() {
 
       {tasks.length === 0 ? (
         <div className="card">
-          <EmptyState icon={<Trash2 />} title="The trash is empty" body="Deleted tasks of this project appear here." />
+          <EmptyState
+            icon={<Trash2 />}
+            title="The trash is empty"
+            body="Deleted tasks of this project appear here."
+          />
         </div>
       ) : (
         <div className="card overflow-hidden p-0">
           <ul aria-label="Deleted tasks" className="divide-y divide-neutral-100">
             {tasks.map((task) => (
-              <TrashRow key={task.id} task={task} restoring={restoringIds.has(task.id)} onRestore={() => void restoreOne(task)} />
+              <TrashRow
+                key={task.id}
+                task={task}
+                restoring={restoringIds.has(task.id)}
+                onRestore={() => void restoreOne(task)}
+              />
             ))}
           </ul>
           {pages > 1 && (
-            <nav aria-label="Trash pages" className="flex items-center justify-between border-t border-neutral-100 px-4 py-2 text-sm">
-              <button type="button" className="btn btn-ghost px-2 py-1" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+            <nav
+              aria-label="Trash pages"
+              className="flex items-center justify-between border-t border-neutral-100 px-4 py-2 text-sm"
+            >
+              <button
+                type="button"
+                className="btn btn-ghost px-2 py-1"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => p - 1)}
+              >
                 Previous
               </button>
               <span className="text-neutral-500">
                 Page {page} of {pages}
               </span>
-              <button type="button" className="btn btn-ghost px-2 py-1" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>
+              <button
+                type="button"
+                className="btn btn-ghost px-2 py-1"
+                disabled={page >= pages}
+                onClick={() => setPage((p) => p + 1)}
+              >
                 Next
               </button>
             </nav>

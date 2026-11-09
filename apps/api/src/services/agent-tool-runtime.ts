@@ -1,12 +1,32 @@
 import { jsonSchema, tool, type ToolSet } from 'ai';
-import { AGENT_TOOLS, isMutatingTool, type ToolAnnotations, type ToolDefinition, type ToolObjectSchema } from '../domain/index.js';
+import {
+  AGENT_TOOLS,
+  isMutatingTool,
+  type ToolAnnotations,
+  type ToolDefinition,
+  type ToolObjectSchema,
+} from '../domain/index.js';
 import type { AgentTool } from '@flowtask/shared';
-import { ToolExecutionError, toToolErrorPayload, type ToolErrorPayload } from '../lib/mcp/errors.js';
-import { formatZodIssues, isJsonRecord, jsonSchemaToZod, type JsonRecord, type JsonValue } from '../lib/mcp/json-schema-zod.js';
+import {
+  ToolExecutionError,
+  toToolErrorPayload,
+  type ToolErrorPayload,
+} from '../lib/mcp/errors.js';
+import {
+  formatZodIssues,
+  isJsonRecord,
+  jsonSchemaToZod,
+  type JsonRecord,
+  type JsonValue,
+} from '../lib/mcp/json-schema-zod.js';
 import type { ToolContext } from '../lib/mcp/tool-context.js';
 import { TOOL_PERMISSIONS } from '../lib/mcp/tool-permissions.js';
 import type { ToolOutput } from '../lib/mcp/response-shaping.js';
-import { getDefaultToolServices, type ToolHandler, type ToolServices } from './agent-tools/types.js';
+import {
+  getDefaultToolServices,
+  type ToolHandler,
+  type ToolServices,
+} from './agent-tools/types.js';
 import { TASK_TOOL_HANDLERS } from './agent-tools/task-tools.js';
 import { WORKSPACE_TOOL_HANDLERS } from './agent-tools/workspace-tools.js';
 
@@ -25,7 +45,9 @@ const HANDLERS: Record<AgentTool, ToolHandler> = {
   ...WORKSPACE_TOOL_HANDLERS,
 };
 
-const DEFINITIONS = new Map<AgentTool, ToolDefinition>(AGENT_TOOLS.map((definition) => [definition.name, definition]));
+const DEFINITIONS = new Map<AgentTool, ToolDefinition>(
+  AGENT_TOOLS.map((definition) => [definition.name, definition])
+);
 
 export interface RuntimeToolDefinition {
   name: AgentTool;
@@ -36,15 +58,19 @@ export interface RuntimeToolDefinition {
   annotations: ToolAnnotations;
 }
 
-export function listToolDefinitions(grantedTools?: ReadonlySet<AgentTool>): RuntimeToolDefinition[] {
-  return AGENT_TOOLS.filter((definition) => !grantedTools || grantedTools.has(definition.name)).map((definition) => ({
-    name: definition.name,
-    title: definition.annotations.title,
-    description: definition.description,
-    inputSchema: definition.parameters,
-    outputSchema: definition.outputSchema,
-    annotations: definition.annotations,
-  }));
+export function listToolDefinitions(
+  grantedTools?: ReadonlySet<AgentTool>
+): RuntimeToolDefinition[] {
+  return AGENT_TOOLS.filter((definition) => !grantedTools || grantedTools.has(definition.name)).map(
+    (definition) => ({
+      name: definition.name,
+      title: definition.annotations.title,
+      description: definition.description,
+      inputSchema: definition.parameters,
+      outputSchema: definition.outputSchema,
+      annotations: definition.annotations,
+    })
+  );
 }
 
 function getDefinition(toolName: AgentTool): ToolDefinition {
@@ -74,7 +100,10 @@ export function parseToolArguments(definition: ToolDefinition, rawArgs: unknown)
   }
   const value: JsonValue = parsed.data;
   if (!isJsonRecord(value)) {
-    throw new ToolExecutionError(`Invalid arguments for ${definition.name}: expected an object`, 'VALIDATION_ERROR');
+    throw new ToolExecutionError(
+      `Invalid arguments for ${definition.name}: expected an object`,
+      'VALIDATION_ERROR'
+    );
   }
   return value;
 }
@@ -92,7 +121,9 @@ export async function executeAgentTool(
   return HANDLERS[name](args, ctx, services);
 }
 
-export type ToolCallOutcome = { ok: true; output: ToolOutput } | { ok: false; error: ToolErrorPayload };
+export type ToolCallOutcome =
+  | { ok: true; output: ToolOutput }
+  | { ok: false; error: ToolErrorPayload };
 
 /** executeAgentTool with errors classified: expected ones verbatim, unexpected ones generic. */
 export async function runAgentTool(
@@ -128,7 +159,10 @@ export function buildAiSdkTools(ctx: ToolContext, services?: ToolServices): Tool
           try {
             return { success: true, value: parseToolArguments(definition, value) };
           } catch (error) {
-            return { success: false, error: error instanceof Error ? error : new Error('Invalid arguments') };
+            return {
+              success: false,
+              error: error instanceof Error ? error : new Error('Invalid arguments'),
+            };
           }
         },
       }),

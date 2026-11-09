@@ -9,7 +9,11 @@ export function ViewsSettings() {
           <h2 className="text-lg font-semibold text-gray-900">Views</h2>
           <p className="text-sm text-gray-600 mt-1">Manage your saved filtered views.</p>
         </div>
-        <button type="button" onClick={() => navigate('/settings/workspace/views/new')} className="btn btn-primary">
+        <button
+          type="button"
+          onClick={() => navigate('/settings/workspace/views/new')}
+          className="btn btn-primary"
+        >
           New View
         </button>
       </div>

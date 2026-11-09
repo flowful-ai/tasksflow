@@ -261,7 +261,12 @@ export interface TrashMetaDto {
 // ============ Notifications & search ============
 
 export type NotificationDto = Serialized<NotificationItem>;
-export type { NotificationFilter, SearchResult, SearchTaskHit, SearchProjectHit } from '@flowtask/shared';
+export type {
+  NotificationFilter,
+  SearchResult,
+  SearchTaskHit,
+  SearchProjectHit,
+} from '@flowtask/shared';
 
 // ============ Smart views & public shares ============
 

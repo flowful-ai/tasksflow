@@ -31,7 +31,8 @@ function useReturnFocus(open: boolean): void {
     const previous = document.activeElement;
     return () => {
       window.setTimeout(() => {
-        const focusLost = document.activeElement === document.body || document.activeElement === null;
+        const focusLost =
+          document.activeElement === document.body || document.activeElement === null;
         if (focusLost && previous instanceof HTMLElement && previous.isConnected) previous.focus();
       }, 0);
     };
@@ -124,7 +125,11 @@ export function Dialog({
           onEscapeKeyDown={(event) => {
             preventIfLocked(event);
             // Inline editors marked data-escape-cancels handle Escape themselves (cancel the edit).
-            if (event.target instanceof HTMLElement && event.target.closest('[data-escape-cancels]')) event.preventDefault();
+            if (
+              event.target instanceof HTMLElement &&
+              event.target.closest('[data-escape-cancels]')
+            )
+              event.preventDefault();
           }}
           onPointerDownOutside={preventIfLocked}
           onInteractOutside={preventIfLocked}
@@ -154,12 +159,17 @@ export function Dialog({
               <div className="flex items-start justify-between gap-4 border-b border-neutral-200 px-5 py-4">
                 <div className="min-w-0">
                   <RadixDialog.Title
-                    className={clsx('text-lg font-semibold text-neutral-900', hideTitle && 'sr-only')}
+                    className={clsx(
+                      'text-lg font-semibold text-neutral-900',
+                      hideTitle && 'sr-only'
+                    )}
                   >
                     {title}
                   </RadixDialog.Title>
                   {description ? (
-                    <RadixDialog.Description className="mt-1 text-sm text-neutral-500">{description}</RadixDialog.Description>
+                    <RadixDialog.Description className="mt-1 text-sm text-neutral-500">
+                      {description}
+                    </RadixDialog.Description>
                   ) : (
                     <RadixDialog.Description className="sr-only" />
                   )}
@@ -174,7 +184,9 @@ export function Dialog({
                   </RadixDialog.Close>
                 </div>
               </div>
-              <div className={clsx('min-h-0 flex-1 overflow-y-auto px-5 py-4', bodyClassName)}>{children}</div>
+              <div className={clsx('min-h-0 flex-1 overflow-y-auto px-5 py-4', bodyClassName)}>
+                {children}
+              </div>
               {footer && (
                 <div className="flex flex-wrap items-center justify-end gap-2 border-t border-neutral-200 px-5 py-3">
                   {footer}

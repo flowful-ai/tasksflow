@@ -99,10 +99,7 @@ export class InvitationService {
       }
 
       // Get inviter info
-      const [inviter] = await this.db
-        .select()
-        .from(users)
-        .where(eq(users.id, input.invitedBy));
+      const [inviter] = await this.db.select().from(users).where(eq(users.id, input.invitedBy));
 
       return ok({
         ...invitation,
@@ -141,10 +138,7 @@ export class InvitationService {
       // Get inviter info
       let inviter = null;
       if (invitation.invitedBy) {
-        const [user] = await this.db
-          .select()
-          .from(users)
-          .where(eq(users.id, invitation.invitedBy));
+        const [user] = await this.db.select().from(users).where(eq(users.id, invitation.invitedBy));
         inviter = user || null;
       }
 
@@ -161,7 +155,9 @@ export class InvitationService {
   /**
    * List invitations for a workspace.
    */
-  async listByWorkspace(options: ListInvitationsOptions): Promise<Result<InvitationWithInviter[], Error>> {
+  async listByWorkspace(
+    options: ListInvitationsOptions
+  ): Promise<Result<InvitationWithInviter[], Error>> {
     try {
       const conditions = [eq(workspaceInvitations.workspaceId, options.workspaceId)];
 
@@ -253,8 +249,14 @@ export class InvitationService {
         if (!user) throw new DomainError('NOT_FOUND', 'User not found');
 
         // Email-specific invitations must match; generic ones (email = null) are open.
-        if (invitation.email !== null && user.email.toLowerCase() !== invitation.email.toLowerCase()) {
-          throw new DomainError('FORBIDDEN', 'This invitation was sent to a different email address');
+        if (
+          invitation.email !== null &&
+          user.email.toLowerCase() !== invitation.email.toLowerCase()
+        ) {
+          throw new DomainError(
+            'FORBIDDEN',
+            'This invitation was sent to a different email address'
+          );
         }
 
         const [added] = await tx
@@ -346,10 +348,7 @@ export class InvitationService {
       // Get inviter info
       let inviter = null;
       if (invitation.invitedBy) {
-        const [user] = await this.db
-          .select()
-          .from(users)
-          .where(eq(users.id, invitation.invitedBy));
+        const [user] = await this.db.select().from(users).where(eq(users.id, invitation.invitedBy));
         inviter = user || null;
       }
 

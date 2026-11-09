@@ -123,10 +123,15 @@ export async function revokeTokenFamily(
   await db
     .update(mcpOAuthRefreshTokens)
     .set({ revokedAt: now, rotationGracePayload: null })
-    .where(and(eq(mcpOAuthRefreshTokens.familyId, familyId), isNull(mcpOAuthRefreshTokens.revokedAt)));
+    .where(
+      and(eq(mcpOAuthRefreshTokens.familyId, familyId), isNull(mcpOAuthRefreshTokens.revokedAt))
+    );
 
   const accessCondition = options.legacyAccessTokenId
-    ? or(eq(mcpOAuthAccessTokens.familyId, familyId), eq(mcpOAuthAccessTokens.id, options.legacyAccessTokenId))
+    ? or(
+        eq(mcpOAuthAccessTokens.familyId, familyId),
+        eq(mcpOAuthAccessTokens.id, options.legacyAccessTokenId)
+      )
     : eq(mcpOAuthAccessTokens.familyId, familyId);
   await db
     .update(mcpOAuthAccessTokens)
@@ -141,7 +146,11 @@ const GracePayloadSchema = z.object({
   access_expires_at: z.number(),
 });
 
-function sealGracePayload(presentedToken: string, response: OAuthTokenResponse, accessExpiresAt: number): string {
+function sealGracePayload(
+  presentedToken: string,
+  response: OAuthTokenResponse,
+  accessExpiresAt: number
+): string {
   return sealWithSecret(
     presentedToken,
     JSON.stringify({
@@ -153,7 +162,11 @@ function sealGracePayload(presentedToken: string, response: OAuthTokenResponse, 
   );
 }
 
-export function openGracePayload(presentedToken: string, sealed: string, now: Date): OAuthTokenResponse | null {
+export function openGracePayload(
+  presentedToken: string,
+  sealed: string,
+  now: Date
+): OAuthTokenResponse | null {
   const plaintext = openWithSecret(presentedToken, sealed);
   if (!plaintext) {
     return null;
@@ -188,7 +201,13 @@ type RefreshOutcome =
  */
 export async function refreshAccessToken(
   db: Database,
-  input: { refreshToken: string; clientId: string; scope?: string; resource?: string[]; baseUrl: string },
+  input: {
+    refreshToken: string;
+    clientId: string;
+    scope?: string;
+    resource?: string[];
+    baseUrl: string;
+  },
   clock: () => Date = () => new Date()
 ): Promise<OAuthTokenResponse> {
   const client = await getClientByPublicId(db, input.clientId);
@@ -241,7 +260,10 @@ export async function refreshAccessToken(
     validateToolScopePresence(nextScopes, 'invalid_scope');
     const toolValidation = validateToolScopes(nextScopes);
     if (!toolValidation.ok) {
-      throw new OAuthError('invalid_scope', `Unknown tool scopes: ${toolValidation.invalidTools.join(', ')}`);
+      throw new OAuthError(
+        'invalid_scope',
+        `Unknown tool scopes: ${toolValidation.invalidTools.join(', ')}`
+      );
     }
 
     const boundResource = row.resource ?? resolveRequestedResource([], input.baseUrl);
@@ -280,8 +302,13 @@ export async function refreshAccessToken(
   });
 
   if (outcome.kind === 'reuse') {
-    await revokeTokenFamily(db, outcome.familyId, { legacyAccessTokenId: outcome.legacyAccessTokenId, now });
-    console.warn('MCP OAuth refresh token reuse detected; token family revoked', { familyId: outcome.familyId });
+    await revokeTokenFamily(db, outcome.familyId, {
+      legacyAccessTokenId: outcome.legacyAccessTokenId,
+      now,
+    });
+    console.warn('MCP OAuth refresh token reuse detected; token family revoked', {
+      familyId: outcome.familyId,
+    });
     throw new OAuthError('invalid_grant', 'Refresh token has already been used');
   }
 
@@ -307,7 +334,10 @@ export async function revokeToken(
       return false;
     }
 
-    await db.update(mcpOAuthAccessTokens).set({ revokedAt: now }).where(eq(mcpOAuthAccessTokens.id, row.id));
+    await db
+      .update(mcpOAuthAccessTokens)
+      .set({ revokedAt: now })
+      .where(eq(mcpOAuthAccessTokens.id, row.id));
     return true;
   };
 
@@ -328,7 +358,10 @@ export async function revokeToken(
     }
 
     const familyId = row.familyId ?? row.id;
-    await db.update(mcpOAuthRefreshTokens).set({ familyId }).where(eq(mcpOAuthRefreshTokens.id, row.id));
+    await db
+      .update(mcpOAuthRefreshTokens)
+      .set({ familyId })
+      .where(eq(mcpOAuthRefreshTokens.id, row.id));
     await revokeTokenFamily(db, familyId, { legacyAccessTokenId: row.accessTokenId, now });
     return true;
   };
@@ -389,7 +422,11 @@ export async function authenticateAccessToken(
 
   const workspaceId = parseWorkspaceScope(scopes);
   if (!workspaceId || workspaceId !== row.workspaceId) {
-    throw new OAuthError('invalid_token', 'Token workspace scope does not match token binding', 401);
+    throw new OAuthError(
+      'invalid_token',
+      'Token workspace scope does not match token binding',
+      401
+    );
   }
 
   validateToolScopePresence(scopes, 'invalid_token');

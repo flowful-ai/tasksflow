@@ -14,7 +14,13 @@ import { DueDateOptions } from '../DueDatePicker';
 import { GitHubLinkSection } from '../GitHubLinkSection';
 import { PriorityIcon } from '../../board/PriorityIcon';
 import { TaskSearchPopover } from './TaskSearchPopover';
-import { PRIORITY_OPTIONS, priorityLabel, type DetailState, type OpenTaskHandler, type TaskDetail } from './types';
+import {
+  PRIORITY_OPTIONS,
+  priorityLabel,
+  type DetailState,
+  type OpenTaskHandler,
+  type TaskDetail,
+} from './types';
 
 export interface PropertiesProps {
   task: TaskDetail;
@@ -23,7 +29,12 @@ export interface PropertiesProps {
   members: PickerMember[];
   workspaceId: string | null | undefined;
   readOnly?: boolean;
-  onUpdate: (input: { stateId?: string; priority?: TaskPriority | null; dueDate?: string | null; parentId?: string | null }) => void;
+  onUpdate: (input: {
+    stateId?: string;
+    priority?: TaskPriority | null;
+    dueDate?: string | null;
+    parentId?: string | null;
+  }) => void;
   onToggleAssignee: (userId: string) => void;
   onToggleLabel: (labelId: string) => void;
   onOpenTask: OpenTaskHandler;
@@ -31,7 +42,12 @@ export interface PropertiesProps {
 }
 
 const formatDue = (iso: string) =>
-  new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  new Date(iso).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
 
 function isOverdue(iso: string, done: boolean): boolean {
   if (done) return false;
@@ -65,13 +81,24 @@ function PropertyRow({ id, label, value, editor, editorLabel, editorClassName }:
         {editor ? (
           <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-              <button type="button" aria-labelledby={`${labelId} ${labelId}-value`} className={valueClass}>
-                <span id={`${labelId}-value`} className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                aria-labelledby={`${labelId} ${labelId}-value`}
+                className={valueClass}
+              >
+                <span
+                  id={`${labelId}-value`}
+                  className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5"
+                >
                   {value}
                 </span>
               </button>
             </PopoverTrigger>
-            <PopoverContent align="start" aria-label={editorLabel ?? label} className={clsx('p-1', editorClassName)}>
+            <PopoverContent
+              align="start"
+              aria-label={editorLabel ?? label}
+              className={clsx('p-1', editorClassName)}
+            >
               {editor(() => setOpen(false))}
             </PopoverContent>
           </Popover>
@@ -83,7 +110,15 @@ function PropertyRow({ id, label, value, editor, editorLabel, editorClassName }:
   );
 }
 
-function OptionButton({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: ReactNode }) {
+function OptionButton({
+  selected,
+  onClick,
+  children,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
   return (
     <button
       type="button"
@@ -167,7 +202,9 @@ export function Properties({
           value={
             <>
               <PriorityIcon priority={task.priority} />
-              {task.priority && task.priority !== 'none' ? priorityLabel(task.priority) : muted('No priority')}
+              {task.priority && task.priority !== 'none'
+                ? priorityLabel(task.priority)
+                : muted('No priority')}
             </>
           }
           editorLabel="Change priority"
@@ -213,7 +250,11 @@ export function Properties({
           editor={
             editable
               ? () => (
-                  <AssigneeOptions currentAssignees={task.assignees} workspaceMembers={members} onToggle={onToggleAssignee} />
+                  <AssigneeOptions
+                    currentAssignees={task.assignees}
+                    workspaceMembers={members}
+                    onToggle={onToggleAssignee}
+                  />
                 )
               : undefined
           }
@@ -239,7 +280,13 @@ export function Properties({
           editorClassName="w-56 !p-0 overflow-hidden"
           editor={
             editable
-              ? () => <LabelOptions currentLabels={task.labels} projectLabels={projectLabels} onToggle={onToggleLabel} />
+              ? () => (
+                  <LabelOptions
+                    currentLabels={task.labels}
+                    projectLabels={projectLabels}
+                    onToggle={onToggleLabel}
+                  />
+                )
               : undefined
           }
         />
@@ -249,7 +296,9 @@ export function Properties({
           label="Due"
           value={
             task.dueDate ? (
-              <span className={clsx(isOverdue(task.dueDate, done) && 'font-medium text-primary-700')}>
+              <span
+                className={clsx(isOverdue(task.dueDate, done) && 'font-medium text-primary-700')}
+              >
                 {isOverdue(task.dueDate, done) && 'Overdue · '}
                 {formatDue(task.dueDate)}
               </span>
@@ -284,11 +333,17 @@ export function Properties({
                 className={clsx(valueClass, 'flex-1')}
                 title={task.parent.title}
               >
-                <span className="shrink-0 font-mono text-xs text-neutral-500">{task.parent.key}</span>
+                <span className="shrink-0 font-mono text-xs text-neutral-500">
+                  {task.parent.key}
+                </span>
                 <span className="truncate">{task.parent.title}</span>
               </button>
             ) : (
-              !editable && <span className={clsx(valueClass, 'hover:bg-transparent text-neutral-400')}>None</span>
+              !editable && (
+                <span className={clsx(valueClass, 'hover:bg-transparent text-neutral-400')}>
+                  None
+                </span>
+              )
             )}
             {editable && (
               <TaskSearchPopover
@@ -306,7 +361,11 @@ export function Properties({
                       Change
                     </button>
                   ) : (
-                    <button type="button" className={clsx(valueClass, 'flex-1 text-neutral-400')} aria-label="Parent: none. Set parent">
+                    <button
+                      type="button"
+                      className={clsx(valueClass, 'flex-1 text-neutral-400')}
+                      aria-label="Parent: none. Set parent"
+                    >
                       None
                     </button>
                   )
@@ -352,8 +411,14 @@ export function Properties({
       )}
 
       <p className="px-0.5 text-xs text-neutral-400">
-        Created {new Date(task.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-        {task.updatedAt && ` · updated ${new Date(task.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`}
+        Created{' '}
+        {new Date(task.createdAt).toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        })}
+        {task.updatedAt &&
+          ` · updated ${new Date(task.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`}
       </p>
     </div>
   );

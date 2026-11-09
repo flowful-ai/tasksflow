@@ -69,8 +69,19 @@ export interface Harness {
   app: Hono;
   db: Database;
   seed: Seed;
-  request(user: SeedUserKey | null, method: string, path: string, body?: object, headers?: Record<string, string>): Promise<ApiResponse>;
-  raw(user: SeedUserKey | null, method: string, path: string, headers?: Record<string, string>): Promise<Response>;
+  request(
+    user: SeedUserKey | null,
+    method: string,
+    path: string,
+    body?: object,
+    headers?: Record<string, string>
+  ): Promise<ApiResponse>;
+  raw(
+    user: SeedUserKey | null,
+    method: string,
+    path: string,
+    headers?: Record<string, string>
+  ): Promise<Response>;
 }
 
 let schemaPushed = false;
@@ -114,9 +125,13 @@ async function truncateAll(db: Database): Promise<void> {
 
 async function signCookie(token: string): Promise<string> {
   const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey('raw', encoder.encode(AUTH_SECRET), { name: 'HMAC', hash: 'SHA-256' }, false, [
-    'sign',
-  ]);
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(AUTH_SECRET),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
   const signature = new Uint8Array(await crypto.subtle.sign('HMAC', key, encoder.encode(token)));
   const base64 = btoa(String.fromCharCode(...signature));
   return `${COOKIE_NAME}=${encodeURIComponent(`${token}.${base64}`)}`;
@@ -134,13 +149,21 @@ async function seedFixtures(db: Database): Promise<Seed> {
 
   async function makeUser(key: SeedUserKey): Promise<Seed['users'][SeedUserKey]> {
     const email = `${key.toLowerCase()}-${suffix}@example.test`;
-    const [user] = await db.insert(schema.users).values({ email, name: key, emailVerified: true }).returning();
+    const [user] = await db
+      .insert(schema.users)
+      .values({ email, name: key, emailVerified: true })
+      .returning();
     const token = `${key}-${crypto.randomUUID()}`;
     const [session] = await db
       .insert(schema.sessions)
       .values({ userId: must(user, key).id, token, expiresAt: new Date(Date.now() + 86_400_000) })
       .returning();
-    return { id: must(user, key).id, email, sessionId: must(session, 'session').id, cookie: await signCookie(token) };
+    return {
+      id: must(user, key).id,
+      email,
+      sessionId: must(session, 'session').id,
+      cookie: await signCookie(token),
+    };
   }
 
   const users: Seed['users'] = {
@@ -152,8 +175,14 @@ async function seedFixtures(db: Database): Promise<Seed> {
     memberB: await makeUser('memberB'),
   };
 
-  const [wsA] = await db.insert(schema.workspaces).values({ name: 'Workspace A', slug: `ws-a-${suffix}` }).returning();
-  const [wsB] = await db.insert(schema.workspaces).values({ name: 'Workspace B', slug: `ws-b-${suffix}` }).returning();
+  const [wsA] = await db
+    .insert(schema.workspaces)
+    .values({ name: 'Workspace A', slug: `ws-a-${suffix}` })
+    .returning();
+  const [wsB] = await db
+    .insert(schema.workspaces)
+    .values({ name: 'Workspace B', slug: `ws-b-${suffix}` })
+    .returning();
   const workspaceA = must(wsA, 'workspace A');
   const workspaceB = must(wsB, 'workspace B');
 
@@ -171,11 +200,23 @@ async function seedFixtures(db: Database): Promise<Seed> {
   const commentService = new domain.CommentService(db);
   const smartViewService = new domain.SmartViewService(db);
 
-  async function project(workspaceId: string, identifier: string, createdBy: string): Promise<SeedProject> {
-    const created = await projectService.create({ workspaceId, name: identifier, identifier, createdBy });
+  async function project(
+    workspaceId: string,
+    identifier: string,
+    createdBy: string
+  ): Promise<SeedProject> {
+    const created = await projectService.create({
+      workspaceId,
+      name: identifier,
+      identifier,
+      createdBy,
+    });
     if (!created.ok) throw created.error;
     const [first, second] = created.value.taskStates;
-    const [label] = await db.insert(schema.labels).values({ projectId: created.value.id, name: `${identifier}-bug` }).returning();
+    const [label] = await db
+      .insert(schema.labels)
+      .values({ projectId: created.value.id, name: `${identifier}-bug` })
+      .returning();
     return {
       id: created.value.id,
       stateId: must(first, 'state').id,
@@ -189,19 +230,34 @@ async function seedFixtures(db: Database): Promise<Seed> {
   const adminOnlyA = await project(workspaceA.id, 'ADMIN', users.ownerA.id);
   const projectB = await project(workspaceB.id, 'BETA', users.ownerB.id);
 
-  const restrictedAccess = await projectService.setAccess(restrictedA.id, 'members', [users.insiderA.id]);
+  const restrictedAccess = await projectService.setAccess(restrictedA.id, 'members', [
+    users.insiderA.id,
+  ]);
   if (!restrictedAccess.ok) throw restrictedAccess.error;
   const adminAccess = await projectService.setAccess(adminOnlyA.id, 'admin');
   if (!adminAccess.ok) throw adminAccess.error;
 
-  async function task(projectId: string, title: string, createdBy: string, assigneeIds: string[] = []): Promise<string> {
-    const created = await taskService.create({ projectId, title, createdBy, assigneeIds, dueDate: new Date('2030-01-01') });
+  async function task(
+    projectId: string,
+    title: string,
+    createdBy: string,
+    assigneeIds: string[] = []
+  ): Promise<string> {
+    const created = await taskService.create({
+      projectId,
+      title,
+      createdBy,
+      assigneeIds,
+      dueDate: new Date('2030-01-01'),
+    });
     if (!created.ok) throw created.error;
     return created.value.id;
   }
 
   const taskA = await task(projectA.id, 'Open task A', users.ownerA.id, [users.memberA.id]);
-  const restrictedTaskA = await task(restrictedA.id, 'Secret task A', users.ownerA.id, [users.insiderA.id]);
+  const restrictedTaskA = await task(restrictedA.id, 'Secret task A', users.ownerA.id, [
+    users.insiderA.id,
+  ]);
   const adminOnlyTaskA = await task(adminOnlyA.id, 'Admin-only task A', users.ownerA.id);
   const taskB = await task(projectB.id, 'Task B', users.ownerB.id);
 
@@ -214,7 +270,12 @@ async function seedFixtures(db: Database): Promise<Seed> {
   const commentA = await comment(taskA, users.memberA.id, 'Hello from A');
   const restrictedCommentA = await comment(restrictedTaskA, users.insiderA.id, 'Secret comment');
 
-  async function view(workspaceId: string, name: string, createdBy: string, isPersonal: boolean): Promise<string> {
+  async function view(
+    workspaceId: string,
+    name: string,
+    createdBy: string,
+    isPersonal: boolean
+  ): Promise<string> {
     const created = await smartViewService.create({ workspaceId, name, createdBy, isPersonal });
     if (!created.ok) throw created.error;
     return created.value.id;
@@ -268,7 +329,12 @@ export async function setupHarness(): Promise<Harness> {
   await truncateAll(db);
   const seed = await seedFixtures(db);
 
-  async function raw(user: SeedUserKey | null, method: string, path: string, headers: Record<string, string> = {}) {
+  async function raw(
+    user: SeedUserKey | null,
+    method: string,
+    path: string,
+    headers: Record<string, string> = {}
+  ) {
     const cookie: Record<string, string> = user ? { cookie: seed.users[user].cookie } : {};
     return app.request(path, { method, headers: { ...cookie, ...headers } });
   }

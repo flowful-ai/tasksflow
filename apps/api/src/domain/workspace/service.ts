@@ -10,7 +10,12 @@ import {
   taskEvents,
   mcpOAuthClients,
 } from '../../db/index.js';
-import type { Result, WorkspaceRole, WorkspaceAiSettings, UpdateWorkspaceAiSettings } from '@flowtask/shared';
+import type {
+  Result,
+  WorkspaceRole,
+  WorkspaceAiSettings,
+  UpdateWorkspaceAiSettings,
+} from '@flowtask/shared';
 import { AIModelSchema } from '@flowtask/shared';
 import { ok, err } from '@flowtask/shared';
 import type {
@@ -80,7 +85,9 @@ export class WorkspaceService {
         .where(eq(workspaces.slug, input.slug));
 
       if (existing) {
-        return err(new DomainError('CONFLICT', `Workspace with slug "${input.slug}" already exists`));
+        return err(
+          new DomainError('CONFLICT', `Workspace with slug "${input.slug}" already exists`)
+        );
       }
 
       // Create the workspace
@@ -114,7 +121,10 @@ export class WorkspaceService {
    */
   async getById(workspaceId: string): Promise<Result<WorkspaceWithRelations, Error>> {
     try {
-      const [workspace] = await this.db.select().from(workspaces).where(eq(workspaces.id, workspaceId));
+      const [workspace] = await this.db
+        .select()
+        .from(workspaces)
+        .where(eq(workspaces.id, workspaceId));
 
       if (!workspace) {
         return err(new DomainError('NOT_FOUND', 'Workspace not found'));
@@ -171,7 +181,10 @@ export class WorkspaceService {
   /**
    * Update a workspace.
    */
-  async update(workspaceId: string, input: WorkspaceUpdateInput): Promise<Result<WorkspaceWithRelations, Error>> {
+  async update(
+    workspaceId: string,
+    input: WorkspaceUpdateInput
+  ): Promise<Result<WorkspaceWithRelations, Error>> {
     try {
       const updateData: Record<string, unknown> = {};
       if (input.name !== undefined) updateData.name = input.name;
@@ -362,7 +375,12 @@ export class WorkspaceService {
   async listActivity(
     workspaceId: string,
     options: WorkspaceActivityListOptions = {}
-  ): Promise<Result<{ items: WorkspaceActivityItem[]; nextCursor: WorkspaceActivityCursorInput | null }, Error>> {
+  ): Promise<
+    Result<
+      { items: WorkspaceActivityItem[]; nextCursor: WorkspaceActivityCursorInput | null },
+      Error
+    >
+  > {
     try {
       const limit = Math.max(1, Math.min(100, options.limit ?? 20));
       const conditions: SQL[] = [eq(projects.workspaceId, workspaceId)];
@@ -378,7 +396,10 @@ export class WorkspaceService {
         conditions.push(
           or(
             lt(taskEvents.createdAt, options.cursor.createdAt),
-            and(eq(taskEvents.createdAt, options.cursor.createdAt), lt(taskEvents.id, options.cursor.id))
+            and(
+              eq(taskEvents.createdAt, options.cursor.createdAt),
+              lt(taskEvents.id, options.cursor.id)
+            )
           )!
         );
       }
@@ -436,13 +457,14 @@ export class WorkspaceService {
             sequenceNumber: row.task.sequenceNumber,
             project: row.project,
           },
-          actor: actor?.id && actor.email
-            ? {
-                id: actor.id,
-                name: actor.name,
-                email: actor.email,
-              }
-            : null,
+          actor:
+            actor?.id && actor.email
+              ? {
+                  id: actor.id,
+                  name: actor.name,
+                  email: actor.email,
+                }
+              : null,
           agent: row.mcpClient?.id
             ? {
                 id: row.mcpClient.id,
@@ -534,7 +556,12 @@ export class WorkspaceService {
         const [updated] = await tx
           .update(workspaceMembers)
           .set({ role: input.role })
-          .where(and(eq(workspaceMembers.workspaceId, input.workspaceId), eq(workspaceMembers.userId, input.userId)))
+          .where(
+            and(
+              eq(workspaceMembers.workspaceId, input.workspaceId),
+              eq(workspaceMembers.userId, input.userId)
+            )
+          )
           .returning();
         const [user] = await tx.select().from(users).where(eq(users.id, input.userId));
         if (!updated || !user) {
@@ -569,7 +596,12 @@ export class WorkspaceService {
 
         await tx
           .delete(workspaceMembers)
-          .where(and(eq(workspaceMembers.workspaceId, input.workspaceId), eq(workspaceMembers.userId, input.userId)));
+          .where(
+            and(
+              eq(workspaceMembers.workspaceId, input.workspaceId),
+              eq(workspaceMembers.userId, input.userId)
+            )
+          );
         // Project-level ACL entries are meaningless without workspace membership.
         const workspaceProjectIds = tx
           .select({ id: projects.id })
@@ -577,7 +609,12 @@ export class WorkspaceService {
           .where(eq(projects.workspaceId, input.workspaceId));
         await tx
           .delete(projectMembers)
-          .where(and(eq(projectMembers.userId, input.userId), inArray(projectMembers.projectId, workspaceProjectIds)));
+          .where(
+            and(
+              eq(projectMembers.userId, input.userId),
+              inArray(projectMembers.projectId, workspaceProjectIds)
+            )
+          );
         return ok(undefined);
       });
     } catch (error) {
@@ -589,7 +626,9 @@ export class WorkspaceService {
    * Hand ownership to another member. Only an owner may do this; the previous
    * owner becomes an admin.
    */
-  async transferOwnership(input: TransferOwnershipInput): Promise<Result<WorkspaceMemberWithUser, Error>> {
+  async transferOwnership(
+    input: TransferOwnershipInput
+  ): Promise<Result<WorkspaceMemberWithUser, Error>> {
     try {
       return await this.db.transaction(async (tx) => {
         const members = await this.lockMembers(tx, input.workspaceId);
@@ -606,12 +645,22 @@ export class WorkspaceService {
         const [promoted] = await tx
           .update(workspaceMembers)
           .set({ role: 'owner' })
-          .where(and(eq(workspaceMembers.workspaceId, input.workspaceId), eq(workspaceMembers.userId, input.toUserId)))
+          .where(
+            and(
+              eq(workspaceMembers.workspaceId, input.workspaceId),
+              eq(workspaceMembers.userId, input.toUserId)
+            )
+          )
           .returning();
         await tx
           .update(workspaceMembers)
           .set({ role: 'admin' })
-          .where(and(eq(workspaceMembers.workspaceId, input.workspaceId), eq(workspaceMembers.userId, input.fromUserId)));
+          .where(
+            and(
+              eq(workspaceMembers.workspaceId, input.workspaceId),
+              eq(workspaceMembers.userId, input.fromUserId)
+            )
+          );
         const [user] = await tx.select().from(users).where(eq(users.id, input.toUserId));
         if (!promoted || !user) {
           return err(new DomainError('NOT_FOUND', 'Member not found'));
@@ -624,7 +673,10 @@ export class WorkspaceService {
   }
 
   /** Lock and return the workspace's members (userId -> role) for a mutation. */
-  private async lockMembers(tx: Transaction, workspaceId: string): Promise<Map<string, WorkspaceRole>> {
+  private async lockMembers(
+    tx: Transaction,
+    workspaceId: string
+  ): Promise<Map<string, WorkspaceRole>> {
     const rows = await tx
       .select({ userId: workspaceMembers.userId, role: workspaceMembers.role })
       .from(workspaceMembers)
@@ -640,7 +692,10 @@ export class WorkspaceService {
   /**
    * Get a user's role in a workspace.
    */
-  async getMemberRole(workspaceId: string, userId: string): Promise<Result<WorkspaceRole | null, Error>> {
+  async getMemberRole(
+    workspaceId: string,
+    userId: string
+  ): Promise<Result<WorkspaceRole | null, Error>> {
     try {
       if (!isUuid(workspaceId) || !isUuid(userId)) {
         return ok(null);
@@ -648,7 +703,9 @@ export class WorkspaceService {
       const [member] = await this.db
         .select({ role: workspaceMembers.role })
         .from(workspaceMembers)
-        .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)));
+        .where(
+          and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId))
+        );
 
       return ok(member && isWorkspaceRole(member.role) ? member.role : null);
     } catch (error) {

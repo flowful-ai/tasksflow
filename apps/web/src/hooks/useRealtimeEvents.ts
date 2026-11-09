@@ -100,7 +100,8 @@ export function useRealtimeEvents(workspaceId: string | null | undefined): void 
 
     // Coming back to the tab with a dead stream: retry now instead of waiting.
     const onVisible = () => {
-      if (document.visibilityState !== 'visible' || source?.readyState !== EventSource.CLOSED) return;
+      if (document.visibilityState !== 'visible' || source?.readyState !== EventSource.CLOSED)
+        return;
       if (retryTimer !== null) window.clearTimeout(retryTimer);
       attempt = 0;
       connect();

@@ -56,25 +56,29 @@ export interface DropdownMenuContentProps extends ComponentPropsWithoutRef<typeo
   tone?: MenuTone;
 }
 
-export const DropdownMenuContent = forwardRef<ElementRef<typeof Radix.Content>, DropdownMenuContentProps>(
-  function DropdownMenuContent({ className, tone = 'light', sideOffset = 6, collisionPadding = 8, ...props }, ref) {
-    return (
-      <Radix.Portal>
-        <Radix.Content
-          ref={ref}
-          sideOffset={sideOffset}
-          collisionPadding={collisionPadding}
-          className={clsx(
-            'z-[60] min-w-[11rem] overflow-hidden rounded-xl border p-1 shadow-lg animate-scale-in [animation-duration:120ms]',
-            CONTENT_TONES[tone],
-            className
-          )}
-          {...props}
-        />
-      </Radix.Portal>
-    );
-  }
-);
+export const DropdownMenuContent = forwardRef<
+  ElementRef<typeof Radix.Content>,
+  DropdownMenuContentProps
+>(function DropdownMenuContent(
+  { className, tone = 'light', sideOffset = 6, collisionPadding = 8, ...props },
+  ref
+) {
+  return (
+    <Radix.Portal>
+      <Radix.Content
+        ref={ref}
+        sideOffset={sideOffset}
+        collisionPadding={collisionPadding}
+        className={clsx(
+          'z-[60] min-w-[11rem] overflow-hidden rounded-xl border p-1 shadow-lg animate-scale-in [animation-duration:120ms]',
+          CONTENT_TONES[tone],
+          className
+        )}
+        {...props}
+      />
+    </Radix.Portal>
+  );
+});
 
 export interface DropdownMenuItemProps extends ComponentPropsWithoutRef<typeof Radix.Item> {
   icon?: ReactNode;
@@ -84,48 +88,60 @@ export interface DropdownMenuItemProps extends ComponentPropsWithoutRef<typeof R
   tone?: MenuTone;
 }
 
-export const DropdownMenuItem = forwardRef<ElementRef<typeof Radix.Item>, DropdownMenuItemProps>(function DropdownMenuItem(
-  { className, icon, shortcut, destructive, tone = 'light', children, asChild, ...props },
-  ref
-) {
-  const content = (label: ReactNode) => (
-    <>
-      {icon && (
-        <span aria-hidden className="flex h-4 w-4 items-center justify-center [&_svg]:h-4 [&_svg]:w-4">
-          {icon}
-        </span>
-      )}
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      {shortcut && <span className="ml-4 font-mono text-[11px] text-neutral-400">{shortcut}</span>}
-    </>
-  );
-  // asChild (e.g. a <Link>): Slot needs one element, so put icon/label/shortcut inside it.
-  const child: ReactElement<{ children?: ReactNode }> | null =
-    asChild && isValidElement<{ children?: ReactNode }>(children) ? children : null;
+export const DropdownMenuItem = forwardRef<ElementRef<typeof Radix.Item>, DropdownMenuItemProps>(
+  function DropdownMenuItem(
+    { className, icon, shortcut, destructive, tone = 'light', children, asChild, ...props },
+    ref
+  ) {
+    const content = (label: ReactNode) => (
+      <>
+        {icon && (
+          <span
+            aria-hidden
+            className="flex h-4 w-4 items-center justify-center [&_svg]:h-4 [&_svg]:w-4"
+          >
+            {icon}
+          </span>
+        )}
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        {shortcut && (
+          <span className="ml-4 font-mono text-[11px] text-neutral-400">{shortcut}</span>
+        )}
+      </>
+    );
+    // asChild (e.g. a <Link>): Slot needs one element, so put icon/label/shortcut inside it.
+    const child: ReactElement<{ children?: ReactNode }> | null =
+      asChild && isValidElement<{ children?: ReactNode }>(children) ? children : null;
 
-  return (
-    <Radix.Item
-      ref={ref}
-      asChild={Boolean(child)}
-      className={clsx(
-        ITEM_BASE,
-        ITEM_TONES[tone],
-        destructive && 'text-primary-700 data-[highlighted]:bg-primary-50 data-[highlighted]:text-primary-800',
-        className
-      )}
-      {...props}
-    >
-      {child ? cloneElement(child, undefined, content(child.props.children)) : content(children)}
-    </Radix.Item>
-  );
-});
+    return (
+      <Radix.Item
+        ref={ref}
+        asChild={Boolean(child)}
+        className={clsx(
+          ITEM_BASE,
+          ITEM_TONES[tone],
+          destructive &&
+            'text-primary-700 data-[highlighted]:bg-primary-50 data-[highlighted]:text-primary-800',
+          className
+        )}
+        {...props}
+      >
+        {child ? cloneElement(child, undefined, content(child.props.children)) : content(children)}
+      </Radix.Item>
+    );
+  }
+);
 
 export const DropdownMenuCheckboxItem = forwardRef<
   ElementRef<typeof Radix.CheckboxItem>,
   ComponentPropsWithoutRef<typeof Radix.CheckboxItem> & { tone?: MenuTone }
 >(function DropdownMenuCheckboxItem({ className, children, tone = 'light', ...props }, ref) {
   return (
-    <Radix.CheckboxItem ref={ref} className={clsx(ITEM_BASE, ITEM_TONES[tone], 'pl-8', className)} {...props}>
+    <Radix.CheckboxItem
+      ref={ref}
+      className={clsx(ITEM_BASE, ITEM_TONES[tone], 'pl-8', className)}
+      {...props}
+    >
       <span className="absolute left-2.5 flex h-4 w-4 items-center justify-center">
         <Radix.ItemIndicator>
           <Check className="h-4 w-4" aria-hidden />
@@ -141,7 +157,11 @@ export const DropdownMenuRadioItem = forwardRef<
   ComponentPropsWithoutRef<typeof Radix.RadioItem> & { tone?: MenuTone }
 >(function DropdownMenuRadioItem({ className, children, tone = 'light', ...props }, ref) {
   return (
-    <Radix.RadioItem ref={ref} className={clsx(ITEM_BASE, ITEM_TONES[tone], 'pl-8', className)} {...props}>
+    <Radix.RadioItem
+      ref={ref}
+      className={clsx(ITEM_BASE, ITEM_TONES[tone], 'pl-8', className)}
+      {...props}
+    >
       <span className="absolute left-2.5 flex h-4 w-4 items-center justify-center">
         <Radix.ItemIndicator>
           <Check className="h-4 w-4" aria-hidden />
@@ -163,7 +183,10 @@ export const DropdownMenuSubTrigger = forwardRef<
       {...props}
     >
       {icon && (
-        <span aria-hidden className="flex h-4 w-4 items-center justify-center [&_svg]:h-4 [&_svg]:w-4">
+        <span
+          aria-hidden
+          className="flex h-4 w-4 items-center justify-center [&_svg]:h-4 [&_svg]:w-4"
+        >
           {icon}
         </span>
       )}
@@ -193,17 +216,38 @@ export const DropdownMenuSubContent = forwardRef<
   );
 });
 
-export function DropdownMenuSeparator({ className, tone = 'light' }: { className?: string; tone?: MenuTone }) {
+export function DropdownMenuSeparator({
+  className,
+  tone = 'light',
+}: {
+  className?: string;
+  tone?: MenuTone;
+}) {
   return (
     <Radix.Separator
-      className={clsx('my-1 h-px', tone === 'light' ? 'bg-neutral-200' : 'bg-sidebar-border', className)}
+      className={clsx(
+        'my-1 h-px',
+        tone === 'light' ? 'bg-neutral-200' : 'bg-sidebar-border',
+        className
+      )}
     />
   );
 }
 
-export function DropdownMenuLabel({ className, children }: { className?: string; children: ReactNode }) {
+export function DropdownMenuLabel({
+  className,
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
   return (
-    <Radix.Label className={clsx('px-2.5 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-400', className)}>
+    <Radix.Label
+      className={clsx(
+        'px-2.5 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-400',
+        className
+      )}
+    >
       {children}
     </Radix.Label>
   );

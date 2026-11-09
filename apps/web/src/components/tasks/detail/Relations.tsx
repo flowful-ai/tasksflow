@@ -21,8 +21,20 @@ const GROUPS: RelationGroup[] = [
   { id: 'blocked-by', label: 'Blocked by', type: 'blocks', direction: 'incoming' },
   { id: 'blocks', label: 'Blocks', type: 'blocks', direction: 'outgoing' },
   { id: 'related', label: 'Related', type: 'relates', direction: 'outgoing' },
-  { id: 'duplicates', label: 'Duplicates', type: 'duplicates', direction: 'outgoing', optional: true },
-  { id: 'duplicated-by', label: 'Duplicated by', type: 'duplicates', direction: 'incoming', optional: true },
+  {
+    id: 'duplicates',
+    label: 'Duplicates',
+    type: 'duplicates',
+    direction: 'outgoing',
+    optional: true,
+  },
+  {
+    id: 'duplicated-by',
+    label: 'Duplicated by',
+    type: 'duplicates',
+    direction: 'incoming',
+    optional: true,
+  },
 ];
 
 function inGroup(relation: TaskRelationDto, group: RelationGroup): boolean {
@@ -42,12 +54,17 @@ export function Relations({ taskId, workspaceId, readOnly = false, onOpenTask }:
   const { data: relations = [], isLoading } = useTaskRelations(taskId);
   const mutations = useTaskRelationMutations(taskId);
   const related = new Set([taskId, ...relations.map((r) => r.task.id)]);
-  const groups = GROUPS.filter((g) => relations.some((r) => inGroup(r, g)) || (!readOnly && !g.optional));
+  const groups = GROUPS.filter(
+    (g) => relations.some((r) => inGroup(r, g)) || (!readOnly && !g.optional)
+  );
 
   if (readOnly && relations.length === 0) return null;
 
   return (
-    <section aria-labelledby={`relations-${taskId}`} className="rounded-xl border border-neutral-200">
+    <section
+      aria-labelledby={`relations-${taskId}`}
+      className="rounded-xl border border-neutral-200"
+    >
       <div className="flex items-center gap-2 border-b border-neutral-100 px-3 py-2">
         <h3 id={`relations-${taskId}`} className="text-sm font-semibold text-neutral-800">
           Relations
@@ -69,8 +86,17 @@ export function Relations({ taskId, workspaceId, readOnly = false, onOpenTask }:
                         onClick={() => onOpenTask(relation.task.id)}
                         className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm hover:bg-neutral-50"
                       >
-                        <span className="shrink-0 font-mono text-xs text-neutral-500">{relation.task.key}</span>
-                        <span className={clsx('truncate', relation.task.done ? 'text-neutral-400 line-through' : 'text-neutral-800')}>
+                        <span className="shrink-0 font-mono text-xs text-neutral-500">
+                          {relation.task.key}
+                        </span>
+                        <span
+                          className={clsx(
+                            'truncate',
+                            relation.task.done
+                              ? 'text-neutral-400 line-through'
+                              : 'text-neutral-800'
+                          )}
+                        >
                           {relation.task.title}
                         </span>
                       </button>
@@ -93,7 +119,11 @@ export function Relations({ taskId, workspaceId, readOnly = false, onOpenTask }:
                         label={`Add ${group.label.toLowerCase()}`}
                         excludeIds={related}
                         onPick={(hit) =>
-                          mutations.add.mutate({ relatedTaskId: hit.id, type: group.type, direction: group.direction })
+                          mutations.add.mutate({
+                            relatedTaskId: hit.id,
+                            type: group.type,
+                            direction: group.direction,
+                          })
                         }
                         trigger={
                           <button

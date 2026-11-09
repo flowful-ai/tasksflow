@@ -42,31 +42,37 @@ export function requiredBulkPermissions(op: BulkTaskOperation): WorkspacePermiss
   return [...perms];
 }
 
-taskBulkRoutes.post('/bulk', zValidator('json', BulkTaskRequestSchema, validationHook), async (c) => {
-  const user = getCurrentUser(c);
-  const { taskIds, op } = c.req.valid('json');
+taskBulkRoutes.post(
+  '/bulk',
+  zValidator('json', BulkTaskRequestSchema, validationHook),
+  async (c) => {
+    const user = getCurrentUser(c);
+    const { taskIds, op } = c.req.valid('json');
 
-  const located = await lookupTaskProjects(db, taskIds);
-  const workspaceIds = new Set([...located.values()].map((v) => v.workspaceId));
-  if (workspaceIds.size > 1) return fail(c, 400, 'MIXED_WORKSPACES', 'All tasks must belong to one workspace');
+    const located = await lookupTaskProjects(db, taskIds);
+    const workspaceIds = new Set([...located.values()].map((v) => v.workspaceId));
+    if (workspaceIds.size > 1)
+      return fail(c, 400, 'MIXED_WORKSPACES', 'All tasks must belong to one workspace');
 
-  const needed = requiredBulkPermissions(op);
-  const authz = getAuthz();
-  const allowedProjectIds = new Set<string>();
-  for (const projectId of new Set([...located.values()].map((v) => v.projectId))) {
-    const grant = await authz.authorizeProject(projectId, user.id, 'task:read');
-    if (grant.ok && needed.every((p) => authz.hasPermission(grant.role, p))) allowedProjectIds.add(projectId);
+    const needed = requiredBulkPermissions(op);
+    const authz = getAuthz();
+    const allowedProjectIds = new Set<string>();
+    for (const projectId of new Set([...located.values()].map((v) => v.projectId))) {
+      const grant = await authz.authorizeProject(projectId, user.id, 'task:read');
+      if (grant.ok && needed.every((p) => authz.hasPermission(grant.role, p)))
+        allowedProjectIds.add(projectId);
+    }
+
+    const result = await bulkService.apply({ taskIds, op, actorId: user.id, allowedProjectIds });
+    if (!result.ok) {
+      console.error('[tasks-bulk]', result.error);
+      return fail(c, 500, 'BULK_FAILED', 'Bulk operation failed');
+    }
+
+    // Realtime, Slack and GitHub sync run off the domain events TaskBulkService emits.
+    const { results, tasks } = result.value;
+    return c.json({ success: true, data: { results, tasks } });
   }
-
-  const result = await bulkService.apply({ taskIds, op, actorId: user.id, allowedProjectIds });
-  if (!result.ok) {
-    console.error('[tasks-bulk]', result.error);
-    return fail(c, 500, 'BULK_FAILED', 'Bulk operation failed');
-  }
-
-  // Realtime, Slack and GitHub sync run off the domain events TaskBulkService emits.
-  const { results, tasks } = result.value;
-  return c.json({ success: true, data: { results, tasks } });
-});
+);
 
 export { taskBulkRoutes };

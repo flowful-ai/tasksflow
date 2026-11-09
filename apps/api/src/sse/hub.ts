@@ -27,7 +27,11 @@ export interface RealtimeTransport {
 
 export interface AccessResolver {
   getRole(workspaceId: string, userId: string): Promise<WorkspaceRole | null>;
-  listAccessibleProjectIds(workspaceId: string, userId: string, role: WorkspaceRole): Promise<string[]>;
+  listAccessibleProjectIds(
+    workspaceId: string,
+    userId: string,
+    role: WorkspaceRole
+  ): Promise<string[]>;
   isSessionActive(sessionId: string): Promise<boolean>;
   /** Used when an event names a task but not its project. */
   resolveTaskProjectId(taskId: string): Promise<string | null>;
@@ -214,7 +218,12 @@ export class RealtimeHub {
    * Publish a workspace event. Delivered only to clients that can access the
    * event's project; events without a project go to every workspace member.
    */
-  publishEvent(workspaceId: string, event: string, payload: EventPayload, options: PublishOptions = {}): void {
+  publishEvent(
+    workspaceId: string,
+    event: string,
+    payload: EventPayload,
+    options: PublishOptions = {}
+  ): void {
     void this.publishEventAsync(workspaceId, event, payload, options).catch((error: unknown) => {
       this.logger.error('[realtime] publishEvent failed:', error);
     });
@@ -227,7 +236,8 @@ export class RealtimeHub {
     options: PublishOptions = {}
   ): Promise<void> {
     const data = toEventData(payload);
-    let projectId = options.projectId !== undefined ? options.projectId : deriveProjectId(event, data);
+    let projectId =
+      options.projectId !== undefined ? options.projectId : deriveProjectId(event, data);
     if (projectId === null && options.projectId === undefined) {
       const taskId = stringField(data, 'taskId');
       if (taskId) projectId = await this.resolver.resolveTaskProjectId(taskId);
@@ -278,7 +288,9 @@ export class RealtimeHub {
   /** Close a removed member's streams on this and every other instance. */
   notifyMemberRemoved(workspaceId: string, userId: string): void {
     this.closeMemberStreams(workspaceId, userId);
-    void this.broadcast(JSON.stringify({ k: 'member_removed', o: this.instanceId, w: workspaceId, u: userId }));
+    void this.broadcast(
+      JSON.stringify({ k: 'member_removed', o: this.instanceId, w: workspaceId, u: userId })
+    );
   }
 
   /**
@@ -287,7 +299,9 @@ export class RealtimeHub {
    */
   notifyAccessChanged(workspaceId: string, userId: string | null = null): void {
     void this.refreshAccess(workspaceId, userId);
-    void this.broadcast(JSON.stringify({ k: 'access_changed', o: this.instanceId, w: workspaceId, u: userId }));
+    void this.broadcast(
+      JSON.stringify({ k: 'access_changed', o: this.instanceId, w: workspaceId, u: userId })
+    );
   }
 
   /** Handle a raw payload from the transport. Exposed for tests. */
@@ -411,7 +425,11 @@ export class RealtimeHub {
       this.closeClient(client);
       return;
     }
-    const projectIds = await this.resolver.listAccessibleProjectIds(client.workspaceId, client.userId, role);
+    const projectIds = await this.resolver.listAccessibleProjectIds(
+      client.workspaceId,
+      client.userId,
+      role
+    );
     client.role = role;
     client.projectIds = new Set(projectIds);
   }

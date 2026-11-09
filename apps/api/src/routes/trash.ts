@@ -65,11 +65,13 @@ trashRoutes.post(
     const { user } = await requireProject(c, projectId, 'task:update');
 
     const existing = await taskService.getById(taskId, { includeDeleted: true });
-    if (!existing.ok || existing.value.projectId !== projectId) return fail(c, 404, 'NOT_FOUND', 'Task not found');
+    if (!existing.ok || existing.value.projectId !== projectId)
+      return fail(c, 404, 'NOT_FOUND', 'Task not found');
 
     const result = await taskService.restore(taskId, user.id);
     if (!result.ok) {
-      if (isTaskError(result.error)) return fail(c, result.error.status, result.error.code, result.error.message);
+      if (isTaskError(result.error))
+        return fail(c, result.error.status, result.error.code, result.error.message);
       console.error('[trash]', result.error);
       return fail(c, 500, 'RESTORE_FAILED', 'Failed to restore task');
     }

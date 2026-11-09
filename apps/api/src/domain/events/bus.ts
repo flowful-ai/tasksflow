@@ -12,7 +12,9 @@
  */
 import type { DomainEventMap, DomainEventName } from './types.js';
 
-export type DomainEventListener<K extends DomainEventName> = (payload: DomainEventMap[K]) => void | Promise<void>;
+export type DomainEventListener<K extends DomainEventName> = (
+  payload: DomainEventMap[K]
+) => void | Promise<void>;
 
 type ListenerRegistry = { [K in DomainEventName]: Set<DomainEventListener<K>> };
 

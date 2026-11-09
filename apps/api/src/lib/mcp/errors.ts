@@ -81,6 +81,9 @@ export function toToolErrorPayload(error: unknown, toolName: string): ToolErrorP
   if (error instanceof ToolExecutionError) {
     return { code: error.code, message: error.message };
   }
-  console.error(`Agent tool "${toolName}" failed unexpectedly`, error instanceof Error ? error.stack ?? error.message : error);
+  console.error(
+    `Agent tool "${toolName}" failed unexpectedly`,
+    error instanceof Error ? (error.stack ?? error.message) : error
+  );
   return { code: 'INTERNAL_ERROR', message: GENERIC_TOOL_ERROR_MESSAGE };
 }

@@ -26,7 +26,9 @@ export const taskListAdapter: PageAdapter<TaskListPage> = {
   write: (page, tasks, totalDelta) => ({
     ...page,
     data: tasks,
-    ...(page.meta ? { meta: { ...page.meta, total: Math.max(0, page.meta.total + totalDelta) } } : {}),
+    ...(page.meta
+      ? { meta: { ...page.meta, total: Math.max(0, page.meta.total + totalDelta) } }
+      : {}),
   }),
 };
 
@@ -40,7 +42,10 @@ export const smartViewAdapter: PageAdapter<SmartViewExecuteDto> = {
 };
 
 /** All tasks of an infinite list, in order, without duplicates (pages can overlap after inserts). */
-export function flattenPages<P>(data: InfiniteData<P> | undefined, adapter: PageAdapter<P>): TaskDto[] {
+export function flattenPages<P>(
+  data: InfiniteData<P> | undefined,
+  adapter: PageAdapter<P>
+): TaskDto[] {
   if (!data) return [];
   const seen = new Set<string>();
   const tasks: TaskDto[] = [];
@@ -55,7 +60,12 @@ export function flattenPages<P>(data: InfiniteData<P> | undefined, adapter: Page
 }
 
 /** Split `tasks` back into pages of the original sizes (the last page takes any extra). */
-function resplit<P>(data: InfiniteData<P>, adapter: PageAdapter<P>, tasks: TaskDto[], totalDelta: number): InfiniteData<P> {
+function resplit<P>(
+  data: InfiniteData<P>,
+  adapter: PageAdapter<P>,
+  tasks: TaskDto[],
+  totalDelta: number
+): InfiniteData<P> {
   let offset = 0;
   const pages = data.pages.map((page, index) => {
     const size = adapter.read(page).length;
@@ -89,7 +99,11 @@ export function upsertTask<P>(
       pages: data.pages.map((page) => {
         const tasks = adapter.read(page);
         if (!tasks.some((t) => t.id === task.id)) return page;
-        return adapter.write(page, tasks.map((t) => (t.id === task.id ? { ...t, ...task } : t)), 0);
+        return adapter.write(
+          page,
+          tasks.map((t) => (t.id === task.id ? { ...t, ...task } : t)),
+          0
+        );
       }),
     };
   }
@@ -104,11 +118,19 @@ export function removeTask<P>(
   taskId: string
 ): InfiniteData<P> | undefined {
   if (!data || !contains(data, adapter, taskId)) return data;
-  return resplit(data, adapter, flattenPages(data, adapter).filter((t) => t.id !== taskId), -1);
+  return resplit(
+    data,
+    adapter,
+    flattenPages(data, adapter).filter((t) => t.id !== taskId),
+    -1
+  );
 }
 
 /** Fractional key between two neighbours, or null when their keys are unusable. */
-export function positionBetweenNeighbours(above: TaskDto | undefined, below: TaskDto | undefined): string | null {
+export function positionBetweenNeighbours(
+  above: TaskDto | undefined,
+  below: TaskDto | undefined
+): string | null {
   try {
     return generatePosition(above?.position ?? null, below?.position ?? null);
   } catch {
@@ -121,7 +143,11 @@ export function positionBetweenNeighbours(above: TaskDto | undefined, below: Tas
  * before `beforeTaskId`, or at the end of the target column) and give it an
  * approximate position. The server's answer replaces it on settle.
  */
-export function moveTaskInList(tasks: TaskDto[], input: MoveTaskInput, state: TaskStateDto | null): TaskDto[] {
+export function moveTaskInList(
+  tasks: TaskDto[],
+  input: MoveTaskInput,
+  state: TaskStateDto | null
+): TaskDto[] {
   const current = tasks.find((t) => t.id === input.taskId);
   if (!current) return tasks;
   const rest = tasks.filter((t) => t.id !== input.taskId);
@@ -146,21 +172,26 @@ export function moveTaskInList(tasks: TaskDto[], input: MoveTaskInput, state: Ta
   // The key goes between the named neighbours (the board sorts by key, so the
   // card shows where it was dropped); without neighbours, after the column's
   // last key, as the server does.
-  const sameColumn = (t: TaskDto) => t.stateId === input.stateId && t.projectId === current.projectId;
-  const byId = (id: string | null | undefined) => (id ? rest.find((t) => t.id === id && sameColumn(t)) : undefined);
+  const sameColumn = (t: TaskDto) =>
+    t.stateId === input.stateId && t.projectId === current.projectId;
+  const byId = (id: string | null | undefined) =>
+    id ? rest.find((t) => t.id === id && sameColumn(t)) : undefined;
   let above = byId(input.afterTaskId);
   let below = byId(input.beforeTaskId);
   if (!input.afterTaskId && !input.beforeTaskId) {
-    above = rest.filter(sameColumn).reduce<TaskDto | undefined>(
-      (last, t) => (!last || comparePositions(last.position, t.position) < 0 ? t : last),
-      undefined
-    );
+    above = rest
+      .filter(sameColumn)
+      .reduce<
+        TaskDto | undefined
+      >((last, t) => (!last || comparePositions(last.position, t.position) < 0 ? t : last), undefined);
   } else if (above && !below && input.beforeTaskId === undefined) {
     // Only afterTaskId given: the next key in the column is the upper bound.
     const anchor = above.position;
     below = rest
       .filter((t) => sameColumn(t) && comparePositions(anchor, t.position) < 0)
-      .reduce<TaskDto | undefined>((first, t) => (!first || comparePositions(t.position, first.position) < 0 ? t : first), undefined);
+      .reduce<
+        TaskDto | undefined
+      >((first, t) => (!first || comparePositions(t.position, first.position) < 0 ? t : first), undefined);
   }
   const position = positionBetweenNeighbours(above, below) ?? current.position;
 

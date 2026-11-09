@@ -33,11 +33,13 @@ export const priorityOrder: Record<string, number> = {
  * Done columns put the most recently completed first.
  */
 export function sortTasksForColumn<
-  T extends { id: string; position?: string; updatedAt?: string | null; completedAt?: string | null },
->(
-  tasks: T[],
-  category?: string
-): T[] {
+  T extends {
+    id: string;
+    position?: string;
+    updatedAt?: string | null;
+    completedAt?: string | null;
+  },
+>(tasks: T[], category?: string): T[] {
   return sortColumnTasks(tasks, category);
 }
 
@@ -107,7 +109,7 @@ export function groupTasks(
   if (groupBy === 'state' && availableStates) {
     if (mergeStatesByCategory) {
       // When merging by category, pre-populate by category names (matching getGroupInfo logic)
-      const categories = new Set(availableStates.map(s => s.category || 'backlog'));
+      const categories = new Set(availableStates.map((s) => s.category || 'backlog'));
       for (const category of categories) {
         groupMap.set(category, {
           id: category,
@@ -164,19 +166,23 @@ function getGroupInfo(
       // When merging by category, use category as the group ID
       if (mergeStatesByCategory) {
         const category = task.state.category || 'backlog';
-        return [{
-          id: category,
-          name: categoryLabels[category] || category,
-          color: categoryColors[category] || '#6b7280',
-          category,
-        }];
+        return [
+          {
+            id: category,
+            name: categoryLabels[category] || category,
+            color: categoryColors[category] || '#6b7280',
+            category,
+          },
+        ];
       }
-      return [{
-        id: task.state.id,
-        name: task.state.name,
-        color: task.state.color,
-        category: task.state.category,
-      }];
+      return [
+        {
+          id: task.state.id,
+          name: task.state.name,
+          color: task.state.color,
+          category: task.state.category,
+        },
+      ];
 
     case 'assignee':
       if (task.assignees.length === 0) {
@@ -193,11 +199,13 @@ function getGroupInfo(
 
     case 'priority': {
       const priority = task.priority || 'none';
-      return [{
-        id: priority,
-        name: priorityLabels[priority] || priority,
-        color: priorityColors[priority] || '#6b7280',
-      }];
+      return [
+        {
+          id: priority,
+          name: priorityLabels[priority] || priority,
+          color: priorityColors[priority] || '#6b7280',
+        },
+      ];
     }
 
     case 'label':

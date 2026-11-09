@@ -14,7 +14,12 @@ import {
   type FilterGroup,
 } from '@flowtask/shared';
 import type { SmartViewDto } from '../../api/types';
-import { useCreateSmartView, useCurrentWorkspace, useSmartView, useUpdateSmartView } from '../../hooks/queries';
+import {
+  useCreateSmartView,
+  useCurrentWorkspace,
+  useSmartView,
+  useUpdateSmartView,
+} from '../../hooks/queries';
 import { toast } from '../ui';
 
 const isGroupBy = (value: string): value is GroupBy => GroupBySchema.safeParse(value).success;
@@ -189,22 +194,25 @@ export function SmartViewForm() {
               {isEditing ? 'Edit View' : 'Create View'}
             </h2>
             <p className="text-sm text-gray-500">
-              {isEditing
-                ? 'Update the view settings'
-                : 'Create a new filtered view for your tasks'}
+              {isEditing ? 'Update the view settings' : 'Create a new filtered view for your tasks'}
             </p>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <p role="alert" className="p-3 text-sm text-red-600 bg-red-50 rounded-lg">{error}</p>
+            <p role="alert" className="p-3 text-sm text-red-600 bg-red-50 rounded-lg">
+              {error}
+            </p>
           )}
 
           {/* Name */}
           <div>
             <label htmlFor="view-name" className="block text-sm font-medium text-gray-700 mb-1">
-              Name <span aria-hidden className="text-red-500">*</span>
+              Name{' '}
+              <span aria-hidden className="text-red-500">
+                *
+              </span>
             </label>
             <input
               id="view-name"
@@ -220,7 +228,10 @@ export function SmartViewForm() {
 
           {/* Description */}
           <div>
-            <label htmlFor="view-description" className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor="view-description"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
               Description
             </label>
             <textarea
@@ -247,7 +258,11 @@ export function SmartViewForm() {
             <span id="view-display-type" className="block text-sm font-medium text-gray-700 mb-2">
               Display Type
             </span>
-            <div role="group" aria-labelledby="view-display-type" className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div
+              role="group"
+              aria-labelledby="view-display-type"
+              className="grid grid-cols-2 sm:grid-cols-4 gap-2"
+            >
               {DISPLAY_TYPE_OPTIONS.map((option) => (
                 <button
                   key={option.value}
@@ -297,7 +312,10 @@ export function SmartViewForm() {
 
           {/* Secondary Group By */}
           <div>
-            <label htmlFor="view-secondary-group-by" className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor="view-secondary-group-by"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
               Secondary Group By
             </label>
             <select
@@ -325,7 +343,10 @@ export function SmartViewForm() {
           {/* Sort By and Order */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="view-sort-by" className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="view-sort-by"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Sort By
               </label>
               <select
@@ -344,7 +365,10 @@ export function SmartViewForm() {
               </select>
             </div>
             <div>
-              <label htmlFor="view-sort-order" className="block text-sm font-medium text-gray-700 mb-1">
+              <label
+                htmlFor="view-sort-order"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
                 Sort Order
               </label>
               <select
@@ -387,11 +411,7 @@ export function SmartViewForm() {
             >
               {isLoading ? 'Saving...' : isEditing ? 'Save Changes' : 'Create View'}
             </button>
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              className="btn btn-secondary"
-            >
+            <button type="button" onClick={() => navigate(-1)} className="btn btn-secondary">
               Cancel
             </button>
           </div>

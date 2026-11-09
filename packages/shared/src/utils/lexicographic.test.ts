@@ -72,7 +72,20 @@ describe('lexicographic positions', () => {
     for (const valid of ['a0', 'a1', 'a0V', 'Zz', 'b00', 'zzzzzzzzzzzzzzzzzzzzzzzzzzz']) {
       expect(isValidPosition(valid)).toBe(true);
     }
-    for (const invalid of ['', 'a', 'b0', '000', 'a0V0', 'a0:', 'a@', 'a[', 'a`', 'bU', null, undefined]) {
+    for (const invalid of [
+      '',
+      'a',
+      'b0',
+      '000',
+      'a0V0',
+      'a0:',
+      'a@',
+      'a[',
+      'a`',
+      'bU',
+      null,
+      undefined,
+    ]) {
       expect(isValidPosition(invalid)).toBe(false);
     }
   });

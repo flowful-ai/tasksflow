@@ -40,7 +40,8 @@ export function GitHubLinkSection({ taskId, projectId, externalLinks, onUpdated 
   });
 
   const linkPrMutation = useMutation({
-    mutationFn: (payload: { owner: string; repo: string; prNumber: number }) => tasksApi.linkGitHubPr(taskId, payload),
+    mutationFn: (payload: { owner: string; repo: string; prNumber: number }) =>
+      tasksApi.linkGitHubPr(taskId, payload),
     meta: { silentError: true },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.tasks.detail(taskId) });
@@ -69,10 +70,20 @@ export function GitHubLinkSection({ taskId, projectId, externalLinks, onUpdated 
         {hasIntegration && (
           <div className="flex items-center gap-1">
             {!hasLinkedIssue && !showIssueRepoSelector && (
-              <IconButton label="Create GitHub issue" size="xs" icon={<Plus />} onClick={() => setShowIssueRepoSelector(true)} />
+              <IconButton
+                label="Create GitHub issue"
+                size="xs"
+                icon={<Plus />}
+                onClick={() => setShowIssueRepoSelector(true)}
+              />
             )}
             {!showPrLinker && (
-              <IconButton label="Link pull request" size="xs" icon={<Link2 />} onClick={() => setShowPrLinker(true)} />
+              <IconButton
+                label="Link pull request"
+                size="xs"
+                icon={<Link2 />}
+                onClick={() => setShowPrLinker(true)}
+              />
             )}
           </div>
         )}
@@ -113,7 +124,9 @@ export function GitHubLinkSection({ taskId, projectId, externalLinks, onUpdated 
       ))}
 
       {externalLinks.length > 0 && (
-        <p className="-mt-1 mb-2 text-xs text-gray-400">Synced from GitHub (GitHub is the source of truth)</p>
+        <p className="-mt-1 mb-2 text-xs text-gray-400">
+          Synced from GitHub (GitHub is the source of truth)
+        </p>
       )}
 
       {/* Repo selector for creating issue */}
@@ -131,7 +144,9 @@ export function GitHubLinkSection({ taskId, projectId, externalLinks, onUpdated 
                 <span className="text-gray-700">
                   {repo.owner}/{repo.repo}
                 </span>
-                {createIssueMutation.isPending && <Loader2 className="w-3 h-3 animate-spin text-gray-500" />}
+                {createIssueMutation.isPending && (
+                  <Loader2 className="w-3 h-3 animate-spin text-gray-500" />
+                )}
               </button>
             ))}
           </div>

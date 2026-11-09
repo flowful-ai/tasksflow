@@ -25,11 +25,14 @@ export interface OpenRouterTool {
     description: string;
     parameters: {
       type: 'object';
-      properties: Record<string, {
-        type: string;
-        description: string;
-        enum?: string[];
-      }>;
+      properties: Record<
+        string,
+        {
+          type: string;
+          description: string;
+          enum?: string[];
+        }
+      >;
       required: string[];
     };
   };
@@ -107,12 +110,14 @@ export class OpenRouterClient {
   /**
    * Create a chat completion.
    */
-  async createCompletion(request: OpenRouterCompletionRequest): Promise<OpenRouterCompletionResponse> {
+  async createCompletion(
+    request: OpenRouterCompletionRequest
+  ): Promise<OpenRouterCompletionResponse> {
     const response = await fetch(`${OPENROUTER_API_URL}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.apiKey}`,
+        Authorization: `Bearer ${this.apiKey}`,
         'HTTP-Referer': this.siteUrl,
         'X-Title': this.siteName,
       },
@@ -206,7 +211,10 @@ export class OpenRouterClient {
         for (const toolCall of choice.message.tool_calls) {
           try {
             const parsed: unknown = JSON.parse(toolCall.function.arguments);
-            const result = await toolExecutor(toolCall.function.name, isRecord(parsed) ? parsed : {});
+            const result = await toolExecutor(
+              toolCall.function.name,
+              isRecord(parsed) ? parsed : {}
+            );
 
             messages.push({
               role: 'tool',
@@ -241,7 +249,7 @@ export class OpenRouterClient {
   async listModels(): Promise<OpenRouterModel[]> {
     const response = await fetch(`${OPENROUTER_API_URL}/models`, {
       headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
+        Authorization: `Bearer ${this.apiKey}`,
       },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });

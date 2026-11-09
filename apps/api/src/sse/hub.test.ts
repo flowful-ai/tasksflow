@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'bun:test';
 import type { WorkspaceRole } from '@flowtask/shared';
-import { RealtimeHub, deriveProjectId, type AccessResolver, type ClientSink, type RealtimeTransport } from './hub.js';
-import { decodeWireMessage, encodeWithinLimit, SAFE_PAYLOAD_BYTES, type WorkspaceEventMessage } from './wire.js';
+import {
+  RealtimeHub,
+  deriveProjectId,
+  type AccessResolver,
+  type ClientSink,
+  type RealtimeTransport,
+} from './hub.js';
+import {
+  decodeWireMessage,
+  encodeWithinLimit,
+  SAFE_PAYLOAD_BYTES,
+  type WorkspaceEventMessage,
+} from './wire.js';
 
 const WS = 'ws-1';
 const OPEN = 'project-open';
@@ -41,7 +52,9 @@ function recordingSink(): ClientSink & { frames: string[]; closed: boolean } {
 }
 
 function events(sink: { frames: string[] }): string[] {
-  return sink.frames.filter((f) => f.startsWith('id:')).map((f) => /event: (.*)\n/.exec(f)?.[1] ?? '');
+  return sink.frames
+    .filter((f) => f.startsWith('id:'))
+    .map((f) => /event: (.*)\n/.exec(f)?.[1] ?? '');
 }
 
 /** In-memory bus standing in for Postgres NOTIFY (delivers to every subscriber, sender included). */
@@ -84,7 +97,14 @@ function baseState(): FakeState {
 
 function register(hub: RealtimeHub, userId: string, role: WorkspaceRole, projectIds: string[]) {
   const sink = recordingSink();
-  const handle = hub.addClient({ userId, sessionId: `s-${userId}`, workspaceId: WS, role, projectIds, sink });
+  const handle = hub.addClient({
+    userId,
+    sessionId: `s-${userId}`,
+    workspaceId: WS,
+    role,
+    projectIds,
+    sink,
+  });
   return { sink, handle };
 }
 
@@ -107,7 +127,10 @@ describe('RealtimeHub project filtering', () => {
     const member = register(hub, 'member', 'member', [OPEN]);
 
     await hub.publishEventAsync(WS, 'task:created', { id: 'nested', project: { id: SECRET } });
-    await hub.publishEventAsync(WS, 'comment:created', { taskId: 'task-secret', comment: { id: 'c1' } });
+    await hub.publishEventAsync(WS, 'comment:created', {
+      taskId: 'task-secret',
+      comment: { id: 'c1' },
+    });
     await hub.publishEventAsync(WS, 'task:updated', { id: 'explicit' }, { projectId: SECRET });
     await hub.publishEventAsync(WS, 'member:joined', { workspaceId: WS, userId: 'x' });
 
@@ -118,7 +141,9 @@ describe('RealtimeHub project filtering', () => {
     const hub = new RealtimeHub({ resolver: fakeResolver(baseState()) });
     const member = register(hub, 'member', 'member', [OPEN]);
     await hub.publishEventAsync(WS, 'task:moved', { id: 't', projectId: OPEN });
-    expect(member.sink.frames[0]).toMatch(/^id: [0-9a-f]{8}-1\nevent: task:moved\ndata: \{.*"timestamp"/);
+    expect(member.sink.frames[0]).toMatch(
+      /^id: [0-9a-f]{8}-1\nevent: task:moved\ndata: \{.*"timestamp"/
+    );
   });
 
   it('delivers user events to every stream of that user only', async () => {
@@ -135,8 +160,16 @@ describe('RealtimeHub membership and access changes', () => {
   it('closes a removed member immediately, locally and on other instances', async () => {
     const bus = memoryBus();
     const state = baseState();
-    const a = new RealtimeHub({ resolver: fakeResolver(state), transportFactory: bus.factory, instanceId: 'aaaaaaaa-a' });
-    const b = new RealtimeHub({ resolver: fakeResolver(state), transportFactory: bus.factory, instanceId: 'bbbbbbbb-b' });
+    const a = new RealtimeHub({
+      resolver: fakeResolver(state),
+      transportFactory: bus.factory,
+      instanceId: 'aaaaaaaa-a',
+    });
+    const b = new RealtimeHub({
+      resolver: fakeResolver(state),
+      transportFactory: bus.factory,
+      instanceId: 'bbbbbbbb-b',
+    });
     await a.start();
     await b.start();
     try {
@@ -179,8 +212,16 @@ describe('RealtimeHub cross-instance delivery', () => {
   it('delivers once per instance and suppresses its own echo', async () => {
     const bus = memoryBus();
     const state = baseState();
-    const a = new RealtimeHub({ resolver: fakeResolver(state), transportFactory: bus.factory, instanceId: 'aaaaaaaa-a' });
-    const b = new RealtimeHub({ resolver: fakeResolver(state), transportFactory: bus.factory, instanceId: 'bbbbbbbb-b' });
+    const a = new RealtimeHub({
+      resolver: fakeResolver(state),
+      transportFactory: bus.factory,
+      instanceId: 'aaaaaaaa-a',
+    });
+    const b = new RealtimeHub({
+      resolver: fakeResolver(state),
+      transportFactory: bus.factory,
+      instanceId: 'bbbbbbbb-b',
+    });
     await a.start();
     await b.start();
     try {
@@ -211,7 +252,11 @@ describe('RealtimeHub cross-instance delivery', () => {
     const hub = new RealtimeHub({
       resolver: fakeResolver(baseState()),
       transportFactory: failing,
-      logger: { error: (...args: unknown[]) => errors.push(args), warn: () => undefined, info: () => undefined },
+      logger: {
+        error: (...args: unknown[]) => errors.push(args),
+        warn: () => undefined,
+        info: () => undefined,
+      },
     });
     await hub.start();
     try {
@@ -261,7 +306,12 @@ describe('wire format', () => {
     const encoded = encodeWithinLimit(message);
     expect(encoded).not.toBeNull();
     expect(Buffer.byteLength(encoded?.payload ?? '')).toBeLessThanOrEqual(SAFE_PAYLOAD_BYTES);
-    expect(encoded?.message.d).toEqual({ truncated: true, id: 'task-1', projectId: OPEN, commentId: 'c-9' });
+    expect(encoded?.message.d).toEqual({
+      truncated: true,
+      id: 'task-1',
+      projectId: OPEN,
+      commentId: 'c-9',
+    });
 
     const small = encodeWithinLimit({ ...message, d: { id: 'task-1', projectId: OPEN } });
     expect(small?.message.d).toEqual({ id: 'task-1', projectId: OPEN });

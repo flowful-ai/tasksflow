@@ -17,7 +17,15 @@ const issue = {
 
 describe('parseGitHubWebhook', () => {
   test('classifies issue events with their installation', () => {
-    expect(parseGitHubWebhook('issues', { action: 'opened', issue, repository, sender, installation: { id: 5 } })).toEqual({
+    expect(
+      parseGitHubWebhook('issues', {
+        action: 'opened',
+        issue,
+        repository,
+        sender,
+        installation: { id: 5 },
+      })
+    ).toEqual({
       kind: 'issue',
       action: 'opened',
       repo: { owner: 'acme', repo: 'api' },
@@ -64,7 +72,11 @@ describe('parseGitHubWebhook', () => {
       sender,
       installation: { id: 5 },
     });
-    expect(result).toMatchObject({ kind: 'pull_request', action: 'closed', pr: { number: 40, merged: true, branch: 'feature/flow-3' } });
+    expect(result).toMatchObject({
+      kind: 'pull_request',
+      action: 'closed',
+      pr: { number: 40, merged: true, branch: 'feature/flow-3' },
+    });
   });
 
   test('marks comments posted by an app', () => {

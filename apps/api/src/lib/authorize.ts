@@ -13,7 +13,13 @@ import {
   type TaskGrant,
   type WorkspaceGrant,
 } from '../domain/index.js';
-import { getOptionalUser, hasPermission, type AuthSession, type AuthUser, type WorkspacePermission } from '../auth/index.js';
+import {
+  getOptionalUser,
+  hasPermission,
+  type AuthSession,
+  type AuthUser,
+  type WorkspacePermission,
+} from '../auth/index.js';
 import { AppError, forbidden, fromResult, notFound, unauthorized } from './responses.js';
 
 /**
@@ -41,7 +47,12 @@ function getSmartViewService(): SmartViewService {
 
 function isAuthSession(value: unknown): value is AuthSession {
   if (typeof value !== 'object' || value === null) return false;
-  return 'id' in value && typeof value.id === 'string' && 'userId' in value && typeof value.userId === 'string';
+  return (
+    'id' in value &&
+    typeof value.id === 'string' &&
+    'userId' in value &&
+    typeof value.userId === 'string'
+  );
 }
 
 /** The authenticated user, or a 401. */
@@ -54,7 +65,8 @@ export function requireUser(c: Context): AuthUser {
 /** The authenticated user's session, or a 401. */
 export function requireSession(c: Context): AuthSession {
   const auth: unknown = c.get('auth');
-  const session = typeof auth === 'object' && auth !== null && 'session' in auth ? auth.session : null;
+  const session =
+    typeof auth === 'object' && auth !== null && 'session' in auth ? auth.session : null;
   if (!isAuthSession(session)) throw unauthorized();
   return session;
 }
@@ -121,7 +133,11 @@ function smartViewRolePermissions(role: WorkspaceGrant['role']) {
  * Views the caller cannot read (other workspace, someone else's personal
  * view) are reported as 404; readable views the caller cannot modify as 403.
  */
-export async function requireSmartView(c: Context, viewId: string, action: SmartViewAction): Promise<SmartViewGrant> {
+export async function requireSmartView(
+  c: Context,
+  viewId: string,
+  action: SmartViewAction
+): Promise<SmartViewGrant> {
   const user = requireUser(c);
   const view = fromResult(await getSmartViewService().getById(viewId), {
     status: 500,
@@ -142,5 +158,10 @@ export async function requireSmartView(c: Context, viewId: string, action: Smart
 
 /** Whether the caller may manage sharing for this (already readable) view. */
 export function canShareSmartView(grant: SmartViewGrant): boolean {
-  return canAccessSmartView(grant.view, grant.user.id, smartViewRolePermissions(grant.role), 'share');
+  return canAccessSmartView(
+    grant.view,
+    grant.user.id,
+    smartViewRolePermissions(grant.role),
+    'share'
+  );
 }

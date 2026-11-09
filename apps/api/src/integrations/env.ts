@@ -9,7 +9,10 @@
  */
 export function normalizeSecret(value: string | undefined): string | undefined {
   if (value === undefined) return undefined;
-  const cleaned = value.trim().replace(/^[`'"]+|[`'"]+$/g, '').trim();
+  const cleaned = value
+    .trim()
+    .replace(/^[`'"]+|[`'"]+$/g, '')
+    .trim();
   return cleaned.length > 0 ? cleaned : undefined;
 }
 

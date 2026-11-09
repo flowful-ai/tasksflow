@@ -40,7 +40,12 @@ export default defineConfig({
         // schemas from @flowtask/shared/types.
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
-          if (/[\\/]node_modules[\\/](react|react-dom|scheduler|react-router|react-router-dom)[\\/]/.test(id)) return 'vendor-react';
+          if (
+            /[\\/]node_modules[\\/](react|react-dom|scheduler|react-router|react-router-dom)[\\/]/.test(
+              id
+            )
+          )
+            return 'vendor-react';
           if (id.includes('@tanstack')) return 'vendor-query';
           if (id.includes('@radix-ui') || id.includes('@floating-ui')) return 'vendor-radix';
           if (id.includes('@dnd-kit')) return 'vendor-dnd';

@@ -25,7 +25,11 @@ import {
 
 const ALL_TOOLS: AgentTool[] = [...AgentToolSchema.options];
 
-function contextFor(role: WorkspaceRole, userId = role === 'member' ? USER_MEMBER : USER_ADMIN, grantedTools: AgentTool[] = ALL_TOOLS) {
+function contextFor(
+  role: WorkspaceRole,
+  userId = role === 'member' ? USER_MEMBER : USER_ADMIN,
+  grantedTools: AgentTool[] = ALL_TOOLS
+) {
   return buildToolContext({ workspaceId: WS_A, userId, role, grantedTools }, createScopeDeps());
 }
 
@@ -33,11 +37,17 @@ function taskIds(output: Record<string, unknown>): string[] {
   const list = output.tasks;
   if (!Array.isArray(list)) return [];
   return list.flatMap((entry: unknown) =>
-    typeof entry === 'object' && entry !== null && 'id' in entry && typeof entry.id === 'string' ? [entry.id] : []
+    typeof entry === 'object' && entry !== null && 'id' in entry && typeof entry.id === 'string'
+      ? [entry.id]
+      : []
   );
 }
 
-async function expectToolError(promise: Promise<unknown>, code: ToolErrorCode, message?: string | RegExp) {
+async function expectToolError(
+  promise: Promise<unknown>,
+  code: ToolErrorCode,
+  message?: string | RegExp
+) {
   const error = await promise.then(
     () => null,
     (caught: unknown) => caught
@@ -55,7 +65,9 @@ describe('tenant scoping (buildToolContext)', () => {
     const result = await executeAgentTool('query_tasks', {}, contextFor('admin'), services);
 
     // The old runtime passed no projectIds here, so TaskService.list returned every workspace's tasks.
-    expect(calls.list[0]?.filters?.projectIds?.sort()).toEqual([PROJECT_A, PROJECT_A_ADMIN_ONLY].sort());
+    expect(calls.list[0]?.filters?.projectIds?.sort()).toEqual(
+      [PROJECT_A, PROJECT_A_ADMIN_ONLY].sort()
+    );
     const ids = taskIds(result);
     expect(ids).not.toContain(TASK_B1);
     expect(ids.sort()).toEqual([TASK_A1, TASK_A2, TASK_SECRET].sort());
@@ -63,7 +75,12 @@ describe('tenant scoping (buildToolContext)', () => {
 
   it('search_tasks without projectId respects the project ACL for members', async () => {
     const { services, calls } = createServices();
-    const result = await executeAgentTool('search_tasks', { query: 'Task' }, contextFor('member'), services);
+    const result = await executeAgentTool(
+      'search_tasks',
+      { query: 'Task' },
+      contextFor('member'),
+      services
+    );
 
     expect(calls.list[0]?.filters?.projectIds).toEqual([PROJECT_A]);
     const ids = taskIds(result);
@@ -82,13 +99,23 @@ describe('tenant scoping (buildToolContext)', () => {
 
   it('rejects a task from another workspace without revealing it', async () => {
     const { services } = createServices();
-    await expectToolError(executeAgentTool('get_task', { taskId: TASK_B1 }, contextFor('owner'), services), 'NOT_FOUND', /not found/);
-    await expectToolError(executeAgentTool('delete_task', { taskId: TASK_B1 }, contextFor('owner'), services), 'NOT_FOUND');
+    await expectToolError(
+      executeAgentTool('get_task', { taskId: TASK_B1 }, contextFor('owner'), services),
+      'NOT_FOUND',
+      /not found/
+    );
+    await expectToolError(
+      executeAgentTool('delete_task', { taskId: TASK_B1 }, contextFor('owner'), services),
+      'NOT_FOUND'
+    );
   });
 
   it('rejects tasks in ACL-restricted projects for members', async () => {
     const { services } = createServices();
-    await expectToolError(executeAgentTool('get_task', { taskId: TASK_SECRET }, contextFor('member'), services), 'FORBIDDEN');
+    await expectToolError(
+      executeAgentTool('get_task', { taskId: TASK_SECRET }, contextFor('member'), services),
+      'FORBIDDEN'
+    );
   });
 
   it('only resolves users that belong to the bound workspace', async () => {
@@ -105,13 +132,21 @@ describe('tenant scoping (buildToolContext)', () => {
 describe('task key resolution', () => {
   it('accepts ENG-2 style keys (case-insensitive) wherever a taskId is accepted', async () => {
     const { services } = createServices();
-    const result = await executeAgentTool('get_task', { taskId: 'eng-2' }, contextFor('admin'), services);
+    const result = await executeAgentTool(
+      'get_task',
+      { taskId: 'eng-2' },
+      contextFor('admin'),
+      services
+    );
     expect(result.task).toMatchObject({ id: TASK_A2, key: 'ENG-2' });
   });
 
   it('does not resolve keys of another workspace', async () => {
     const { services } = createServices();
-    await expectToolError(executeAgentTool('get_task', { taskId: 'OPS-1' }, contextFor('admin'), services), 'NOT_FOUND');
+    await expectToolError(
+      executeAgentTool('get_task', { taskId: 'OPS-1' }, contextFor('admin'), services),
+      'NOT_FOUND'
+    );
   });
 
   it('rejects refs that are neither ids nor keys', async () => {
@@ -142,7 +177,12 @@ describe('per-tool role permissions', () => {
   it('forbids members from assigning tasks', async () => {
     const { services } = createServices();
     await expectToolError(
-      executeAgentTool('assign_task', { taskId: TASK_A1, userId: 'ada@example.com', action: 'assign' }, contextFor('member'), services),
+      executeAgentTool(
+        'assign_task',
+        { taskId: TASK_A1, userId: 'ada@example.com', action: 'assign' },
+        contextFor('member'),
+        services
+      ),
       'FORBIDDEN'
     );
   });
@@ -150,7 +190,12 @@ describe('per-tool role permissions', () => {
   it('allows admins to delete and assign', async () => {
     const { services, calls } = createServices();
     await executeAgentTool('delete_task', { taskId: 'ENG-1' }, contextFor('admin'), services);
-    await executeAgentTool('assign_task', { taskId: TASK_A1, userId: 'max@example.com', action: 'assign' }, contextFor('admin'), services);
+    await executeAgentTool(
+      'assign_task',
+      { taskId: TASK_A1, userId: 'max@example.com', action: 'assign' },
+      contextFor('admin'),
+      services
+    );
     expect(calls.delete).toEqual([TASK_A1]);
     expect(calls.addAssignee).toEqual([{ taskId: TASK_A1, userId: USER_MEMBER }]);
   });
@@ -158,10 +203,18 @@ describe('per-tool role permissions', () => {
   it('refuses tools that were not granted', async () => {
     const { services } = createServices();
     await expectToolError(
-      executeAgentTool('delete_task', { taskId: TASK_A1 }, contextFor('owner', USER_ADMIN, ['query_tasks']), services),
+      executeAgentTool(
+        'delete_task',
+        { taskId: TASK_A1 },
+        contextFor('owner', USER_ADMIN, ['query_tasks']),
+        services
+      ),
       'TOOL_NOT_GRANTED'
     );
-    await expectToolError(executeAgentTool('drop_database', {}, contextFor('owner'), services), 'UNKNOWN_TOOL');
+    await expectToolError(
+      executeAgentTool('drop_database', {}, contextFor('owner'), services),
+      'UNKNOWN_TOOL'
+    );
   });
 
   it('does not expose forbidden tools to the in-app model at all', () => {
@@ -183,14 +236,26 @@ describe('argument validation', () => {
   it('rejects wrong types, unknown params and out-of-range limits with readable messages', async () => {
     const { services } = createServices();
     const ctx = contextFor('admin');
-    await expectToolError(executeAgentTool('query_tasks', { limit: '10' }, ctx, services), 'VALIDATION_ERROR', /limit/);
-    await expectToolError(executeAgentTool('query_tasks', { limit: 500 }, ctx, services), 'VALIDATION_ERROR', /limit/);
+    await expectToolError(
+      executeAgentTool('query_tasks', { limit: '10' }, ctx, services),
+      'VALIDATION_ERROR',
+      /limit/
+    );
+    await expectToolError(
+      executeAgentTool('query_tasks', { limit: 500 }, ctx, services),
+      'VALIDATION_ERROR',
+      /limit/
+    );
     await expectToolError(
       executeAgentTool('query_tasks', { assignedId: 'me' }, ctx, services),
       'VALIDATION_ERROR',
       /unknown parameter\(s\) assignedId/
     );
-    await expectToolError(executeAgentTool('get_task', {}, ctx, services), 'VALIDATION_ERROR', /taskId/);
+    await expectToolError(
+      executeAgentTool('get_task', {}, ctx, services),
+      'VALIDATION_ERROR',
+      /taskId/
+    );
     await expectToolError(
       executeAgentTool('query_tasks', { projectId: 'not-a-uuid' }, ctx, services),
       'VALIDATION_ERROR',
@@ -200,10 +265,18 @@ describe('argument validation', () => {
 
   it('returns validation errors verbatim through runAgentTool', async () => {
     const { services } = createServices();
-    const outcome = await runAgentTool('move_task', { taskId: TASK_A1 }, contextFor('admin'), services);
+    const outcome = await runAgentTool(
+      'move_task',
+      { taskId: TASK_A1 },
+      contextFor('admin'),
+      services
+    );
     expect(outcome).toEqual({
       ok: false,
-      error: { code: 'VALIDATION_ERROR', message: 'Provide stateId or state (a state name or category)' },
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Provide stateId or state (a state name or category)',
+      },
     });
   });
 
@@ -226,7 +299,12 @@ describe('move_task', () => {
   // is TaskService.move's job and is covered by the domain position tests.
   it('resolves a state by name and leaves placement to TaskService', async () => {
     const { services, calls } = createServices();
-    await executeAgentTool('move_task', { taskId: TASK_A1, state: 'in progress' }, contextFor('admin'), services);
+    await executeAgentTool(
+      'move_task',
+      { taskId: TASK_A1, state: 'in progress' },
+      contextFor('admin'),
+      services
+    );
     const move = calls.move[0];
     expect(move?.stateId).toBe(STATE_A_DOING);
     expect(move?.position).toBeUndefined();
@@ -234,10 +312,20 @@ describe('move_task', () => {
 
   it('accepts a state category and rejects unknown states with the available list', async () => {
     const { services, calls } = createServices();
-    await executeAgentTool('move_task', { taskId: TASK_A2, state: 'backlog' }, contextFor('admin'), services);
+    await executeAgentTool(
+      'move_task',
+      { taskId: TASK_A2, state: 'backlog' },
+      contextFor('admin'),
+      services
+    );
     expect(calls.move[0]?.stateId).toBe(STATE_A_TODO);
     await expectToolError(
-      executeAgentTool('move_task', { taskId: TASK_A2, state: 'Shipped' }, contextFor('admin'), services),
+      executeAgentTool(
+        'move_task',
+        { taskId: TASK_A2, state: 'Shipped' },
+        contextFor('admin'),
+        services
+      ),
       'VALIDATION_ERROR',
       /Available: Todo \(backlog\), In Progress \(in_progress\)/
     );
@@ -247,14 +335,18 @@ describe('move_task', () => {
 describe('tool registry quality', () => {
   function missingDescriptions(schema: ToolParameterSchema, path: string): string[] {
     const own = schema.description ? [] : [path];
-    const nested = Object.entries(schema.properties ?? {}).flatMap(([key, value]) => missingDescriptions(value, `${path}.${key}`));
+    const nested = Object.entries(schema.properties ?? {}).flatMap(([key, value]) =>
+      missingDescriptions(value, `${path}.${key}`)
+    );
     const items = schema.items ? missingDescriptions(schema.items, `${path}[]`) : [];
     return [...own, ...nested, ...items];
   }
 
   it('describes every parameter', () => {
     const missing = AGENT_TOOLS.flatMap((definition) =>
-      Object.entries(definition.parameters.properties).flatMap(([key, value]) => missingDescriptions(value, `${definition.name}.${key}`))
+      Object.entries(definition.parameters.properties).flatMap(([key, value]) =>
+        missingDescriptions(value, `${definition.name}.${key}`)
+      )
     );
     expect(missing).toEqual([]);
   });

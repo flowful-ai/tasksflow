@@ -44,7 +44,12 @@ const body = JSON.stringify({
     state: 'open',
     labels: [],
   },
-  repository: { id: 1, name: 'repo', full_name: 'nobody-links-this/repo', owner: { login: 'nobody-links-this' } },
+  repository: {
+    id: 1,
+    name: 'repo',
+    full_name: 'nobody-links-this/repo',
+    owner: { login: 'nobody-links-this' },
+  },
   sender: { login: 'octocat', id: 1 },
   installation: { id: 1 },
 });

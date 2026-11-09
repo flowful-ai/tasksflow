@@ -3,7 +3,11 @@ import { Bot, Copy, Check, Pencil, Trash2, Shield, Link2 } from 'lucide-react';
 import clsx from 'clsx';
 import { AgentToolSchema, type AgentTool } from '@flowtask/shared/types';
 import type { McpOAuthConnection } from '../../api/workspaces';
-import { useCurrentWorkspace, useMcpConnectionMutations, useMcpConnections } from '../../hooks/queries';
+import {
+  useCurrentWorkspace,
+  useMcpConnectionMutations,
+  useMcpConnections,
+} from '../../hooks/queries';
 import { ConfirmDialog, Dialog, EmptyState, ErrorState, IconButton, toast } from '../ui';
 
 export const AGENT_TOOL_LABELS: Record<AgentTool, string> = {
@@ -89,7 +93,12 @@ function ScopeEditorDialog({ connection, onClose, onSave, isSaving }: ScopeEdito
           <button type="button" className="btn btn-secondary" onClick={onClose}>
             Cancel
           </button>
-          <button type="button" className="btn btn-primary" onClick={handleSave} disabled={isSaving}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleSave}
+            disabled={isSaving}
+          >
             {isSaving ? 'Saving...' : 'Save Scopes'}
           </button>
         </>
@@ -107,7 +116,9 @@ function ScopeEditorDialog({ connection, onClose, onSave, isSaving }: ScopeEdito
             key={permission.id}
             className={clsx(
               'flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors',
-              toolScopes.includes(permission.id) ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:bg-gray-50'
+              toolScopes.includes(permission.id)
+                ? 'border-primary-500 bg-primary-50'
+                : 'border-gray-200 hover:bg-gray-50'
             )}
           >
             <input
@@ -154,18 +165,26 @@ function ConnectionCard({ connection, onEditScopes, onDelete }: ConnectionCardPr
         <div className="flex items-center gap-2">
           <Shield className="w-4 h-4 text-gray-400" />
           <span>
-            {connection.toolScopes.length} scope{connection.toolScopes.length === 1 ? '' : 's'}: {connection.toolScopes.join(', ')}
+            {connection.toolScopes.length} scope{connection.toolScopes.length === 1 ? '' : 's'}:{' '}
+            {connection.toolScopes.join(', ')}
           </span>
         </div>
         <div>
-          Authorized by: <span className="text-gray-900">{connection.grantedBy.name || connection.grantedBy.email}</span> ({connection.grantedByRole})
+          Authorized by:{' '}
+          <span className="text-gray-900">
+            {connection.grantedBy.name || connection.grantedBy.email}
+          </span>{' '}
+          ({connection.grantedByRole})
         </div>
         <div>Updated: {formatRelativeTime(connection.updatedAt)}</div>
         <div>Last activity: {formatRelativeTime(connection.lastActivityAt)}</div>
       </div>
 
       <div className="mt-4 pt-4 border-t border-gray-100 flex gap-2">
-        <button onClick={onEditScopes} className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+        <button
+          onClick={onEditScopes}
+          className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+        >
           <Pencil className="w-4 h-4" />
           Edit Scopes
         </button>
@@ -227,8 +246,13 @@ function ConnectGuide() {
       </div>
 
       <ul className="list-disc pl-5 text-sm text-gray-700 space-y-1 mb-4">
-        <li>Add this MCP server URL in your client: <code className="font-mono">{values.mcpUrl}</code></li>
-        <li>For Claude Code, run the command below, then run <code className="font-mono">/mcp</code> and authorize.</li>
+        <li>
+          Add this MCP server URL in your client: <code className="font-mono">{values.mcpUrl}</code>
+        </li>
+        <li>
+          For Claude Code, run the command below, then run <code className="font-mono">/mcp</code>{' '}
+          and authorize.
+        </li>
         <li>OAuth discovery is automatic using the well-known endpoints below.</li>
         <li>Approve workspace + tool scopes during OAuth consent.</li>
         <li>Only workspace owners/admins can authorize MCP access.</li>
@@ -237,7 +261,9 @@ function ConnectGuide() {
       <div className="mb-4 p-2 bg-gray-50 rounded border border-gray-200">
         <div className="text-xs text-gray-600 mb-1">Claude Code command</div>
         <div className="flex items-center gap-2">
-          <code className="flex-1 text-xs font-mono text-gray-800 break-all">{claudeCodeCommand}</code>
+          <code className="flex-1 text-xs font-mono text-gray-800 break-all">
+            {claudeCodeCommand}
+          </code>
           <IconButton
             label={copied === 'claude-cli' ? 'Copied' : 'Copy command'}
             onClick={() => void copy('claude-cli', claudeCodeCommand)}
@@ -252,7 +278,10 @@ function ConnectGuide() {
           { key: 'pr', label: 'Protected Resource Metadata', value: values.protectedResource },
           { key: 'as', label: 'Authorization Server Metadata', value: values.authServer },
         ].map((item) => (
-          <div key={item.key} className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-200">
+          <div
+            key={item.key}
+            className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-200"
+          >
             <div className="min-w-44 text-xs text-gray-600">{item.label}</div>
             <code className="flex-1 text-xs font-mono text-gray-800 break-all">{item.value}</code>
             <IconButton
@@ -273,7 +302,9 @@ export function AgentSettings() {
   const workspaceId = currentWorkspace?.id;
 
   const { data, isLoading, error, refetch } = useMcpConnections(workspaceId);
-  const { updateScopes: updateScopesMutation, remove: deleteMutation } = useMcpConnectionMutations(workspaceId ?? '');
+  const { updateScopes: updateScopesMutation, remove: deleteMutation } = useMcpConnectionMutations(
+    workspaceId ?? ''
+  );
 
   if (!workspaceId) {
     return (

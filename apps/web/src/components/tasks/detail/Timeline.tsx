@@ -62,14 +62,22 @@ function displayText(value: HistoryDisplayValueDto | null, field: string | null)
       if (raw === null) return null;
       if (field === 'priority' && typeof raw === 'string') return priorityLabel(raw);
       if ((field === 'dueDate' || field === 'startDate') && typeof raw === 'string') {
-        return new Date(raw).toLocaleDateString(undefined, { month: 'short', day: 'numeric', timeZone: 'UTC' });
+        return new Date(raw).toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          timeZone: 'UTC',
+        });
       }
-      return typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean' ? String(raw) : null;
+      return typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'boolean'
+        ? String(raw)
+        : null;
     }
   }
 }
 
-const B = ({ children }: { children: ReactNode }) => <b className="font-medium text-neutral-800">{children}</b>;
+const B = ({ children }: { children: ReactNode }) => (
+  <b className="font-medium text-neutral-800">{children}</b>
+);
 
 /** The sentence after the actor's name, or null for events the stream does not show. */
 export function describeEvent(event: TaskHistoryItemDto): ReactNode | null {
@@ -85,16 +93,34 @@ export function describeEvent(event: TaskHistoryItemDto): ReactNode | null {
     case 'commented':
       return null; // the comment card is the entry
     case 'assigned':
-      return event.to?.kind === 'user' && event.actor?.id === event.to.id ? 'self-assigned the task' : <>assigned <B>{to}</B></>;
+      return event.to?.kind === 'user' && event.actor?.id === event.to.id ? (
+        'self-assigned the task'
+      ) : (
+        <>
+          assigned <B>{to}</B>
+        </>
+      );
     case 'unassigned':
-      return <>unassigned <B>{from ?? to}</B></>;
+      return (
+        <>
+          unassigned <B>{from ?? to}</B>
+        </>
+      );
     case 'labeled':
-      return <>added label <B>{to}</B></>;
+      return (
+        <>
+          added label <B>{to}</B>
+        </>
+      );
     case 'unlabeled':
-      return <>removed label <B>{from ?? to}</B></>;
+      return (
+        <>
+          removed label <B>{from ?? to}</B>
+        </>
+      );
     case 'relation_added':
     case 'relation_removed': {
-      const relation = event.type === 'relation_added' ? event.to : event.from ?? event.to;
+      const relation = event.type === 'relation_added' ? event.to : (event.from ?? event.to);
       const verb = event.type === 'relation_added' ? 'marked this as' : 'removed the relation:';
       if (relation?.kind === 'relation') {
         const text = RELATION_TEXT[relation.type]?.[relation.direction] ?? relation.type;
@@ -120,17 +146,45 @@ export function describeEvent(event: TaskHistoryItemDto): ReactNode | null {
             </>
           );
         case 'title':
-          return <>renamed the task to <B>{to}</B></>;
+          return (
+            <>
+              renamed the task to <B>{to}</B>
+            </>
+          );
         case 'description':
           return 'updated the description';
         case 'priority':
-          return to ? <>set priority to <B>{to}</B></> : 'removed the priority';
+          return to ? (
+            <>
+              set priority to <B>{to}</B>
+            </>
+          ) : (
+            'removed the priority'
+          );
         case 'dueDate':
-          return to ? <>set the due date to <B>{to}</B></> : 'removed the due date';
+          return to ? (
+            <>
+              set the due date to <B>{to}</B>
+            </>
+          ) : (
+            'removed the due date'
+          );
         case 'startDate':
-          return to ? <>set the start date to <B>{to}</B></> : 'removed the start date';
+          return to ? (
+            <>
+              set the start date to <B>{to}</B>
+            </>
+          ) : (
+            'removed the start date'
+          );
         case 'parentId':
-          return to ? <>set the parent to <B>{to}</B></> : 'removed the parent';
+          return to ? (
+            <>
+              set the parent to <B>{to}</B>
+            </>
+          ) : (
+            'removed the parent'
+          );
         case 'position':
           return null; // reordering within a column is noise
         default:
@@ -150,10 +204,15 @@ function EventLine({ event }: { event: TaskHistoryItemDto }) {
   if (!text) return null;
   return (
     <li className="relative flex items-start gap-2 py-1 pl-6 text-[13px] text-neutral-500">
-      <span aria-hidden className="absolute left-[7px] top-[11px] h-1.5 w-1.5 rounded-full bg-neutral-300" />
+      <span
+        aria-hidden
+        className="absolute left-[7px] top-[11px] h-1.5 w-1.5 rounded-full bg-neutral-300"
+      />
       <p className="min-w-0">
         <B>{actorName(event)}</B> {text}
-        {event.agent && event.actor && <span className="text-neutral-400"> via {event.agent.name}</span>}
+        {event.agent && event.actor && (
+          <span className="text-neutral-400"> via {event.agent.name}</span>
+        )}
         <span className="text-neutral-400">
           {' · '}
           <time dateTime={event.createdAt} title={formatDateTime(event.createdAt)}>
@@ -190,17 +249,27 @@ function CommentCard({ comment, taskId, currentUserId, canModerate, members }: C
 
   return (
     <li className="py-1.5">
-      <article aria-label={`Comment by ${author}`} className="rounded-xl border border-neutral-200 bg-white px-3 py-2.5 shadow-card">
+      <article
+        aria-label={`Comment by ${author}`}
+        className="rounded-xl border border-neutral-200 bg-white px-3 py-2.5 shadow-card"
+      >
         <header className="mb-1 flex items-center gap-2 text-[13px]">
           {comment.agent ? (
-            <span aria-hidden className="grid h-5 w-5 place-items-center rounded-full bg-purple-100 text-purple-700">
+            <span
+              aria-hidden
+              className="grid h-5 w-5 place-items-center rounded-full bg-purple-100 text-purple-700"
+            >
               <Bot className="h-3 w-3" />
             </span>
           ) : (
             comment.user && <Avatar person={comment.user} size="sm" />
           )}
           <b className="font-semibold text-neutral-900">{author}</b>
-          {comment.agent && <span className="rounded bg-purple-100 px-1.5 text-[11px] font-medium text-purple-700">Agent</span>}
+          {comment.agent && (
+            <span className="rounded bg-purple-100 px-1.5 text-[11px] font-medium text-purple-700">
+              Agent
+            </span>
+          )}
           <span className="text-neutral-400">
             ·{' '}
             <time dateTime={comment.createdAt} title={formatDateTime(comment.createdAt)}>
@@ -211,7 +280,12 @@ function CommentCard({ comment, taskId, currentUserId, canModerate, members }: C
           {(isOwn || canModerate) && !editing && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <IconButton label="Comment actions" size="xs" icon={<MoreHorizontal />} className="ml-auto" />
+                <IconButton
+                  label="Comment actions"
+                  size="xs"
+                  icon={<MoreHorizontal />}
+                  className="ml-auto"
+                />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {isOwn && (
@@ -219,7 +293,11 @@ function CommentCard({ comment, taskId, currentUserId, canModerate, members }: C
                     Edit
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem icon={<Trash2 />} destructive onSelect={() => setConfirmDelete(true)}>
+                <DropdownMenuItem
+                  icon={<Trash2 />}
+                  destructive
+                  onSelect={() => setConfirmDelete(true)}
+                >
                   Delete
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -297,7 +375,10 @@ export function Timeline({ taskId, currentUserId, canModerate, members }: Timeli
           <Spinner size="sm" label="Loading activity" />
         </div>
       ) : (
-        <ol aria-label="Activity" className="relative before:absolute before:bottom-2 before:left-[9px] before:top-2 before:w-px before:bg-neutral-200">
+        <ol
+          aria-label="Activity"
+          className="relative before:absolute before:bottom-2 before:left-[9px] before:top-2 before:w-px before:bg-neutral-200"
+        >
           {entries.map((entry) =>
             entry.kind === 'event' ? (
               <EventLine key={entry.id} event={entry.event} />
@@ -314,7 +395,9 @@ export function Timeline({ taskId, currentUserId, canModerate, members }: Timeli
           )}
         </ol>
       )}
-      {history.isError && <p className="mt-2 text-xs text-primary-700">Couldn't load the activity history.</p>}
+      {history.isError && (
+        <p className="mt-2 text-xs text-primary-700">Couldn't load the activity history.</p>
+      )}
     </div>
   );
 }

@@ -18,9 +18,15 @@ export async function findFirstStateByCategory(
   return state ?? null;
 }
 
-export async function getStateCategory(db: DbExecutor, stateId: string | null): Promise<string | null> {
+export async function getStateCategory(
+  db: DbExecutor,
+  stateId: string | null
+): Promise<string | null> {
   if (!stateId) return null;
-  const [state] = await db.select({ category: taskStates.category }).from(taskStates).where(eq(taskStates.id, stateId));
+  const [state] = await db
+    .select({ category: taskStates.category })
+    .from(taskStates)
+    .where(eq(taskStates.id, stateId));
   return state?.category ?? null;
 }
 
@@ -34,7 +40,10 @@ export async function resolveTaskReferencesInProject(
   refs: readonly TaskReference[]
 ): Promise<string[]> {
   if (refs.length === 0) return [];
-  const [project] = await db.select({ identifier: projects.identifier }).from(projects).where(eq(projects.id, projectId));
+  const [project] = await db
+    .select({ identifier: projects.identifier })
+    .from(projects)
+    .where(eq(projects.id, projectId));
   if (!project) return [];
 
   const sequenceNumbers = refs
@@ -45,8 +54,16 @@ export async function resolveTaskReferencesInProject(
   const rows = await db
     .select({ id: tasks.id, sequenceNumber: tasks.sequenceNumber })
     .from(tasks)
-    .where(and(eq(tasks.projectId, projectId), inArray(tasks.sequenceNumber, sequenceNumbers), isNull(tasks.deletedAt)));
+    .where(
+      and(
+        eq(tasks.projectId, projectId),
+        inArray(tasks.sequenceNumber, sequenceNumbers),
+        isNull(tasks.deletedAt)
+      )
+    );
 
   // Keep the order in which the references appeared.
-  return sequenceNumbers.flatMap((seq) => rows.filter((r) => r.sequenceNumber === seq).map((r) => r.id));
+  return sequenceNumbers.flatMap((seq) =>
+    rows.filter((r) => r.sequenceNumber === seq).map((r) => r.id)
+  );
 }

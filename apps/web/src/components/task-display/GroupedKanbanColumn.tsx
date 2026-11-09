@@ -25,7 +25,13 @@ interface GroupedKanbanColumnProps {
   compact?: boolean;
 }
 
-function QuickAdd({ columnName, onCreate }: { columnName: string; onCreate: (title: string) => Promise<void> }) {
+function QuickAdd({
+  columnName,
+  onCreate,
+}: {
+  columnName: string;
+  onCreate: (title: string) => Promise<void>;
+}) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [saving, setSaving] = useState(false);
@@ -109,7 +115,11 @@ export const GroupedKanbanColumn = memo(function GroupedKanbanColumn({
 
   if (collapsed) {
     return (
-      <section aria-label={`${name}, ${taskCount} tasks, collapsed`} data-column={id} className="flex-shrink-0">
+      <section
+        aria-label={`${name}, ${taskCount} tasks, collapsed`}
+        data-column={id}
+        className="flex-shrink-0"
+      >
         <div
           ref={setNodeRef}
           className={clsx(
@@ -117,10 +127,18 @@ export const GroupedKanbanColumn = memo(function GroupedKanbanColumn({
             isOver ? 'bg-primary-50' : 'bg-neutral-100/70'
           )}
         >
-          <IconButton label={`Expand ${name}`} icon={<ChevronRight />} size="xs" onClick={onToggleCollapsed} aria-expanded={false} />
+          <IconButton
+            label={`Expand ${name}`}
+            icon={<ChevronRight />}
+            size="xs"
+            onClick={onToggleCollapsed}
+            aria-expanded={false}
+          />
           <ColorDot color={color} size="sm" />
           <span className="text-xs font-medium text-neutral-500">{taskCount}</span>
-          <span className="text-[13px] font-semibold text-neutral-700 [writing-mode:vertical-rl]">{name}</span>
+          <span className="text-[13px] font-semibold text-neutral-700 [writing-mode:vertical-rl]">
+            {name}
+          </span>
         </div>
       </section>
     );
@@ -137,9 +155,22 @@ export const GroupedKanbanColumn = memo(function GroupedKanbanColumn({
         <h3 className="truncate">{name}</h3>
         <span className="font-medium text-neutral-400">{taskCount}</span>
         <span className="ml-auto flex items-center">
-          {onAddTask && <IconButton label={`Add task to ${name}`} icon={<Plus />} size="xs" onClick={onAddTask} />}
+          {onAddTask && (
+            <IconButton
+              label={`Add task to ${name}`}
+              icon={<Plus />}
+              size="xs"
+              onClick={onAddTask}
+            />
+          )}
           {collapsible && (
-            <IconButton label={`Collapse ${name}`} icon={<ChevronDown />} size="xs" onClick={onToggleCollapsed} aria-expanded />
+            <IconButton
+              label={`Collapse ${name}`}
+              icon={<ChevronDown />}
+              size="xs"
+              onClick={onToggleCollapsed}
+              aria-expanded
+            />
           )}
         </span>
       </header>
@@ -152,7 +183,9 @@ export const GroupedKanbanColumn = memo(function GroupedKanbanColumn({
         )}
       >
         {children}
-        {taskCount === 0 && <p className="px-2 py-3 text-center text-xs text-neutral-400">{emptyText}</p>}
+        {taskCount === 0 && (
+          <p className="px-2 py-3 text-center text-xs text-neutral-400">{emptyText}</p>
+        )}
         {onQuickAdd && <QuickAdd columnName={name} onCreate={onQuickAdd} />}
       </div>
     </section>

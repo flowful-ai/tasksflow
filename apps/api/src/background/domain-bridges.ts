@@ -74,12 +74,20 @@ export function registerDomainEventBridges(db: Database): () => void {
 
   const off = [
     domainEvents.on('task.created', (event) => {
-      publishEvent(event.workspaceId, REALTIME_EVENTS.TASK_CREATED, event.task, { projectId: event.projectId });
-      notifySlackForTaskEvent({ type: 'task.created', taskId: event.task.id, ...slackActor(event) });
+      publishEvent(event.workspaceId, REALTIME_EVENTS.TASK_CREATED, event.task, {
+        projectId: event.projectId,
+      });
+      notifySlackForTaskEvent({
+        type: 'task.created',
+        taskId: event.task.id,
+        ...slackActor(event),
+      });
     }),
 
     domainEvents.on('task.updated', (event) => {
-      publishEvent(event.workspaceId, REALTIME_EVENTS.TASK_UPDATED, event.task, { projectId: event.projectId });
+      publishEvent(event.workspaceId, REALTIME_EVENTS.TASK_UPDATED, event.task, {
+        projectId: event.projectId,
+      });
 
       const stateChange = event.changes.find((change) => change.field === 'stateId');
       if (stateChange) {
@@ -91,7 +99,12 @@ export function registerDomainEventBridges(db: Database): () => void {
         });
       }
       for (const assigneeUserId of event.addedAssigneeIds) {
-        notifySlackForTaskEvent({ type: 'task.assigned', taskId: event.task.id, assigneeUserId, ...slackActor(event) });
+        notifySlackForTaskEvent({
+          type: 'task.assigned',
+          taskId: event.task.id,
+          assigneeUserId,
+          ...slackActor(event),
+        });
       }
 
       if (event.origin !== 'github' && hasGitHubIssue(event.task)) {
@@ -101,7 +114,9 @@ export function registerDomainEventBridges(db: Database): () => void {
     }),
 
     domainEvents.on('task.moved', (event) => {
-      publishEvent(event.workspaceId, REALTIME_EVENTS.TASK_MOVED, event.task, { projectId: event.projectId });
+      publishEvent(event.workspaceId, REALTIME_EVENTS.TASK_MOVED, event.task, {
+        projectId: event.projectId,
+      });
       if (event.positionOnly) return;
       notifySlackForTaskEvent({
         type: 'task.state_changed',
@@ -115,7 +130,10 @@ export function registerDomainEventBridges(db: Database): () => void {
     }),
 
     domainEvents.on('task.deleted', async (event) => {
-      publishEvent(event.workspaceId, REALTIME_EVENTS.TASK_DELETED, { id: event.taskId, projectId: event.projectId });
+      publishEvent(event.workspaceId, REALTIME_EVENTS.TASK_DELETED, {
+        id: event.taskId,
+        projectId: event.projectId,
+      });
       if (event.origin !== 'github' && (await taskHasGitHubIssue(event.taskId))) {
         reverseSync.scheduleIssueClose(event.taskId);
       }
@@ -123,7 +141,9 @@ export function registerDomainEventBridges(db: Database): () => void {
 
     domainEvents.on('task.restored', (event) => {
       // Clients treat a restored task like a newly created one.
-      publishEvent(event.workspaceId, REALTIME_EVENTS.TASK_CREATED, event.task, { projectId: event.projectId });
+      publishEvent(event.workspaceId, REALTIME_EVENTS.TASK_CREATED, event.task, {
+        projectId: event.projectId,
+      });
     }),
 
     domainEvents.on('tasks.rekeyed', (event) => {

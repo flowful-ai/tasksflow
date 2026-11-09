@@ -74,8 +74,16 @@ export class AgentService {
         const [reset] = await this.db
           .update(agents)
           .set({ currentDayTokens: 0, lastTokenReset: now })
-          .where(and(eq(agents.id, agentId), or(isNull(agents.lastTokenReset), lt(agents.lastTokenReset, dayStart))))
-          .returning({ currentDayTokens: agents.currentDayTokens, lastTokenReset: agents.lastTokenReset });
+          .where(
+            and(
+              eq(agents.id, agentId),
+              or(isNull(agents.lastTokenReset), lt(agents.lastTokenReset, dayStart))
+            )
+          )
+          .returning({
+            currentDayTokens: agents.currentDayTokens,
+            lastTokenReset: agents.lastTokenReset,
+          });
         if (reset) {
           agent.currentDayTokens = reset.currentDayTokens;
           agent.lastTokenReset = reset.lastTokenReset;
@@ -95,7 +103,10 @@ export class AgentService {
   /**
    * Update an agent.
    */
-  async update(agentId: string, input: AgentUpdateInput): Promise<Result<AgentWithRelations, Error>> {
+  async update(
+    agentId: string,
+    input: AgentUpdateInput
+  ): Promise<Result<AgentWithRelations, Error>> {
     try {
       const updateData: Record<string, unknown> = {};
 
@@ -103,7 +114,8 @@ export class AgentService {
       if (input.model !== undefined) updateData.model = input.model;
       if (input.systemPrompt !== undefined) updateData.systemPrompt = input.systemPrompt;
       if (input.tools !== undefined) updateData.tools = input.tools;
-      if (input.requestsPerMinute !== undefined) updateData.requestsPerMinute = input.requestsPerMinute;
+      if (input.requestsPerMinute !== undefined)
+        updateData.requestsPerMinute = input.requestsPerMinute;
       if (input.tokensPerDay !== undefined) updateData.tokensPerDay = input.tokensPerDay;
       if (input.isActive !== undefined) updateData.isActive = input.isActive;
 
@@ -235,7 +247,9 @@ export class AgentService {
   /**
    * Store an encrypted API key for a workspace.
    */
-  async storeApiKey(input: ApiKeyCreateInput): Promise<Result<typeof workspaceApiKeys.$inferSelect, Error>> {
+  async storeApiKey(
+    input: ApiKeyCreateInput
+  ): Promise<Result<typeof workspaceApiKeys.$inferSelect, Error>> {
     try {
       const encryptedKey = await encryptApiKey(input.apiKey);
 
@@ -270,7 +284,12 @@ export class AgentService {
       const [apiKey] = await this.db
         .select()
         .from(workspaceApiKeys)
-        .where(and(eq(workspaceApiKeys.workspaceId, workspaceId), eq(workspaceApiKeys.provider, provider)));
+        .where(
+          and(
+            eq(workspaceApiKeys.workspaceId, workspaceId),
+            eq(workspaceApiKeys.provider, provider)
+          )
+        );
 
       if (!apiKey) {
         return err(new Error('API key not found'));
@@ -296,7 +315,9 @@ export class AgentService {
     const [apiKey] = await this.db
       .select({ id: workspaceApiKeys.id })
       .from(workspaceApiKeys)
-      .where(and(eq(workspaceApiKeys.workspaceId, workspaceId), eq(workspaceApiKeys.provider, provider)));
+      .where(
+        and(eq(workspaceApiKeys.workspaceId, workspaceId), eq(workspaceApiKeys.provider, provider))
+      );
 
     return !!apiKey;
   }
@@ -308,7 +329,12 @@ export class AgentService {
     try {
       await this.db
         .delete(workspaceApiKeys)
-        .where(and(eq(workspaceApiKeys.workspaceId, workspaceId), eq(workspaceApiKeys.provider, provider)));
+        .where(
+          and(
+            eq(workspaceApiKeys.workspaceId, workspaceId),
+            eq(workspaceApiKeys.provider, provider)
+          )
+        );
 
       return ok(undefined);
     } catch (error) {

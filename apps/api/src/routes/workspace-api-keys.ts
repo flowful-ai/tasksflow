@@ -40,7 +40,10 @@ workspaceApiKeysRoutes.post(
     try {
       await requireWorkspaceAdminOrOwner(workspaceId, user.id);
     } catch {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
+      return c.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } },
+        403
+      );
     }
 
     const result = await agentService.storeApiKey({
@@ -50,7 +53,10 @@ workspaceApiKeysRoutes.post(
     });
 
     if (!result.ok) {
-      return c.json({ success: false, error: { code: 'STORE_FAILED', message: result.error.message } }, 400);
+      return c.json(
+        { success: false, error: { code: 'STORE_FAILED', message: result.error.message } },
+        400
+      );
     }
 
     return c.json(
@@ -96,7 +102,10 @@ workspaceApiKeysRoutes.get('/:workspaceId/api-keys/:provider', async (c) => {
   const workspaceId = c.req.param('workspaceId');
   const providerParse = ProviderSchema.safeParse(c.req.param('provider'));
   if (!providerParse.success) {
-    return c.json({ success: false, error: { code: 'INVALID_PROVIDER', message: 'Invalid API key provider' } }, 400);
+    return c.json(
+      { success: false, error: { code: 'INVALID_PROVIDER', message: 'Invalid API key provider' } },
+      400
+    );
   }
 
   try {
@@ -121,7 +130,10 @@ workspaceApiKeysRoutes.delete('/:workspaceId/api-keys/:provider', async (c) => {
   const workspaceId = c.req.param('workspaceId');
   const providerParse = ProviderSchema.safeParse(c.req.param('provider'));
   if (!providerParse.success) {
-    return c.json({ success: false, error: { code: 'INVALID_PROVIDER', message: 'Invalid API key provider' } }, 400);
+    return c.json(
+      { success: false, error: { code: 'INVALID_PROVIDER', message: 'Invalid API key provider' } },
+      400
+    );
   }
 
   try {
@@ -133,7 +145,10 @@ workspaceApiKeysRoutes.delete('/:workspaceId/api-keys/:provider', async (c) => {
   const result = await agentService.deleteApiKey(workspaceId, providerParse.data);
 
   if (!result.ok) {
-    return c.json({ success: false, error: { code: 'DELETE_FAILED', message: result.error.message } }, 400);
+    return c.json(
+      { success: false, error: { code: 'DELETE_FAILED', message: result.error.message } },
+      400
+    );
   }
 
   return c.json({ success: true, data: null });
@@ -151,7 +166,10 @@ workspaceApiKeysRoutes.get('/:workspaceId/ai-settings', async (c) => {
 
   const result = await workspaceService.getAgentAiSettings(workspaceId);
   if (!result.ok) {
-    return c.json({ success: false, error: { code: 'READ_FAILED', message: result.error.message } }, 400);
+    return c.json(
+      { success: false, error: { code: 'READ_FAILED', message: result.error.message } },
+      400
+    );
   }
 
   return c.json({ success: true, data: result.value });
@@ -168,14 +186,27 @@ workspaceApiKeysRoutes.patch(
     try {
       await requireWorkspaceAdminOrOwner(workspaceId, user.id);
     } catch {
-      return c.json({ success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } }, 403);
+      return c.json(
+        { success: false, error: { code: 'FORBIDDEN', message: 'Not authorized' } },
+        403
+      );
     }
 
     if (data.defaultAgentId) {
       const agentResult = await agentService.getById(data.defaultAgentId);
-      if (!agentResult.ok || agentResult.value.workspaceId !== workspaceId || !agentResult.value.isActive) {
+      if (
+        !agentResult.ok ||
+        agentResult.value.workspaceId !== workspaceId ||
+        !agentResult.value.isActive
+      ) {
         return c.json(
-          { success: false, error: { code: 'INVALID_DEFAULT_AGENT', message: 'Default agent must be active and in this workspace' } },
+          {
+            success: false,
+            error: {
+              code: 'INVALID_DEFAULT_AGENT',
+              message: 'Default agent must be active and in this workspace',
+            },
+          },
           400
         );
       }
@@ -183,7 +214,10 @@ workspaceApiKeysRoutes.patch(
 
     const result = await workspaceService.updateAgentAiSettings(workspaceId, data);
     if (!result.ok) {
-      return c.json({ success: false, error: { code: 'UPDATE_FAILED', message: result.error.message } }, 400);
+      return c.json(
+        { success: false, error: { code: 'UPDATE_FAILED', message: result.error.message } },
+        400
+      );
     }
 
     return c.json({ success: true, data: result.value });

@@ -16,7 +16,9 @@ describe('relative time', () => {
 
 test('tomorrowMorning is 09:00 local on the next day', () => {
   const at = tomorrowMorning(new Date(2026, 10, 9, 23, 30));
-  expect([at.getFullYear(), at.getMonth(), at.getDate(), at.getHours(), at.getMinutes()]).toEqual([2026, 10, 10, 9, 0]);
+  expect([at.getFullYear(), at.getMonth(), at.getDate(), at.getHours(), at.getMinutes()]).toEqual([
+    2026, 10, 10, 9, 0,
+  ]);
 });
 
 describe('recents', () => {

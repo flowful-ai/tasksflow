@@ -37,7 +37,10 @@ async function checkLimit(key: string, limit: number): Promise<RateLimitResult> 
   }
 }
 
-export function ipRateLimit(bucket: keyof typeof MCP_RATE_LIMITS, onLimited: (c: Context, resetIn: number) => Response): MiddlewareHandler {
+export function ipRateLimit(
+  bucket: keyof typeof MCP_RATE_LIMITS,
+  onLimited: (c: Context, resetIn: number) => Response
+): MiddlewareHandler {
   return async (c, next) => {
     const limit = MCP_RATE_LIMITS[bucket];
     const result = await checkLimit(`mcp:${bucket}:${getClientIp(c)}`, limit);

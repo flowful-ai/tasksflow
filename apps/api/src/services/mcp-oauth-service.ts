@@ -23,7 +23,11 @@ export type { OAuthMcpAuthContext, OAuthTokenResponse } from './mcp-oauth/tokens
 export type { McpOAuthConnection } from './mcp-oauth/connections.js';
 export type { McpOAuthClientRegistration, ParsedAuthorizeRequest } from './mcp-oauth/clients.js';
 export type { McpResourcePath } from './mcp-oauth/resource.js';
-export { MCP_CANONICAL_PATH, MCP_LEGACY_PATH, resolveRequestedResource } from './mcp-oauth/resource.js';
+export {
+  MCP_CANONICAL_PATH,
+  MCP_LEGACY_PATH,
+  resolveRequestedResource,
+} from './mcp-oauth/resource.js';
 
 export function encodeQuery(params: Record<string, string | undefined>): string {
   const urlParams = new URLSearchParams();
@@ -54,7 +58,9 @@ export class McpOAuthService {
     return metadata.getProtectedResourceMetadata(baseUrl, resourcePath);
   }
 
-  buildWwwAuthenticateHeader(...args: Parameters<typeof metadata.buildWwwAuthenticateHeader>): string {
+  buildWwwAuthenticateHeader(
+    ...args: Parameters<typeof metadata.buildWwwAuthenticateHeader>
+  ): string {
     return metadata.buildWwwAuthenticateHeader(...args);
   }
 
@@ -123,7 +129,11 @@ export class McpOAuthService {
 
   ensureAdminRole(role: string | null): void {
     if (!isAuthorizingRole(role)) {
-      throw new OAuthError('access_denied', 'Only workspace owners and admins can authorize MCP access', 403);
+      throw new OAuthError(
+        'access_denied',
+        'Only workspace owners and admins can authorize MCP access',
+        403
+      );
     }
   }
 }

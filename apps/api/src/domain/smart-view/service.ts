@@ -58,7 +58,9 @@ export class SmartViewService {
       if (input.filters) {
         const validation = FilterEngine.validate(input.filters);
         if (!validation.valid) {
-          return err(new DomainError('BAD_REQUEST', `Invalid filters: ${validation.errors.join(', ')}`));
+          return err(
+            new DomainError('BAD_REQUEST', `Invalid filters: ${validation.errors.join(', ')}`)
+          );
         }
       }
 
@@ -112,7 +114,10 @@ export class SmartViewService {
       }
 
       // Get shares
-      const shares = await this.db.select().from(smartViewShares).where(eq(smartViewShares.smartViewId, viewId));
+      const shares = await this.db
+        .select()
+        .from(smartViewShares)
+        .where(eq(smartViewShares.smartViewId, viewId));
 
       // Get public shares
       const publicSharesList = await this.db
@@ -133,13 +138,18 @@ export class SmartViewService {
   /**
    * Update a smart view.
    */
-  async update(viewId: string, input: SmartViewUpdateInput): Promise<Result<SmartViewWithRelations, Error>> {
+  async update(
+    viewId: string,
+    input: SmartViewUpdateInput
+  ): Promise<Result<SmartViewWithRelations, Error>> {
     try {
       // Validate filters if provided
       if (input.filters) {
         const validation = FilterEngine.validate(input.filters);
         if (!validation.valid) {
-          return err(new DomainError('BAD_REQUEST', `Invalid filters: ${validation.errors.join(', ')}`));
+          return err(
+            new DomainError('BAD_REQUEST', `Invalid filters: ${validation.errors.join(', ')}`)
+          );
         }
       }
 
@@ -280,8 +290,8 @@ export class SmartViewService {
       ]);
 
       // Build maps
-      const sharesMap = new Map<string, typeof smartViewShares.$inferSelect[]>();
-      const publicSharesMap = new Map<string, typeof publicShares.$inferSelect[]>();
+      const sharesMap = new Map<string, (typeof smartViewShares.$inferSelect)[]>();
+      const publicSharesMap = new Map<string, (typeof publicShares.$inferSelect)[]>();
 
       for (const share of allShares) {
         const existing = sharesMap.get(share.smartViewId) || [];
@@ -313,7 +323,9 @@ export class SmartViewService {
   /**
    * Share a smart view with a user.
    */
-  async share(input: SmartViewShareInput): Promise<Result<typeof smartViewShares.$inferSelect, Error>> {
+  async share(
+    input: SmartViewShareInput
+  ): Promise<Result<typeof smartViewShares.$inferSelect, Error>> {
     try {
       const [share] = await this.db
         .insert(smartViewShares)
@@ -346,7 +358,10 @@ export class SmartViewService {
       await this.db
         .delete(smartViewShares)
         .where(
-          and(eq(smartViewShares.smartViewId, smartViewId), eq(smartViewShares.sharedWithUserId, userId))
+          and(
+            eq(smartViewShares.smartViewId, smartViewId),
+            eq(smartViewShares.sharedWithUserId, userId)
+          )
         );
 
       return ok(undefined);
@@ -360,7 +375,9 @@ export class SmartViewService {
   /**
    * Create a public share link for a smart view.
    */
-  async createPublicShare(input: PublicShareCreateInput): Promise<Result<typeof publicShares.$inferSelect, Error>> {
+  async createPublicShare(
+    input: PublicShareCreateInput
+  ): Promise<Result<typeof publicShares.$inferSelect, Error>> {
     try {
       const values: NewPublicShare = {
         smartViewId: input.smartViewId,
@@ -388,12 +405,17 @@ export class SmartViewService {
   /**
    * Get a public share by token.
    */
-  async getPublicShareByToken(token: string): Promise<Result<typeof publicShares.$inferSelect, Error>> {
+  async getPublicShareByToken(
+    token: string
+  ): Promise<Result<typeof publicShares.$inferSelect, Error>> {
     try {
       if (!isUuid(token)) {
         return err(new DomainError('NOT_FOUND', 'Public share not found'));
       }
-      const [share] = await this.db.select().from(publicShares).where(eq(publicShares.token, token));
+      const [share] = await this.db
+        .select()
+        .from(publicShares)
+        .where(eq(publicShares.token, token));
 
       if (!share) {
         return err(new DomainError('NOT_FOUND', 'Public share not found'));
@@ -423,7 +445,10 @@ export class SmartViewService {
   /**
    * Verify password for a protected public share.
    */
-  async verifyPublicSharePassword(token: string, password: string): Promise<Result<boolean, Error>> {
+  async verifyPublicSharePassword(
+    token: string,
+    password: string
+  ): Promise<Result<boolean, Error>> {
     try {
       const shareResult = await this.getPublicShareByToken(token);
       if (!shareResult.ok) {
@@ -446,7 +471,10 @@ export class SmartViewService {
    * Count a share-password attempt for (token) and (ip, token) before the
    * password is verified. Returns whether verification may proceed.
    */
-  async beginPasswordAttempt(token: string, ip: string): Promise<Result<PasswordAttemptDecision, Error>> {
+  async beginPasswordAttempt(
+    token: string,
+    ip: string
+  ): Promise<Result<PasswordAttemptDecision, Error>> {
     try {
       const [perToken, perIp] = await Promise.all([
         this.incrementAttempt(`token:${token}`),
@@ -468,10 +496,16 @@ export class SmartViewService {
    * Settle an attempt after verification. A success clears the (ip, token)
    * counter and gives back the per-token slot it used; failures stay counted.
    */
-  async settlePasswordAttempt(token: string, ip: string, success: boolean): Promise<Result<void, Error>> {
+  async settlePasswordAttempt(
+    token: string,
+    ip: string,
+    success: boolean
+  ): Promise<Result<void, Error>> {
     try {
       if (success) {
-        await this.db.delete(publicSharePasswordAttempts).where(eq(publicSharePasswordAttempts.key, `ip:${ip}:${token}`));
+        await this.db
+          .delete(publicSharePasswordAttempts)
+          .where(eq(publicSharePasswordAttempts.key, `ip:${ip}:${token}`));
         await this.db
           .update(publicSharePasswordAttempts)
           .set({ attempts: sql`GREATEST(${publicSharePasswordAttempts.attempts} - 1, 0)` })
@@ -479,7 +513,9 @@ export class SmartViewService {
       }
       // Opportunistic cleanup of expired windows.
       if (Math.random() < 0.05) {
-        await this.db.delete(publicSharePasswordAttempts).where(lt(publicSharePasswordAttempts.windowExpiresAt, sql`now()`));
+        await this.db
+          .delete(publicSharePasswordAttempts)
+          .where(lt(publicSharePasswordAttempts.windowExpiresAt, sql`now()`));
       }
       return ok(undefined);
     } catch (error) {
@@ -487,7 +523,9 @@ export class SmartViewService {
     }
   }
 
-  private async incrementAttempt(key: string): Promise<{ attempts: number; retryAfterSeconds: number }> {
+  private async incrementAttempt(
+    key: string
+  ): Promise<{ attempts: number; retryAfterSeconds: number }> {
     const window = sql`now() + make_interval(secs => ${SHARE_PASSWORD_LIMITS.windowSeconds})`;
     const expired = sql`${publicSharePasswordAttempts.windowExpiresAt} <= now()`;
     const [row] = await this.db
@@ -504,7 +542,10 @@ export class SmartViewService {
         attempts: publicSharePasswordAttempts.attempts,
         retryAfterSeconds: sql<number>`GREATEST(CEIL(EXTRACT(EPOCH FROM (${publicSharePasswordAttempts.windowExpiresAt} - now()))), 1)::int`,
       });
-    return { attempts: row?.attempts ?? 1, retryAfterSeconds: row?.retryAfterSeconds ?? SHARE_PASSWORD_LIMITS.windowSeconds };
+    return {
+      attempts: row?.attempts ?? 1,
+      retryAfterSeconds: row?.retryAfterSeconds ?? SHARE_PASSWORD_LIMITS.windowSeconds,
+    };
   }
 
   /**

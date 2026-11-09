@@ -45,7 +45,10 @@ export const useUiStore = create<UiState>()((set) => ({
   setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
   setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
   openCreateTask: (request = {}) =>
-    set({ createTask: { projectId: request.projectId ?? null, stateId: request.stateId ?? null }, paletteOpen: false }),
+    set({
+      createTask: { projectId: request.projectId ?? null, stateId: request.stateId ?? null },
+      paletteOpen: false,
+    }),
   closeCreateTask: () => set({ createTask: null }),
   openTaskSheet: (sheetTaskId) => set({ sheetTaskId, paletteOpen: false }),
   closeTaskSheet: () => set({ sheetTaskId: null }),

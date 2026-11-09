@@ -30,7 +30,10 @@ function getAuthErrorMessage(error: Error): string {
 }
 
 /** Session user as serialised by Better Auth (dates are strings over the wire). */
-export type SessionUser = Omit<User, 'createdAt' | 'updatedAt'> & { createdAt?: string; updatedAt?: string };
+export type SessionUser = Omit<User, 'createdAt' | 'updatedAt'> & {
+  createdAt?: string;
+  updatedAt?: string;
+};
 
 interface AuthState {
   user: SessionUser | null;
@@ -64,7 +67,10 @@ export const useAuthStore = create<AuthState>()(
       login: async (email, password) => {
         set({ isLoading: true, error: null });
         try {
-          const response = await api.post<{ user?: SessionUser }>('/api/auth/sign-in/email', { email, password });
+          const response = await api.post<{ user?: SessionUser }>('/api/auth/sign-in/email', {
+            email,
+            password,
+          });
           if (!response.user) throw new Error('Login failed');
           // A different user may have used this tab before.
           clearClientState();

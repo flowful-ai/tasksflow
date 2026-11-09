@@ -1,6 +1,12 @@
 /** Task history, relations and the project trash. */
 import { useMemo } from 'react';
-import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { queryKeys } from '../../api/queryKeys';
 import { tasksApi, trashApi } from '../../api/tasks';
 import type { AddTaskRelationInput, TaskHistoryItemDto } from '../../api/types';
@@ -20,7 +26,10 @@ export function useTaskHistory(taskId: string | null | undefined, limit = 50) {
     getNextPageParam: (last) => last.meta?.nextCursor ?? null,
     enabled: Boolean(taskId),
   });
-  const items = useMemo<TaskHistoryItemDto[]>(() => query.data?.pages.flatMap((p) => p.data) ?? [], [query.data]);
+  const items = useMemo<TaskHistoryItemDto[]>(
+    () => query.data?.pages.flatMap((p) => p.data) ?? [],
+    [query.data]
+  );
   return { ...query, items };
 }
 
@@ -69,7 +78,8 @@ export function useTrash(projectId: string | null | undefined, page = 1, limit =
 export function useRestoreTask() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ projectId, taskId }: { projectId: string; taskId: string }) => trashApi.restore(projectId, taskId),
+    mutationFn: ({ projectId, taskId }: { projectId: string; taskId: string }) =>
+      trashApi.restore(projectId, taskId),
     onSuccess: (task) => upsertTaskEverywhere(queryClient, task, { created: true }),
     onSettled: (_task, _error, { projectId, taskId }) =>
       Promise.all([

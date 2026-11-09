@@ -10,10 +10,21 @@ interface DueDatePickerProps {
 }
 
 const formatDate = (dateStr: string) =>
-  new Date(dateStr).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+  new Date(dateStr).toLocaleDateString(undefined, {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
 
 /** Date input plus "Clear due date" (the body of the due date popover). */
-export function DueDateOptions({ value, onChange }: { value: string | null; onChange: (date: string | null) => void }) {
+export function DueDateOptions({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (date: string | null) => void;
+}) {
   // Format value for input (YYYY-MM-DD)
   const inputValue = value ? value.split('T')[0] : '';
   return (
@@ -44,7 +55,10 @@ export function DueDatePicker({ value, onChange, isLoading }: DueDatePickerProps
 
   return (
     <div>
-      <div id="due-date-label" className="flex items-center space-x-2 text-sm font-medium text-gray-500 mb-2">
+      <div
+        id="due-date-label"
+        className="flex items-center space-x-2 text-sm font-medium text-gray-500 mb-2"
+      >
         <Calendar className="w-4 h-4" aria-hidden />
         <span>Due date</span>
       </div>
@@ -59,14 +73,22 @@ export function DueDatePicker({ value, onChange, isLoading }: DueDatePickerProps
               'group w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg border transition-colors',
               'hover:border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500',
               isLoading && 'opacity-50 cursor-not-allowed',
-              value ? 'bg-white border-gray-200 text-gray-700' : 'bg-gray-50 border-gray-200 text-gray-500'
+              value
+                ? 'bg-white border-gray-200 text-gray-700'
+                : 'bg-gray-50 border-gray-200 text-gray-500'
             )}
           >
             <span id="due-date-value">{value ? formatDate(value) : 'No due date'}</span>
-            <ChevronDown aria-hidden className="w-4 h-4 text-gray-400 transition-transform group-data-[state=open]:rotate-180" />
+            <ChevronDown
+              aria-hidden
+              className="w-4 h-4 text-gray-400 transition-transform group-data-[state=open]:rotate-180"
+            />
           </button>
         </PopoverTrigger>
-        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-3" aria-label="Pick a due date">
+        <PopoverContent
+          className="w-[var(--radix-popover-trigger-width)] p-3"
+          aria-label="Pick a due date"
+        >
           <DueDateOptions
             value={value}
             onChange={(date) => {

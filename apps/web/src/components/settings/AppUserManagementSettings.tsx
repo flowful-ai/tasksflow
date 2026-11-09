@@ -46,7 +46,9 @@ export function AppUserManagementSettings({ isAppManager }: AppUserManagementSet
     return (
       <div className="card p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-2">User Management</h2>
-        <p className="text-sm text-gray-600">Only app managers can manage users at the application level.</p>
+        <p className="text-sm text-gray-600">
+          Only app managers can manage users at the application level.
+        </p>
       </div>
     );
   }
@@ -107,15 +109,20 @@ export function AppUserManagementSettings({ isAppManager }: AppUserManagementSet
         </div>
       ) : (
         <ul className="border border-gray-200 rounded-lg divide-y divide-gray-100">
-          {sortedUsers.length === 0 && <li className="p-4 text-sm text-gray-500">No users found.</li>}
+          {sortedUsers.length === 0 && (
+            <li className="p-4 text-sm text-gray-500">No users found.</li>
+          )}
 
           {sortedUsers.map((managedUser) => {
-            const isUpdating = updateRole.isPending && updateRole.variables?.userId === managedUser.id;
+            const isUpdating =
+              updateRole.isPending && updateRole.variables?.userId === managedUser.id;
             const isAppManagerRole = managedUser.appRole === 'app_manager';
             return (
               <li key={managedUser.id} className="p-4 flex items-center justify-between gap-4">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{managedUser.name || managedUser.email}</p>
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {managedUser.name || managedUser.email}
+                  </p>
                   <p className="text-sm text-gray-500 truncate">{managedUser.email}</p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -133,7 +140,11 @@ export function AppUserManagementSettings({ isAppManager }: AppUserManagementSet
                     disabled={isUpdating}
                     onClick={() => handleRoleToggle(managedUser)}
                   >
-                    {isUpdating ? 'Updating...' : isAppManagerRole ? 'Revoke App Manager' : 'Make App Manager'}
+                    {isUpdating
+                      ? 'Updating...'
+                      : isAppManagerRole
+                        ? 'Revoke App Manager'
+                        : 'Make App Manager'}
                   </button>
                 </div>
               </li>

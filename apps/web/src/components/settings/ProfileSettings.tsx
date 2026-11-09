@@ -11,7 +11,9 @@ export function ProfileSettings() {
         <dt className="text-gray-500">Email</dt>
         <dd className="text-gray-900">{user?.email}</dd>
       </dl>
-      <p className="mt-4 text-sm text-gray-500">Your name and avatar come from the account you signed in with.</p>
+      <p className="mt-4 text-sm text-gray-500">
+        Your name and avatar come from the account you signed in with.
+      </p>
     </div>
   );
 }

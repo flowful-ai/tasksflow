@@ -5,9 +5,20 @@
 import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
 import { projects, taskStates, tasks } from '../../db/index.js';
-import { formatTaskKey, ok, err, parseTaskKey, type Result, type SearchResult } from '@flowtask/shared';
+import {
+  formatTaskKey,
+  ok,
+  err,
+  parseTaskKey,
+  type Result,
+  type SearchResult,
+} from '@flowtask/shared';
 import { toError } from '../task/errors.js';
-import { buildPrefixTsQuery, buildTaskKeyCondition, buildTextSearchCondition } from '../task/service.js';
+import {
+  buildPrefixTsQuery,
+  buildTaskKeyCondition,
+  buildTextSearchCondition,
+} from '../task/service.js';
 
 export interface SearchInput {
   /** Projects the caller may see (resolve with listAccessibleProjectIds). */
@@ -73,7 +84,12 @@ export class SearchService {
 
       const pattern = `%${escapeLike(q)}%`;
       const projectRows = await this.db
-        .select({ id: projects.id, name: projects.name, identifier: projects.identifier, icon: projects.icon })
+        .select({
+          id: projects.id,
+          name: projects.name,
+          identifier: projects.identifier,
+          icon: projects.icon,
+        })
         .from(projects)
         .where(
           and(
@@ -94,7 +110,12 @@ export class SearchService {
           projectName: row.projectName,
           state:
             row.stateId && row.stateName && row.stateCategory
-              ? { id: row.stateId, name: row.stateName, category: row.stateCategory, color: row.stateColor }
+              ? {
+                  id: row.stateId,
+                  name: row.stateName,
+                  category: row.stateCategory,
+                  color: row.stateColor,
+                }
               : null,
           priority: row.priority,
           exactKeyMatch: Boolean(row.exact),

@@ -14,7 +14,10 @@ import { Tooltip } from './Tooltip';
 export type IconButtonVariant = 'ghost' | 'subtle' | 'solid' | 'danger' | 'sidebar';
 export type IconButtonSize = 'xs' | 'sm' | 'md';
 
-export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'aria-label' | 'children'> {
+export interface IconButtonProps extends Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  'aria-label' | 'children'
+> {
   /** Accessible name and tooltip text. */
   label: string;
   /** The icon (lucide). It is marked aria-hidden. */
@@ -43,7 +46,18 @@ const SIZES: Record<IconButtonSize, string> = {
 };
 
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
-  { label, icon, variant = 'ghost', size = 'sm', shortcut, tooltipSide, showTooltip = true, className, type = 'button', ...props },
+  {
+    label,
+    icon,
+    variant = 'ghost',
+    size = 'sm',
+    shortcut,
+    tooltipSide,
+    showTooltip = true,
+    className,
+    type = 'button',
+    ...props
+  },
   ref
 ) {
   const button = (

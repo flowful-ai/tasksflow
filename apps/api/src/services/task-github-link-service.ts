@@ -59,7 +59,9 @@ export interface TaskGitHubLinkResult {
 export type LinkTaskPullRequestResult = TaskGitHubLinkResult;
 
 function githubStatus(error: unknown): number | null {
-  return error instanceof Error && 'status' in error && typeof error.status === 'number' ? error.status : null;
+  return error instanceof Error && 'status' in error && typeof error.status === 'number'
+    ? error.status
+    : null;
 }
 
 /** Run a GitHub API call, mapping failures to TaskGitHubLinkError (4xx → 400, otherwise 500). */
@@ -90,7 +92,12 @@ export class TaskGitHubLinkService {
   ) {
     registerBackgroundJob(CREATE_ISSUE_JOB, async (payload) => {
       const { taskId, projectId, owner, repo } = payload;
-      if (typeof taskId !== 'string' || typeof projectId !== 'string' || typeof owner !== 'string' || typeof repo !== 'string') {
+      if (
+        typeof taskId !== 'string' ||
+        typeof projectId !== 'string' ||
+        typeof owner !== 'string' ||
+        typeof repo !== 'string'
+      ) {
         throw new NonRetryableError('Job payload is missing the task or repository');
       }
       await this.runIssueCreation({ taskId, projectId, owner, repo });
@@ -98,14 +105,26 @@ export class TaskGitHubLinkService {
   }
 
   private async resolveTarget(input: TaskRepoInput): Promise<GitHubRepoTarget> {
-    const target = await getGitHubTargetForProjectRepo(this.db, input.projectId, input.owner, input.repo);
+    const target = await getGitHubTargetForProjectRepo(
+      this.db,
+      input.projectId,
+      input.owner,
+      input.repo
+    );
     if (!target) {
-      throw new TaskGitHubLinkError('REPO_NOT_LINKED', 'Repository is not linked to this project', 400);
+      throw new TaskGitHubLinkError(
+        'REPO_NOT_LINKED',
+        'Repository is not linked to this project',
+        400
+      );
     }
     return target;
   }
 
-  private async assertTaskInProject(taskId: string, projectId: string): Promise<{ title: string; description: string | null }> {
+  private async assertTaskInProject(
+    taskId: string,
+    projectId: string
+  ): Promise<{ title: string; description: string | null }> {
     const [task] = await this.db
       .select({ title: tasks.title, description: tasks.description, projectId: tasks.projectId })
       .from(tasks)
@@ -131,7 +150,10 @@ export class TaskGitHubLinkService {
       .innerJoin(projects, eq(tasks.projectId, projects.id))
       .where(eq(tasks.id, taskId));
     if (row) {
-      this.publish(row.workspaceId, REALTIME_EVENTS.TASK_UPDATED, { id: taskId, projectId: row.projectId });
+      this.publish(row.workspaceId, REALTIME_EVENTS.TASK_UPDATED, {
+        id: taskId,
+        projectId: row.projectId,
+      });
     }
   }
 
@@ -140,15 +162,26 @@ export class TaskGitHubLinkService {
     const target = await this.resolveTarget(input);
     await this.assertTaskInProject(input.taskId, input.projectId);
     if (await this.taskIssueLinkExists(input.taskId)) {
-      throw new TaskGitHubLinkError('ALREADY_LINKED', 'Task already has a linked GitHub issue', 400);
+      throw new TaskGitHubLinkError(
+        'ALREADY_LINKED',
+        'Task already has a linked GitHub issue',
+        400
+      );
     }
 
     const issue = await callGitHub('Failed to fetch GitHub issue', async () => {
-      const client = await createGitHubClientForInstallation(target.repo.installationId, target.repo);
+      const client = await createGitHubClientForInstallation(
+        target.repo.installationId,
+        target.repo
+      );
       return client.getIssue(input.issueNumber);
     });
     if (issue.pull_request) {
-      throw new TaskGitHubLinkError('GITHUB_ERROR', 'That number is a pull request, not an issue', 400);
+      throw new TaskGitHubLinkError(
+        'GITHUB_ERROR',
+        'That number is a pull request, not an issue',
+        400
+      );
     }
 
     const [inserted] = await this.db
@@ -167,7 +200,11 @@ export class TaskGitHubLinkService {
       })
       .returning({ id: externalLinks.id });
     if (!inserted) {
-      throw new TaskGitHubLinkError('ISSUE_ALREADY_LINKED', 'This issue is already linked to another task', 409);
+      throw new TaskGitHubLinkError(
+        'ISSUE_ALREADY_LINKED',
+        'This issue is already linked to another task',
+        409
+      );
     }
 
     await this.publishTaskUpdated(input.taskId);
@@ -179,11 +216,18 @@ export class TaskGitHubLinkService {
     const target = await this.resolveTarget(input);
     const task = await this.assertTaskInProject(input.taskId, input.projectId);
     if (await this.taskIssueLinkExists(input.taskId)) {
-      throw new TaskGitHubLinkError('ALREADY_LINKED', 'Task already has a linked GitHub issue', 400);
+      throw new TaskGitHubLinkError(
+        'ALREADY_LINKED',
+        'Task already has a linked GitHub issue',
+        400
+      );
     }
 
     const issue = await callGitHub('Failed to create GitHub issue', async () => {
-      const client = await createGitHubClientForInstallation(target.repo.installationId, target.repo);
+      const client = await createGitHubClientForInstallation(
+        target.repo.installationId,
+        target.repo
+      );
       return client.createIssue({ title: task.title, body: task.description ?? '' });
     });
 
@@ -245,13 +289,24 @@ export class TaskGitHubLinkService {
       );
     if (existingLink) {
       if (existingLink.taskId === input.taskId) {
-        throw new TaskGitHubLinkError('ALREADY_LINKED', 'Task already has this linked pull request', 400);
+        throw new TaskGitHubLinkError(
+          'ALREADY_LINKED',
+          'Task already has this linked pull request',
+          400
+        );
       }
-      throw new TaskGitHubLinkError('PR_ALREADY_LINKED', 'This pull request is already linked to another task', 409);
+      throw new TaskGitHubLinkError(
+        'PR_ALREADY_LINKED',
+        'This pull request is already linked to another task',
+        409
+      );
     }
 
     const pullRequest = await callGitHub('Failed to fetch GitHub pull request', async () => {
-      const client = await createGitHubClientForInstallation(target.repo.installationId, target.repo);
+      const client = await createGitHubClientForInstallation(
+        target.repo.installationId,
+        target.repo
+      );
       return client.getPullRequest(input.prNumber);
     });
 
@@ -270,7 +325,11 @@ export class TaskGitHubLinkService {
       })
       .returning({ id: externalLinks.id });
     if (!inserted) {
-      throw new TaskGitHubLinkError('PR_ALREADY_LINKED', 'This pull request is already linked to another task', 409);
+      throw new TaskGitHubLinkError(
+        'PR_ALREADY_LINKED',
+        'This pull request is already linked to another task',
+        409
+      );
     }
 
     await this.publishTaskUpdated(input.taskId);

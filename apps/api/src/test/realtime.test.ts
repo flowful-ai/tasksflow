@@ -63,8 +63,14 @@ describe.skipIf(!integrationEnabled)('realtime over Postgres LISTEN/NOTIFY', () 
 
   beforeAll(async () => {
     const url = TEST_DATABASE_URL ?? '';
-    a = new RealtimeHub({ resolver: staticResolver('member', ['p-open']), transportFactory: () => new PostgresTransport(url) });
-    b = new RealtimeHub({ resolver: staticResolver('member', ['p-open']), transportFactory: () => new PostgresTransport(url) });
+    a = new RealtimeHub({
+      resolver: staticResolver('member', ['p-open']),
+      transportFactory: () => new PostgresTransport(url),
+    });
+    b = new RealtimeHub({
+      resolver: staticResolver('member', ['p-open']),
+      transportFactory: () => new PostgresTransport(url),
+    });
     await a.start();
     await b.start();
   });
@@ -78,11 +84,31 @@ describe.skipIf(!integrationEnabled)('realtime over Postgres LISTEN/NOTIFY', () 
     const workspaceId = crypto.randomUUID();
     const onA = sink();
     const onB = sink();
-    a.addClient({ userId: 'u1', sessionId: 's1', workspaceId, role: 'member', projectIds: ['p-open'], sink: onA });
-    b.addClient({ userId: 'u2', sessionId: 's2', workspaceId, role: 'member', projectIds: ['p-open'], sink: onB });
+    a.addClient({
+      userId: 'u1',
+      sessionId: 's1',
+      workspaceId,
+      role: 'member',
+      projectIds: ['p-open'],
+      sink: onA,
+    });
+    b.addClient({
+      userId: 'u2',
+      sessionId: 's2',
+      workspaceId,
+      role: 'member',
+      projectIds: ['p-open'],
+      sink: onB,
+    });
 
-    await a.publishEventAsync(workspaceId, 'task:updated', { id: 'secret-task', projectId: 'p-secret' });
-    await a.publishEventAsync(workspaceId, 'task:updated', { id: 'open-task', projectId: 'p-open' });
+    await a.publishEventAsync(workspaceId, 'task:updated', {
+      id: 'secret-task',
+      projectId: 'p-secret',
+    });
+    await a.publishEventAsync(workspaceId, 'task:updated', {
+      id: 'open-task',
+      projectId: 'p-open',
+    });
     await waitFor(() => onB.text().includes('open-task'));
 
     expect(onB.text()).not.toContain('secret-task');
@@ -92,8 +118,19 @@ describe.skipIf(!integrationEnabled)('realtime over Postgres LISTEN/NOTIFY', () 
   it('sends ids only for payloads over the NOTIFY limit', async () => {
     const workspaceId = crypto.randomUUID();
     const onB = sink();
-    b.addClient({ userId: 'u3', sessionId: 's3', workspaceId, role: 'admin', projectIds: [], sink: onB });
-    await a.publishEventAsync(workspaceId, 'task:updated', { id: 'big', projectId: 'p-open', description: 'x'.repeat(20_000) });
+    b.addClient({
+      userId: 'u3',
+      sessionId: 's3',
+      workspaceId,
+      role: 'admin',
+      projectIds: [],
+      sink: onB,
+    });
+    await a.publishEventAsync(workspaceId, 'task:updated', {
+      id: 'big',
+      projectId: 'p-open',
+      description: 'x'.repeat(20_000),
+    });
     await waitFor(() => onB.text().includes('"big"'));
     expect(onB.text()).toContain('"truncated":true');
     expect(onB.text()).not.toContain('xxxxxxxx');
@@ -102,7 +139,14 @@ describe.skipIf(!integrationEnabled)('realtime over Postgres LISTEN/NOTIFY', () 
   it('closes a removed member on other instances', async () => {
     const workspaceId = crypto.randomUUID();
     const onB = sink();
-    b.addClient({ userId: 'removed', sessionId: 's4', workspaceId, role: 'member', projectIds: [], sink: onB });
+    b.addClient({
+      userId: 'removed',
+      sessionId: 's4',
+      workspaceId,
+      role: 'member',
+      projectIds: [],
+      sink: onB,
+    });
     a.notifyMemberRemoved(workspaceId, 'removed');
     await waitFor(() => onB.closed);
     expect(b.getWorkspaceClientCount(workspaceId)).toBe(0);
@@ -124,20 +168,40 @@ describe.skipIf(!integrationEnabled)('SSE stream endpoint', () => {
     expect(stream.text()).toContain('retry: 5000');
 
     // An update in the restricted project is not delivered; one in the open project is.
-    expect((await h.request('insiderA', 'PATCH', `/api/tasks/${s.restrictedTaskA}`, { title: 'Secret rename' })).status).toBe(200);
-    expect((await h.request('ownerA', 'PATCH', `/api/tasks/${s.taskA}`, { title: 'Open rename' })).status).toBe(200);
+    expect(
+      (
+        await h.request('insiderA', 'PATCH', `/api/tasks/${s.restrictedTaskA}`, {
+          title: 'Secret rename',
+        })
+      ).status
+    ).toBe(200);
+    expect(
+      (await h.request('ownerA', 'PATCH', `/api/tasks/${s.taskA}`, { title: 'Open rename' })).status
+    ).toBe(200);
     await waitFor(() => stream.text().includes('Open rename'));
     expect(stream.text()).not.toContain('Secret rename');
     expect(stream.text()).not.toContain(s.restrictedTaskA);
     expect(stream.text()).toMatch(/id: \S+\nevent: task:updated\n/);
 
     // Removing the member closes the stream right away.
-    expect((await h.request('ownerA', 'DELETE', `/api/workspaces/${s.workspaceA.id}/members/${s.users.memberA.id}`)).status).toBe(200);
+    expect(
+      (
+        await h.request(
+          'ownerA',
+          'DELETE',
+          `/api/workspaces/${s.workspaceA.id}/members/${s.users.memberA.id}`
+        )
+      ).status
+    ).toBe(200);
     await waitFor(() => stream.done());
   });
 
   it('rejects non-members', async () => {
-    const res = await h.raw('ownerB', 'GET', `/api/events/stream?workspaceId=${h.seed.workspaceA.id}`);
+    const res = await h.raw(
+      'ownerB',
+      'GET',
+      `/api/events/stream?workspaceId=${h.seed.workspaceA.id}`
+    );
     expect(res.status).toBe(403);
   });
 });

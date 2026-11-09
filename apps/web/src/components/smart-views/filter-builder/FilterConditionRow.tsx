@@ -1,6 +1,10 @@
 import { X } from 'lucide-react';
 import clsx from 'clsx';
-import { FilterOperatorSchema, type FilterCondition, type FilterOperator } from '@flowtask/shared/types';
+import {
+  FilterOperatorSchema,
+  type FilterCondition,
+  type FilterOperator,
+} from '@flowtask/shared/types';
 import { IconButton } from '../../ui';
 import {
   FILTER_FIELDS,
@@ -11,7 +15,8 @@ import {
 } from './constants';
 import { FilterValueInput, type FilterValue } from './FilterValueInput';
 
-const isFilterOperator = (value: string): value is FilterOperator => FilterOperatorSchema.safeParse(value).success;
+const isFilterOperator = (value: string): value is FilterOperator =>
+  FilterOperatorSchema.safeParse(value).success;
 
 interface WorkspaceMember {
   userId: string;
@@ -68,9 +73,7 @@ export function FilterConditionRow({
     const newValidOperators = OPERATORS_BY_TYPE[newFieldType];
 
     // Keep the operator if it's still valid, otherwise use the first valid one
-    const newOp = newValidOperators.includes(condition.op)
-      ? condition.op
-      : newValidOperators[0];
+    const newOp = newValidOperators.includes(condition.op) ? condition.op : newValidOperators[0];
 
     onChange({
       field: newField,

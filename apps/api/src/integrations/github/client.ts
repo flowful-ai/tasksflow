@@ -22,7 +22,11 @@ export class GitHubClient {
     return data;
   }
 
-  async listIssues(options?: { state?: 'open' | 'closed' | 'all'; per_page?: number; page?: number }) {
+  async listIssues(options?: {
+    state?: 'open' | 'closed' | 'all';
+    per_page?: number;
+    page?: number;
+  }) {
     const { data } = await this.octokit.issues.listForRepo({
       ...this.base,
       state: options?.state ?? 'open',
@@ -37,7 +41,11 @@ export class GitHubClient {
     return data;
   }
 
-  async listPullRequests(options?: { state?: 'open' | 'closed' | 'all'; per_page?: number; page?: number }) {
+  async listPullRequests(options?: {
+    state?: 'open' | 'closed' | 'all';
+    per_page?: number;
+    page?: number;
+  }) {
     const { data } = await this.octokit.pulls.list({
       ...this.base,
       state: options?.state ?? 'open',
@@ -53,12 +61,19 @@ export class GitHubClient {
   }
 
   async listIssueComments(issueNumber: number) {
-    const { data } = await this.octokit.issues.listComments({ ...this.base, issue_number: issueNumber });
+    const { data } = await this.octokit.issues.listComments({
+      ...this.base,
+      issue_number: issueNumber,
+    });
     return data;
   }
 
   async addIssueComment(issueNumber: number, body: string) {
-    const { data } = await this.octokit.issues.createComment({ ...this.base, issue_number: issueNumber, body });
+    const { data } = await this.octokit.issues.createComment({
+      ...this.base,
+      issue_number: issueNumber,
+      body,
+    });
     return data;
   }
 
@@ -73,17 +88,33 @@ export class GitHubClient {
 
   // ============ Write Methods (two-way sync) ============
 
-  async updateIssue(issueNumber: number, updates: { title?: string; body?: string; state?: 'open' | 'closed' }) {
-    const { data } = await this.octokit.issues.update({ ...this.base, issue_number: issueNumber, ...updates });
+  async updateIssue(
+    issueNumber: number,
+    updates: { title?: string; body?: string; state?: 'open' | 'closed' }
+  ) {
+    const { data } = await this.octokit.issues.update({
+      ...this.base,
+      issue_number: issueNumber,
+      ...updates,
+    });
     return data;
   }
 
   async setIssueLabels(issueNumber: number, labels: string[]) {
-    const { data } = await this.octokit.issues.setLabels({ ...this.base, issue_number: issueNumber, labels });
+    const { data } = await this.octokit.issues.setLabels({
+      ...this.base,
+      issue_number: issueNumber,
+      labels,
+    });
     return data;
   }
 
-  async createIssue(options: { title: string; body?: string; labels?: string[]; assignees?: string[] }) {
+  async createIssue(options: {
+    title: string;
+    body?: string;
+    labels?: string[];
+    assignees?: string[];
+  }) {
     const { data } = await this.octokit.issues.create({ ...this.base, ...options });
     return data;
   }
@@ -110,7 +141,9 @@ export function getGitHubAppCredentials(): GitHubAppCredentials {
   const appId = Number(readSecretEnv('GITHUB_APP_ID'));
   const privateKeyRaw = readSecretEnv('GITHUB_APP_PRIVATE_KEY');
   if (!Number.isSafeInteger(appId) || appId <= 0 || !privateKeyRaw) {
-    throw new Error('GitHub App credentials not configured. Set GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY.');
+    throw new Error(
+      'GitHub App credentials not configured. Set GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY.'
+    );
   }
   return { appId, privateKey: decodePrivateKey(privateKeyRaw) };
 }
@@ -149,7 +182,9 @@ export interface InstallationRepository {
 }
 
 /** List repositories an installation can access (first 100). */
-export async function listInstallationRepositories(installationId: number): Promise<InstallationRepository[]> {
+export async function listInstallationRepositories(
+  installationId: number
+): Promise<InstallationRepository[]> {
   const octokit = createInstallationOctokit(installationId);
   const { data } = await octokit.apps.listReposAccessibleToInstallation({ per_page: 100 });
   return data.repositories.map((repo) => ({

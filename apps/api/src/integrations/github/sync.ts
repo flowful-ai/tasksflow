@@ -75,7 +75,9 @@ export class GitHubSyncService {
           else if (synced.action === 'updated') result.updated++;
           else if (synced.action === 'unchanged') result.unchanged++;
         } catch (error) {
-          result.errors.push(`Issue #${issue.number}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          result.errors.push(
+            `Issue #${issue.number}: ${error instanceof Error ? error.message : 'Unknown error'}`
+          );
         }
       }
       if (issues.length < 100) break;
@@ -94,7 +96,11 @@ export class GitHubSyncService {
     if (issue.pull_request) {
       return { action: 'ignored', taskId: null };
     }
-    return this.applyIssue(target, { number: issue.number, url: issue.html_url, content: issueContentFrom(issue) }, options);
+    return this.applyIssue(
+      target,
+      { number: issue.number, url: issue.html_url, content: issueContentFrom(issue) },
+      options
+    );
   }
 
   /** Apply issue content to its linked task, creating the task when allowed. */
@@ -106,7 +112,13 @@ export class GitHubSyncService {
     const externalId = formatGitHubExternalId(target.repo.owner, target.repo.repo, issue.number);
     const syncHash = computeIssueSyncHash(issue.content);
 
-    const claim = await this.claimIssueLink(target, externalId, issue, syncHash, options.createIfMissing);
+    const claim = await this.claimIssueLink(
+      target,
+      externalId,
+      issue,
+      syncHash,
+      options.createIfMissing
+    );
 
     if (claim.kind === 'missing') {
       return { action: 'ignored', taskId: null };
@@ -127,7 +139,11 @@ export class GitHubSyncService {
       return { action: 'ignored', taskId: claim.taskId };
     }
 
-    const targetState = await this.resolveTargetState(target.projectId, current.value.stateId, issue.content.state);
+    const targetState = await this.resolveTargetState(
+      target.projectId,
+      current.value.stateId,
+      issue.content.state
+    );
     const priority = mapLabelsToPriority(issue.content.labels);
 
     const updated = await this.taskService.update(claim.taskId, {
@@ -190,11 +206,21 @@ export class GitHubSyncService {
       eq(externalLinks.externalType, 'github_issue'),
       eq(externalLinks.externalId, externalId)
     );
-    const linkColumns = { id: externalLinks.id, taskId: externalLinks.taskId, syncHash: externalLinks.syncHash };
+    const linkColumns = {
+      id: externalLinks.id,
+      taskId: externalLinks.taskId,
+      syncHash: externalLinks.syncHash,
+    };
 
     // Fast path without locking.
     const [existing] = await this.db.select(linkColumns).from(externalLinks).where(linkFilter);
-    if (existing) return { kind: 'existing', linkId: existing.id, taskId: existing.taskId, syncHash: existing.syncHash };
+    if (existing)
+      return {
+        kind: 'existing',
+        linkId: existing.id,
+        taskId: existing.taskId,
+        syncHash: existing.syncHash,
+      };
     if (!createIfMissing) return { kind: 'missing' };
 
     return TaskService.transaction(this.db, async (taskService, tx): Promise<LinkClaim> => {
@@ -203,11 +229,18 @@ export class GitHubSyncService {
 
       const [locked] = await tx.select(linkColumns).from(externalLinks).where(linkFilter);
       if (locked) {
-        return { kind: 'existing', linkId: locked.id, taskId: locked.taskId, syncHash: locked.syncHash };
+        return {
+          kind: 'existing',
+          linkId: locked.id,
+          taskId: locked.taskId,
+          syncHash: locked.syncHash,
+        };
       }
 
       const initialState =
-        issue.content.state === 'closed' ? await findFirstStateByCategory(tx, target.projectId, 'done') : null;
+        issue.content.state === 'closed'
+          ? await findFirstStateByCategory(tx, target.projectId, 'done')
+          : null;
       const priority = mapLabelsToPriority(issue.content.labels);
       const created = await taskService.create({
         projectId: target.projectId,

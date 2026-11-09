@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'bun:test';
 import { OAuthError } from './errors.js';
-import { sanitizeClientName, validateRedirectUri, validateRedirectUris, describeRedirectTarget } from './redirect-uri.js';
+import {
+  sanitizeClientName,
+  validateRedirectUri,
+  validateRedirectUris,
+  describeRedirectTarget,
+} from './redirect-uri.js';
 import { resolveRequestedResource, tokenResourceMatches } from './resource.js';
 import { openWithSecret, sealWithSecret } from './crypto.js';
 import { buildWwwAuthenticateHeader, getProtectedResourceMetadata } from './metadata.js';
@@ -44,7 +49,9 @@ describe('dynamic client registration redirect policy', () => {
 
   it('describes the redirect destination for the consent page', () => {
     expect(describeRedirectTarget('https://claude.ai/api/mcp/auth_callback?x=1')).toBe('claude.ai');
-    expect(describeRedirectTarget('com.example.app:/oauth2redirect')).toBe('com.example.app:/oauth2redirect');
+    expect(describeRedirectTarget('com.example.app:/oauth2redirect')).toBe(
+      'com.example.app:/oauth2redirect'
+    );
   });
 });
 
@@ -59,14 +66,23 @@ describe('RFC 8707 resource binding', () => {
     expect(resolveRequestedResource(['https://tasks.example.com/api/mcp/sse/'], base)).toBe(
       'https://tasks.example.com/api/mcp/sse'
     );
-    expect(resolveRequestedResource(['https://TASKS.example.com/api/mcp'], base)).toBe('https://tasks.example.com/api/mcp');
+    expect(resolveRequestedResource(['https://TASKS.example.com/api/mcp'], base)).toBe(
+      'https://tasks.example.com/api/mcp'
+    );
   });
 
   it('rejects other resources and conflicting values', () => {
-    expect(() => resolveRequestedResource(['https://evil.example/api/mcp'], base)).toThrow(/identify this MCP server/);
-    expect(() => resolveRequestedResource(['https://tasks.example.com/api/other'], base)).toThrow(OAuthError);
+    expect(() => resolveRequestedResource(['https://evil.example/api/mcp'], base)).toThrow(
+      /identify this MCP server/
+    );
+    expect(() => resolveRequestedResource(['https://tasks.example.com/api/other'], base)).toThrow(
+      OAuthError
+    );
     expect(() =>
-      resolveRequestedResource(['https://tasks.example.com/api/mcp', 'https://evil.example/api/mcp'], base)
+      resolveRequestedResource(
+        ['https://tasks.example.com/api/mcp', 'https://evil.example/api/mcp'],
+        base
+      )
     ).toThrow(/Only one resource/);
   });
 
@@ -78,9 +94,18 @@ describe('RFC 8707 resource binding', () => {
   });
 
   it('publishes metadata whose resource equals the path it was derived from', () => {
-    expect(getProtectedResourceMetadata(base, '/api/mcp').resource).toBe('https://tasks.example.com/api/mcp');
-    expect(getProtectedResourceMetadata(base, '/api/mcp/sse').resource).toBe('https://tasks.example.com/api/mcp/sse');
-    expect(buildWwwAuthenticateHeader(base, '/api/mcp', { code: 'invalid_token', description: 'expired "now"' })).toBe(
+    expect(getProtectedResourceMetadata(base, '/api/mcp').resource).toBe(
+      'https://tasks.example.com/api/mcp'
+    );
+    expect(getProtectedResourceMetadata(base, '/api/mcp/sse').resource).toBe(
+      'https://tasks.example.com/api/mcp/sse'
+    );
+    expect(
+      buildWwwAuthenticateHeader(base, '/api/mcp', {
+        code: 'invalid_token',
+        description: 'expired "now"',
+      })
+    ).toBe(
       'Bearer realm="flowtask-mcp", resource_metadata="https://tasks.example.com/.well-known/oauth-protected-resource/api/mcp", error="invalid_token", error_description="expired now"'
     );
   });
@@ -97,6 +122,11 @@ describe('refresh grace payload sealing', () => {
 describe('implied tool permissions', () => {
   it('grants batched companions of granted tools only', () => {
     const expanded: string[] = expandToolPermissions(['create_task', 'update_task', 'nope']);
-    expect(expanded.sort()).toEqual(['bulk_create_tasks', 'bulk_update_tasks', 'create_task', 'update_task']);
+    expect(expanded.sort()).toEqual([
+      'bulk_create_tasks',
+      'bulk_update_tasks',
+      'create_task',
+      'update_task',
+    ]);
   });
 });

@@ -50,7 +50,8 @@ events.get('/stream', requireAuth, async (c) => {
         sink: {
           write(chunk) {
             if (closed) return false;
-            if (controller.desiredSize !== null && controller.desiredSize < -MAX_QUEUED_CHUNKS) return false;
+            if (controller.desiredSize !== null && controller.desiredSize < -MAX_QUEUED_CHUNKS)
+              return false;
             try {
               controller.enqueue(chunk);
               return true;
@@ -71,7 +72,9 @@ events.get('/stream', requireAuth, async (c) => {
       });
 
       const connected = JSON.stringify({ workspaceId, timestamp: new Date().toISOString() });
-      controller.enqueue(encoder.encode(`retry: ${RETRY_MS}\nevent: connected\ndata: ${connected}\n\n`));
+      controller.enqueue(
+        encoder.encode(`retry: ${RETRY_MS}\nevent: connected\ndata: ${connected}\n\n`)
+      );
     },
     cancel() {
       // The browser went away; cancel() receives a reason, not the controller.

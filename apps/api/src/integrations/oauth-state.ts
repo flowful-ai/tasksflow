@@ -55,5 +55,10 @@ export async function consumeOAuthState(
     )
     .returning();
   if (!row || (row.provider !== 'github' && row.provider !== 'slack')) return null;
-  return { provider: row.provider, userId: row.userId, sessionId: row.sessionId, projectId: row.projectId };
+  return {
+    provider: row.provider,
+    userId: row.userId,
+    sessionId: row.sessionId,
+    projectId: row.projectId,
+  };
 }

@@ -5,7 +5,15 @@
  */
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
-import { comments, labels, mcpOAuthClients, taskEvents, taskStates, tasks, users } from '../../db/index.js';
+import {
+  comments,
+  labels,
+  mcpOAuthClients,
+  taskEvents,
+  taskStates,
+  tasks,
+  users,
+} from '../../db/index.js';
 import { isJsonObject, toJsonValue, ok, err, type JsonValue, type Result } from '@flowtask/shared';
 import { toError } from './errors.js';
 import { selectTaskRefs, toTaskRef } from './queries.js';
@@ -50,7 +58,8 @@ interface Cursor {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Postgres timestamp[tz]::text, e.g. "2026-11-09 10:00:00.123456+00". */
-const PG_TIMESTAMP_RE = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d{1,6})?([+-]\d{2}(:?\d{2})?)?$/;
+const PG_TIMESTAMP_RE =
+  /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d{1,6})?([+-]\d{2}(:?\d{2})?)?$/;
 
 export function encodeHistoryCursor(cursor: Cursor): string {
   return Buffer.from(`${cursor.ts}|${cursor.id}`, 'utf8').toString('base64url');
@@ -89,13 +98,18 @@ function snapshotState(meta: JsonValue, side: 'from' | 'to'): HistoryDisplayValu
 export class TaskHistoryService {
   constructor(private db: Database) {}
 
-  async list(taskId: string, options: { cursor?: string; limit?: number } = {}): Promise<Result<TaskHistoryPage, Error>> {
+  async list(
+    taskId: string,
+    options: { cursor?: string; limit?: number } = {}
+  ): Promise<Result<TaskHistoryPage, Error>> {
     try {
       const limit = Math.max(1, Math.min(100, options.limit ?? 50));
       const cursor = decodeHistoryCursor(options.cursor);
       const conditions = [eq(taskEvents.taskId, taskId)];
       if (cursor) {
-        conditions.push(sql`(${taskEvents.createdAt}, ${taskEvents.id}) < (${cursor.ts}::timestamp, ${cursor.id}::uuid)`);
+        conditions.push(
+          sql`(${taskEvents.createdAt}, ${taskEvents.id}) < (${cursor.ts}::timestamp, ${cursor.id}::uuid)`
+        );
       }
 
       const rows = await this.db
@@ -139,8 +153,10 @@ export class TaskHistoryService {
         const values = [e.oldValue, e.newValue];
         if (e.field === 'stateId') values.forEach((v) => asUuid(v) && stateIds.add(asUuid(v)!));
         if (e.field === 'parentId') values.forEach((v) => asUuid(v) && taskIds.add(asUuid(v)!));
-        if (e.type === 'assigned' || e.type === 'unassigned') values.forEach((v) => asUuid(v) && userIds.add(asUuid(v)!));
-        if (e.type === 'labeled' || e.type === 'unlabeled') values.forEach((v) => asUuid(v) && labelIds.add(asUuid(v)!));
+        if (e.type === 'assigned' || e.type === 'unassigned')
+          values.forEach((v) => asUuid(v) && userIds.add(asUuid(v)!));
+        if (e.type === 'labeled' || e.type === 'unlabeled')
+          values.forEach((v) => asUuid(v) && labelIds.add(asUuid(v)!));
         if (e.type === 'commented' && isJsonObject(e.newValue)) {
           const id = asUuid(e.newValue.commentId);
           if (id) commentIds.add(id);
@@ -160,7 +176,12 @@ export class TaskHistoryService {
       const [stateRows, userRows, labelRows, taskRows, commentRows] = await Promise.all([
         stateIds.size
           ? this.db
-              .select({ id: taskStates.id, name: taskStates.name, category: taskStates.category, color: taskStates.color })
+              .select({
+                id: taskStates.id,
+                name: taskStates.name,
+                category: taskStates.category,
+                color: taskStates.color,
+              })
               .from(taskStates)
               .where(inArray(taskStates.id, [...stateIds]))
           : Promise.resolve([]),
@@ -176,7 +197,9 @@ export class TaskHistoryService {
               .from(labels)
               .where(inArray(labels.id, [...labelIds]))
           : Promise.resolve([]),
-        taskIds.size ? selectTaskRefs(this.db).where(inArray(tasks.id, [...taskIds])) : Promise.resolve([]),
+        taskIds.size
+          ? selectTaskRefs(this.db).where(inArray(tasks.id, [...taskIds]))
+          : Promise.resolve([]),
         commentIds.size
           ? this.db
               .select({ id: comments.id, content: comments.content, deletedAt: comments.deletedAt })
@@ -190,7 +213,10 @@ export class TaskHistoryService {
       const taskMap = new Map(taskRows.map((t) => [t.id, toTaskRef(t)]));
       const commentMap = new Map(commentRows.map((c) => [c.id, c]));
 
-      const display = (e: (typeof events)[number], side: 'from' | 'to'): HistoryDisplayValue | null => {
+      const display = (
+        e: (typeof events)[number],
+        side: 'from' | 'to'
+      ): HistoryDisplayValue | null => {
         const raw = side === 'from' ? e.oldValue : e.newValue;
         if (e.field === 'stateId') {
           const id = asUuid(raw);
@@ -219,7 +245,12 @@ export class TaskHistoryService {
           const id = asUuid(raw.commentId);
           if (!id) return null;
           const comment = commentMap.get(id);
-          return { kind: 'comment', id, excerpt: comment ? comment.content.slice(0, 280) : null, deleted: !comment };
+          return {
+            kind: 'comment',
+            id,
+            excerpt: comment ? comment.content.slice(0, 280) : null,
+            deleted: !comment,
+          };
         }
         if (e.type === 'relation_added' || e.type === 'relation_removed') {
           if (!isJsonObject(raw)) return null;
@@ -252,7 +283,10 @@ export class TaskHistoryService {
       }));
 
       const last = events[events.length - 1];
-      const nextCursor = rows.length > limit && last ? encodeHistoryCursor({ ts: last.cursorTs, id: last.id }) : null;
+      const nextCursor =
+        rows.length > limit && last
+          ? encodeHistoryCursor({ ts: last.cursorTs, id: last.id })
+          : null;
       return ok({ items, nextCursor });
     } catch (error) {
       return err(toError(error));

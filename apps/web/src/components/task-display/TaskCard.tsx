@@ -78,7 +78,16 @@ export function taskKeyOf(task: Pick<TaskCardTask, 'key' | 'project' | 'sequence
 }
 
 // Dark enough for white initials at 9–10px (≥ 4.5:1).
-const AVATAR_COLORS = ['#6d28d9', '#0e7490', '#c2410c', '#15803d', '#1d4ed8', '#be185d', '#4338ca', '#0f766e'];
+const AVATAR_COLORS = [
+  '#6d28d9',
+  '#0e7490',
+  '#c2410c',
+  '#15803d',
+  '#1d4ed8',
+  '#be185d',
+  '#4338ca',
+  '#0f766e',
+];
 
 function avatarColor(id: string): string {
   // FNV-1a: spreads similar ids (sequential uuids) across the palette.
@@ -100,10 +109,20 @@ function initials(name: string | null, email: string): string {
 function formatDue(dueDate: string): string {
   const date = new Date(dueDate);
   const sameYear = date.getFullYear() === new Date().getFullYear();
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', ...(sameYear ? {} : { year: 'numeric' }) });
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
+  });
 }
 
-export function AvatarStack({ assignees, max = 3 }: { assignees: TaskCardTask['assignees']; max?: number }) {
+export function AvatarStack({
+  assignees,
+  max = 3,
+}: {
+  assignees: TaskCardTask['assignees'];
+  max?: number;
+}) {
   if (assignees.length === 0) return null;
   const names = assignees.map((a) => a.name || a.email).join(', ');
   return (
@@ -129,7 +148,10 @@ export function AvatarStack({ assignees, max = 3 }: { assignees: TaskCardTask['a
         )
       )}
       {assignees.length > max && (
-        <span aria-hidden className="grid h-5 w-5 place-items-center rounded-full border-2 border-white bg-neutral-200 text-[9px] font-bold text-neutral-700">
+        <span
+          aria-hidden
+          className="grid h-5 w-5 place-items-center rounded-full border-2 border-white bg-neutral-200 text-[9px] font-bold text-neutral-700"
+        >
           +{assignees.length - max}
         </span>
       )}
@@ -174,7 +196,9 @@ function LabelPills({ labels, max }: { labels: TaskCardTask['labels']; max: numb
           <span className="truncate">{label.name}</span>
         </span>
       ))}
-      {labels.length > max && <span className="text-[11.5px] text-neutral-500">+{labels.length - max}</span>}
+      {labels.length > max && (
+        <span className="text-[11.5px] text-neutral-500">+{labels.length - max}</span>
+      )}
     </>
   );
 }
@@ -192,7 +216,12 @@ function DueChip({ task }: { task: TaskCardTask }) {
   if (!task.dueDate) return null;
   const late = isOverdue(task);
   return (
-    <span className={clsx('whitespace-nowrap text-[11.5px]', late ? 'font-semibold text-primary-700' : 'text-neutral-500')}>
+    <span
+      className={clsx(
+        'whitespace-nowrap text-[11.5px]',
+        late ? 'font-semibold text-primary-700' : 'text-neutral-500'
+      )}
+    >
       {late ? 'Overdue · ' : <span className="sr-only">Due </span>}
       {formatDue(task.dueDate)}
     </span>
@@ -207,7 +236,12 @@ interface BodyProps {
 }
 
 /** Card content; memoised so drag re-renders of the sortable wrapper stay cheap. */
-const TaskCardBody = memo(function TaskCardBody({ task, showState, showProject, variant }: BodyProps) {
+const TaskCardBody = memo(function TaskCardBody({
+  task,
+  showState,
+  showProject,
+  variant,
+}: BodyProps) {
   const key = taskKeyOf(task);
   const isDone = task.state?.category === 'done';
   const subtaskTotal = task.subtaskCount ?? 0;
@@ -219,7 +253,9 @@ const TaskCardBody = memo(function TaskCardBody({ task, showState, showProject, 
         <span className="order-1 flex w-4 justify-center">
           <PriorityIcon priority={task.priority} />
         </span>
-        <span className="order-1 shrink-0 font-mono text-[11.5px] font-semibold text-neutral-400">{key}</span>
+        <span className="order-1 shrink-0 font-mono text-[11.5px] font-semibold text-neutral-400">
+          {key}
+        </span>
         <span
           className={clsx(
             'order-3 basis-full text-sm font-medium text-neutral-900 line-clamp-2 md:order-2 md:basis-auto md:flex-1 md:truncate md:line-clamp-none',
@@ -250,7 +286,12 @@ const TaskCardBody = memo(function TaskCardBody({ task, showState, showProject, 
     );
   }
 
-  const hasMeta = task.labels.length > 0 || links.length > 0 || task.dueDate || task.assignees.length > 0 || task.agent;
+  const hasMeta =
+    task.labels.length > 0 ||
+    links.length > 0 ||
+    task.dueDate ||
+    task.assignees.length > 0 ||
+    task.agent;
   return (
     <div className={clsx('flex flex-col gap-[7px]', isDone && 'opacity-60')}>
       <div className="flex items-center gap-1.5">
@@ -268,10 +309,17 @@ const TaskCardBody = memo(function TaskCardBody({ task, showState, showProject, 
           </span>
         )}
       </div>
-      <p className={clsx('text-sm font-medium leading-snug text-neutral-900 line-clamp-2 break-words', isDone && 'line-through')}>
+      <p
+        className={clsx(
+          'text-sm font-medium leading-snug text-neutral-900 line-clamp-2 break-words',
+          isDone && 'line-through'
+        )}
+      >
         {task.title}
       </p>
-      {subtaskTotal > 0 && <SubtaskProgress done={task.subtaskDoneCount ?? 0} total={subtaskTotal} />}
+      {subtaskTotal > 0 && (
+        <SubtaskProgress done={task.subtaskDoneCount ?? 0} total={subtaskTotal} />
+      )}
       {hasMeta && (
         <div className="flex flex-wrap items-center gap-1.5">
           <LabelPills labels={task.labels} max={3} />
@@ -302,7 +350,10 @@ function cardClassName(variant: TaskCardVariant, isSelected: boolean): string {
       ? 'rounded-[10px] border border-neutral-200 px-[11px] py-2.5 hover:border-neutral-300 hover:shadow-sm'
       : 'border-b border-neutral-100 px-3 py-2 last:border-b-0 hover:bg-neutral-50',
     'focus-visible:ring-2 focus-visible:ring-primary-500/60 focus-visible:ring-offset-1',
-    isSelected && (variant === 'card' ? 'outline outline-2 -outline-offset-1 outline-primary-500' : 'bg-primary-50/60')
+    isSelected &&
+      (variant === 'card'
+        ? 'outline outline-2 -outline-offset-1 outline-primary-500'
+        : 'bg-primary-50/60')
   );
 }
 
@@ -311,7 +362,11 @@ function ariaLabel(task: TaskCardTask): string {
   return `${taskKeyOf(task)}: ${task.title}${priority ? `, ${priority} priority` : ''}`;
 }
 
-function withContextMenu(task: TaskCardTask, states: ContextMenuState[] | undefined, card: JSX.Element) {
+function withContextMenu(
+  task: TaskCardTask,
+  states: ContextMenuState[] | undefined,
+  card: JSX.Element
+) {
   if (!states || states.length === 0) return card;
   return (
     <TaskContextMenu
@@ -337,7 +392,9 @@ const SortableTaskCard = memo(function SortableTaskCard({
   states,
   variant = 'card',
 }: TaskCardProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: task.id,
+  });
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) return;
@@ -366,11 +423,17 @@ const SortableTaskCard = memo(function SortableTaskCard({
       onKeyDown={handleKeyDown}
       className={clsx(
         cardClassName(variant, isSelected),
-        isDragging && '!border-2 !border-dashed !border-neutral-300 !bg-transparent !shadow-none !outline-none'
+        isDragging &&
+          '!border-2 !border-dashed !border-neutral-300 !bg-transparent !shadow-none !outline-none'
       )}
     >
       <div className={clsx(isDragging && 'invisible')}>
-        <TaskCardBody task={task} showState={showState} showProject={showProject} variant={variant} />
+        <TaskCardBody
+          task={task}
+          showState={showState}
+          showProject={showProject}
+          variant={variant}
+        />
       </div>
     </div>
   );
@@ -415,7 +478,11 @@ export function TaskCard({ draggable = false, ...props }: TaskCardProps) {
 }
 
 /** The card under the pointer while dragging (DragOverlay): tilted, lifted, not focusable. */
-export function TaskCardOverlay({ task, showState = false, showProject = false }: Pick<TaskCardProps, 'task' | 'showState' | 'showProject'>) {
+export function TaskCardOverlay({
+  task,
+  showState = false,
+  showProject = false,
+}: Pick<TaskCardProps, 'task' | 'showState' | 'showProject'>) {
   return (
     <div className="rotate-2 cursor-grabbing rounded-[10px] border border-neutral-200 bg-white px-[11px] py-2.5 shadow-[0_10px_24px_rgb(0_0_0/0.15)]">
       <TaskCardBody task={task} showState={showState} showProject={showProject} variant="card" />

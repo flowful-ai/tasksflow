@@ -53,9 +53,7 @@ export function FilterBuilder({ value, onChange, workspaceId }: FilterBuilderPro
   const workspaceMembers = workspaceDetail?.members || [];
 
   // Only work with simple conditions (not nested groups for now)
-  const conditions = value.conditions.filter(
-    (c): c is FilterCondition => 'field' in c
-  );
+  const conditions = value.conditions.filter((c): c is FilterCondition => 'field' in c);
 
   const handleOperatorToggle = () => {
     onChange({
@@ -121,9 +119,7 @@ export function FilterBuilder({ value, onChange, workspaceId }: FilterBuilderPro
       <div className="p-4 space-y-2">
         {conditions.length === 0 ? (
           <div className="py-6 text-center">
-            <p className="text-sm text-gray-500 mb-3">
-              No filters. All tasks will be included.
-            </p>
+            <p className="text-sm text-gray-500 mb-3">No filters. All tasks will be included.</p>
             <button
               type="button"
               onClick={handleAddCondition}

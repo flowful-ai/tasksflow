@@ -188,7 +188,10 @@ export const taskStates = pgTable(
   },
   (table) => [
     index('task_state_project_idx').on(table.projectId),
-    check('task_state_category_check', sql`${table.category} IN (${sqlInList(TASK_STATE_CATEGORY_VALUES)})`),
+    check(
+      'task_state_category_check',
+      sql`${table.category} IN (${sqlInList(TASK_STATE_CATEGORY_VALUES)})`
+    ),
   ]
 );
 
@@ -321,7 +324,11 @@ export const externalLinks = pgTable(
   (table) => [
     index('external_link_task_idx').on(table.taskId),
     index('external_link_integration_idx').on(table.integrationId),
-    uniqueIndex('unique_external_link').on(table.integrationId, table.externalType, table.externalId),
+    uniqueIndex('unique_external_link').on(
+      table.integrationId,
+      table.externalType,
+      table.externalId
+    ),
   ]
 );
 
@@ -335,7 +342,9 @@ export const taskEvents = pgTable(
       .references(() => tasks.id, { onDelete: 'cascade' })
       .notNull(),
     actorId: uuid('actor_id').references(() => users.id, { onDelete: 'set null' }),
-    mcpClientId: text('mcp_client_id').references(() => mcpOAuthClients.clientId, { onDelete: 'set null' }),
+    mcpClientId: text('mcp_client_id').references(() => mcpOAuthClients.clientId, {
+      onDelete: 'set null',
+    }),
     eventType: text('event_type').notNull(), // 'created', 'updated', 'moved', 'assigned', 'commented'
     fieldName: text('field_name'),
     oldValue: jsonb('old_value'),
@@ -596,7 +605,9 @@ export const mcpOAuthConsents = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
-  (table) => [uniqueIndex('unique_mcp_oauth_consent').on(table.userId, table.workspaceId, table.clientId)]
+  (table) => [
+    uniqueIndex('unique_mcp_oauth_consent').on(table.userId, table.workspaceId, table.clientId),
+  ]
 );
 
 export const mcpOAuthAuthorizationCodes = pgTable(
@@ -667,7 +678,9 @@ export const mcpOAuthRefreshTokens = pgTable(
   'mcp_oauth_refresh_tokens',
   {
     id: uuid('id').primaryKey().defaultRandom(),
-    accessTokenId: uuid('access_token_id').references(() => mcpOAuthAccessTokens.id, { onDelete: 'set null' }),
+    accessTokenId: uuid('access_token_id').references(() => mcpOAuthAccessTokens.id, {
+      onDelete: 'set null',
+    }),
     clientId: uuid('client_id')
       .references(() => mcpOAuthClients.id, { onDelete: 'cascade' })
       .notNull(),
@@ -860,7 +873,10 @@ export const taskRelations = pgTable(
     uniqueIndex('unique_task_relation').on(table.taskId, table.relatedTaskId, table.type),
     index('task_relation_related_idx').on(table.relatedTaskId),
     check('task_relation_no_self', sql`${table.taskId} <> ${table.relatedTaskId}`),
-    check('task_relation_type_check', sql`${table.type} IN (${sqlInList(TASK_RELATION_TYPE_VALUES)})`),
+    check(
+      'task_relation_type_check',
+      sql`${table.type} IN (${sqlInList(TASK_RELATION_TYPE_VALUES)})`
+    ),
   ]
 );
 
@@ -898,7 +914,10 @@ export const notifications = pgTable(
     uniqueIndex('unique_notification_dedupe')
       .on(table.userId, table.dedupeKey)
       .where(sql`${table.dedupeKey} IS NOT NULL`),
-    check('notification_type_check', sql`${table.type} IN (${sqlInList(NOTIFICATION_TYPE_VALUES)})`),
+    check(
+      'notification_type_check',
+      sql`${table.type} IN (${sqlInList(NOTIFICATION_TYPE_VALUES)})`
+    ),
   ]
 );
 
@@ -928,7 +947,9 @@ export const jobs = pgTable(
       .where(sql`${table.doneAt} IS NULL AND ${table.failedAt} IS NULL`),
     uniqueIndex('unique_pending_job_key')
       .on(table.key)
-      .where(sql`${table.key} IS NOT NULL AND ${table.doneAt} IS NULL AND ${table.failedAt} IS NULL`),
+      .where(
+        sql`${table.key} IS NOT NULL AND ${table.doneAt} IS NULL AND ${table.failedAt} IS NULL`
+      ),
     index('job_done_idx').on(table.doneAt),
   ]
 );
@@ -946,7 +967,10 @@ export const outgoingWebhooks = pgTable(
     description: text('description'),
     // HMAC-SHA256 signing secret. Returned in full only at creation / rotation.
     secret: text('secret').notNull(),
-    events: text('events').array().notNull().default(sql`ARRAY[]::text[]`),
+    events: text('events')
+      .array()
+      .notNull()
+      .default(sql`ARRAY[]::text[]`),
     enabled: boolean('enabled').notNull().default(true),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

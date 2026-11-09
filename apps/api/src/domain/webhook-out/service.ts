@@ -200,7 +200,10 @@ export class OutgoingWebhookService {
 
   async getById(id: string): Promise<Result<OutgoingWebhookView, OutgoingWebhookError>> {
     try {
-      const [row] = await this.db.select().from(outgoingWebhooks).where(eq(outgoingWebhooks.id, id));
+      const [row] = await this.db
+        .select()
+        .from(outgoingWebhooks)
+        .where(eq(outgoingWebhooks.id, id));
       if (!row) return err(new OutgoingWebhookError('NOT_FOUND', 'Webhook not found'));
       return ok(toView(row));
     } catch (error) {
@@ -208,10 +211,13 @@ export class OutgoingWebhookService {
     }
   }
 
-  async create(input: CreateOutgoingWebhookInput): Promise<Result<OutgoingWebhookWithSecret, OutgoingWebhookError>> {
+  async create(
+    input: CreateOutgoingWebhookInput
+  ): Promise<Result<OutgoingWebhookWithSecret, OutgoingWebhookError>> {
     try {
       const events = normalizeEvents(input.events);
-      if (!events) return err(new OutgoingWebhookError('INVALID_EVENTS', 'Unknown or empty event list'));
+      if (!events)
+        return err(new OutgoingWebhookError('INVALID_EVENTS', 'Unknown or empty event list'));
       await assertSafeWebhookUrl(input.url, this.urlPolicy);
 
       const secret = generateWebhookSecret();
@@ -249,13 +255,18 @@ export class OutgoingWebhookService {
       if (input.enabled !== undefined) patch.enabled = input.enabled;
       if (input.events !== undefined) {
         const events = normalizeEvents(input.events);
-        if (!events) return err(new OutgoingWebhookError('INVALID_EVENTS', 'Unknown or empty event list'));
+        if (!events)
+          return err(new OutgoingWebhookError('INVALID_EVENTS', 'Unknown or empty event list'));
         patch.events = events;
       }
       const secret = input.rotateSecret ? generateWebhookSecret() : undefined;
       if (secret) patch.secret = secret;
 
-      const [row] = await this.db.update(outgoingWebhooks).set(patch).where(eq(outgoingWebhooks.id, id)).returning();
+      const [row] = await this.db
+        .update(outgoingWebhooks)
+        .set(patch)
+        .where(eq(outgoingWebhooks.id, id))
+        .returning();
       if (!row) return err(new OutgoingWebhookError('NOT_FOUND', 'Webhook not found'));
       return ok(secret ? { ...toView(row), secret } : toView(row));
     } catch (error) {
@@ -280,7 +291,12 @@ export class OutgoingWebhookService {
   async listDeliveries(
     webhookId: string,
     opts: { limit?: number; cursor?: string } = {}
-  ): Promise<Result<{ items: OutgoingWebhookDeliveryView[]; nextCursor: string | null }, OutgoingWebhookError>> {
+  ): Promise<
+    Result<
+      { items: OutgoingWebhookDeliveryView[]; nextCursor: string | null },
+      OutgoingWebhookError
+    >
+  > {
     try {
       const limit = Math.max(1, Math.min(100, opts.limit ?? 20));
       const conditions = [eq(outgoingWebhookDeliveries.webhookId, webhookId)];
@@ -289,7 +305,10 @@ export class OutgoingWebhookService {
         if (!cursor) return err(new OutgoingWebhookError('INVALID_CURSOR', 'Invalid cursor'));
         const older = or(
           lt(outgoingWebhookDeliveries.createdAt, cursor.createdAt),
-          and(eq(outgoingWebhookDeliveries.createdAt, cursor.createdAt), lt(outgoingWebhookDeliveries.id, cursor.id))
+          and(
+            eq(outgoingWebhookDeliveries.createdAt, cursor.createdAt),
+            lt(outgoingWebhookDeliveries.id, cursor.id)
+          )
         );
         if (older) conditions.push(older);
       }
@@ -328,7 +347,12 @@ export class OutgoingWebhookService {
           })
           .returning({ id: outgoingWebhookDeliveries.id });
         if (!delivery) throw new OutgoingWebhookError('INTERNAL', 'Failed to create delivery');
-        await enqueueJob(tx, JOB_TYPES.webhookDeliver, { deliveryId: delivery.id }, { maxAttempts: 1 });
+        await enqueueJob(
+          tx,
+          JOB_TYPES.webhookDeliver,
+          { deliveryId: delivery.id },
+          { maxAttempts: 1 }
+        );
         return delivery.id;
       });
       if (!deliveryId) return err(new OutgoingWebhookError('NOT_FOUND', 'Webhook not found'));
@@ -366,7 +390,12 @@ export class OutgoingWebhookService {
           .values(hooks.map((hook) => ({ webhookId: hook.id, event, payload: data })))
           .returning({ id: outgoingWebhookDeliveries.id });
         for (const delivery of deliveries) {
-          await enqueueJob(tx, JOB_TYPES.webhookDeliver, { deliveryId: delivery.id }, { maxAttempts: 6 });
+          await enqueueJob(
+            tx,
+            JOB_TYPES.webhookDeliver,
+            { deliveryId: delivery.id },
+            { maxAttempts: 6 }
+          );
         }
         return deliveries.length;
       });

@@ -14,7 +14,8 @@ import { TaskError, isTaskError } from './errors.js';
 import { projectAclAllows as canAccessProject } from '../workspace/authorization.js';
 
 const dialect = new PgDialect();
-const render = (conditions: ReturnType<typeof buildTaskAssigneeConditions>) => dialect.sqlToQuery(and(...conditions)!);
+const render = (conditions: ReturnType<typeof buildTaskAssigneeConditions>) =>
+  dialect.sqlToQuery(and(...conditions)!);
 type Joins = Set<'task_states' | 'task_assignees' | 'task_labels'>;
 
 describe('task list assignee/label filtering helpers', () => {
@@ -24,7 +25,10 @@ describe('task list assignee/label filtering helpers', () => {
   });
 
   it('builds EXISTS conditions for assignee filters (no join, no duplicates)', () => {
-    const conditions = buildTaskAssigneeConditions({ assigneeId: 'user-1', assigneeIds: ['user-2', 'user-3'] });
+    const conditions = buildTaskAssigneeConditions({
+      assigneeId: 'user-1',
+      assigneeIds: ['user-2', 'user-3'],
+    });
     expect(conditions.length).toBe(2);
     const { sql, params } = render(conditions);
     expect(sql).toContain('EXISTS (SELECT 1 FROM "task_assignees"');
@@ -42,7 +46,7 @@ describe('search helpers', () => {
   it('tokenises queries into safe prefix tsqueries', () => {
     expect(searchTokens("Lexico-graph's  midpoint!")).toEqual(['lexico', 'graph', 's', 'midpoint']);
     expect(buildPrefixTsQuery('lexico graph')).toBe('lexico:* & graph:*');
-    expect(buildPrefixTsQuery("&|!():*")).toBeNull();
+    expect(buildPrefixTsQuery('&|!():*')).toBeNull();
     expect(buildPrefixTsQuery('café ÉTÉ')).toBe('café:* & été:*');
   });
 
@@ -58,16 +62,21 @@ describe('search helpers', () => {
 });
 
 describe('column placement (pure)', () => {
-  const col = (...positions: string[]): ColumnTask[] => positions.map((p, i) => ({ id: `t${i}`, position: p }));
+  const col = (...positions: string[]): ColumnTask[] =>
+    positions.map((p, i) => ({ id: `t${i}`, position: p }));
 
   it('resolves the insert index from neighbours or a legacy key', () => {
     const column = col('a0', 'a1', 'a2');
     expect(resolveInsertIndex(column, { projectId: 'p', stateId: 's', afterTaskId: 't0' })).toBe(1);
-    expect(resolveInsertIndex(column, { projectId: 'p', stateId: 's', beforeTaskId: 't0' })).toBe(0);
+    expect(resolveInsertIndex(column, { projectId: 'p', stateId: 's', beforeTaskId: 't0' })).toBe(
+      0
+    );
     expect(resolveInsertIndex(column, { projectId: 'p', stateId: 's', position: 'a1V' })).toBe(2);
     expect(resolveInsertIndex(column, { projectId: 'p', stateId: 's', position: 'a1' })).toBe(2);
     expect(resolveInsertIndex(column, { projectId: 'p', stateId: 's' })).toBe(3);
-    expect(() => resolveInsertIndex(column, { projectId: 'p', stateId: 's', afterTaskId: 'nope' })).toThrow(TaskError);
+    expect(() =>
+      resolveInsertIndex(column, { projectId: 'p', stateId: 's', afterTaskId: 'nope' })
+    ).toThrow(TaskError);
   });
 
   it('keeps a valid client key that fits, otherwise generates one', () => {

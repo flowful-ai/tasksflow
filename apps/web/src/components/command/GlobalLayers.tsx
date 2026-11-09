@@ -15,7 +15,9 @@ import { useDefaultProjectId } from './useCurrentProject';
 
 // Loaded on first use: they pull in markdown rendering and the task forms.
 const TaskModal = lazy(async () => ({ default: (await import('../tasks/TaskModal')).TaskModal }));
-const TaskDetailSheet = lazy(async () => ({ default: (await import('../tasks/TaskDetailSheet')).TaskDetailSheet }));
+const TaskDetailSheet = lazy(async () => ({
+  default: (await import('../tasks/TaskDetailSheet')).TaskDetailSheet,
+}));
 
 function NavShortcut({ combo, href }: { combo: string; href: string }) {
   const navigate = useNavigate();
@@ -53,20 +55,32 @@ function GlobalCreateTask() {
   const { workspaceId } = useCurrentWorkspace();
   const { data: projects = [] } = useProjects(request ? workspaceId : null);
   const projectId = request
-    ? (request.projectId && projects.some((p) => p.id === request.projectId) ? request.projectId : projects[0]?.id) ?? null
+    ? ((request.projectId && projects.some((p) => p.id === request.projectId)
+        ? request.projectId
+        : projects[0]?.id) ?? null)
     : null;
   const { data: project } = useProject(projectId);
 
   const states = useMemo(
-    () => [...(project?.taskStates ?? [])].sort((a, b) => (a.position < b.position ? -1 : a.position > b.position ? 1 : 0)),
+    () =>
+      [...(project?.taskStates ?? [])].sort((a, b) =>
+        a.position < b.position ? -1 : a.position > b.position ? 1 : 0
+      ),
     [project?.taskStates]
   );
-  const defaultStateId = request?.stateId && states.some((s) => s.id === request.stateId) ? request.stateId : undefined;
+  const defaultStateId =
+    request?.stateId && states.some((s) => s.id === request.stateId) ? request.stateId : undefined;
 
   if (!request || !projectId || !project) return null;
   return (
     <Suspense fallback={null}>
-      <TaskModal projectId={projectId} states={states} defaultStateId={defaultStateId} onClose={close} onCreated={close} />
+      <TaskModal
+        projectId={projectId}
+        states={states}
+        defaultStateId={defaultStateId}
+        onClose={close}
+        onCreated={close}
+      />
     </Suspense>
   );
 }

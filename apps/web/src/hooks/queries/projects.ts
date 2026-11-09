@@ -1,4 +1,10 @@
-import { useMutation, useQueries, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
+import {
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+  type QueryKey,
+} from '@tanstack/react-query';
 import type { ProjectAccess, TaskStateCategory } from '@flowtask/shared';
 import { queryKeys } from '../../api/queryKeys';
 import { projectsApi, type CreateProjectInput, type UpdateProjectInput } from '../../api/projects';
@@ -28,7 +34,11 @@ export function useProject(projectId: string | null | undefined) {
     queryKey: queryKeys.projects.detail(projectId ?? ''),
     queryFn: () => projectsApi.get(projectId ?? ''),
     enabled: Boolean(projectId),
-    initialData: () => findProjectInLists(queryClient.getQueriesData<ProjectDto[]>({ queryKey: queryKeys.projects.lists() }), projectId),
+    initialData: () =>
+      findProjectInLists(
+        queryClient.getQueriesData<ProjectDto[]>({ queryKey: queryKeys.projects.lists() }),
+        projectId
+      ),
     // Show the list copy immediately, but refetch the detail in the background.
     initialDataUpdatedAt: 0,
   });
@@ -106,7 +116,9 @@ function useInvalidateProject() {
   return (projectId?: string) =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.lists() }),
-      projectId ? queryClient.invalidateQueries({ queryKey: queryKeys.projects.detail(projectId) }) : undefined,
+      projectId
+        ? queryClient.invalidateQueries({ queryKey: queryKeys.projects.detail(projectId) })
+        : undefined,
     ]);
 }
 
@@ -153,7 +165,10 @@ export function useSetProjectAccess(projectId: string) {
     mutationFn: ({ access, userIds }: { access: ProjectAccess; userIds?: string[] }) =>
       projectsApi.setAccess(projectId, access, userIds),
     onSettled: () =>
-      Promise.all([invalidate(projectId), queryClient.invalidateQueries({ queryKey: queryKeys.projects.members(projectId) })]),
+      Promise.all([
+        invalidate(projectId),
+        queryClient.invalidateQueries({ queryKey: queryKeys.projects.members(projectId) }),
+      ]),
     meta: { errorMessage: 'Could not update access' },
   });
 }
@@ -188,10 +203,14 @@ export function useLabelMutations(projectId: string) {
   const queryClient = useQueryClient();
   const invalidate = useInvalidateProject();
   const onSettled = () =>
-    Promise.all([invalidate(projectId), queryClient.invalidateQueries({ queryKey: queryKeys.tasks.project(projectId) })]);
+    Promise.all([
+      invalidate(projectId),
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.project(projectId) }),
+    ]);
   return {
     create: useMutation({
-      mutationFn: (input: { name: string; color?: string }) => projectsApi.createLabel(projectId, input),
+      mutationFn: (input: { name: string; color?: string }) =>
+        projectsApi.createLabel(projectId, input),
       onSettled,
       meta: { errorMessage: 'Could not create the label' },
     }),

@@ -10,7 +10,9 @@ export function shortName(name: string | null | undefined): string {
 
 export function initials(name: string | null | undefined): string {
   const parts = (name ?? '').trim().split(/\s+/).filter(Boolean);
-  return ((parts[0]?.[0] ?? '?') + (parts.length > 1 ? parts[parts.length - 1][0] ?? '' : '')).toUpperCase();
+  return (
+    (parts[0]?.[0] ?? '?') + (parts.length > 1 ? (parts[parts.length - 1][0] ?? '') : '')
+  ).toUpperCase();
 }
 
 function dataString(n: NotificationDto, key: string): string | null {
@@ -20,7 +22,9 @@ function dataString(n: NotificationDto, key: string): string | null {
 
 function dataStateName(n: NotificationDto, key: string): string | null {
   const value = n.data[key];
-  return value && typeof value === 'object' && 'name' in value && typeof value.name === 'string' ? value.name : null;
+  return value && typeof value === 'object' && 'name' in value && typeof value.name === 'string'
+    ? value.name
+    : null;
 }
 
 const formatDay = (iso: string) =>
@@ -54,11 +58,26 @@ export function describeNotification(n: NotificationDto): NotificationText {
       return { actor, verb: 'moved', suffix: to ? `to ${to}` : '', snippet: title };
     }
     case 'due_soon':
-      return { actor: null, verb: '', suffix: 'is due soon', snippet: due ? `Due ${formatDay(due)}` : title };
+      return {
+        actor: null,
+        verb: '',
+        suffix: 'is due soon',
+        snippet: due ? `Due ${formatDay(due)}` : title,
+      };
     case 'overdue':
-      return { actor: null, verb: '', suffix: 'is overdue', snippet: due ? `Was due ${formatDay(due)}` : title };
+      return {
+        actor: null,
+        verb: '',
+        suffix: 'is overdue',
+        snippet: due ? `Was due ${formatDay(due)}` : title,
+      };
     case 'github':
-      return { actor: actor ?? 'GitHub', verb: 'updated', suffix: '', snippet: dataString(n, 'message') ?? title };
+      return {
+        actor: actor ?? 'GitHub',
+        verb: 'updated',
+        suffix: '',
+        snippet: dataString(n, 'message') ?? title,
+      };
     default:
       return { actor, verb: 'updated', suffix: '', snippet: title };
   }

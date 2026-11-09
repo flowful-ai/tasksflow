@@ -24,7 +24,14 @@ interface TaskDetailSheetProps {
   initialTask?: TaskDetail;
 }
 
-export function TaskDetailSheet({ taskId, states, onClose, onUpdated, readOnly = false, initialTask }: TaskDetailSheetProps) {
+export function TaskDetailSheet({
+  taskId,
+  states,
+  onClose,
+  onUpdated,
+  readOnly = false,
+  initialTask,
+}: TaskDetailSheetProps) {
   const [currentId, setCurrentId] = useState(taskId);
   useEffect(() => setCurrentId(taskId), [taskId]);
 

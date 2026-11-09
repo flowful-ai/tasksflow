@@ -55,13 +55,18 @@ export function createMcpServer(ctx: ToolContext, services?: ToolServices): Serv
     try {
       ctx.assertToolGranted(name);
     } catch (error) {
-      throw new McpError(ErrorCode.InvalidParams, error instanceof ToolExecutionError ? error.message : 'Unknown tool');
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        error instanceof ToolExecutionError ? error.message : 'Unknown tool'
+      );
     }
 
     const outcome = await runAgentTool(name, args ?? {}, ctx, services);
     if (!outcome.ok) {
       return {
-        content: [{ type: 'text', text: `Error (${outcome.error.code}): ${outcome.error.message}` }],
+        content: [
+          { type: 'text', text: `Error (${outcome.error.code}): ${outcome.error.message}` },
+        ],
         isError: true,
       };
     }
@@ -100,7 +105,10 @@ function legacySseDeprecatedResponse(c: Context): Response {
 }
 
 function rateLimited(c: Context): Response {
-  return c.json({ error: 'rate_limited', error_description: 'Too many MCP requests, retry later' }, 429);
+  return c.json(
+    { error: 'rate_limited', error_description: 'Too many MCP requests, retry later' },
+    429
+  );
 }
 
 const rateLimit = ipRateLimit('mcp', rateLimited);

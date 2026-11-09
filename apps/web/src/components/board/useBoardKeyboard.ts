@@ -17,10 +17,31 @@ import type { TaskOpenEvent } from '../task-display/TaskCard';
 
 export type BulkPicker = 'status' | 'assign' | 'label' | 'priority' | 'delete';
 
-const PICKER_KEYS: Record<string, BulkPicker> = { s: 'status', a: 'assign', l: 'label', p: 'priority' };
+const PICKER_KEYS: Record<string, BulkPicker> = {
+  s: 'status',
+  a: 'assign',
+  l: 'label',
+  p: 'priority',
+};
 
 /** Every key the board binds through the shared registry (never C or ⌘K, which are global). */
-const BOARD_KEYS = ['j', 'k', 'arrowdown', 'arrowup', 'arrowright', 'arrowleft', 'x', 'escape', 'e', 'backspace', 'delete', 's', 'a', 'l', 'p'] as const;
+const BOARD_KEYS = [
+  'j',
+  'k',
+  'arrowdown',
+  'arrowup',
+  'arrowright',
+  'arrowleft',
+  'x',
+  'escape',
+  'e',
+  'backspace',
+  'delete',
+  's',
+  'a',
+  'l',
+  'p',
+] as const;
 
 function isElement(target: EventTarget | null): target is Element {
   return target instanceof Element;
@@ -31,7 +52,8 @@ function isHTMLElement(node: Element | null | undefined): node is HTMLElement {
 }
 
 export function isTypingTarget(target: Element): boolean {
-  if (target.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]')) return true;
+  if (target.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]'))
+    return true;
   return false;
 }
 
@@ -83,7 +105,13 @@ export interface BoardKeyboardOptions {
   enabled?: boolean;
 }
 
-export function useBoardKeyboard({ containerRef, visibleIds, onOpen, onDeleteOne, enabled = true }: BoardKeyboardOptions) {
+export function useBoardKeyboard({
+  containerRef,
+  visibleIds,
+  onOpen,
+  onDeleteOne,
+  enabled = true,
+}: BoardKeyboardOptions) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [picker, setPicker] = useState<BulkPicker | null>(null);
   const anchorRef = useRef<string | null>(null);

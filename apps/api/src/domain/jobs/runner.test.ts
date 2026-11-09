@@ -76,7 +76,15 @@ describe.skipIf(!TEST_DB)('job queue (integration)', () => {
 
   it('retries with backoff and fails after max attempts', async () => {
     const id = await enqueueJob(db, t('fail'), {}, { maxAttempts: 2 });
-    const runner = createJobRunner(db, { [t('fail')]: async () => { throw new Error('boom'); } }, { onError: () => {} });
+    const runner = createJobRunner(
+      db,
+      {
+        [t('fail')]: async () => {
+          throw new Error('boom');
+        },
+      },
+      { onError: () => {} }
+    );
 
     expect(await runner.runOnce()).toBe(1);
     const afterFirst = await getJob(id!);
@@ -87,7 +95,10 @@ describe.skipIf(!TEST_DB)('job queue (integration)', () => {
 
     // Not due yet → nothing claimed.
     expect(await runner.runOnce()).toBe(0);
-    await db.update(jobs).set({ runAt: sql`now()` }).where(eq(jobs.id, id!));
+    await db
+      .update(jobs)
+      .set({ runAt: sql`now()` })
+      .where(eq(jobs.id, id!));
     expect(await runner.runOnce()).toBe(1);
     const afterSecond = await getJob(id!);
     expect(afterSecond.attempts).toBe(2);
@@ -96,7 +107,11 @@ describe.skipIf(!TEST_DB)('job queue (integration)', () => {
 
   it('JobRetryLater reschedules without spending an attempt', async () => {
     const id = await enqueueJob(db, t('later'), {});
-    const runner = createJobRunner(db, { [t('later')]: async () => { throw new JobRetryLater(60_000); } });
+    const runner = createJobRunner(db, {
+      [t('later')]: async () => {
+        throw new JobRetryLater(60_000);
+      },
+    });
     await runner.runOnce();
     const job = await getJob(id!);
     expect(job.attempts).toBe(0);
@@ -106,9 +121,16 @@ describe.skipIf(!TEST_DB)('job queue (integration)', () => {
 
   it('reclaims stale locks but not fresh ones', async () => {
     const id = await enqueueJob(db, t('stale'), {});
-    await db.update(jobs).set({ lockedAt: new Date(Date.now() - 60_000), lockedBy: 'dead-worker', attempts: 1 }).where(eq(jobs.id, id!));
+    await db
+      .update(jobs)
+      .set({ lockedAt: new Date(Date.now() - 60_000), lockedBy: 'dead-worker', attempts: 1 })
+      .where(eq(jobs.id, id!));
     let runs = 0;
-    const handlers: JobHandlers = { [t('stale')]: async () => { runs++; } };
+    const handlers: JobHandlers = {
+      [t('stale')]: async () => {
+        runs++;
+      },
+    };
 
     const strict = createJobRunner(db, handlers, { lockTimeoutMs: 120_000 });
     expect(await strict.runOnce()).toBe(0);
@@ -122,7 +144,9 @@ describe.skipIf(!TEST_DB)('job queue (integration)', () => {
   });
 
   it('two runners never run the same job twice (SKIP LOCKED)', async () => {
-    const ids = await Promise.all(Array.from({ length: 20 }, (_, i) => enqueueJob(db, t('race'), { i })));
+    const ids = await Promise.all(
+      Array.from({ length: 20 }, (_, i) => enqueueJob(db, t('race'), { i }))
+    );
     const counts = new Map<string, number>();
     const handlers: JobHandlers = {
       [t('race')]: async (job) => {
@@ -157,15 +181,24 @@ describe.skipIf(!TEST_DB)('job queue (integration)', () => {
     const runner = createJobRunner(db, handlers);
     expect(await runner.runOnce()).toBe(1);
 
-    const pending = await db.select().from(jobs).where(eq(jobs.key, recurringJobKey(type)));
+    const pending = await db
+      .select()
+      .from(jobs)
+      .where(eq(jobs.key, recurringJobKey(type)));
     const next = pending.find((j) => j.doneAt === null);
     expect(next).toBeDefined();
     expect(next!.runAt.getTime()).toBeGreaterThan(Date.now() + 50_000);
     expect(next!.payload).toEqual({ scan: true });
 
-    await db.update(jobs).set({ runAt: sql`now()` }).where(eq(jobs.id, next!.id));
+    await db
+      .update(jobs)
+      .set({ runAt: sql`now()` })
+      .where(eq(jobs.id, next!.id));
     expect(await runner.runOnce()).toBe(1);
-    const all = await db.select().from(jobs).where(eq(jobs.key, recurringJobKey(type)));
+    const all = await db
+      .select()
+      .from(jobs)
+      .where(eq(jobs.key, recurringJobKey(type)));
     expect(all.filter((j) => j.doneAt === null && j.failedAt === null)).toHaveLength(1);
     expect(all.find((j) => j.id === next!.id)?.lastError).toBe('scan failed');
   });
@@ -193,7 +226,10 @@ describe.skipIf(!TEST_DB)('job queue (integration)', () => {
     }
     await runner.stop();
     await runner.stop(); // idempotent
-    const left = await db.select().from(jobs).where(sql`${jobs.type} = ${t('loop')} AND ${jobs.lockedAt} IS NOT NULL`);
+    const left = await db
+      .select()
+      .from(jobs)
+      .where(sql`${jobs.type} = ${t('loop')} AND ${jobs.lockedAt} IS NOT NULL`);
     expect(left).toHaveLength(0);
     expect(finished).toBeGreaterThanOrEqual(1);
   });

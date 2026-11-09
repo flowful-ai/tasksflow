@@ -4,8 +4,23 @@
  * (e.g. `bunx drizzle-kit push` from apps/api).
  */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { createDatabase, externalLinks, projectIntegrations, projects, taskStates, tasks, workspaces, type Database } from '../../db/index.js';
-import { CommentService, TaskService, domainEvents, type TaskCreatedEvent, type TaskUpdatedEvent } from '../../domain/index.js';
+import {
+  createDatabase,
+  externalLinks,
+  projectIntegrations,
+  projects,
+  taskStates,
+  tasks,
+  workspaces,
+  type Database,
+} from '../../db/index.js';
+import {
+  CommentService,
+  TaskService,
+  domainEvents,
+  type TaskCreatedEvent,
+  type TaskUpdatedEvent,
+} from '../../domain/index.js';
 import { formatGitHubExternalId, parseTaskReferences } from '@flowtask/shared';
 import { and, eq, isNull } from 'drizzle-orm';
 import type { GitHubRepoTarget } from './integration-store.js';
@@ -62,20 +77,29 @@ describeDb('GitHub sync (database)', () => {
       .where(
         and(
           eq(externalLinks.integrationId, target.integrationId),
-          eq(externalLinks.externalId, formatGitHubExternalId(target.repo.owner, target.repo.repo, number)),
+          eq(
+            externalLinks.externalId,
+            formatGitHubExternalId(target.repo.owner, target.repo.repo, number)
+          ),
           isNull(tasks.deletedAt)
         )
       );
   }
 
   async function projectTaskCount(): Promise<number> {
-    const rows = await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.projectId, projectId));
+    const rows = await db
+      .select({ id: tasks.id })
+      .from(tasks)
+      .where(eq(tasks.projectId, projectId));
     return rows.length;
   }
 
   beforeAll(async () => {
     db = createDatabase(TEST_DATABASE_URL);
-    const [workspace] = await db.insert(workspaces).values({ name: 'Sync test', slug: `sync-test-${suffix}` }).returning();
+    const [workspace] = await db
+      .insert(workspaces)
+      .values({ name: 'Sync test', slug: `sync-test-${suffix}` })
+      .returning();
     if (!workspace) throw new Error('workspace insert failed');
     workspaceId = workspace.id;
 
@@ -133,8 +157,16 @@ describeDb('GitHub sync (database)', () => {
   });
 
   test('two repos with the same issue number create two tasks', async () => {
-    const a = await sync.applyIssue(apiTarget, { number: 1, url: issueUrl('api', 1), content: content() }, { createIfMissing: true });
-    const b = await sync.applyIssue(webTarget, { number: 1, url: issueUrl('web', 1), content: content() }, { createIfMissing: true });
+    const a = await sync.applyIssue(
+      apiTarget,
+      { number: 1, url: issueUrl('api', 1), content: content() },
+      { createIfMissing: true }
+    );
+    const b = await sync.applyIssue(
+      webTarget,
+      { number: 1, url: issueUrl('web', 1), content: content() },
+      { createIfMissing: true }
+    );
 
     expect(a.action).toBe('created');
     expect(b.action).toBe('created');
@@ -152,7 +184,11 @@ describeDb('GitHub sync (database)', () => {
 
   test('a duplicate delivery is a no-op', async () => {
     const before = await projectTaskCount();
-    const again = await sync.applyIssue(apiTarget, { number: 1, url: issueUrl('api', 1), content: content() }, { createIfMissing: true });
+    const again = await sync.applyIssue(
+      apiTarget,
+      { number: 1, url: issueUrl('api', 1), content: content() },
+      { createIfMissing: true }
+    );
     expect(again.action).toBe('unchanged');
     expect(await projectTaskCount()).toBe(before);
   });
@@ -161,9 +197,21 @@ describeDb('GitHub sync (database)', () => {
     const before = await projectTaskCount();
     const issue = { number: 2, url: issueUrl('api', 2) };
     const results = await Promise.all([
-      sync.applyIssue(apiTarget, { ...issue, content: content({ title: 'Race' }) }, { createIfMissing: true }),
-      sync.applyIssue(apiTarget, { ...issue, content: content({ title: 'Race', labels: ['bug', 'p1'] }) }, { createIfMissing: true }),
-      sync.applyIssue(apiTarget, { ...issue, content: content({ title: 'Race' }) }, { createIfMissing: true }),
+      sync.applyIssue(
+        apiTarget,
+        { ...issue, content: content({ title: 'Race' }) },
+        { createIfMissing: true }
+      ),
+      sync.applyIssue(
+        apiTarget,
+        { ...issue, content: content({ title: 'Race', labels: ['bug', 'p1'] }) },
+        { createIfMissing: true }
+      ),
+      sync.applyIssue(
+        apiTarget,
+        { ...issue, content: content({ title: 'Race' }) },
+        { createIfMissing: true }
+      ),
     ]);
 
     expect(results.filter((r) => r.action === 'created')).toHaveLength(1);
@@ -175,7 +223,11 @@ describeDb('GitHub sync (database)', () => {
   test('a genuine edit right after a sync is applied (no time-window drop)', async () => {
     const result = await sync.applyIssue(
       apiTarget,
-      { number: 1, url: issueUrl('api', 1), content: content({ title: 'Login is broken on Safari' }) },
+      {
+        number: 1,
+        url: issueUrl('api', 1),
+        content: content({ title: 'Login is broken on Safari' }),
+      },
       { createIfMissing: true }
     );
     expect(result.action).toBe('updated');
@@ -186,19 +238,32 @@ describeDb('GitHub sync (database)', () => {
   test('closing moves the task to the first done state; reopening moves it to backlog', async () => {
     await sync.applyIssue(
       apiTarget,
-      { number: 1, url: issueUrl('api', 1), content: content({ title: 'Login is broken on Safari', state: 'closed' }) },
+      {
+        number: 1,
+        url: issueUrl('api', 1),
+        content: content({ title: 'Login is broken on Safari', state: 'closed' }),
+      },
       { createIfMissing: true }
     );
     let [task] = await liveTasksFor(apiTarget, 1);
     expect(task?.stateId).toBe(doneStateId);
     await domainEvents.idle();
     expect(
-      updated.some((e) => e.task.id === task?.taskId && e.origin === 'github' && e.changes.some((c) => c.field === 'stateId'))
+      updated.some(
+        (e) =>
+          e.task.id === task?.taskId &&
+          e.origin === 'github' &&
+          e.changes.some((c) => c.field === 'stateId')
+      )
     ).toBe(true);
 
     await sync.applyIssue(
       apiTarget,
-      { number: 1, url: issueUrl('api', 1), content: content({ title: 'Login is broken on Safari', state: 'open' }) },
+      {
+        number: 1,
+        url: issueUrl('api', 1),
+        content: content({ title: 'Login is broken on Safari', state: 'open' }),
+      },
       { createIfMissing: true }
     );
     [task] = await liveTasksFor(apiTarget, 1);
@@ -224,10 +289,11 @@ describeDb('GitHub sync (database)', () => {
       publish: (wsId, event, data) => published.push({ workspaceId: wsId, event, data }),
       appId: 4242,
     });
-    const commentEvent = (overrides: { installationId?: number; viaAppId?: number | null; id?: string }): Extract<
-      GitHubWebhookAction,
-      { kind: 'issue_comment' }
-    > => ({
+    const commentEvent = (overrides: {
+      installationId?: number;
+      viaAppId?: number | null;
+      id?: string;
+    }): Extract<GitHubWebhookAction, { kind: 'issue_comment' }> => ({
       kind: 'issue_comment',
       action: 'created',
       repo: { owner, repo: 'api' },
@@ -245,7 +311,10 @@ describeDb('GitHub sync (database)', () => {
     const mismatch = await processor.process(apiTarget, commentEvent({ installationId: 999 }));
     expect(mismatch).toMatchObject({ status: 'ignored', reason: 'Installation mismatch' });
 
-    const echo = await processor.process(apiTarget, commentEvent({ viaAppId: 4242, id: `echo-${suffix}` }));
+    const echo = await processor.process(
+      apiTarget,
+      commentEvent({ viaAppId: 4242, id: `echo-${suffix}` })
+    );
     expect(echo).toMatchObject({ status: 'ignored', reason: 'Comment posted by FlowTask' });
 
     const synced = await processor.process(apiTarget, commentEvent({}));
@@ -262,11 +331,18 @@ describeDb('GitHub sync (database)', () => {
       .from(tasks)
       .where(eq(tasks.projectId, projectId))
       .limit(1);
-    const [project] = await db.select({ identifier: projects.identifier }).from(projects).where(eq(projects.id, projectId));
+    const [project] = await db
+      .select({ identifier: projects.identifier })
+      .from(projects)
+      .where(eq(projects.id, projectId));
     if (!task || !project) throw new Error('seed missing');
 
-    const refs = parseTaskReferences(`feature/${project.identifier.toLowerCase()}-${task.sequenceNumber}-fix OTHER-${task.sequenceNumber}`);
+    const refs = parseTaskReferences(
+      `feature/${project.identifier.toLowerCase()}-${task.sequenceNumber}-fix OTHER-${task.sequenceNumber}`
+    );
     expect(await resolveTaskReferencesInProject(db, projectId, refs)).toEqual([task.id]);
-    expect(await resolveTaskReferencesInProject(db, projectId, parseTaskReferences('NOPE-1'))).toEqual([]);
+    expect(
+      await resolveTaskReferencesInProject(db, projectId, parseTaskReferences('NOPE-1'))
+    ).toEqual([]);
   });
 });

@@ -93,7 +93,9 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
   const openTaskSheet = useUiStore((s) => s.openTaskSheet);
   const openCreateTask = useUiStore((s) => s.openCreateTask);
   const setShortcutsOpen = useUiStore((s) => s.setShortcutsOpen);
-  const viewMode = useWorkspaceStore((s) => (routeProjectId ? s.projectViewModes[routeProjectId] ?? 'kanban' : null));
+  const viewMode = useWorkspaceStore((s) =>
+    routeProjectId ? (s.projectViewModes[routeProjectId] ?? 'kanban') : null
+  );
   const setProjectViewMode = useWorkspaceStore((s) => s.setProjectViewMode);
 
   const [query, setQuery] = useState('');
@@ -114,7 +116,12 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
     openTaskSheet(hit.id);
   };
   const openProject = (project: { id: string; identifier: string; name: string }) => {
-    recordRecent(workspaceId, { kind: 'project', id: project.id, key: project.identifier, title: project.name });
+    recordRecent(workspaceId, {
+      kind: 'project',
+      id: project.id,
+      key: project.identifier,
+      title: project.name,
+    });
     onClose();
     void navigate(`/project/${project.id}`);
   };
@@ -135,10 +142,38 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
         openCreateTask({ projectId: defaultProjectId });
       },
     },
-    { id: 'go-inbox', label: 'Go to Inbox', icon: <Inbox />, keys: ['G', 'I'], keywords: 'notifications', run: go('/inbox') },
-    { id: 'go-my-tasks', label: 'Go to My tasks', icon: <Target />, keys: ['G', 'M'], keywords: 'assigned me', run: go('/my-tasks') },
-    { id: 'go-views', label: 'Go to Views', icon: <Zap />, keys: ['G', 'V'], keywords: 'smart filters', run: go('/views') },
-    { id: 'go-settings', label: 'Go to Settings', icon: <Settings />, keys: ['G', 'S'], keywords: 'preferences', run: go('/settings') },
+    {
+      id: 'go-inbox',
+      label: 'Go to Inbox',
+      icon: <Inbox />,
+      keys: ['G', 'I'],
+      keywords: 'notifications',
+      run: go('/inbox'),
+    },
+    {
+      id: 'go-my-tasks',
+      label: 'Go to My tasks',
+      icon: <Target />,
+      keys: ['G', 'M'],
+      keywords: 'assigned me',
+      run: go('/my-tasks'),
+    },
+    {
+      id: 'go-views',
+      label: 'Go to Views',
+      icon: <Zap />,
+      keys: ['G', 'V'],
+      keywords: 'smart filters',
+      run: go('/views'),
+    },
+    {
+      id: 'go-settings',
+      label: 'Go to Settings',
+      icon: <Settings />,
+      keys: ['G', 'S'],
+      keywords: 'preferences',
+      run: go('/settings'),
+    },
   ];
   if (routeProjectId && viewMode) {
     const next = viewMode === 'kanban' ? 'list' : 'kanban';
@@ -182,8 +217,20 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
   });
 
   const navigation: PaletteAction[] = [
-    { id: 'nav-dashboard', label: 'Dashboard', icon: <LayoutDashboard />, keywords: 'home', run: go('/dashboard') },
-    { id: 'nav-projects', label: 'All projects', icon: <FolderKanban />, keys: ['G', 'P'], run: go('/projects') },
+    {
+      id: 'nav-dashboard',
+      label: 'Dashboard',
+      icon: <LayoutDashboard />,
+      keywords: 'home',
+      run: go('/dashboard'),
+    },
+    {
+      id: 'nav-projects',
+      label: 'All projects',
+      icon: <FolderKanban />,
+      keys: ['G', 'P'],
+      run: go('/projects'),
+    },
   ];
   if (routeProjectId) {
     navigation.push({
@@ -197,10 +244,17 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
 
   const visibleActions = actions.filter((a) => matches(query, a.label, a.keywords));
   const visibleNavigation = navigation.filter((a) => matches(query, a.label, a.keywords));
-  const visibleProjects = hasQuery ? projects.filter((p) => matches(query, p.name, p.identifier)).slice(0, 6) : [];
+  const visibleProjects = hasQuery
+    ? projects.filter((p) => matches(query, p.name, p.identifier)).slice(0, 6)
+    : [];
   const searching = hasQuery && (search.isFetching || debounced !== query);
   const nothing =
-    hasQuery && !searching && taskHits.length === 0 && visibleProjects.length === 0 && visibleActions.length === 0 && visibleNavigation.length === 0;
+    hasQuery &&
+    !searching &&
+    taskHits.length === 0 &&
+    visibleProjects.length === 0 &&
+    visibleActions.length === 0 &&
+    visibleNavigation.length === 0;
 
   const renderAction = (action: PaletteAction) => (
     <Command.Item key={action.id} value={action.id} onSelect={action.run} className={itemClass}>
@@ -217,7 +271,12 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
   );
 
   return (
-    <Command label="Command palette" shouldFilter={false} loop className="flex max-h-[min(70vh,560px)] flex-col">
+    <Command
+      label="Command palette"
+      shouldFilter={false}
+      loop
+      className="flex max-h-[min(70vh,560px)] flex-col"
+    >
       <div className="flex items-center gap-2.5 border-b border-neutral-200 px-4">
         <Search aria-hidden className="h-4 w-4 shrink-0 text-neutral-400" />
         <Command.Input
@@ -253,7 +312,9 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
                 <Clock />
                 <TaskKey>{item.key}</TaskKey>
                 <span className="flex-1 truncate">{item.title}</span>
-                {item.kind === 'project' && <span className="text-xs text-neutral-400">Project</span>}
+                {item.kind === 'project' && (
+                  <span className="text-xs text-neutral-400">Project</span>
+                )}
               </Command.Item>
             ))}
           </Command.Group>
@@ -262,13 +323,23 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
         {taskHits.length > 0 && (
           <Command.Group heading="Tasks" className={groupClass}>
             {taskHits.map((hit) => (
-              <Command.Item key={hit.id} value={`task:${hit.id}`} onSelect={() => openTask(hit)} className={itemClass}>
+              <Command.Item
+                key={hit.id}
+                value={`task:${hit.id}`}
+                onSelect={() => openTask(hit)}
+                className={itemClass}
+              >
                 <TaskKey>{hit.key}</TaskKey>
                 <span className="flex-1 truncate">
                   <Highlight text={hit.title} query={debounced} />
                 </span>
-                {hit.state && <span className="shrink-0 text-xs text-neutral-400">{hit.state.name}</span>}
-                <ArrowRight aria-hidden className="opacity-0 [[data-selected=true]_&]:opacity-100" />
+                {hit.state && (
+                  <span className="shrink-0 text-xs text-neutral-400">{hit.state.name}</span>
+                )}
+                <ArrowRight
+                  aria-hidden
+                  className="opacity-0 [[data-selected=true]_&]:opacity-100"
+                />
               </Command.Item>
             ))}
           </Command.Group>

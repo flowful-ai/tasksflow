@@ -43,7 +43,9 @@ function defaultDeps(): McpAuthDeps {
 }
 
 function resourcePathForRequest(path: string): McpResourcePath {
-  return path === MCP_LEGACY_PATH || path.startsWith(`${MCP_LEGACY_PATH}/`) ? MCP_LEGACY_PATH : MCP_CANONICAL_PATH;
+  return path === MCP_LEGACY_PATH || path.startsWith(`${MCP_LEGACY_PATH}/`)
+    ? MCP_LEGACY_PATH
+    : MCP_CANONICAL_PATH;
 }
 
 function unauthorized(c: Context, description: string, withError: boolean): Response {
@@ -56,7 +58,10 @@ function unauthorized(c: Context, description: string, withError: boolean): Resp
       withError ? { code: 'invalid_token', description } : undefined
     )
   );
-  return c.json({ error: withError ? 'invalid_token' : 'unauthorized', error_description: description }, 401);
+  return c.json(
+    { error: withError ? 'invalid_token' : 'unauthorized', error_description: description },
+    401
+  );
 }
 
 /**
@@ -89,7 +94,10 @@ export function createMcpAuth(deps: McpAuthDeps = defaultDeps()): MiddlewareHand
     }
     if (!isAuthorizingRole(role)) {
       return c.json(
-        { error: 'insufficient_role', error_description: 'Only workspace owners and admins can use MCP access' },
+        {
+          error: 'insufficient_role',
+          error_description: 'Only workspace owners and admins can use MCP access',
+        },
         403
       );
     }

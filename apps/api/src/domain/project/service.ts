@@ -44,10 +44,20 @@ export class ProjectService {
       const [existing] = await this.db
         .select({ id: projects.id })
         .from(projects)
-        .where(and(eq(projects.workspaceId, input.workspaceId), eq(projects.identifier, input.identifier)));
+        .where(
+          and(
+            eq(projects.workspaceId, input.workspaceId),
+            eq(projects.identifier, input.identifier)
+          )
+        );
 
       if (existing) {
-        return err(new DomainError('CONFLICT', `Project with identifier "${input.identifier}" already exists`));
+        return err(
+          new DomainError(
+            'CONFLICT',
+            `Project with identifier "${input.identifier}" already exists`
+          )
+        );
       }
 
       // Create the project
@@ -144,7 +154,10 @@ export class ProjectService {
   /**
    * Update a project.
    */
-  async update(projectId: string, input: ProjectUpdateInput): Promise<Result<ProjectWithRelations, Error>> {
+  async update(
+    projectId: string,
+    input: ProjectUpdateInput
+  ): Promise<Result<ProjectWithRelations, Error>> {
     try {
       const updateData: Record<string, unknown> = {
         updatedAt: new Date(),
@@ -234,9 +247,20 @@ export class ProjectService {
       // projects fetched above. Without these WHERE clauses every query scans
       // and returns rows for every project across all workspaces.
       const [allStates, allLabels, allIntegrations, taskCounts] = await Promise.all([
-        this.db.select().from(taskStates).where(inArray(taskStates.projectId, projectIds)).orderBy(asc(taskStates.position)),
-        this.db.select().from(labels).where(inArray(labels.projectId, projectIds)).orderBy(asc(labels.name)),
-        this.db.select().from(projectIntegrations).where(inArray(projectIntegrations.projectId, projectIds)),
+        this.db
+          .select()
+          .from(taskStates)
+          .where(inArray(taskStates.projectId, projectIds))
+          .orderBy(asc(taskStates.position)),
+        this.db
+          .select()
+          .from(labels)
+          .where(inArray(labels.projectId, projectIds))
+          .orderBy(asc(labels.name)),
+        this.db
+          .select()
+          .from(projectIntegrations)
+          .where(inArray(projectIntegrations.projectId, projectIds)),
         this.db
           .select({ projectId: tasks.projectId, count: sql<number>`COUNT(*)::int` })
           .from(tasks)
@@ -245,9 +269,9 @@ export class ProjectService {
       ]);
 
       // Build maps
-      const statesMap = new Map<string, typeof taskStates.$inferSelect[]>();
-      const labelsMap = new Map<string, typeof labels.$inferSelect[]>();
-      const integrationsMap = new Map<string, typeof projectIntegrations.$inferSelect[]>();
+      const statesMap = new Map<string, (typeof taskStates.$inferSelect)[]>();
+      const labelsMap = new Map<string, (typeof labels.$inferSelect)[]>();
+      const integrationsMap = new Map<string, (typeof projectIntegrations.$inferSelect)[]>();
       const taskCountMap = new Map<string, number>();
 
       for (const state of allStates) {
@@ -293,7 +317,9 @@ export class ProjectService {
             );
           const memberOfSet = new Set(memberEntries.map((m) => m.projectId));
 
-          filteredRows = filteredRows.filter((p) => projectAclAllows(p.access, 'member', memberOfSet.has(p.id)));
+          filteredRows = filteredRows.filter((p) =>
+            projectAclAllows(p.access, 'member', memberOfSet.has(p.id))
+          );
         }
       }
 
@@ -317,7 +343,9 @@ export class ProjectService {
   /**
    * Create a new task state.
    */
-  async createTaskState(input: TaskStateCreateInput): Promise<Result<typeof taskStates.$inferSelect, Error>> {
+  async createTaskState(
+    input: TaskStateCreateInput
+  ): Promise<Result<typeof taskStates.$inferSelect, Error>> {
     try {
       // Get the last position
       const [lastState] = await this.db
@@ -496,7 +524,11 @@ export class ProjectService {
    * Check if a user has access to a project based on their workspace role.
    * Owners/admins always have access.
    */
-  async hasAccess(projectId: string, userId: string, workspaceRole: WorkspaceRole): Promise<boolean> {
+  async hasAccess(
+    projectId: string,
+    userId: string,
+    workspaceRole: WorkspaceRole
+  ): Promise<boolean> {
     if (workspaceRole === 'owner' || workspaceRole === 'admin') {
       return true;
     }
@@ -523,7 +555,18 @@ export class ProjectService {
   /**
    * Get project members with user details.
    */
-  async getMembers(projectId: string): Promise<Result<{ id: string; projectId: string; userId: string; createdAt: Date; user: { id: string; email: string; name: string | null; avatarUrl: string | null } }[], Error>> {
+  async getMembers(projectId: string): Promise<
+    Result<
+      {
+        id: string;
+        projectId: string;
+        userId: string;
+        createdAt: Date;
+        user: { id: string; email: string; name: string | null; avatarUrl: string | null };
+      }[],
+      Error
+    >
+  > {
     try {
       const rows = await this.db
         .select({
@@ -552,7 +595,11 @@ export class ProjectService {
    * Set the access mode and member list for a project.
    * If access is not 'members', the members list is cleared.
    */
-  async setAccess(projectId: string, access: 'all' | 'admin' | 'members', userIds?: string[]): Promise<Result<void, Error>> {
+  async setAccess(
+    projectId: string,
+    access: 'all' | 'admin' | 'members',
+    userIds?: string[]
+  ): Promise<Result<void, Error>> {
     try {
       const uniqueUserIds = [...new Set(userIds ?? [])];
       if (access === 'members' && uniqueUserIds.length > 0) {
@@ -566,9 +613,16 @@ export class ProjectService {
         const memberRows = await this.db
           .select({ userId: workspaceMembers.userId })
           .from(workspaceMembers)
-          .where(and(eq(workspaceMembers.workspaceId, project.workspaceId), inArray(workspaceMembers.userId, uniqueUserIds)));
+          .where(
+            and(
+              eq(workspaceMembers.workspaceId, project.workspaceId),
+              inArray(workspaceMembers.userId, uniqueUserIds)
+            )
+          );
         if (memberRows.length !== uniqueUserIds.length) {
-          return err(new DomainError('BAD_REQUEST', 'All project members must be workspace members'));
+          return err(
+            new DomainError('BAD_REQUEST', 'All project members must be workspace members')
+          );
         }
       }
 

@@ -53,12 +53,20 @@ export function TaskListView({
   const sections = useMemo(() => {
     const sortGroups = (groups: TaskGroup[]) =>
       groups.map((group) => ({ ...group, tasks: sortTasksForColumn(group.tasks, group.category) }));
-    if (!secondaryGroupBy) return [{ outer: null, groups: sortGroups(groupTasks(tasks, groupBy, availableStates, mergeStatesByCategory)) }];
+    if (!secondaryGroupBy)
+      return [
+        {
+          outer: null,
+          groups: sortGroups(groupTasks(tasks, groupBy, availableStates, mergeStatesByCategory)),
+        },
+      ];
     return groupTasks(tasks, secondaryGroupBy, undefined, mergeStatesByCategory).map((outer) => ({
       outer,
       groups: sortGroups(
         groupTasks(
-          tasks.filter((task) => taskMatchesGroup(task, secondaryGroupBy, outer.id, mergeStatesByCategory)),
+          tasks.filter((task) =>
+            taskMatchesGroup(task, secondaryGroupBy, outer.id, mergeStatesByCategory)
+          ),
           groupBy,
           availableStates,
           mergeStatesByCategory
@@ -68,8 +76,10 @@ export function TaskListView({
   }, [tasks, groupBy, secondaryGroupBy, availableStates, mergeStatesByCategory]);
 
   const isStateGrouping = groupBy === 'state' || secondaryGroupBy === 'state';
-  const effectiveShowProject = showProject && groupBy !== 'project' && secondaryGroupBy !== 'project';
-  const canAdd = groupBy === 'state' && !secondaryGroupBy && !mergeStatesByCategory ? onAddTask : undefined;
+  const effectiveShowProject =
+    showProject && groupBy !== 'project' && secondaryGroupBy !== 'project';
+  const canAdd =
+    groupBy === 'state' && !secondaryGroupBy && !mergeStatesByCategory ? onAddTask : undefined;
 
   if (tasks.length === 0 && groupBy === 'none') {
     return <p className="py-8 text-center text-neutral-500">No tasks found</p>;
@@ -90,7 +100,12 @@ export function TaskListView({
             onAddTask={canAdd}
           />
         ));
-        if (!outer) return <div key="all" className="flex flex-col gap-3">{content}</div>;
+        if (!outer)
+          return (
+            <div key="all" className="flex flex-col gap-3">
+              {content}
+            </div>
+          );
         return (
           <section key={outer.id} aria-label={outer.name} className="flex flex-col gap-2">
             <h3 className="flex items-center gap-2 px-1 text-[13px] font-semibold text-neutral-900">
@@ -151,7 +166,14 @@ const ListGroup = memo(function ListGroup({
           <span className="truncate">{group.name}</span>
           <span className="font-medium text-neutral-400">{group.tasks.length}</span>
         </button>
-        {onAddTask && <IconButton label={`Add task to ${group.name}`} icon={<Plus />} size="xs" onClick={() => onAddTask(group.id)} />}
+        {onAddTask && (
+          <IconButton
+            label={`Add task to ${group.name}`}
+            icon={<Plus />}
+            size="xs"
+            onClick={() => onAddTask(group.id)}
+          />
+        )}
       </div>
       {isExpanded && (
         <div id={panelId} className="overflow-hidden rounded-xl border border-neutral-200 bg-white">

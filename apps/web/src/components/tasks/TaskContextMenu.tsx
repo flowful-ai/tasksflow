@@ -101,12 +101,15 @@ export function TaskContextMenu({
                     key={item.label}
                     icon={<ColorDot color={item.dotColor} size="md" />}
                     onSelect={() => {
-                      if (!isActive) updateTask.mutate({ taskId, priority: item.value }, { onSuccess: done });
+                      if (!isActive)
+                        updateTask.mutate({ taskId, priority: item.value }, { onSuccess: done });
                     }}
                   >
                     <span className="flex items-center justify-between gap-2">
                       {item.label}
-                      {isActive && <Check className="h-3.5 w-3.5 text-primary-600" aria-label="Current" />}
+                      {isActive && (
+                        <Check className="h-3.5 w-3.5 text-primary-600" aria-label="Current" />
+                      )}
                     </span>
                   </DropdownMenuItem>
                 );
@@ -124,12 +127,15 @@ export function TaskContextMenu({
                     key={state.id}
                     icon={<ColorDot color={state.color} size="md" />}
                     onSelect={() => {
-                      if (!isActive) updateTask.mutate({ taskId, stateId: state.id }, { onSuccess: done });
+                      if (!isActive)
+                        updateTask.mutate({ taskId, stateId: state.id }, { onSuccess: done });
                     }}
                   >
                     <span className="flex items-center justify-between gap-2">
                       {state.name}
-                      {isActive && <Check className="h-3.5 w-3.5 text-primary-600" aria-label="Current" />}
+                      {isActive && (
+                        <Check className="h-3.5 w-3.5 text-primary-600" aria-label="Current" />
+                      )}
                     </span>
                   </DropdownMenuItem>
                 );
@@ -143,7 +149,8 @@ export function TaskContextMenu({
             icon={<UserPlus />}
             disabled={isAssignedToMe || !currentUserId}
             onSelect={() => {
-              if (currentUserId && !isAssignedToMe) addAssignee.mutate(currentUserId, { onSuccess: done });
+              if (currentUserId && !isAssignedToMe)
+                addAssignee.mutate(currentUserId, { onSuccess: done });
             }}
           >
             {isAssignedToMe ? 'Already assigned' : 'Assign to me'}

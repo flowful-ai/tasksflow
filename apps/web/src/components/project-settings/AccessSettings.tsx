@@ -77,22 +77,24 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
     );
   }
 
-  const hasChanges = access !== currentAccess ||
-    (access === 'members' && !setsEqual(selectedUserIds, new Set((projectMembers || []).map((m) => m.userId))));
+  const hasChanges =
+    access !== currentAccess ||
+    (access === 'members' &&
+      !setsEqual(selectedUserIds, new Set((projectMembers || []).map((m) => m.userId))));
 
   return (
     <div className="space-y-6">
       <div className="card p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-1">Project Access</h3>
-        <p className="text-sm text-gray-500 mb-6">
-          Control who can see and access this project.
-        </p>
+        <p className="text-sm text-gray-500 mb-6">Control who can see and access this project.</p>
 
         {/* Access mode radio group */}
         <div className="space-y-3">
           <label
             className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-              access === 'all' ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'
+              access === 'all'
+                ? 'border-primary-500 bg-primary-50'
+                : 'border-gray-200 hover:border-gray-300'
             }`}
           >
             <input
@@ -116,7 +118,9 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
 
           <label
             className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-              access === 'admin' ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'
+              access === 'admin'
+                ? 'border-primary-500 bg-primary-50'
+                : 'border-gray-200 hover:border-gray-300'
             }`}
           >
             <input
@@ -140,7 +144,9 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
 
           <label
             className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-              access === 'members' ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'
+              access === 'members'
+                ? 'border-primary-500 bg-primary-50'
+                : 'border-gray-200 hover:border-gray-300'
             }`}
           >
             <input
@@ -202,9 +208,16 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
                           className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 focus:bg-gray-50 transition-colors text-left"
                         >
                           {member.user.avatarUrl ? (
-                            <img src={member.user.avatarUrl} alt="" className="w-6 h-6 rounded-full" />
+                            <img
+                              src={member.user.avatarUrl}
+                              alt=""
+                              className="w-6 h-6 rounded-full"
+                            />
                           ) : (
-                            <div aria-hidden className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center text-xs font-medium text-primary-700">
+                            <div
+                              aria-hidden
+                              className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center text-xs font-medium text-primary-700"
+                            >
                               {member.user.name?.[0] || member.user.email[0]?.toUpperCase()}
                             </div>
                           )}

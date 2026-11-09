@@ -49,7 +49,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     const { error } = this.state;
     if (!error) return this.props.children;
     if (this.props.fallback) return this.props.fallback({ error, reset: this.reset });
-    return <ErrorFallback error={error} onReset={this.reset} variant={this.props.variant ?? 'page'} />;
+    return (
+      <ErrorFallback error={error} onReset={this.reset} variant={this.props.variant ?? 'page'} />
+    );
   }
 }
 
@@ -63,7 +65,10 @@ export function ErrorFallback({
   variant?: 'page' | 'section';
 }) {
   /** Stale chunks after a deploy: a reload fetches the new build. */
-  const isChunkError = /dynamically imported module|Loading chunk|Importing a module script failed/i.test(error.message);
+  const isChunkError =
+    /dynamically imported module|Loading chunk|Importing a module script failed/i.test(
+      error.message
+    );
   return (
     <div
       role="alert"
@@ -73,7 +78,10 @@ export function ErrorFallback({
           : 'flex flex-col items-center justify-center gap-3 py-20 text-center'
       }
     >
-      <div aria-hidden className="grid h-14 w-14 place-items-center rounded-[14px] border border-neutral-200 bg-neutral-50">
+      <div
+        aria-hidden
+        className="grid h-14 w-14 place-items-center rounded-[14px] border border-neutral-200 bg-neutral-50"
+      >
         <AlertTriangle className="h-6 w-6 text-primary-600" />
       </div>
       <h1 className="text-lg font-semibold text-neutral-900">
@@ -85,7 +93,9 @@ export function ErrorFallback({
           : 'This part of the page crashed. Your data is safe; try again or reload the page.'}
       </p>
       {import.meta.env.DEV && !isChunkError && (
-        <pre className="max-w-xl overflow-auto rounded-lg bg-neutral-50 p-3 text-left text-xs text-neutral-600">{error.message}</pre>
+        <pre className="max-w-xl overflow-auto rounded-lg bg-neutral-50 p-3 text-left text-xs text-neutral-600">
+          {error.message}
+        </pre>
       )}
       <div className="mt-1 flex gap-2">
         {onReset && !isChunkError && (

@@ -27,10 +27,22 @@ export interface ErrorStateProps {
 }
 
 const COPY: Record<ErrorKind, { title: (r: string) => string; body: string }> = {
-  network: { title: (r) => `Couldn't load this ${r}`, body: 'Network error: check your connection, then retry.' },
-  server: { title: (r) => `Couldn't load this ${r}`, body: 'The server had a problem. Retrying usually helps.' },
-  'not-found': { title: (r) => `This ${r} doesn't exist`, body: 'It may have been deleted, or the link is wrong.' },
-  forbidden: { title: (r) => `You don't have access to this ${r}`, body: 'Ask a workspace admin for access.' },
+  network: {
+    title: (r) => `Couldn't load this ${r}`,
+    body: 'Network error: check your connection, then retry.',
+  },
+  server: {
+    title: (r) => `Couldn't load this ${r}`,
+    body: 'The server had a problem. Retrying usually helps.',
+  },
+  'not-found': {
+    title: (r) => `This ${r} doesn't exist`,
+    body: 'It may have been deleted, or the link is wrong.',
+  },
+  forbidden: {
+    title: (r) => `You don't have access to this ${r}`,
+    body: 'Ask a workspace admin for access.',
+  },
   unknown: { title: (r) => `Couldn't load this ${r}`, body: 'Something went wrong.' },
 };
 
@@ -38,7 +50,13 @@ const COPY: Record<ErrorKind, { title: (r: string) => string; body: string }> = 
  * Failed load (mockup section 6). Network and 5xx errors get a Retry button;
  * a 404/403 explains itself instead of pretending a retry would help.
  */
-export function ErrorState({ error, resource = 'page', onRetry, notFoundAction, className }: ErrorStateProps) {
+export function ErrorState({
+  error,
+  resource = 'page',
+  onRetry,
+  notFoundAction,
+  className,
+}: ErrorStateProps) {
   const kind = classifyError(error);
   const copy = COPY[kind];
   const retryable = kind === 'network' || kind === 'server' || kind === 'unknown';
@@ -46,7 +64,13 @@ export function ErrorState({ error, resource = 'page', onRetry, notFoundAction, 
   const detail = kind === 'unknown' && error?.message ? error.message : copy.body;
 
   return (
-    <div role="alert" className={clsx('flex flex-col items-center justify-center gap-2 py-14 text-center', className)}>
+    <div
+      role="alert"
+      className={clsx(
+        'flex flex-col items-center justify-center gap-2 py-14 text-center',
+        className
+      )}
+    >
       <div
         aria-hidden
         className="mb-1 grid h-14 w-14 place-items-center rounded-[14px] border border-neutral-200 bg-neutral-50 text-neutral-500"

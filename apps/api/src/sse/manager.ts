@@ -1,5 +1,11 @@
 import { getAuthz } from '../lib/authorize.js';
-import { RealtimeHub, type AccessResolver, type ClientHandle, type ClientRegistration, type PublishOptions } from './hub.js';
+import {
+  RealtimeHub,
+  type AccessResolver,
+  type ClientHandle,
+  type ClientRegistration,
+  type PublishOptions,
+} from './hub.js';
 import { PostgresTransport } from './postgres-transport.js';
 import type { EventPayload } from './wire.js';
 
@@ -11,7 +17,8 @@ import type { EventPayload } from './wire.js';
 
 const accessResolver: AccessResolver = {
   getRole: (workspaceId, userId) => getAuthz().getRole(workspaceId, userId),
-  listAccessibleProjectIds: (workspaceId, userId, role) => getAuthz().listAccessibleProjectIds(workspaceId, userId, role),
+  listAccessibleProjectIds: (workspaceId, userId, role) =>
+    getAuthz().listAccessibleProjectIds(workspaceId, userId, role),
   isSessionActive: (sessionId) => getAuthz().isSessionActive(sessionId),
   resolveTaskProjectId: (taskId) => getAuthz().getTaskProjectId(taskId),
 };
@@ -63,7 +70,11 @@ export function publishEvent<T extends EventPayload>(
 }
 
 /** Publish an event to all of one user's streams (any workspace). */
-export function publishUserEvent<T extends EventPayload>(userId: string, event: string, data: T): void {
+export function publishUserEvent<T extends EventPayload>(
+  userId: string,
+  event: string,
+  data: T
+): void {
   hub.publishUserEvent(userId, event, data);
 }
 

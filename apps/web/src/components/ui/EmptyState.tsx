@@ -21,9 +21,22 @@ export interface EmptyStateProps {
  *     body={<>Clear the filter or press <Kbd>C</Kbd> to create one.</>}
  *     action={<button className="btn btn-secondary" onClick={clear}>Clear filter</button>} />
  */
-export function EmptyState({ icon, title, body, action, compact = false, className }: EmptyStateProps) {
+export function EmptyState({
+  icon,
+  title,
+  body,
+  action,
+  compact = false,
+  className,
+}: EmptyStateProps) {
   return (
-    <div className={clsx('flex flex-col items-center justify-center gap-2 text-center', compact ? 'py-6' : 'py-14', className)}>
+    <div
+      className={clsx(
+        'flex flex-col items-center justify-center gap-2 text-center',
+        compact ? 'py-6' : 'py-14',
+        className
+      )}
+    >
       {icon && (
         <div
           aria-hidden

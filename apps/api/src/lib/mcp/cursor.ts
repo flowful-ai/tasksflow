@@ -26,11 +26,17 @@ export function decodeCursor(cursor: string): PageWindow {
   try {
     json = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
   } catch {
-    throw new ToolExecutionError('cursor is invalid; pass nextCursor from the previous page unchanged', 'VALIDATION_ERROR');
+    throw new ToolExecutionError(
+      'cursor is invalid; pass nextCursor from the previous page unchanged',
+      'VALIDATION_ERROR'
+    );
   }
   const parsed = CursorSchema.safeParse(json);
   if (!parsed.success) {
-    throw new ToolExecutionError('cursor is invalid; pass nextCursor from the previous page unchanged', 'VALIDATION_ERROR');
+    throw new ToolExecutionError(
+      'cursor is invalid; pass nextCursor from the previous page unchanged',
+      'VALIDATION_ERROR'
+    );
   }
   return { offset: parsed.data.o, limit: parsed.data.l };
 }

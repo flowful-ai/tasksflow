@@ -2,9 +2,18 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { and, eq } from 'drizzle-orm';
 import { getDatabase, githubInstallations } from '../db/index.js';
-import { authMiddleware, getCurrentSession, getCurrentUser, getOptionalUser } from '../auth/index.js';
+import {
+  authMiddleware,
+  getCurrentSession,
+  getCurrentUser,
+  getOptionalUser,
+} from '../auth/index.js';
 import { TaskService } from '../domain/index.js';
-import { GitHubRepoRefSchema, LinkGitHubRepositorySchema, findLinkedRepository } from '@flowtask/shared';
+import {
+  GitHubRepoRefSchema,
+  LinkGitHubRepositorySchema,
+  findLinkedRepository,
+} from '@flowtask/shared';
 import {
   GitHubSyncService,
   createGitHubClientForInstallation,
@@ -17,7 +26,10 @@ import {
   updateRepoSyncStatus,
 } from '../integrations/index.js';
 import { apiError, authorizeProjectIntegration } from '../services/integration-access.js';
-import { GitHubInstallError, completeGitHubInstallation } from '../services/github-install-service.js';
+import {
+  GitHubInstallError,
+  completeGitHubInstallation,
+} from '../services/github-install-service.js';
 import { slackRoutes } from './slack.js';
 
 const github = new Hono();
@@ -35,7 +47,12 @@ async function userOwnsInstallation(userId: string, installationId: number): Pro
   const [row] = await db
     .select({ id: githubInstallations.id })
     .from(githubInstallations)
-    .where(and(eq(githubInstallations.userId, userId), eq(githubInstallations.installationId, installationId)));
+    .where(
+      and(
+        eq(githubInstallations.userId, userId),
+        eq(githubInstallations.installationId, installationId)
+      )
+    );
   return Boolean(row);
 }
 
@@ -108,13 +125,22 @@ github.get('/:projectId/github', async (c) => {
     .from(githubInstallations)
     .where(eq(githubInstallations.userId, user.id))
     .limit(1);
-  const canManage = (await authorizeProjectIntegration(projectId, user.id, 'project:manage_integrations')).ok;
+  const canManage = (
+    await authorizeProjectIntegration(projectId, user.id, 'project:manage_integrations')
+  ).ok;
   const canLinkRepos = canManage && Boolean(userInstallation);
 
   if (!integration) {
     return c.json({
       success: true,
-      data: { id: null, installationId: null, repositories: [], isEnabled: false, canLinkRepos, canManage },
+      data: {
+        id: null,
+        installationId: null,
+        repositories: [],
+        isEnabled: false,
+        canLinkRepos,
+        canManage,
+      },
     });
   }
 
@@ -136,11 +162,26 @@ github.post('/:projectId/github/install/start', async (c) => {
   const user = getCurrentUser(c);
   const sessionId = sessionIdOf(c);
   const projectId = c.req.param('projectId');
-  const access = await authorizeProjectIntegration(projectId, user.id, 'project:manage_integrations');
+  const access = await authorizeProjectIntegration(
+    projectId,
+    user.id,
+    'project:manage_integrations'
+  );
   if (!access.ok) return apiError(c, access.status, access.code, access.message);
-  if (!sessionId) return apiError(c, 401, 'UNAUTHORIZED', 'A browser session is required to install the GitHub App');
+  if (!sessionId)
+    return apiError(
+      c,
+      401,
+      'UNAUTHORIZED',
+      'A browser session is required to install the GitHub App'
+    );
 
-  const state = await createOAuthState(db, { provider: 'github', userId: user.id, sessionId, projectId });
+  const state = await createOAuthState(db, {
+    provider: 'github',
+    userId: user.id,
+    sessionId,
+    projectId,
+  });
   const slug = readSecretEnv('GITHUB_APP_SLUG');
   const installUrl = slug
     ? `https://github.com/apps/${encodeURIComponent(slug)}/installations/new?state=${encodeURIComponent(state)}`
@@ -176,7 +217,8 @@ github.post('/:projectId/github/install', async (c) => {
       },
     });
   } catch (error) {
-    if (error instanceof GitHubInstallError) return apiError(c, error.status, error.code, error.message);
+    if (error instanceof GitHubInstallError)
+      return apiError(c, error.status, error.code, error.message);
     throw error;
   }
 });
@@ -185,11 +227,16 @@ github.post('/:projectId/github/install', async (c) => {
 github.post('/:projectId/github/link', async (c) => {
   const user = getCurrentUser(c);
   const projectId = c.req.param('projectId');
-  const access = await authorizeProjectIntegration(projectId, user.id, 'project:manage_integrations');
+  const access = await authorizeProjectIntegration(
+    projectId,
+    user.id,
+    'project:manage_integrations'
+  );
   if (!access.ok) return apiError(c, access.status, access.code, access.message);
 
   const parsed = LinkGitHubRepositorySchema.safeParse(await readJsonBody(c));
-  if (!parsed.success) return apiError(c, 400, 'INVALID_BODY', 'installationId, owner and repo are required');
+  if (!parsed.success)
+    return apiError(c, 400, 'INVALID_BODY', 'installationId, owner and repo are required');
   const { installationId, owner, repo } = parsed.data;
 
   if (!(await userOwnsInstallation(user.id, installationId))) {
@@ -203,7 +250,12 @@ github.post('/:projectId/github/link', async (c) => {
     const repository = await client.getRepository();
     canonical = { owner: repository.owner.login, repo: repository.name };
   } catch {
-    return apiError(c, 400, 'REPO_NOT_ACCESSIBLE', 'This installation cannot access that repository');
+    return apiError(
+      c,
+      400,
+      'REPO_NOT_ACCESSIBLE',
+      'This installation cannot access that repository'
+    );
   }
 
   let alreadyLinked = false;
@@ -243,10 +295,17 @@ github.post('/:projectId/github/link', async (c) => {
 github.delete('/:projectId/github/link', async (c) => {
   const user = getCurrentUser(c);
   const projectId = c.req.param('projectId');
-  const access = await authorizeProjectIntegration(projectId, user.id, 'project:manage_integrations');
+  const access = await authorizeProjectIntegration(
+    projectId,
+    user.id,
+    'project:manage_integrations'
+  );
   if (!access.ok) return apiError(c, access.status, access.code, access.message);
 
-  const parsed = GitHubRepoRefSchema.safeParse({ owner: c.req.query('owner'), repo: c.req.query('repo') });
+  const parsed = GitHubRepoRefSchema.safeParse({
+    owner: c.req.query('owner'),
+    repo: c.req.query('repo'),
+  });
   if (!parsed.success) return apiError(c, 400, 'INVALID_QUERY', 'Missing owner or repo parameter');
   const { owner, repo } = parsed.data;
 
@@ -255,7 +314,11 @@ github.delete('/:projectId/github/link', async (c) => {
 
   await updateGitHubConfig(db, projectId, (config) => ({
     repositories: config.repositories.filter(
-      (r) => !(r.owner.toLowerCase() === owner.toLowerCase() && r.repo.toLowerCase() === repo.toLowerCase())
+      (r) =>
+        !(
+          r.owner.toLowerCase() === owner.toLowerCase() &&
+          r.repo.toLowerCase() === repo.toLowerCase()
+        )
     ),
   }));
   return c.json({ success: true });
@@ -265,7 +328,11 @@ github.delete('/:projectId/github/link', async (c) => {
 github.post('/:projectId/github/sync', async (c) => {
   const user = getCurrentUser(c);
   const projectId = c.req.param('projectId');
-  const access = await authorizeProjectIntegration(projectId, user.id, 'project:manage_integrations');
+  const access = await authorizeProjectIntegration(
+    projectId,
+    user.id,
+    'project:manage_integrations'
+  );
   if (!access.ok) return apiError(c, access.status, access.code, access.message);
 
   const parsed = GitHubRepoRefSchema.safeParse(await readJsonBody(c));
@@ -276,7 +343,10 @@ github.post('/:projectId/github/sync', async (c) => {
   const linkedRepo = findLinkedRepository(integration.config, parsed.data.owner, parsed.data.repo);
   if (!linkedRepo) return apiError(c, 404, 'REPO_NOT_LINKED', 'Repository not linked');
 
-  await updateRepoSyncStatus(db, projectId, linkedRepo.owner, linkedRepo.repo, { syncStatus: 'syncing', syncError: null });
+  await updateRepoSyncStatus(db, projectId, linkedRepo.owner, linkedRepo.repo, {
+    syncStatus: 'syncing',
+    syncError: null,
+  });
 
   try {
     const syncService = new GitHubSyncService({ db, taskService });
@@ -296,7 +366,10 @@ github.post('/:projectId/github/sync', async (c) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Sync failed';
     console.error(`[GitHub Sync] Failed for ${linkedRepo.owner}/${linkedRepo.repo}:`, error);
-    await updateRepoSyncStatus(db, projectId, linkedRepo.owner, linkedRepo.repo, { syncStatus: 'error', syncError: message });
+    await updateRepoSyncStatus(db, projectId, linkedRepo.owner, linkedRepo.repo, {
+      syncStatus: 'error',
+      syncError: message,
+    });
     return apiError(c, 502, 'SYNC_FAILED', message);
   }
 });
@@ -328,16 +401,30 @@ githubPublic.get('/callback', authMiddleware, async (c) => {
   if (!user || !sessionId) return fail('not_signed_in');
   if (setupAction === 'request') return fail('installation_requested');
   if (!code || !state) return fail('authorization_required');
-  if (!Number.isSafeInteger(installationId) || installationId <= 0) return fail('missing_installation');
+  if (!Number.isSafeInteger(installationId) || installationId <= 0)
+    return fail('missing_installation');
 
   try {
-    const result = await completeGitHubInstallation({ state, code, installationId, userId: user.id, sessionId });
+    const result = await completeGitHubInstallation({
+      state,
+      code,
+      installationId,
+      userId: user.id,
+      sessionId,
+    });
     return c.redirect(
       `${webUrl}/project/${result.projectId}/settings?section=github&github_installation_id=${result.installationId}`
     );
   } catch (error) {
     if (error instanceof GitHubInstallError) {
-      console.warn(JSON.stringify({ level: 'warn', msg: 'github_install_rejected', code: error.code, userId: user.id }));
+      console.warn(
+        JSON.stringify({
+          level: 'warn',
+          msg: 'github_install_rejected',
+          code: error.code,
+          userId: user.id,
+        })
+      );
       return fail(error.code.toLowerCase());
     }
     console.error('GitHub install callback failed:', error);

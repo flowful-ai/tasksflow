@@ -12,7 +12,11 @@ import type { JobHandler } from '../jobs/types.js';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Hard-delete tasks soft-deleted more than `retentionDays` ago. Returns the count. */
-export async function purgeTrash(db: Database, retentionDays = TRASH_RETENTION_DAYS, now: Date = new Date()): Promise<number> {
+export async function purgeTrash(
+  db: Database,
+  retentionDays = TRASH_RETENTION_DAYS,
+  now: Date = new Date()
+): Promise<number> {
   const cutoff = new Date(now.getTime() - retentionDays * DAY_MS);
   const rows = await db
     .delete(tasks)

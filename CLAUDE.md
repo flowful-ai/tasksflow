@@ -85,6 +85,7 @@ packages/database
 ### One-Way Sync Pattern
 
 External systems are the source of truth:
+
 - **GitHub → FlowTask**: Issues/PRs sync to tasks, but changes in FlowTask don't push back
 - **FlowTask → Slack**: Notifications only, no task creation from Slack
 
@@ -93,6 +94,7 @@ This simplifies conflict resolution and keeps the integration logic manageable.
 ### Lexicographic Ordering
 
 Tasks use lexicographic (fractional) positioning for drag-and-drop ordering:
+
 - Positions are strings like "a0", "a1", "aV" that sort lexicographically
 - When inserting between "a0" and "a1", generate "a0V" (midpoint)
 - Utility in `packages/shared/src/utils/lexicographic.ts`
@@ -100,6 +102,7 @@ Tasks use lexicographic (fractional) positioning for drag-and-drop ordering:
 ### Filter Engine
 
 Smart Views use a JSON-based filter configuration:
+
 ```typescript
 {
   operator: "AND",
@@ -125,25 +128,25 @@ The filter engine (`packages/domain/src/smart-view/filter-engine.ts`) converts t
 
 Key tables (defined in `packages/database/src/schema.ts`):
 
-| Table | Purpose |
-|-------|---------|
-| `users` | User accounts |
-| `workspaces` | Top-level organization |
-| `workspace_members` | User-workspace membership with roles |
-| `projects` | Projects within workspaces |
-| `task_states` | Kanban columns (Backlog, In Progress, Done) |
-| `tasks` | Task items with title, description, priority |
-| `task_assignees` | Many-to-many task-user assignments |
-| `labels` | Project-level labels |
-| `task_labels` | Many-to-many task-label assignments |
-| `task_events` | Audit log of all task changes |
-| `comments` | Task comments |
-| `smart_views` | Saved filtered views |
-| `public_shares` | Public share tokens for smart views |
-| `project_integrations` | GitHub/Slack integration configs |
-| `external_links` | Links between tasks and GitHub issues/PRs |
-| `agents` | AI agent configurations |
-| `user_api_keys` | Encrypted OpenRouter API keys |
+| Table                  | Purpose                                      |
+| ---------------------- | -------------------------------------------- |
+| `users`                | User accounts                                |
+| `workspaces`           | Top-level organization                       |
+| `workspace_members`    | User-workspace membership with roles         |
+| `projects`             | Projects within workspaces                   |
+| `task_states`          | Kanban columns (Backlog, In Progress, Done)  |
+| `tasks`                | Task items with title, description, priority |
+| `task_assignees`       | Many-to-many task-user assignments           |
+| `labels`               | Project-level labels                         |
+| `task_labels`          | Many-to-many task-label assignments          |
+| `task_events`          | Audit log of all task changes                |
+| `comments`             | Task comments                                |
+| `smart_views`          | Saved filtered views                         |
+| `public_shares`        | Public share tokens for smart views          |
+| `project_integrations` | GitHub/Slack integration configs             |
+| `external_links`       | Links between tasks and GitHub issues/PRs    |
+| `agents`               | AI agent configurations                      |
+| `user_api_keys`        | Encrypted OpenRouter API keys                |
 
 ## Code Conventions
 
@@ -163,7 +166,7 @@ Key tables (defined in `packages/database/src/schema.ts`):
 // Server startup (apps/api/src/index.ts)
 const server = Bun.serve({
   port: 3001,
-  fetch: app.fetch,  // Hono app
+  fetch: app.fetch, // Hono app
 });
 
 // WebSocket server (apps/api/src/websocket/handler.ts)
@@ -175,9 +178,15 @@ Bun.serve({
     }
   },
   websocket: {
-    open(ws) { /* ... */ },
-    message(ws, message) { /* ... */ },
-    close(ws) { /* ... */ },
+    open(ws) {
+      /* ... */
+    },
+    message(ws, message) {
+      /* ... */
+    },
+    close(ws) {
+      /* ... */
+    },
   },
 });
 ```
@@ -185,12 +194,14 @@ Bun.serve({
 ### API Routes
 
 Routes are organized in `apps/api/src/routes/`:
+
 - Use Hono's router with method chaining
 - Validate input with Zod schemas
 - Return consistent response format: `{ data: T }` or `{ error: string }`
 - Use middleware for auth: `authMiddleware` injects `c.get('user')`
 
 Example:
+
 ```typescript
 // apps/api/src/routes/tasks.ts
 app.post('/', authMiddleware, async (c) => {
@@ -213,11 +224,13 @@ app.post('/', authMiddleware, async (c) => {
 ### Services (Domain Layer)
 
 Business logic lives in `packages/domain/src/`:
+
 - Services are classes instantiated with database client
 - Methods handle validation, authorization, and database operations
 - Emit events for real-time updates
 
 Example:
+
 ```typescript
 // packages/domain/src/task/service.ts
 class TaskService {
@@ -316,6 +329,7 @@ Test files are colocated with source: `service.ts` → `service.test.ts`
 ## Environment Setup
 
 Required for development:
+
 ```env
 DATABASE_URL=postgresql://flowtask:flowtask@localhost:5432/flowtask
 REDIS_URL=redis://localhost:6379
@@ -324,6 +338,7 @@ BETTER_AUTH_URL=http://localhost:3001
 ```
 
 Start infrastructure and dev servers:
+
 ```bash
 docker-compose up -d
 bun run db:migrate
@@ -332,15 +347,15 @@ bun run dev
 
 ## Important Files
 
-| File | Purpose |
-|------|---------|
-| `packages/database/src/schema.ts` | All database table definitions |
-| `packages/domain/src/task/service.ts` | Core task business logic |
-| `packages/domain/src/smart-view/filter-engine.ts` | JSON filter → SQL conversion |
-| `apps/api/src/index.ts` | API server entry point (Bun.serve) |
-| `apps/api/src/websocket/handler.ts` | Bun WebSocket handling |
-| `apps/web/src/components/task-display/GroupedKanbanBoard.tsx` | Main kanban UI |
-| `apps/web/src/stores/workspace.ts` | Workspace/project state management |
+| File                                                          | Purpose                            |
+| ------------------------------------------------------------- | ---------------------------------- |
+| `packages/database/src/schema.ts`                             | All database table definitions     |
+| `packages/domain/src/task/service.ts`                         | Core task business logic           |
+| `packages/domain/src/smart-view/filter-engine.ts`             | JSON filter → SQL conversion       |
+| `apps/api/src/index.ts`                                       | API server entry point (Bun.serve) |
+| `apps/api/src/websocket/handler.ts`                           | Bun WebSocket handling             |
+| `apps/web/src/components/task-display/GroupedKanbanBoard.tsx` | Main kanban UI                     |
+| `apps/web/src/stores/workspace.ts`                            | Workspace/project state management |
 
 ## Performance Considerations
 

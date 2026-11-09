@@ -2,7 +2,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../api/queryKeys';
 import { githubApi, slackApi, webhooksApi, type LinkRepositoryInput } from '../../api/integrations';
-import type { CreateOutgoingWebhookInput, UpdateOutgoingWebhookInput, UpdateSlackInput } from '../../api/types';
+import type {
+  CreateOutgoingWebhookInput,
+  UpdateOutgoingWebhookInput,
+  UpdateSlackInput,
+} from '../../api/types';
 
 // ============ GitHub ============
 
@@ -16,7 +20,11 @@ export function useGitHubIntegration(projectId: string | null | undefined) {
 }
 
 export function useGitHubInstallations(enabled = true) {
-  return useQuery({ queryKey: queryKeys.github.installations(), queryFn: githubApi.getMyInstallations, enabled });
+  return useQuery({
+    queryKey: queryKeys.github.installations(),
+    queryFn: githubApi.getMyInstallations,
+    enabled,
+  });
 }
 
 export function useGitHubRepos(installationId: number | null | undefined) {
@@ -29,7 +37,8 @@ export function useGitHubRepos(installationId: number | null | undefined) {
 
 export function useGitHubMutations(projectId: string) {
   const queryClient = useQueryClient();
-  const onSettled = () => queryClient.invalidateQueries({ queryKey: queryKeys.projects.github(projectId) });
+  const onSettled = () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.projects.github(projectId) });
   return {
     link: useMutation({
       mutationFn: (input: LinkRepositoryInput) => githubApi.linkRepository(projectId, input),
@@ -37,14 +46,19 @@ export function useGitHubMutations(projectId: string) {
       meta: { errorMessage: 'Could not link the repository' },
     }),
     unlink: useMutation({
-      mutationFn: ({ owner, repo }: { owner: string; repo: string }) => githubApi.unlinkRepository(projectId, owner, repo),
+      mutationFn: ({ owner, repo }: { owner: string; repo: string }) =>
+        githubApi.unlinkRepository(projectId, owner, repo),
       onSettled,
       meta: { errorMessage: 'Could not unlink the repository' },
     }),
     sync: useMutation({
-      mutationFn: ({ owner, repo }: { owner: string; repo: string }) => githubApi.triggerSync(projectId, owner, repo),
+      mutationFn: ({ owner, repo }: { owner: string; repo: string }) =>
+        githubApi.triggerSync(projectId, owner, repo),
       onSettled: () =>
-        Promise.all([onSettled(), queryClient.invalidateQueries({ queryKey: queryKeys.tasks.project(projectId) })]),
+        Promise.all([
+          onSettled(),
+          queryClient.invalidateQueries({ queryKey: queryKeys.tasks.project(projectId) }),
+        ]),
       meta: { errorMessage: 'Sync failed' },
     }),
   };
@@ -70,7 +84,8 @@ export function useSlackChannels(projectId: string | null | undefined, enabled: 
 
 export function useSlackMutations(projectId: string) {
   const queryClient = useQueryClient();
-  const onSettled = () => queryClient.invalidateQueries({ queryKey: queryKeys.projects.slack(projectId) });
+  const onSettled = () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.projects.slack(projectId) });
   return {
     update: useMutation({
       mutationFn: (patch: UpdateSlackInput) => slackApi.update(projectId, patch),
@@ -105,21 +120,25 @@ export function useWebhookDeliveries(webhookId: string | null | undefined, limit
     queryKey: queryKeys.webhooks.deliveries(webhookId ?? ''),
     queryFn: () => webhooksApi.deliveries(webhookId ?? '', { limit }),
     enabled: Boolean(webhookId),
-    refetchInterval: (query) => (query.state.data?.some((d) => d.status === 'pending') ? 3000 : false),
+    refetchInterval: (query) =>
+      query.state.data?.some((d) => d.status === 'pending') ? 3000 : false,
   });
 }
 
 export function useWebhookMutations(workspaceId: string) {
   const queryClient = useQueryClient();
-  const onSettled = () => queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.webhooks(workspaceId) });
+  const onSettled = () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.webhooks(workspaceId) });
   return {
     create: useMutation({
-      mutationFn: (input: Omit<CreateOutgoingWebhookInput, 'workspaceId'>) => webhooksApi.create({ ...input, workspaceId }),
+      mutationFn: (input: Omit<CreateOutgoingWebhookInput, 'workspaceId'>) =>
+        webhooksApi.create({ ...input, workspaceId }),
       onSettled,
       meta: { errorMessage: 'Could not create the webhook' },
     }),
     update: useMutation({
-      mutationFn: ({ id, ...input }: UpdateOutgoingWebhookInput & { id: string }) => webhooksApi.update(id, input),
+      mutationFn: ({ id, ...input }: UpdateOutgoingWebhookInput & { id: string }) =>
+        webhooksApi.update(id, input),
       onSettled,
       meta: { errorMessage: 'Could not update the webhook' },
     }),
@@ -130,7 +149,8 @@ export function useWebhookMutations(workspaceId: string) {
     }),
     test: useMutation({
       mutationFn: (id: string) => webhooksApi.test(id),
-      onSettled: (_data, _error, id) => queryClient.invalidateQueries({ queryKey: queryKeys.webhooks.deliveries(id) }),
+      onSettled: (_data, _error, id) =>
+        queryClient.invalidateQueries({ queryKey: queryKeys.webhooks.deliveries(id) }),
       meta: { errorMessage: 'Could not send the test delivery' },
     }),
   };

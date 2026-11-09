@@ -25,12 +25,18 @@ export function isAppError(error: unknown): error is AppError {
   return error instanceof AppError;
 }
 
-export const badRequest = (message = 'Bad request', code = 'BAD_REQUEST'): AppError => new AppError(400, code, message);
-export const unauthorized = (message = 'Authentication required'): AppError => new AppError(401, 'UNAUTHORIZED', message);
-export const forbidden = (message = 'Not authorized', code = 'FORBIDDEN'): AppError => new AppError(403, code, message);
-export const notFound = (what = 'Resource'): AppError => new AppError(404, 'NOT_FOUND', `${what} not found`);
-export const conflict = (message: string, code = 'CONFLICT'): AppError => new AppError(409, code, message);
-export const tooManyRequests = (message = 'Too many requests'): AppError => new AppError(429, 'RATE_LIMITED', message);
+export const badRequest = (message = 'Bad request', code = 'BAD_REQUEST'): AppError =>
+  new AppError(400, code, message);
+export const unauthorized = (message = 'Authentication required'): AppError =>
+  new AppError(401, 'UNAUTHORIZED', message);
+export const forbidden = (message = 'Not authorized', code = 'FORBIDDEN'): AppError =>
+  new AppError(403, code, message);
+export const notFound = (what = 'Resource'): AppError =>
+  new AppError(404, 'NOT_FOUND', `${what} not found`);
+export const conflict = (message: string, code = 'CONFLICT'): AppError =>
+  new AppError(409, code, message);
+export const tooManyRequests = (message = 'Too many requests'): AppError =>
+  new AppError(429, 'RATE_LIMITED', message);
 
 const DOMAIN_STATUS: Record<DomainErrorCode, ContentfulStatusCode> = {
   BAD_REQUEST: 400,

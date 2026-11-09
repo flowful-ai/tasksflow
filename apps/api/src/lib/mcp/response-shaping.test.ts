@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import type { TaskWithRelations } from '../../domain/index.js';
-import {
-  projectTask,
-  projectTaskList,
-  resolveTaskProjectionArgs,
-} from './response-shaping.js';
+import { projectTask, projectTaskList, resolveTaskProjectionArgs } from './response-shaping.js';
 
 function createTaskFixture(): TaskWithRelations {
   return {
@@ -51,7 +47,9 @@ function createTaskFixture(): TaskWithRelations {
     ],
     labels: [{ id: 'l1', projectId: 'project-1', name: 'bug', color: '#f00' }],
     agent: null,
-    externalLinks: [{ id: 'e1', externalType: 'github_issue', externalId: '1', externalUrl: 'https://x' }],
+    externalLinks: [
+      { id: 'e1', externalType: 'github_issue', externalId: '1', externalUrl: 'https://x' },
+    ],
   };
 }
 
@@ -121,7 +119,10 @@ describe('projectTask', () => {
 
   it('wraps user-authored text and strips sensitive user fields', () => {
     const task = createTaskFixture();
-    const output = projectTask(task, resolveTaskProjectionArgs({ view: 'full', includeAssignees: true }));
+    const output = projectTask(
+      task,
+      resolveTaskProjectionArgs({ view: 'full', includeAssignees: true })
+    );
 
     expect(output.title).toEqual({ untrusted_text: 'Ship MCP optimization' });
     expect(output.description).toEqual({ untrusted_text: 'desc' });

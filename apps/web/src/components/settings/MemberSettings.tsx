@@ -49,7 +49,11 @@ function memberName(member: WorkspaceMember): string {
   return member.user.name || member.user.email.split('@')[0] || member.user.email;
 }
 
-const ROLE_LABELS: Record<WorkspaceRole, string> = { owner: 'Owner', admin: 'Admin', member: 'Member' };
+const ROLE_LABELS: Record<WorkspaceRole, string> = {
+  owner: 'Owner',
+  admin: 'Admin',
+  member: 'Member',
+};
 
 function RoleIcon({ role }: { role: WorkspaceRole }) {
   if (role === 'owner') return <Crown aria-hidden className="w-4 h-4 text-amber-500" />;
@@ -66,16 +70,28 @@ interface MemberRowProps {
   isUpdating: boolean;
 }
 
-function MemberRow({ member, currentUserId, currentUserRole, onUpdateRole, onRequest, isUpdating }: MemberRowProps) {
+function MemberRow({
+  member,
+  currentUserId,
+  currentUserRole,
+  onUpdateRole,
+  onRequest,
+  isUpdating,
+}: MemberRowProps) {
   const isCurrentUser = member.userId === currentUserId;
   const canManage =
-    (currentUserRole === 'owner' || currentUserRole === 'admin') && member.role !== 'owner' && !isCurrentUser;
+    (currentUserRole === 'owner' || currentUserRole === 'admin') &&
+    member.role !== 'owner' &&
+    !isCurrentUser;
   const canTransfer = currentUserRole === 'owner' && !isCurrentUser;
 
   return (
     <li className="flex items-center justify-between py-3 px-4 hover:bg-gray-50 rounded-lg">
       <div className="flex items-center gap-3">
-        <div aria-hidden className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-medium">
+        <div
+          aria-hidden
+          className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-medium"
+        >
           {member.user.avatarUrl ? (
             <img src={member.user.avatarUrl} alt="" className="w-10 h-10 rounded-full" />
           ) : (
@@ -85,7 +101,9 @@ function MemberRow({ member, currentUserId, currentUserRole, onUpdateRole, onReq
         <div>
           <div className="flex items-center gap-2">
             <span className="font-medium text-gray-900">{memberName(member)}</span>
-            {isCurrentUser && <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">You</span>}
+            {isCurrentUser && (
+              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">You</span>
+            )}
           </div>
           <div className="text-sm text-gray-500">{member.user.email}</div>
         </div>
@@ -100,28 +118,45 @@ function MemberRow({ member, currentUserId, currentUserRole, onUpdateRole, onReq
         {(canManage || canTransfer) && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <IconButton label={`Actions for ${memberName(member)}`} icon={<MoreHorizontal />} disabled={isUpdating} />
+              <IconButton
+                label={`Actions for ${memberName(member)}`}
+                icon={<MoreHorizontal />}
+                disabled={isUpdating}
+              />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {canManage && member.role === 'member' && (
-                <DropdownMenuItem icon={<Shield />} onSelect={() => onUpdateRole(member.userId, 'admin')}>
+                <DropdownMenuItem
+                  icon={<Shield />}
+                  onSelect={() => onUpdateRole(member.userId, 'admin')}
+                >
                   Make admin
                 </DropdownMenuItem>
               )}
               {canManage && member.role === 'admin' && (
-                <DropdownMenuItem icon={<User />} onSelect={() => onUpdateRole(member.userId, 'member')}>
+                <DropdownMenuItem
+                  icon={<User />}
+                  onSelect={() => onUpdateRole(member.userId, 'member')}
+                >
                   Make member
                 </DropdownMenuItem>
               )}
               {canTransfer && (
-                <DropdownMenuItem icon={<Crown />} onSelect={() => onRequest({ type: 'transfer', member })}>
+                <DropdownMenuItem
+                  icon={<Crown />}
+                  onSelect={() => onRequest({ type: 'transfer', member })}
+                >
                   Transfer ownership
                 </DropdownMenuItem>
               )}
               {canManage && (
                 <>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem destructive icon={<Trash2 />} onSelect={() => onRequest({ type: 'remove', member })}>
+                  <DropdownMenuItem
+                    destructive
+                    icon={<Trash2 />}
+                    onSelect={() => onRequest({ type: 'remove', member })}
+                  >
                     Remove from workspace
                   </DropdownMenuItem>
                 </>
@@ -158,21 +193,41 @@ function InvitationRow({ invitation, onRevoke, isRevoking }: InvitationRowProps)
   const isGeneric = invitation.email === null;
   const isExhausted = invitation.status === 'exhausted';
   const usage =
-    invitation.maxUses === null ? `${invitation.usesCount} uses` : `${invitation.usesCount}/${invitation.maxUses} uses`;
+    invitation.maxUses === null
+      ? `${invitation.usesCount} uses`
+      : `${invitation.usesCount}/${invitation.maxUses} uses`;
 
   return (
     <li
       className={clsx(
         'flex items-center justify-between py-3 px-4 rounded-lg',
-        isExpired ? 'bg-amber-50' : isExhausted ? 'bg-gray-100' : isGeneric ? 'bg-purple-50' : 'bg-blue-50'
+        isExpired
+          ? 'bg-amber-50'
+          : isExhausted
+            ? 'bg-gray-100'
+            : isGeneric
+              ? 'bg-purple-50'
+              : 'bg-blue-50'
       )}
     >
       <div className="flex items-center gap-3">
-        <div aria-hidden className={clsx('w-10 h-10 rounded-full flex items-center justify-center', isGeneric ? 'bg-purple-100' : 'bg-gray-200')}>
-          {isGeneric ? <LinkIcon className="w-5 h-5 text-purple-600" /> : <Mail className="w-5 h-5 text-gray-500" />}
+        <div
+          aria-hidden
+          className={clsx(
+            'w-10 h-10 rounded-full flex items-center justify-center',
+            isGeneric ? 'bg-purple-100' : 'bg-gray-200'
+          )}
+        >
+          {isGeneric ? (
+            <LinkIcon className="w-5 h-5 text-purple-600" />
+          ) : (
+            <Mail className="w-5 h-5 text-gray-500" />
+          )}
         </div>
         <div>
-          <div className="font-medium text-gray-900">{isGeneric ? 'Generic invite link' : invitation.email}</div>
+          <div className="font-medium text-gray-900">
+            {isGeneric ? 'Generic invite link' : invitation.email}
+          </div>
           <div className="flex items-center gap-2 text-sm text-gray-500">
             {isExhausted ? (
               <span className="flex items-center gap-1">
@@ -207,9 +262,16 @@ function InvitationRow({ invitation, onRevoke, isRevoking }: InvitationRowProps)
           type="button"
           onClick={() => void handleCopyLink()}
           disabled={isExpired || isExhausted}
-          className={clsx('btn btn-secondary text-sm', copied && 'bg-green-100 text-green-700 border-green-200')}
+          className={clsx(
+            'btn btn-secondary text-sm',
+            copied && 'bg-green-100 text-green-700 border-green-200'
+          )}
         >
-          {copied ? <Check aria-hidden className="w-4 h-4 mr-1" /> : <Copy aria-hidden className="w-4 h-4 mr-1" />}
+          {copied ? (
+            <Check aria-hidden className="w-4 h-4 mr-1" />
+          ) : (
+            <Copy aria-hidden className="w-4 h-4 mr-1" />
+          )}
           {copied ? 'Copied' : 'Copy link'}
         </button>
         <button
@@ -234,7 +296,8 @@ export function MemberSettings() {
   const [pending, setPending] = useState<PendingAction>(null);
 
   const { data: members = [], isLoading, error, refetch } = useWorkspaceMembers(workspace?.id);
-  const currentUserRole: WorkspaceRole = members.find((m) => m.userId === currentUserId)?.role ?? 'member';
+  const currentUserRole: WorkspaceRole =
+    members.find((m) => m.userId === currentUserId)?.role ?? 'member';
   const canManageMembers = currentUserRole === 'owner' || currentUserRole === 'admin';
   const { data: invitations = [] } = useInvitations(workspace?.id, canManageMembers);
 
@@ -283,14 +346,21 @@ export function MemberSettings() {
       <section className="card p-6" aria-labelledby="members-heading">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 id="members-heading" className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            <h2
+              id="members-heading"
+              className="text-lg font-semibold text-gray-900 flex items-center gap-2"
+            >
               <Users aria-hidden className="w-5 h-5" />
               Team Members
             </h2>
             <p className="text-sm text-gray-600 mt-1">Manage who has access to this workspace.</p>
           </div>
           {canManageMembers && (
-            <button type="button" onClick={() => setShowInviteDialog(true)} className="btn btn-primary">
+            <button
+              type="button"
+              onClick={() => setShowInviteDialog(true)}
+              className="btn btn-primary"
+            >
               <UserPlus aria-hidden className="w-4 h-4 mr-2" />
               Invite
             </button>
@@ -305,10 +375,15 @@ export function MemberSettings() {
               currentUserId={currentUserId}
               currentUserRole={currentUserRole}
               onUpdateRole={(userId, role) =>
-                updateRole.mutate({ userId, role }, { onSuccess: () => toast.success('Role updated') })
+                updateRole.mutate(
+                  { userId, role },
+                  { onSuccess: () => toast.success('Role updated') }
+                )
               }
               onRequest={setPending}
-              isUpdating={updateRole.isPending || removeMember.isPending || transferOwnership.isPending}
+              isUpdating={
+                updateRole.isPending || removeMember.isPending || transferOwnership.isPending
+              }
             />
           ))}
         </ul>
@@ -316,7 +391,10 @@ export function MemberSettings() {
 
       {canManageMembers && invitations.length > 0 && (
         <section className="card p-6" aria-labelledby="invitations-heading">
-          <h3 id="invitations-heading" className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <h3
+            id="invitations-heading"
+            className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2"
+          >
             <UserPlus aria-hidden className="w-5 h-5" />
             Open Invitations
           </h3>
@@ -325,7 +403,9 @@ export function MemberSettings() {
               <InvitationRow
                 key={invitation.id}
                 invitation={invitation}
-                onRevoke={(id) => revoke.mutate(id, { onSuccess: () => toast.success('Invitation revoked') })}
+                onRevoke={(id) =>
+                  revoke.mutate(id, { onSuccess: () => toast.success('Invitation revoked') })
+                }
                 isRevoking={revoke.isPending}
               />
             ))}

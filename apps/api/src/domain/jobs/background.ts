@@ -42,11 +42,18 @@ export function createBackgroundJobHandlers(): JobHandlers {
   };
 }
 
-export function startBackgroundServices(db: Database, opts: BackgroundServicesOptions = {}): BackgroundServices {
+export function startBackgroundServices(
+  db: Database,
+  opts: BackgroundServicesOptions = {}
+): BackgroundServices {
   const unsubscribe = [registerNotificationSubscribers(db), registerOutgoingWebhookSubscribers(db)];
   const runJobs = opts.runJobs ?? process.env.JOBS_DISABLED !== 'true';
   const runner = runJobs
-    ? startJobRunner(db, { ...opts.extraHandlers, ...createBackgroundJobHandlers() }, { concurrency: opts.concurrency, pollMs: opts.pollMs })
+    ? startJobRunner(
+        db,
+        { ...opts.extraHandlers, ...createBackgroundJobHandlers() },
+        { concurrency: opts.concurrency, pollMs: opts.pollMs }
+      )
     : null;
 
   if (runJobs) {
@@ -56,9 +63,11 @@ export function startBackgroundServices(db: Database, opts: BackgroundServicesOp
       JOB_TYPES.webhookDeliveryCleanup,
       JOB_TYPES.jobsCleanup,
     ];
-    void Promise.all(recurringTypes.map((type) => ensureRecurringJob(db, type))).catch((error: unknown) => {
-      console.error('[jobs] failed to schedule recurring jobs:', error);
-    });
+    void Promise.all(recurringTypes.map((type) => ensureRecurringJob(db, type))).catch(
+      (error: unknown) => {
+        console.error('[jobs] failed to schedule recurring jobs:', error);
+      }
+    );
   }
 
   let stopped: Promise<void> | null = null;

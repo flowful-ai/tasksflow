@@ -66,7 +66,10 @@ export interface NotificationItem {
    * - due_soon/overdue: { dueDate }
    * - assigned: {}
    */
-  data: Record<string, string | number | boolean | null | { id: string; name: string; category: string }  >;
+  data: Record<
+    string,
+    string | number | boolean | null | { id: string; name: string; category: string }
+  >;
   readAt: Date | null;
   archivedAt: Date | null;
   snoozedUntil: Date | null;

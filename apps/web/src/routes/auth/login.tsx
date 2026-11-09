@@ -9,7 +9,12 @@ export function LoginPage() {
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get('redirect') || '/dashboard';
   const { login, error, clearError, isAuthenticated } = useAuthStore(
-    useShallow((s) => ({ login: s.login, error: s.error, clearError: s.clearError, isAuthenticated: s.isAuthenticated }))
+    useShallow((s) => ({
+      login: s.login,
+      error: s.error,
+      clearError: s.clearError,
+      isAuthenticated: s.isAuthenticated,
+    }))
   );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

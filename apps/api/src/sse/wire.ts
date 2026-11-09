@@ -67,7 +67,15 @@ export type WireMessage = z.infer<typeof WireMessageSchema>;
 export type WorkspaceEventMessage = z.infer<typeof WorkspaceEventSchema>;
 export type UserEventMessage = z.infer<typeof UserEventSchema>;
 
-const ID_KEYS = ['id', 'projectId', 'taskId', 'commentId', 'workspaceId', 'userId', 'stateId'] as const;
+const ID_KEYS = [
+  'id',
+  'projectId',
+  'taskId',
+  'commentId',
+  'workspaceId',
+  'userId',
+  'stateId',
+] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

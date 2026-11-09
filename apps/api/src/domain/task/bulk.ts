@@ -10,7 +10,13 @@
 import { eq, inArray } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
 import { projects, tasks } from '../../db/index.js';
-import { ok, err, type BulkTaskItemResult, type BulkTaskOperation, type Result } from '@flowtask/shared';
+import {
+  ok,
+  err,
+  type BulkTaskItemResult,
+  type BulkTaskOperation,
+  type Result,
+} from '@flowtask/shared';
 import { domainEvents } from '../events/bus.js';
 import type { TaskFieldChange } from '../events/types.js';
 import { isTaskError, toError } from './errors.js';
@@ -69,7 +75,8 @@ export async function lookupTaskProjects(
     .from(tasks)
     .innerJoin(projects, eq(tasks.projectId, projects.id))
     .where(inArray(tasks.id, ids));
-  for (const row of rows) map.set(row.id, { projectId: row.projectId, workspaceId: row.workspaceId });
+  for (const row of rows)
+    map.set(row.id, { projectId: row.projectId, workspaceId: row.workspaceId });
   return map;
 }
 
@@ -150,7 +157,11 @@ export class TaskBulkService {
               const set: Partial<typeof tasks.$inferInsert> = {};
               if (op.stateId !== undefined && op.stateId !== row.stateId) {
                 await assertStateInProject(sp, scope.id, op.stateId);
-                const placement = await placeTask(sp, { projectId: scope.id, stateId: op.stateId, taskId });
+                const placement = await placeTask(sp, {
+                  projectId: scope.id,
+                  stateId: op.stateId,
+                  taskId,
+                });
                 set.stateId = op.stateId;
                 set.position = placement.position;
                 set.completedAt = await completedAtFor(sp, op.stateId, row.completedAt);
@@ -168,7 +179,13 @@ export class TaskBulkService {
               if (op.priority !== undefined && op.priority !== row.priority) {
                 set.priority = op.priority;
                 changes.push({ field: 'priority', from: row.priority, to: op.priority });
-                events.push({ ...base, eventType: 'updated', fieldName: 'priority', oldValue: row.priority, newValue: op.priority });
+                events.push({
+                  ...base,
+                  eventType: 'updated',
+                  fieldName: 'priority',
+                  oldValue: row.priority,
+                  newValue: op.priority,
+                });
               }
 
               const diff = await applySetChanges(sp, scope, taskId, {
@@ -178,10 +195,18 @@ export class TaskBulkService {
                 removeLabelIds: op.removeLabelIds,
               });
               events.push(
-                ...diff.addedAssigneeIds.map((id): TaskEventInput => ({ ...base, eventType: 'assigned', newValue: id })),
-                ...diff.removedAssigneeIds.map((id): TaskEventInput => ({ ...base, eventType: 'unassigned', oldValue: id })),
-                ...diff.addedLabelIds.map((id): TaskEventInput => ({ ...base, eventType: 'labeled', newValue: id })),
-                ...diff.removedLabelIds.map((id): TaskEventInput => ({ ...base, eventType: 'unlabeled', oldValue: id }))
+                ...diff.addedAssigneeIds.map(
+                  (id): TaskEventInput => ({ ...base, eventType: 'assigned', newValue: id })
+                ),
+                ...diff.removedAssigneeIds.map(
+                  (id): TaskEventInput => ({ ...base, eventType: 'unassigned', oldValue: id })
+                ),
+                ...diff.addedLabelIds.map(
+                  (id): TaskEventInput => ({ ...base, eventType: 'labeled', newValue: id })
+                ),
+                ...diff.removedLabelIds.map(
+                  (id): TaskEventInput => ({ ...base, eventType: 'unlabeled', oldValue: id })
+                )
               );
 
               if (events.length > 0) {
@@ -249,14 +274,22 @@ export class TaskBulkService {
         mcpClientId: input.mcpClientId ?? null,
       };
       if (o.deleted) {
-        domainEvents.emit('task.deleted', { ...common, taskId: o.taskId, title: o.title, sequenceNumber: o.sequenceNumber });
+        domainEvents.emit('task.deleted', {
+          ...common,
+          taskId: o.taskId,
+          title: o.title,
+          sequenceNumber: o.sequenceNumber,
+        });
         continue;
       }
       const task = byId.get(o.taskId);
       if (!task) continue;
       if (o.restored) domainEvents.emit('task.restored', { ...common, task });
       const setChanged =
-        o.diff.addedAssigneeIds.length + o.diff.removedAssigneeIds.length + o.diff.addedLabelIds.length + o.diff.removedLabelIds.length >
+        o.diff.addedAssigneeIds.length +
+          o.diff.removedAssigneeIds.length +
+          o.diff.addedLabelIds.length +
+          o.diff.removedLabelIds.length >
         0;
       const onlyState = o.changes.length === 1 && o.changes[0]!.field === 'stateId' && !setChanged;
       if (onlyState) {
@@ -277,4 +310,3 @@ export class TaskBulkService {
 function emptyDiff(): AssigneeLabelDiff {
   return { addedAssigneeIds: [], removedAssigneeIds: [], addedLabelIds: [], removedLabelIds: [] };
 }
-

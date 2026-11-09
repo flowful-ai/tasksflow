@@ -53,11 +53,16 @@ export interface LinkRepositoryInput {
 export const githubApi = {
   /** The current user's GitHub App installations. */
   getMyInstallations: async (): Promise<UserInstallation[]> =>
-    (await http.get<{ installations: UserInstallation[] }>('/api/github/my-installations')).installations,
-  getIntegration: (projectId: string): Promise<GitHubIntegration> => http.get(`/api/projects/${projectId}/github`),
+    (await http.get<{ installations: UserInstallation[] }>('/api/github/my-installations'))
+      .installations,
+  getIntegration: (projectId: string): Promise<GitHubIntegration> =>
+    http.get(`/api/projects/${projectId}/github`),
   listInstallationRepos: async (installationId: number): Promise<GitHubRepository[]> =>
-    (await http.get<{ repositories: GitHubRepository[] }>(`/api/github/installations/${installationId}/repos`))
-      .repositories,
+    (
+      await http.get<{ repositories: GitHubRepository[] }>(
+        `/api/github/installations/${installationId}/repos`
+      )
+    ).repositories,
   /** Starts the install flow: a single-use state nonce bound to this session. */
   startInstall: (projectId: string): Promise<{ state: string; installUrl: string | null }> =>
     http.post(`/api/projects/${projectId}/github/install/start`),
@@ -76,9 +81,11 @@ export const githubApi = {
 // ============ Slack ============
 
 export const slackApi = {
-  get: (projectId: string): Promise<SlackIntegrationDto> => http.get(`/api/projects/${projectId}/slack`),
+  get: (projectId: string): Promise<SlackIntegrationDto> =>
+    http.get(`/api/projects/${projectId}/slack`),
   channels: async (projectId: string): Promise<SlackChannelDto[]> =>
-    (await http.get<{ channels: SlackChannelDto[] }>(`/api/projects/${projectId}/slack/channels`)).channels,
+    (await http.get<{ channels: SlackChannelDto[] }>(`/api/projects/${projectId}/slack/channels`))
+      .channels,
   /** Returns the Slack OAuth URL to redirect to. */
   startInstall: (projectId: string): Promise<{ url: string }> =>
     http.post(`/api/projects/${projectId}/slack/install/start`),
@@ -90,18 +97,26 @@ export const slackApi = {
 // ============ Outgoing webhooks ============
 
 export const webhooksApi = {
-  list: (workspaceId: string): Promise<OutgoingWebhookDto[]> => http.get(`/api/outgoing-webhooks${qs({ workspaceId })}`),
+  list: (workspaceId: string): Promise<OutgoingWebhookDto[]> =>
+    http.get(`/api/outgoing-webhooks${qs({ workspaceId })}`),
   get: (id: string): Promise<OutgoingWebhookDto> => http.get(`/api/outgoing-webhooks/${id}`),
   /** The response carries the full `secret`, shown once. */
   create: (input: CreateOutgoingWebhookInput): Promise<OutgoingWebhookWithSecretDto> =>
     http.post('/api/outgoing-webhooks', input),
   /** With `rotateSecret: true` the response carries the new `secret`. */
-  update: (id: string, input: UpdateOutgoingWebhookInput): Promise<OutgoingWebhookDto | OutgoingWebhookWithSecretDto> =>
+  update: (
+    id: string,
+    input: UpdateOutgoingWebhookInput
+  ): Promise<OutgoingWebhookDto | OutgoingWebhookWithSecretDto> =>
     http.patch(`/api/outgoing-webhooks/${id}`, input),
   delete: (id: string): Promise<null> => http.delete(`/api/outgoing-webhooks/${id}`),
   /** Queues a 'ping' delivery. */
-  test: (id: string): Promise<{ deliveryId: string }> => http.post(`/api/outgoing-webhooks/${id}/test`),
-  deliveries: (id: string, params: { limit?: number; cursor?: string | null } = {}): Promise<OutgoingWebhookDeliveryDto[]> =>
+  test: (id: string): Promise<{ deliveryId: string }> =>
+    http.post(`/api/outgoing-webhooks/${id}/test`),
+  deliveries: (
+    id: string,
+    params: { limit?: number; cursor?: string | null } = {}
+  ): Promise<OutgoingWebhookDeliveryDto[]> =>
     http.get(`/api/outgoing-webhooks/${id}/deliveries${qs(params)}`),
 };
 

@@ -46,7 +46,9 @@ interface LayoutProps {
 }
 
 function useIsDesktop(): boolean {
-  const [isDesktop, setIsDesktop] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
+  const [isDesktop, setIsDesktop] = useState(
+    () => window.matchMedia('(min-width: 1024px)').matches
+  );
   useEffect(() => {
     const mediaQuery = window.matchMedia('(min-width: 1024px)');
     const onChange = (event: MediaQueryListEvent) => setIsDesktop(event.matches);
@@ -60,7 +62,9 @@ function useIsDesktop(): boolean {
 const navItemClass = (active: boolean) =>
   clsx(
     'group flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-sm font-medium transition-colors',
-    active ? 'bg-sidebar-active text-white' : 'text-sidebar-text hover:bg-sidebar-hover hover:text-white'
+    active
+      ? 'bg-sidebar-active text-white'
+      : 'text-sidebar-text hover:bg-sidebar-hover hover:text-white'
   );
 
 function SidebarLink({
@@ -87,7 +91,13 @@ function SidebarLink({
       aria-keyshortcuts={shortcut}
       className={navItemClass(active)}
     >
-      <span aria-hidden className={clsx('[&_svg]:h-4 [&_svg]:w-4', active ? 'text-primary-400' : 'text-sidebar-text-muted group-hover:text-white')}>
+      <span
+        aria-hidden
+        className={clsx(
+          '[&_svg]:h-4 [&_svg]:w-4',
+          active ? 'text-primary-400' : 'text-sidebar-text-muted group-hover:text-white'
+        )}
+      >
         {icon}
       </span>
       <span className="flex-1 truncate">{label}</span>
@@ -109,7 +119,12 @@ export function Layout({ children }: LayoutProps) {
   const logout = useAuthStore((s) => s.logout);
   const setPaletteOpen = useUiStore((s) => s.setPaletteOpen);
   const setShortcutsOpen = useUiStore((s) => s.setShortcutsOpen);
-  const { workspace: currentWorkspace, workspaces, workspaceId, setWorkspaceId } = useCurrentWorkspace();
+  const {
+    workspace: currentWorkspace,
+    workspaces,
+    workspaceId,
+    setWorkspaceId,
+  } = useCurrentWorkspace();
   const { data: projects = [] } = useProjects(workspaceId);
   const { data: unread = 0 } = useUnreadNotificationCount(workspaceId);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -167,7 +182,11 @@ export function Layout({ children }: LayoutProps) {
                 />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent tone="dark" align="start" className="w-[var(--radix-dropdown-menu-trigger-width)]">
+            <DropdownMenuContent
+              tone="dark"
+              align="start"
+              className="w-[var(--radix-dropdown-menu-trigger-width)]"
+            >
               {workspaces.map((workspace) => (
                 <DropdownMenuItem
                   key={workspace.id}
@@ -181,7 +200,9 @@ export function Layout({ children }: LayoutProps) {
                 >
                   <span className="flex items-center justify-between gap-2">
                     {workspace.name}
-                    {workspace.id === currentWorkspace?.id && <Check className="h-4 w-4" aria-label="Current" />}
+                    {workspace.id === currentWorkspace?.id && (
+                      <Check className="h-4 w-4" aria-label="Current" />
+                    )}
                   </span>
                 </DropdownMenuItem>
               ))}
@@ -216,18 +237,52 @@ export function Layout({ children }: LayoutProps) {
           </button>
         </div>
 
-        <nav aria-label="Main" className="dark-scrollbar flex-1 space-y-0.5 overflow-y-auto px-3 py-1">
-          <SidebarLink to="/inbox" icon={<Inbox />} label="Inbox" active={isActive('/inbox')} badge={unread} shortcut="G I" />
-          <SidebarLink to="/my-tasks" icon={<Target />} label="My tasks" active={isActive('/my-tasks')} shortcut="G M" />
-          <SidebarLink to="/views" icon={<Zap />} label="Views" active={isActive('/views') || isActive('/view')} shortcut="G V" />
-          <SidebarLink to="/dashboard" icon={<LayoutDashboard />} label="Dashboard" active={isActive('/dashboard')} />
+        <nav
+          aria-label="Main"
+          className="dark-scrollbar flex-1 space-y-0.5 overflow-y-auto px-3 py-1"
+        >
+          <SidebarLink
+            to="/inbox"
+            icon={<Inbox />}
+            label="Inbox"
+            active={isActive('/inbox')}
+            badge={unread}
+            shortcut="G I"
+          />
+          <SidebarLink
+            to="/my-tasks"
+            icon={<Target />}
+            label="My tasks"
+            active={isActive('/my-tasks')}
+            shortcut="G M"
+          />
+          <SidebarLink
+            to="/views"
+            icon={<Zap />}
+            label="Views"
+            active={isActive('/views') || isActive('/view')}
+            shortcut="G V"
+          />
+          <SidebarLink
+            to="/dashboard"
+            icon={<LayoutDashboard />}
+            label="Dashboard"
+            active={isActive('/dashboard')}
+          />
 
           {/* Projects list */}
           {currentWorkspace && (
             <div className="pt-5">
               <div className="mb-1 flex items-center justify-between px-2.5">
-                <h2 id="sidebar-projects" className="text-[11px] font-semibold uppercase tracking-wider text-sidebar-text-muted">
-                  <Link to="/projects" className="hover:text-white" aria-current={path === '/projects' ? 'page' : undefined}>
+                <h2
+                  id="sidebar-projects"
+                  className="text-[11px] font-semibold uppercase tracking-wider text-sidebar-text-muted"
+                >
+                  <Link
+                    to="/projects"
+                    className="hover:text-white"
+                    aria-current={path === '/projects' ? 'page' : undefined}
+                  >
                     Projects
                   </Link>
                 </h2>
@@ -255,13 +310,23 @@ export function Layout({ children }: LayoutProps) {
                           aria-current={exact ? 'page' : undefined}
                           className={clsx(navItemClass(active), 'pr-8 font-normal')}
                         >
-                          <ColorDot color={projectColor(project.id)} size="md" className="mx-[3px]" />
+                          <ColorDot
+                            color={projectColor(project.id)}
+                            size="md"
+                            className="mx-[3px]"
+                          />
                           <span className="flex-1 truncate">{project.name}</span>
                           {project.access === 'admin' && (
-                            <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-sidebar-text-muted" aria-label="Admin only" />
+                            <ShieldAlert
+                              className="h-3.5 w-3.5 shrink-0 text-sidebar-text-muted"
+                              aria-label="Admin only"
+                            />
                           )}
                           {project.access === 'members' && (
-                            <Lock className="h-3.5 w-3.5 shrink-0 text-sidebar-text-muted" aria-label="Restricted access" />
+                            <Lock
+                              className="h-3.5 w-3.5 shrink-0 text-sidebar-text-muted"
+                              aria-label="Restricted access"
+                            />
                           )}
                         </Link>
                         <DropdownMenu>
@@ -296,20 +361,34 @@ export function Layout({ children }: LayoutProps) {
         <div className="border-t border-sidebar-border p-3">
           <div className="flex items-center gap-1 px-1 py-1">
             {user?.avatarUrl ? (
-              <img src={user.avatarUrl} alt="" className="avatar-ring h-8 w-8 rounded-full object-cover" />
+              <img
+                src={user.avatarUrl}
+                alt=""
+                className="avatar-ring h-8 w-8 rounded-full object-cover"
+              />
             ) : (
               <div
                 aria-hidden
                 className="avatar-ring flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary-500 to-primary-600"
               >
-                <span className="text-sm font-semibold text-white">{user?.name?.[0] || user?.email?.[0]?.toUpperCase() || '?'}</span>
+                <span className="text-sm font-semibold text-white">
+                  {user?.name?.[0] || user?.email?.[0]?.toUpperCase() || '?'}
+                </span>
               </div>
             )}
             <div className="ml-2 min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-white">{user?.name || user?.email?.split('@')[0]}</p>
+              <p className="truncate text-sm font-medium text-white">
+                {user?.name || user?.email?.split('@')[0]}
+              </p>
               <p className="truncate text-xs text-sidebar-text-muted">{user?.email}</p>
             </div>
-            <IconButton label="Keyboard shortcuts" shortcut="?" variant="sidebar" icon={<Keyboard />} onClick={() => setShortcutsOpen(true)} />
+            <IconButton
+              label="Keyboard shortcuts"
+              shortcut="?"
+              variant="sidebar"
+              icon={<Keyboard />}
+              onClick={() => setShortcutsOpen(true)}
+            />
             <Link
               to="/settings"
               aria-label="Settings"
@@ -322,7 +401,12 @@ export function Layout({ children }: LayoutProps) {
             >
               <Settings aria-hidden />
             </Link>
-            <IconButton label="Log out" variant="sidebar" icon={<LogOut />} onClick={() => void logout()} />
+            <IconButton
+              label="Log out"
+              variant="sidebar"
+              icon={<LogOut />}
+              onClick={() => void logout()}
+            />
           </div>
         </div>
       </aside>
@@ -340,22 +424,41 @@ export function Layout({ children }: LayoutProps) {
             aria-expanded={sidebarOpen}
           />
           <div className="ml-3 flex items-center space-x-2">
-            <div aria-hidden className="flex h-6 w-6 items-center justify-center rounded-md bg-neutral-900">
-              <svg className="h-4 w-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <div
+              aria-hidden
+              className="flex h-6 w-6 items-center justify-center rounded-md bg-neutral-900"
+            >
+              <svg
+                className="h-4 w-4 text-white"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+              >
                 <path d="M5 12l5 5L19 7" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
             <span className="font-display text-lg font-bold text-neutral-900">TasksFlow</span>
           </div>
           <div className="ml-auto flex items-center gap-1">
-            <IconButton label="Search" size="md" icon={<Search />} onClick={() => setPaletteOpen(true)} />
+            <IconButton
+              label="Search"
+              size="md"
+              icon={<Search />}
+              onClick={() => setPaletteOpen(true)}
+            />
             <Link
               to="/inbox"
               aria-label={unread ? `Inbox, ${unread} unread` : 'Inbox'}
               className="relative rounded-lg p-2 text-neutral-500 hover:bg-neutral-100 [&_svg]:h-5 [&_svg]:w-5"
             >
               <Inbox aria-hidden />
-              {unread > 0 && <span aria-hidden className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary-500" />}
+              {unread > 0 && (
+                <span
+                  aria-hidden
+                  className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary-500"
+                />
+              )}
             </Link>
           </div>
         </header>

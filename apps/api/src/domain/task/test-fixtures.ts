@@ -4,7 +4,17 @@
  * can share one database and run concurrently.
  */
 import { randomUUID } from 'node:crypto';
-import { createDatabase, labels, projectMembers, projects, taskStates, users, workspaceMembers, workspaces, type Database } from '../../db/index.js';
+import {
+  createDatabase,
+  labels,
+  projectMembers,
+  projects,
+  taskStates,
+  users,
+  workspaceMembers,
+  workspaces,
+  type Database,
+} from '../../db/index.js';
 
 export const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 
@@ -61,10 +71,18 @@ export async function createProject(
   workspaceId: string,
   opts: { access?: 'all' | 'admin' | 'members'; memberIds?: string[] } = {}
 ): Promise<ProjectFixture> {
-  const identifier = `T${suffix().replace(/[^0-9a-f]/g, '').slice(0, 5).toUpperCase()}`;
+  const identifier = `T${suffix()
+    .replace(/[^0-9a-f]/g, '')
+    .slice(0, 5)
+    .toUpperCase()}`;
   const [project] = await db
     .insert(projects)
-    .values({ workspaceId, name: `Project ${identifier}`, identifier, access: opts.access ?? 'all' })
+    .values({
+      workspaceId,
+      name: `Project ${identifier}`,
+      identifier,
+      access: opts.access ?? 'all',
+    })
     .returning();
   const [backlog, progress, done] = await db
     .insert(taskStates)
@@ -74,9 +92,14 @@ export async function createProject(
       { projectId: project!.id, name: 'Done', category: 'done', position: 'a2' },
     ])
     .returning();
-  const [label] = await db.insert(labels).values({ projectId: project!.id, name: 'bug', color: '#f00' }).returning();
+  const [label] = await db
+    .insert(labels)
+    .values({ projectId: project!.id, name: 'bug', color: '#f00' })
+    .returning();
   if (opts.memberIds?.length) {
-    await db.insert(projectMembers).values(opts.memberIds.map((userId) => ({ projectId: project!.id, userId })));
+    await db
+      .insert(projectMembers)
+      .values(opts.memberIds.map((userId) => ({ projectId: project!.id, userId })));
   }
   return {
     projectId: project!.id,

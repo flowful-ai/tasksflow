@@ -66,7 +66,10 @@ describe('assertSafeWebhookUrl', () => {
   const publicLookup = async () => ['93.184.216.34'];
   const privateLookup = async () => ['93.184.216.34', '10.0.0.5'];
 
-  async function code(url: string, opts: Parameters<typeof assertSafeWebhookUrl>[1]): Promise<string | null> {
+  async function code(
+    url: string,
+    opts: Parameters<typeof assertSafeWebhookUrl>[1]
+  ): Promise<string | null> {
     try {
       await assertSafeWebhookUrl(url, opts);
       return null;
@@ -76,13 +79,20 @@ describe('assertSafeWebhookUrl', () => {
   }
 
   it('accepts public https URLs', async () => {
-    const result = await assertSafeWebhookUrl('https://hooks.example.com/x', { production: true, lookup: publicLookup });
+    const result = await assertSafeWebhookUrl('https://hooks.example.com/x', {
+      production: true,
+      lookup: publicLookup,
+    });
     expect(result.addresses).toEqual(['93.184.216.34']);
   });
 
   it('enforces https in production only', async () => {
-    expect(await code('http://hooks.example.com', { production: true, lookup: publicLookup })).toBe('HTTPS_REQUIRED');
-    expect(await code('http://hooks.example.com', { production: false, lookup: publicLookup })).toBeNull();
+    expect(await code('http://hooks.example.com', { production: true, lookup: publicLookup })).toBe(
+      'HTTPS_REQUIRED'
+    );
+    expect(
+      await code('http://hooks.example.com', { production: false, lookup: publicLookup })
+    ).toBeNull();
   });
 
   it('rejects bad schemes, credentials and garbage', async () => {
@@ -93,11 +103,17 @@ describe('assertSafeWebhookUrl', () => {
   });
 
   it('blocks private resolutions and IP literals', async () => {
-    expect(await code('https://evil.example.com', { lookup: privateLookup, allowPrivate: false })).toBe('PRIVATE_ADDRESS');
+    expect(
+      await code('https://evil.example.com', { lookup: privateLookup, allowPrivate: false })
+    ).toBe('PRIVATE_ADDRESS');
     expect(await code('https://127.0.0.1:8080/', { allowPrivate: false })).toBe('PRIVATE_ADDRESS');
     expect(await code('https://[::1]/', { allowPrivate: false })).toBe('PRIVATE_ADDRESS');
-    expect(await code('https://[::ffff:169.254.169.254]/', { allowPrivate: false })).toBe('PRIVATE_ADDRESS');
-    expect(await code('https://evil.example.com', { lookup: privateLookup, allowPrivate: true })).toBeNull();
+    expect(await code('https://[::ffff:169.254.169.254]/', { allowPrivate: false })).toBe(
+      'PRIVATE_ADDRESS'
+    );
+    expect(
+      await code('https://evil.example.com', { lookup: privateLookup, allowPrivate: true })
+    ).toBeNull();
   });
 
   it('reports DNS failures', async () => {

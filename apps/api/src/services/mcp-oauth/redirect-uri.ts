@@ -11,7 +11,15 @@ export const MAX_REDIRECT_URI_LENGTH = 2000;
 export const MAX_CLIENT_NAME_LENGTH = 100;
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
-const FORBIDDEN_SCHEMES = new Set(['javascript:', 'data:', 'file:', 'vbscript:', 'blob:', 'about:', 'filesystem:']);
+const FORBIDDEN_SCHEMES = new Set([
+  'javascript:',
+  'data:',
+  'file:',
+  'vbscript:',
+  'blob:',
+  'about:',
+  'filesystem:',
+]);
 const PRIVATE_USE_SCHEME = /^[a-z][a-z0-9+.-]*\.[a-z0-9+.-]+:$/;
 
 function invalid(message: string): OAuthError {
@@ -57,7 +65,9 @@ export function validateRedirectUri(raw: string): string {
     return raw;
   }
 
-  throw invalid('redirect_uri must use https, loopback http, or a reverse-domain private-use scheme');
+  throw invalid(
+    'redirect_uri must use https, loopback http, or a reverse-domain private-use scheme'
+  );
 }
 
 export function validateRedirectUris(uris: unknown): string[] {
@@ -85,12 +95,17 @@ export function sanitizeClientName(raw: unknown): string {
   }
   // Strip control characters so the consent page cannot be visually spoofed.
   // eslint-disable-next-line no-control-regex -- stripping control characters is the point
-  const name = raw.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, '').trim();
+  const name = raw
+    .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, '')
+    .trim();
   if (!name) {
     throw new OAuthError('invalid_client_metadata', 'client_name is required');
   }
   if (name.length > MAX_CLIENT_NAME_LENGTH) {
-    throw new OAuthError('invalid_client_metadata', `client_name must be at most ${MAX_CLIENT_NAME_LENGTH} characters`);
+    throw new OAuthError(
+      'invalid_client_metadata',
+      `client_name must be at most ${MAX_CLIENT_NAME_LENGTH} characters`
+    );
   }
   return name;
 }
@@ -120,7 +135,9 @@ export function describeRedirectTarget(redirectUri: string): string {
     if (url.protocol === 'http:' || url.protocol === 'https:') {
       return url.host;
     }
-    return url.host ? `${url.protocol}//${url.host}${url.pathname}` : `${url.protocol}${url.pathname}`;
+    return url.host
+      ? `${url.protocol}//${url.host}${url.pathname}`
+      : `${url.protocol}${url.pathname}`;
   } catch {
     return redirectUri;
   }

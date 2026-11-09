@@ -2,7 +2,12 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AppRole } from '@flowtask/shared';
 import { queryKeys } from '../../api/queryKeys';
-import { agentApi, appAdminApi, type CreateAgentInput, type UpdateAgentInput } from '../../api/agents';
+import {
+  agentApi,
+  appAdminApi,
+  type CreateAgentInput,
+  type UpdateAgentInput,
+} from '../../api/agents';
 import {
   invitationApi,
   mcpConnectionApi,
@@ -18,10 +23,18 @@ import { authApi } from '../../api/auth';
 
 /** The caller's app-level role (app_manager or user). */
 export function useAppContext() {
-  return useQuery({ queryKey: queryKeys.app.me(), queryFn: appAdminApi.me, staleTime: 5 * 60_000, retry: false });
+  return useQuery({
+    queryKey: queryKeys.app.me(),
+    queryFn: appAdminApi.me,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
 }
 
-export function useAppUsers(params: { search?: string; limit?: number; offset?: number }, enabled = true) {
+export function useAppUsers(
+  params: { search?: string; limit?: number; offset?: number },
+  enabled = true
+) {
   return useQuery({
     queryKey: queryKeys.app.users(params),
     queryFn: () => appAdminApi.listUsers(params),
@@ -33,7 +46,8 @@ export function useAppUsers(params: { search?: string; limit?: number; offset?: 
 export function useUpdateAppUserRole() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ userId, appRole }: { userId: string; appRole: AppRole }) => appAdminApi.updateRole(userId, appRole),
+    mutationFn: ({ userId, appRole }: { userId: string; appRole: AppRole }) =>
+      appAdminApi.updateRole(userId, appRole),
     onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.app.all }),
     meta: { errorMessage: 'Could not update the role' },
   });
@@ -48,7 +62,12 @@ export function useApiKeyStatuses(workspaceId: string | null | undefined) {
     queryFn: () => workspaceApiKeyApi.listStatuses(workspaceId ?? ''),
     enabled: Boolean(workspaceId),
     select: (data): Record<ApiKeyProvider, boolean> => {
-      const status: Record<ApiKeyProvider, boolean> = { openai: false, anthropic: false, google: false, openrouter: false };
+      const status: Record<ApiKeyProvider, boolean> = {
+        openai: false,
+        anthropic: false,
+        google: false,
+        openrouter: false,
+      };
       for (const entry of data.providers) status[entry.provider] = entry.hasKey;
       return status;
     },
@@ -60,11 +79,14 @@ export function useApiKeyMutations(workspaceId: string) {
   const onSettled = () =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.apiKeys(workspaceId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.agentAvailability(workspaceId) }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.workspaces.agentAvailability(workspaceId),
+      }),
     ]);
   return {
     save: useMutation({
-      mutationFn: (input: { provider: ApiKeyProvider; apiKey: string }) => workspaceApiKeyApi.upsert(workspaceId, input),
+      mutationFn: (input: { provider: ApiKeyProvider; apiKey: string }) =>
+        workspaceApiKeyApi.upsert(workspaceId, input),
       onSettled,
       meta: { errorMessage: 'Could not save the API key' },
     }),
@@ -87,16 +109,23 @@ export function useAiSettings(workspaceId: string | null | undefined, enabled = 
 export function useUpdateAiSettings(workspaceId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (settings: WorkspaceAiSettings) => workspaceAiSettingsApi.update(workspaceId, settings),
-    onSuccess: (data) => queryClient.setQueryData(queryKeys.workspaces.aiSettings(workspaceId), data),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.aiSettings(workspaceId) }),
+    mutationFn: (settings: WorkspaceAiSettings) =>
+      workspaceAiSettingsApi.update(workspaceId, settings),
+    onSuccess: (data) =>
+      queryClient.setQueryData(queryKeys.workspaces.aiSettings(workspaceId), data),
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.aiSettings(workspaceId) }),
     meta: { errorMessage: 'Could not save chat defaults' },
   });
 }
 
 // ============ Agents ============
 
-export function useAgents(workspaceId: string | null | undefined, active: boolean | 'all' = 'all', enabled = true) {
+export function useAgents(
+  workspaceId: string | null | undefined,
+  active: boolean | 'all' = 'all',
+  enabled = true
+) {
   return useQuery({
     queryKey: queryKeys.workspaces.agents(workspaceId ?? '', active),
     queryFn: () => agentApi.list(workspaceId ?? '', active),
@@ -109,16 +138,20 @@ export function useAgentMutations(workspaceId: string) {
   const onSettled = () =>
     Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.agentLists(workspaceId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.agentAvailability(workspaceId) }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.workspaces.agentAvailability(workspaceId),
+      }),
     ]);
   return {
     create: useMutation({
-      mutationFn: (input: Omit<CreateAgentInput, 'workspaceId'>) => agentApi.create({ ...input, workspaceId }),
+      mutationFn: (input: Omit<CreateAgentInput, 'workspaceId'>) =>
+        agentApi.create({ ...input, workspaceId }),
       onSettled,
       meta: { errorMessage: 'Could not create the agent' },
     }),
     update: useMutation({
-      mutationFn: ({ agentId, ...input }: UpdateAgentInput & { agentId: string }) => agentApi.update(agentId, input),
+      mutationFn: ({ agentId, ...input }: UpdateAgentInput & { agentId: string }) =>
+        agentApi.update(agentId, input),
       onSettled,
       meta: { errorMessage: 'Could not update the agent' },
     }),
@@ -142,7 +175,8 @@ export function useMcpConnections(workspaceId: string | null | undefined) {
 
 export function useMcpConnectionMutations(workspaceId: string) {
   const queryClient = useQueryClient();
-  const onSettled = () => queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.mcpConnections(workspaceId) });
+  const onSettled = () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.mcpConnections(workspaceId) });
   return {
     updateScopes: useMutation({
       mutationFn: ({ consentId, toolScopes }: { consentId: string; toolScopes: string[] }) =>
@@ -171,7 +205,8 @@ export function useInvitations(workspaceId: string | null | undefined, enabled =
 
 export function useInvitationMutations(workspaceId: string) {
   const queryClient = useQueryClient();
-  const onSettled = () => queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.invitations(workspaceId) });
+  const onSettled = () =>
+    queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.invitations(workspaceId) });
   return {
     create: useMutation({
       mutationFn: (input: CreateInvitationInput) => invitationApi.create(workspaceId, input),

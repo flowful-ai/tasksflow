@@ -25,7 +25,8 @@ declare module '@tanstack/react-query' {
 }
 
 export function mutationErrorText(error: Error, prefix?: string): string {
-  if (error instanceof ApiError && error.status === 0) return 'Network error: the change was not saved.';
+  if (error instanceof ApiError && error.status === 0)
+    return 'Network error: the change was not saved.';
   return prefix ? `${prefix}: ${error.message}` : error.message;
 }
 

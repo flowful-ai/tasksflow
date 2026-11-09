@@ -31,7 +31,11 @@ export class GitHubInstallError extends Error {
 function rethrowVerificationError(error: unknown): never {
   if (error instanceof InstallationVerificationError) {
     const notConfigured = error.code === 'NOT_CONFIGURED';
-    throw new GitHubInstallError(notConfigured ? 'NOT_CONFIGURED' : 'VERIFICATION_FAILED', error.message, notConfigured ? 500 : 403);
+    throw new GitHubInstallError(
+      notConfigured ? 'NOT_CONFIGURED' : 'VERIFICATION_FAILED',
+      error.message,
+      notConfigured ? 500 : 403
+    );
   }
   throw error;
 }
@@ -50,16 +54,29 @@ export interface CompleteInstallationInput {
  * session, and the OAuth `code` must prove the user can access the
  * installation. Only then is the installation stored for the user.
  */
-export async function completeGitHubInstallation(input: CompleteInstallationInput): Promise<{ projectId: string; installationId: number }> {
+export async function completeGitHubInstallation(
+  input: CompleteInstallationInput
+): Promise<{ projectId: string; installationId: number }> {
   const binding = await consumeOAuthState(db, input.state, 'github');
   if (!binding) {
-    throw new GitHubInstallError('INVALID_STATE', 'Install link expired or already used. Start again from project settings.');
+    throw new GitHubInstallError(
+      'INVALID_STATE',
+      'Install link expired or already used. Start again from project settings.'
+    );
   }
   if (binding.userId !== input.userId || binding.sessionId !== input.sessionId) {
-    throw new GitHubInstallError('SESSION_MISMATCH', 'This install was started from a different session.', 403);
+    throw new GitHubInstallError(
+      'SESSION_MISMATCH',
+      'This install was started from a different session.',
+      403
+    );
   }
 
-  const access = await authorizeProjectIntegration(binding.projectId, input.userId, 'project:manage_integrations');
+  const access = await authorizeProjectIntegration(
+    binding.projectId,
+    input.userId,
+    'project:manage_integrations'
+  );
   if (!access.ok) {
     throw new GitHubInstallError('FORBIDDEN', access.message, 403);
   }

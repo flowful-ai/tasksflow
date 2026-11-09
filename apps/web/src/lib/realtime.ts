@@ -63,8 +63,13 @@ export function actionsForEvent(event: string, data: JsonObject): CacheAction[] 
 
   const taskId = str(data, 'id');
   const projectId = str(data, 'projectId');
-  const taskListKey: QueryKey = projectId ? queryKeys.tasks.project(projectId) : queryKeys.tasks.lists();
-  const smartViews: CacheAction = { type: 'invalidate', queryKey: queryKeys.smartViews.executions() };
+  const taskListKey: QueryKey = projectId
+    ? queryKeys.tasks.project(projectId)
+    : queryKeys.tasks.lists();
+  const smartViews: CacheAction = {
+    type: 'invalidate',
+    queryKey: queryKeys.smartViews.executions(),
+  };
   const activity: CacheAction = { type: 'invalidate', queryKey: queryKeys.workspaces.activities() };
 
   switch (event) {
@@ -93,7 +98,8 @@ export function actionsForEvent(event: string, data: JsonObject): CacheAction[] 
       } else {
         actions.unshift({ type: 'invalidate', queryKey: taskListKey });
       }
-      if (projectId) actions.push({ type: 'invalidate', queryKey: queryKeys.projects.trashAll(projectId) });
+      if (projectId)
+        actions.push({ type: 'invalidate', queryKey: queryKeys.projects.trashAll(projectId) });
       return actions;
     }
 

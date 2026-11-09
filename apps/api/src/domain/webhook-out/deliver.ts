@@ -61,7 +61,10 @@ export function createWebhookDeliveryHandler(opts: DeliverHandlerOptions = {}): 
     if (delivery.status === 'success') return;
 
     const record = (values: Partial<typeof outgoingWebhookDeliveries.$inferInsert>) =>
-      db.update(outgoingWebhookDeliveries).set(values).where(eq(outgoingWebhookDeliveries.id, deliveryId));
+      db
+        .update(outgoingWebhookDeliveries)
+        .set(values)
+        .where(eq(outgoingWebhookDeliveries.id, deliveryId));
 
     if (!webhook.enabled && delivery.event !== 'ping') {
       await record({ status: 'failed', attempt: job.attempts, error: 'Webhook disabled' });
@@ -72,7 +75,8 @@ export function createWebhookDeliveryHandler(opts: DeliverHandlerOptions = {}): 
       await assertSafeWebhookUrl(webhook.url, opts.urlPolicy);
     } catch (error) {
       // Policy violations are permanent: don't retry.
-      const message = error instanceof WebhookUrlError ? `${error.code}: ${error.message}` : 'URL check failed';
+      const message =
+        error instanceof WebhookUrlError ? `${error.code}: ${error.message}` : 'URL check failed';
       await record({ status: 'failed', attempt: job.attempts, error: truncate(message) });
       return;
     }
@@ -157,7 +161,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * is recurring (daily); start its chain with
  * `ensureRecurringJob(db, JOB_TYPES.webhookDeliveryCleanup)`.
  */
-export function createOutgoingWebhookJobHandlers(opts: DeliverHandlerOptions = {}): Record<string, JobHandler> {
+export function createOutgoingWebhookJobHandlers(
+  opts: DeliverHandlerOptions = {}
+): Record<string, JobHandler> {
   return {
     'webhooks.deliver': createWebhookDeliveryHandler(opts),
     'webhooks.delivery_cleanup': recurring(DAY_MS, webhookDeliveryCleanupHandler),

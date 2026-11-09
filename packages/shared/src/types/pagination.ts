@@ -18,8 +18,18 @@ export const DEFAULT_PAGE_LIMIT = 50;
 export const MAX_PAGE_LIMIT = 100;
 const MAX_PAGE = 100_000;
 
-export function clampInt(raw: string | number | null | undefined, fallback: number, min: number, max: number): number {
-  const parsed = typeof raw === 'number' ? raw : typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : NaN;
+export function clampInt(
+  raw: string | number | null | undefined,
+  fallback: number,
+  min: number,
+  max: number
+): number {
+  const parsed =
+    typeof raw === 'number'
+      ? raw
+      : typeof raw === 'string' && raw.trim() !== ''
+        ? Number(raw)
+        : NaN;
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(max, Math.max(min, Math.trunc(parsed)));
 }
@@ -46,7 +56,10 @@ export function parsePagination(
   bounds?: PaginationBounds
 ): PaginationQuery {
   const schema = bounds ? createPaginationQuerySchema(bounds) : PaginationQuerySchema;
-  const parsed = schema.safeParse({ page: query.page ?? undefined, limit: query.limit ?? undefined });
+  const parsed = schema.safeParse({
+    page: query.page ?? undefined,
+    limit: query.limit ?? undefined,
+  });
   if (parsed.success) return parsed.data;
   const maxLimit = bounds?.maxLimit ?? MAX_PAGE_LIMIT;
   return { page: 1, limit: Math.min(bounds?.defaultLimit ?? DEFAULT_PAGE_LIMIT, maxLimit) };

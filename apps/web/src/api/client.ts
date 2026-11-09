@@ -5,7 +5,17 @@
  * Every resource function resolves to the envelope's `data` (see http.ts);
  * the few that need `meta` (paged lists) return the whole envelope.
  */
-export { api, http, qs, request, ApiError, isApiError, getTimezone, setUnauthorizedHandler, API_BASE_URL } from './http';
+export {
+  api,
+  http,
+  qs,
+  request,
+  ApiError,
+  isApiError,
+  getTimezone,
+  setUnauthorizedHandler,
+  API_BASE_URL,
+} from './http';
 export type { ApiEnvelope, PageMeta, CursorMeta, RequestOptions } from './http';
 export * from './types';
 export * from './workspaces';

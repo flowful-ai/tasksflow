@@ -43,7 +43,12 @@ export function AgentChatLauncher({ workspaceId }: { workspaceId: string | null 
       </button>
       {mounted && (
         <Suspense fallback={null}>
-          <GlobalAgentChat key={workspaceId} workspaceId={workspaceId} open={open} onOpenChange={setOpen} />
+          <GlobalAgentChat
+            key={workspaceId}
+            workspaceId={workspaceId}
+            open={open}
+            onOpenChange={setOpen}
+          />
         </Suspense>
       )}
     </>

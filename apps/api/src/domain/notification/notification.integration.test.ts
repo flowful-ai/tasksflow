@@ -7,7 +7,16 @@ import { notifications, tasks } from '../../db/index.js';
 import { formatMention } from '@flowtask/shared';
 import { DomainEventBus, domainEvents } from '../events/bus.js';
 import { TaskService } from '../task/service.js';
-import { TEST_DATABASE_URL, createProject, createUser, createWorkspace, testDb, unwrap, type ProjectFixture, type WorkspaceFixture } from '../task/test-fixtures.js';
+import {
+  TEST_DATABASE_URL,
+  createProject,
+  createUser,
+  createWorkspace,
+  testDb,
+  unwrap,
+  type ProjectFixture,
+  type WorkspaceFixture,
+} from '../task/test-fixtures.js';
 import { workspaceMembers } from '../../db/index.js';
 import { runDueDateReminders } from './reminders.js';
 import { NotificationService, onNotificationCreated } from './service.js';
@@ -28,7 +37,9 @@ describe.skipIf(!TEST_DATABASE_URL)('notifications (integration)', () => {
     off = registerNotificationSubscribers(db);
     ws = await createWorkspace(db);
     third = await createUser(db, 'Third');
-    await db.insert(workspaceMembers).values({ workspaceId: ws.workspaceId, userId: third.id, role: 'member' });
+    await db
+      .insert(workspaceMembers)
+      .values({ workspaceId: ws.workspaceId, userId: third.id, role: 'member' });
     project = await createProject(db, ws.workspaceId);
   });
 
@@ -39,7 +50,9 @@ describe.skipIf(!TEST_DATABASE_URL)('notifications (integration)', () => {
 
   async function inboxOf(userId: string) {
     await domainEvents.idle();
-    return unwrap(await inbox.list(userId, { workspaceId: ws.workspaceId, filter: 'all', limit: 100 })).items;
+    return unwrap(
+      await inbox.list(userId, { workspaceId: ws.workspaceId, filter: 'all', limit: 100 })
+    ).items;
   }
 
   it('notifies assignees, never the actor, and pushes through onNotificationCreated', async () => {
@@ -69,21 +82,39 @@ describe.skipIf(!TEST_DATABASE_URL)('notifications (integration)', () => {
 
   it('notifies assignees and the creator on status change, and new mentions in descriptions', async () => {
     const task = unwrap(
-      await service.create({ projectId: project.projectId, title: 'Status', assigneeIds: [ws.member.id], createdBy: ws.owner.id })
+      await service.create({
+        projectId: project.projectId,
+        title: 'Status',
+        assigneeIds: [ws.member.id],
+        createdBy: ws.owner.id,
+      })
     );
     unwrap(await service.move(task.id, { stateId: project.states.progress, movedBy: third.id }));
-    const memberItems = (await inboxOf(ws.member.id)).filter((n) => n.task?.id === task.id && n.type === 'status_changed');
-    const ownerItems = (await inboxOf(ws.owner.id)).filter((n) => n.task?.id === task.id && n.type === 'status_changed');
+    const memberItems = (await inboxOf(ws.member.id)).filter(
+      (n) => n.task?.id === task.id && n.type === 'status_changed'
+    );
+    const ownerItems = (await inboxOf(ws.owner.id)).filter(
+      (n) => n.task?.id === task.id && n.type === 'status_changed'
+    );
     expect(memberItems).toHaveLength(1);
     expect(ownerItems).toHaveLength(1);
     expect(memberItems[0]!.data.toState).toMatchObject({ name: 'In progress' });
     expect(memberItems[0]!.data.fromState).toMatchObject({ name: 'Todo' });
 
     const mention = formatMention('Third', third.id);
-    unwrap(await service.update(task.id, { description: `ping ${mention}`, updatedBy: ws.owner.id }));
+    unwrap(
+      await service.update(task.id, { description: `ping ${mention}`, updatedBy: ws.owner.id })
+    );
     // Editing again with the same mention does not notify twice.
-    unwrap(await service.update(task.id, { description: `ping ${mention} again`, updatedBy: ws.owner.id }));
-    const mentions = (await inboxOf(third.id)).filter((n) => n.task?.id === task.id && n.type === 'mentioned');
+    unwrap(
+      await service.update(task.id, {
+        description: `ping ${mention} again`,
+        updatedBy: ws.owner.id,
+      })
+    );
+    const mentions = (await inboxOf(third.id)).filter(
+      (n) => n.task?.id === task.id && n.type === 'mentioned'
+    );
     expect(mentions).toHaveLength(1);
     expect(mentions[0]!.data.excerpt).toBe('ping @Third');
   });
@@ -103,7 +134,12 @@ describe.skipIf(!TEST_DATABASE_URL)('notifications (integration)', () => {
 
   it('notifies participants and mentioned users on comment.created', async () => {
     const task = unwrap(
-      await service.create({ projectId: project.projectId, title: 'Comments', assigneeIds: [ws.member.id], createdBy: ws.owner.id })
+      await service.create({
+        projectId: project.projectId,
+        title: 'Comments',
+        assigneeIds: [ws.member.id],
+        createdBy: ws.owner.id,
+      })
     );
     domainEvents.emit('comment.created', {
       commentId: '00000000-0000-4000-8000-0000000000aa',
@@ -115,12 +151,19 @@ describe.skipIf(!TEST_DATABASE_URL)('notifications (integration)', () => {
     expect(owner.map((n) => n.type)).toEqual(['commented']);
     const thirdItems = (await inboxOf(third.id)).filter((n) => n.task?.id === task.id);
     expect(thirdItems.map((n) => n.type)).toEqual(['mentioned']);
-    expect((await inboxOf(ws.member.id)).some((n) => n.task?.id === task.id && n.type === 'commented')).toBe(false);
+    expect(
+      (await inboxOf(ws.member.id)).some((n) => n.task?.id === task.id && n.type === 'commented')
+    ).toBe(false);
   });
 
   it('reads, archives, snoozes and counts', async () => {
     const task = unwrap(
-      await service.create({ projectId: project.projectId, title: 'Inbox ops', assigneeIds: [third.id], createdBy: ws.owner.id })
+      await service.create({
+        projectId: project.projectId,
+        title: 'Inbox ops',
+        assigneeIds: [third.id],
+        createdBy: ws.owner.id,
+      })
     );
     const [item] = (await inboxOf(third.id)).filter((n) => n.task?.id === task.id);
     const before = unwrap(await inbox.unreadCount(third.id, ws.workspaceId));
@@ -130,13 +173,19 @@ describe.skipIf(!TEST_DATABASE_URL)('notifications (integration)', () => {
     expect(unwrap(await inbox.markRead(ws.owner.id, item!.id))).toBeNull();
 
     unwrap(await inbox.snooze(third.id, item!.id, new Date(Date.now() + 3_600_000)));
-    const listInbox = unwrap(await inbox.list(third.id, { workspaceId: ws.workspaceId, filter: 'inbox', limit: 100 }));
+    const listInbox = unwrap(
+      await inbox.list(third.id, { workspaceId: ws.workspaceId, filter: 'inbox', limit: 100 })
+    );
     expect(listInbox.items.some((n) => n.id === item!.id)).toBe(false);
-    const snoozed = unwrap(await inbox.list(third.id, { workspaceId: ws.workspaceId, filter: 'snoozed' }));
+    const snoozed = unwrap(
+      await inbox.list(third.id, { workspaceId: ws.workspaceId, filter: 'snoozed' })
+    );
     expect(snoozed.items.map((n) => n.id)).toContain(item!.id);
 
     unwrap(await inbox.archive(third.id, item!.id));
-    const archived = unwrap(await inbox.list(third.id, { workspaceId: ws.workspaceId, filter: 'archived' }));
+    const archived = unwrap(
+      await inbox.list(third.id, { workspaceId: ws.workspaceId, filter: 'archived' })
+    );
     expect(archived.items.map((n) => n.id)).toContain(item!.id);
 
     unwrap(await inbox.markAllRead(third.id, ws.workspaceId));
@@ -145,7 +194,9 @@ describe.skipIf(!TEST_DATABASE_URL)('notifications (integration)', () => {
 
   it('paginates with a cursor', async () => {
     const user = await createUser(testDb(), 'Pager');
-    await testDb().insert(workspaceMembers).values({ workspaceId: ws.workspaceId, userId: user.id, role: 'member' });
+    await testDb()
+      .insert(workspaceMembers)
+      .values({ workspaceId: ws.workspaceId, userId: user.id, role: 'member' });
     await inbox.createMany(
       Array.from({ length: 5 }, (_, i) => ({
         userIds: [user.id],
@@ -158,8 +209,20 @@ describe.skipIf(!TEST_DATABASE_URL)('notifications (integration)', () => {
       }))
     );
     const first = unwrap(await inbox.list(user.id, { workspaceId: ws.workspaceId, limit: 2 }));
-    const second = unwrap(await inbox.list(user.id, { workspaceId: ws.workspaceId, limit: 2, cursor: first.nextCursor! }));
-    const third = unwrap(await inbox.list(user.id, { workspaceId: ws.workspaceId, limit: 2, cursor: second.nextCursor! }));
+    const second = unwrap(
+      await inbox.list(user.id, {
+        workspaceId: ws.workspaceId,
+        limit: 2,
+        cursor: first.nextCursor!,
+      })
+    );
+    const third = unwrap(
+      await inbox.list(user.id, {
+        workspaceId: ws.workspaceId,
+        limit: 2,
+        cursor: second.nextCursor!,
+      })
+    );
     const ids = [...first.items, ...second.items, ...third.items].map((n) => n.id);
     expect(new Set(ids).size).toBe(5);
     expect(third.nextCursor).toBeNull();
@@ -197,8 +260,15 @@ describe.skipIf(!TEST_DATABASE_URL)('notifications (integration)', () => {
     );
     await runDueDateReminders(db);
     await runDueDateReminders(db);
-    const rows = await db.select().from(notifications).where(eq(notifications.userId, ws.member.id));
-    const forTask = (id: string) => rows.filter((r) => r.taskId === id).map((r) => r.type).filter((t) => t !== 'assigned');
+    const rows = await db
+      .select()
+      .from(notifications)
+      .where(eq(notifications.userId, ws.member.id));
+    const forTask = (id: string) =>
+      rows
+        .filter((r) => r.taskId === id)
+        .map((r) => r.type)
+        .filter((t) => t !== 'assigned');
     expect(forTask(soon.id)).toEqual(['due_soon']);
     expect(forTask(late.id)).toEqual(['overdue']);
     expect(forTask(done.id)).toEqual([]);

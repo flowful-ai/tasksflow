@@ -11,7 +11,12 @@ import { mcpOAuthClients, users, workspaceMembers, workspaces } from '../../db/s
 import { OAuthError } from './errors.js';
 import { buildS256CodeChallenge } from './crypto.js';
 import { createAuthorizationCode, exchangeAuthorizationCode } from './codes.js';
-import { authenticateAccessToken, refreshAccessToken, revokeToken, REFRESH_REUSE_GRACE_SECONDS } from './tokens.js';
+import {
+  authenticateAccessToken,
+  refreshAccessToken,
+  revokeToken,
+  REFRESH_REUSE_GRACE_SECONDS,
+} from './tokens.js';
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 const BASE_URL = 'https://tasks.test';
@@ -27,8 +32,12 @@ describe.skipIf(!TEST_DATABASE_URL)('MCP OAuth flows (database)', () => {
 
   beforeAll(async () => {
     db = createDatabase(TEST_DATABASE_URL);
-    await db.insert(users).values({ id: userId, email: `oauth-${userId}@example.com`, name: 'OAuth Test' });
-    await db.insert(workspaces).values({ id: workspaceId, name: 'OAuth WS', slug: `oauth-${workspaceId}` });
+    await db
+      .insert(users)
+      .values({ id: userId, email: `oauth-${userId}@example.com`, name: 'OAuth Test' });
+    await db
+      .insert(workspaces)
+      .values({ id: workspaceId, name: 'OAuth WS', slug: `oauth-${workspaceId}` });
     await db.insert(workspaceMembers).values({ workspaceId, userId, role: 'owner' });
     clientId = `ft_mcp_client_test_${randomUUID()}`;
     const [client] = await db
@@ -86,13 +95,19 @@ describe.skipIf(!TEST_DATABASE_URL)('MCP OAuth flows (database)', () => {
     expect(fulfilled).toHaveLength(1);
     expect(rejected).toHaveLength(2);
     for (const result of rejected) {
-      expect(result.status === 'rejected' && result.reason instanceof OAuthError && result.reason.oauthError).toBe('invalid_grant');
+      expect(
+        result.status === 'rejected' &&
+          result.reason instanceof OAuthError &&
+          result.reason.oauthError
+      ).toBe('invalid_grant');
     }
 
     // The replay revoked the family issued from that code.
     const winner = fulfilled[0];
     const accessToken = winner?.status === 'fulfilled' ? winner.value.access_token : '';
-    expect(await oauthErrorOf(authenticateAccessToken(db, accessToken, { baseUrl: BASE_URL }))).toBe('invalid_token');
+    expect(
+      await oauthErrorOf(authenticateAccessToken(db, accessToken, { baseUrl: BASE_URL }))
+    ).toBe('invalid_token');
   });
 
   it('does not consume the code when the verifier is wrong', async () => {
@@ -115,7 +130,10 @@ describe.skipIf(!TEST_DATABASE_URL)('MCP OAuth flows (database)', () => {
       refreshAccessToken(db, { refreshToken: token, clientId, baseUrl: BASE_URL }, clock);
 
     // Concurrent refreshes of the same token get the same successor.
-    const [first, second] = await Promise.all([refresh(issued.refresh_token), refresh(issued.refresh_token)]);
+    const [first, second] = await Promise.all([
+      refresh(issued.refresh_token),
+      refresh(issued.refresh_token),
+    ]);
     expect(first.refresh_token).not.toBe(issued.refresh_token);
     expect(second.refresh_token).toBe(first.refresh_token);
     expect(second.access_token).toBe(first.access_token);
@@ -128,26 +146,36 @@ describe.skipIf(!TEST_DATABASE_URL)('MCP OAuth flows (database)', () => {
     const later = () => new Date(Date.now() + (REFRESH_REUSE_GRACE_SECONDS + 5) * 1000);
     expect(await oauthErrorOf(refresh(issued.refresh_token, later))).toBe('invalid_grant');
     expect(await oauthErrorOf(refresh(third.refresh_token))).toBe('invalid_grant');
-    expect(await oauthErrorOf(authenticateAccessToken(db, third.access_token, { baseUrl: BASE_URL }))).toBe('invalid_token');
+    expect(
+      await oauthErrorOf(authenticateAccessToken(db, third.access_token, { baseUrl: BASE_URL }))
+    ).toBe('invalid_token');
   });
 
   it('revoking a refresh token also revokes its access tokens', async () => {
     const issued = await redeem(await newCode());
     await authenticateAccessToken(db, issued.access_token, { baseUrl: BASE_URL });
     await revokeToken(db, { token: issued.refresh_token, tokenTypeHint: 'refresh_token' });
-    expect(await oauthErrorOf(authenticateAccessToken(db, issued.access_token, { baseUrl: BASE_URL }))).toBe('invalid_token');
+    expect(
+      await oauthErrorOf(authenticateAccessToken(db, issued.access_token, { baseUrl: BASE_URL }))
+    ).toBe('invalid_token');
   });
 
   it('binds tokens to the MCP resource', async () => {
     const issued = await redeem(await newCode(`${BASE_URL}/api/mcp/sse`));
     const auth = await authenticateAccessToken(db, issued.access_token, { baseUrl: BASE_URL });
     expect(auth.resource).toBe(`${BASE_URL}/api/mcp/sse`);
-    expect(await oauthErrorOf(authenticateAccessToken(db, issued.access_token, { baseUrl: 'https://other.test' }))).toBe(
-      'invalid_token'
-    );
+    expect(
+      await oauthErrorOf(
+        authenticateAccessToken(db, issued.access_token, { baseUrl: 'https://other.test' })
+      )
+    ).toBe('invalid_token');
 
-    expect(await oauthErrorOf(redeem(await newCode(), ['https://evil.test/api/mcp']))).toBe('invalid_target');
-    expect(await oauthErrorOf(redeem(await newCode(), [`${BASE_URL}/api/mcp/sse`]))).toBe('invalid_target');
+    expect(await oauthErrorOf(redeem(await newCode(), ['https://evil.test/api/mcp']))).toBe(
+      'invalid_target'
+    );
+    expect(await oauthErrorOf(redeem(await newCode(), [`${BASE_URL}/api/mcp/sse`]))).toBe(
+      'invalid_target'
+    );
     const matching = await redeem(await newCode(), [`${BASE_URL}/api/mcp`]);
     expect(matching.access_token).toBeTruthy();
   });
@@ -167,20 +195,32 @@ describe.skipIf(!TEST_DATABASE_URL)('MCP OAuth flows (database)', () => {
     it('never redirects to an unregistered redirect_uri', async () => {
       const app = await oauthApp();
       const unknownClient = await app.request(
-        authorizeUrl({ client_id: 'nope', redirect_uri: 'https://evil.example/cb', response_type: 'code' })
+        authorizeUrl({
+          client_id: 'nope',
+          redirect_uri: 'https://evil.example/cb',
+          response_type: 'code',
+        })
       );
       expect(unknownClient.status).toBe(400);
       expect(unknownClient.headers.get('Location')).toBeNull();
 
       const unregistered = await app.request(
-        authorizeUrl({ client_id: clientId, redirect_uri: 'https://evil.example/cb', response_type: 'token' })
+        authorizeUrl({
+          client_id: clientId,
+          redirect_uri: 'https://evil.example/cb',
+          response_type: 'token',
+        })
       );
       expect(unregistered.status).toBe(400);
       expect(unregistered.headers.get('Location')).toBeNull();
 
       const deny = await app.request('http://localhost/api/mcp/oauth/authorize', {
         method: 'POST',
-        body: new URLSearchParams({ client_id: clientId, redirect_uri: 'https://evil.example/cb', decision: 'deny' }),
+        body: new URLSearchParams({
+          client_id: clientId,
+          redirect_uri: 'https://evil.example/cb',
+          decision: 'deny',
+        }),
       });
       expect(deny.status).toBe(400);
       expect(deny.headers.get('Location')).toBeNull();
@@ -189,7 +229,12 @@ describe.skipIf(!TEST_DATABASE_URL)('MCP OAuth flows (database)', () => {
     it('redirects errors to a registered redirect_uri', async () => {
       const app = await oauthApp();
       const response = await app.request(
-        authorizeUrl({ client_id: clientId, redirect_uri: REDIRECT_URI, response_type: 'token', state: 'xyz' })
+        authorizeUrl({
+          client_id: clientId,
+          redirect_uri: REDIRECT_URI,
+          response_type: 'token',
+          state: 'xyz',
+        })
       );
       expect(response.status).toBe(302);
       const location = new URL(response.headers.get('Location') ?? '');
@@ -199,10 +244,17 @@ describe.skipIf(!TEST_DATABASE_URL)('MCP OAuth flows (database)', () => {
 
       const deny = await app.request('http://localhost/api/mcp/oauth/authorize', {
         method: 'POST',
-        body: new URLSearchParams({ client_id: clientId, redirect_uri: REDIRECT_URI, decision: 'deny', state: 's1' }),
+        body: new URLSearchParams({
+          client_id: clientId,
+          redirect_uri: REDIRECT_URI,
+          decision: 'deny',
+          state: 's1',
+        }),
       });
       expect(deny.status).toBe(302);
-      expect(new URL(deny.headers.get('Location') ?? '').searchParams.get('error')).toBe('access_denied');
+      expect(new URL(deny.headers.get('Location') ?? '').searchParams.get('error')).toBe(
+        'access_denied'
+      );
     });
   });
 });

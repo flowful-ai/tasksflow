@@ -1,13 +1,19 @@
 /** Smart views, their execution and public shares. */
 import type { CreateSmartView, UpdateSmartView } from '@flowtask/shared';
 import { http, qs } from './http';
-import type { CreatePublicShareInput, PublicShareDto, SmartViewDto, SmartViewExecuteDto } from './types';
+import type {
+  CreatePublicShareInput,
+  PublicShareDto,
+  SmartViewDto,
+  SmartViewExecuteDto,
+} from './types';
 
 /** Page size used when loading every task of a smart view (the API maximum). */
 export const SMART_VIEW_PAGE_SIZE = 100;
 
 export const smartViewsApi = {
-  list: (workspaceId: string): Promise<SmartViewDto[]> => http.get(`/api/smart-views${qs({ workspaceId })}`),
+  list: (workspaceId: string): Promise<SmartViewDto[]> =>
+    http.get(`/api/smart-views${qs({ workspaceId })}`),
   get: (viewId: string): Promise<SmartViewDto> => http.get(`/api/smart-views/${viewId}`),
   create: (input: CreateSmartView & { workspaceId: string }): Promise<SmartViewDto> =>
     http.post('/api/smart-views', input),
@@ -15,7 +21,12 @@ export const smartViewsApi = {
     http.patch(`/api/smart-views/${viewId}`, input),
   delete: (viewId: string): Promise<null> => http.delete(`/api/smart-views/${viewId}`),
   /** One page of the view's tasks plus the view itself; `meta.total` is the full count. */
-  execute: (viewId: string, page: number, limit: number = SMART_VIEW_PAGE_SIZE, signal?: AbortSignal): Promise<SmartViewExecuteDto> =>
+  execute: (
+    viewId: string,
+    page: number,
+    limit: number = SMART_VIEW_PAGE_SIZE,
+    signal?: AbortSignal
+  ): Promise<SmartViewExecuteDto> =>
     http.get(`/api/smart-views/${viewId}/execute${qs({ page, limit })}`, signal),
 
   createPublicShare: (viewId: string, input: CreatePublicShareInput): Promise<PublicShareDto> =>
@@ -40,7 +51,12 @@ export interface PublicTaskDto {
   description: string | null;
   stateId: string | null;
   /** Present only when the share was created with `showExternalLinks`. */
-  externalLinks?: { id: string; externalType: 'github_issue' | 'github_pr'; externalId: string; externalUrl: string }[];
+  externalLinks?: {
+    id: string;
+    externalType: 'github_issue' | 'github_pr';
+    externalId: string;
+    externalUrl: string;
+  }[];
   createdAt: string;
   updatedAt: string | null;
 }

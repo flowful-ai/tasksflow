@@ -2,45 +2,48 @@ import { z } from 'zod';
 import { BaseEntitySchema } from './common.js';
 
 // Available AI models
-export const AIModelSchema = z.string().trim().transform((value, ctx) => {
-  if (!value) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Model is required',
-    });
-    return z.NEVER;
-  }
+export const AIModelSchema = z
+  .string()
+  .trim()
+  .transform((value, ctx) => {
+    if (!value) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Model is required',
+      });
+      return z.NEVER;
+    }
 
-  if (/\s/.test(value)) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Model must not contain spaces',
-    });
-    return z.NEVER;
-  }
+    if (/\s/.test(value)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Model must not contain spaces',
+      });
+      return z.NEVER;
+    }
 
-  const slashIndex = value.indexOf('/');
-  if (slashIndex <= 0 || slashIndex === value.length - 1) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Model must follow "provider/model" format',
-    });
-    return z.NEVER;
-  }
+    const slashIndex = value.indexOf('/');
+    if (slashIndex <= 0 || slashIndex === value.length - 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Model must follow "provider/model" format',
+      });
+      return z.NEVER;
+    }
 
-  const provider = value.slice(0, slashIndex);
-  const model = value.slice(slashIndex + 1);
+    const provider = value.slice(0, slashIndex);
+    const model = value.slice(slashIndex + 1);
 
-  if (!/^[a-z0-9][a-z0-9-]*$/i.test(provider)) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Provider must contain only letters, numbers, and hyphens',
-    });
-    return z.NEVER;
-  }
+    if (!/^[a-z0-9][a-z0-9-]*$/i.test(provider)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provider must contain only letters, numbers, and hyphens',
+      });
+      return z.NEVER;
+    }
 
-  return `${provider.toLowerCase()}/${model}`;
-});
+    return `${provider.toLowerCase()}/${model}`;
+  });
 export type AIModel = z.infer<typeof AIModelSchema>;
 
 // Agent tools
@@ -105,10 +108,16 @@ export type UpdateAgent = z.infer<typeof UpdateAgentSchema>;
 export const ApiKeyProviderSchema = z.enum(['openai', 'anthropic', 'google', 'openrouter']);
 export type ApiKeyProvider = z.infer<typeof ApiKeyProviderSchema>;
 
-const NATIVE_API_KEY_PROVIDERS = ['openai', 'anthropic', 'google'] as const satisfies readonly ApiKeyProvider[];
+const NATIVE_API_KEY_PROVIDERS = [
+  'openai',
+  'anthropic',
+  'google',
+] as const satisfies readonly ApiKeyProvider[];
 
 export function getRequiredApiKeyProvidersForModel(model: string): ApiKeyProvider[] {
-  const nativeProvider = NATIVE_API_KEY_PROVIDERS.find((provider) => model.startsWith(`${provider}/`));
+  const nativeProvider = NATIVE_API_KEY_PROVIDERS.find((provider) =>
+    model.startsWith(`${provider}/`)
+  );
   return nativeProvider ? [nativeProvider, 'openrouter'] : ['openrouter'];
 }
 

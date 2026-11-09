@@ -70,7 +70,10 @@ export function LabelsSettings({ projectId, labels }: LabelsSettingsProps) {
         {editLabels.map((label) => {
           const isSaving = update.isPending && update.variables?.labelId === label.id;
           return (
-            <li key={label.id} className="flex flex-col gap-3 border border-gray-200 rounded-lg p-4">
+            <li
+              key={label.id}
+              className="flex flex-col gap-3 border border-gray-200 rounded-lg p-4"
+            >
               <div className="flex flex-wrap items-center gap-3">
                 <ColorDot color={label.color} size="md" />
                 <label htmlFor={`label-name-${label.id}`} className="sr-only">
@@ -88,14 +91,21 @@ export function LabelsSettings({ projectId, labels }: LabelsSettingsProps) {
                   <input
                     type="color"
                     value={label.color || DEFAULT_COLOR}
-                    onChange={(e) => patchLocal(label.id, { color: e.target.value, colorTouched: true })}
+                    onChange={(e) =>
+                      patchLocal(label.id, { color: e.target.value, colorTouched: true })
+                    }
                     className="h-9 w-12 border border-gray-200 rounded-lg"
                   />
                 </label>
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <button type="button" className="btn btn-secondary" onClick={() => handleUpdate(label)} disabled={isSaving}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => handleUpdate(label)}
+                  disabled={isSaving}
+                >
                   {isSaving ? 'Saving...' : 'Save'}
                 </button>
                 <button
@@ -116,7 +126,10 @@ export function LabelsSettings({ projectId, labels }: LabelsSettingsProps) {
         <h3 className="text-sm font-semibold text-gray-700">Add Label</h3>
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="sm:col-span-2">
-            <label htmlFor="new-label-name" className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor="new-label-name"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
               Name
             </label>
             <input
@@ -129,7 +142,10 @@ export function LabelsSettings({ projectId, labels }: LabelsSettingsProps) {
             />
           </div>
           <div>
-            <label htmlFor="new-label-color" className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor="new-label-color"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
               Color
             </label>
             <input
@@ -141,7 +157,11 @@ export function LabelsSettings({ projectId, labels }: LabelsSettingsProps) {
             />
           </div>
         </div>
-        <button type="submit" className="btn btn-primary" disabled={create.isPending || !newName.trim()}>
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={create.isPending || !newName.trim()}
+        >
           {create.isPending ? 'Adding...' : 'Add Label'}
         </button>
       </form>

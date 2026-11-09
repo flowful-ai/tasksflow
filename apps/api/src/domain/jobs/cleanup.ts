@@ -13,8 +13,14 @@ export const jobsCleanupHandler: JobHandler = async (_job, { db }) => {
     .delete(jobs)
     .where(
       or(
-        and(isNotNull(jobs.doneAt), lt(jobs.doneAt, new Date(now - DONE_JOB_RETENTION_DAYS * DAY_MS))),
-        and(isNotNull(jobs.failedAt), lt(jobs.failedAt, new Date(now - FAILED_JOB_RETENTION_DAYS * DAY_MS)))
+        and(
+          isNotNull(jobs.doneAt),
+          lt(jobs.doneAt, new Date(now - DONE_JOB_RETENTION_DAYS * DAY_MS))
+        ),
+        and(
+          isNotNull(jobs.failedAt),
+          lt(jobs.failedAt, new Date(now - FAILED_JOB_RETENTION_DAYS * DAY_MS))
+        )
       )
     );
 };

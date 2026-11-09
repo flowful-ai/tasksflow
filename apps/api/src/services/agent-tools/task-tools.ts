@@ -69,7 +69,11 @@ interface CreateFields {
   assigneeIds?: string[];
 }
 
-async function readCreateFields(item: JsonRecord, ctx: ToolContext, extraAssignees: string[] = []): Promise<CreateFields> {
+async function readCreateFields(
+  item: JsonRecord,
+  ctx: ToolContext,
+  extraAssignees: string[] = []
+): Promise<CreateFields> {
   const dueDate = optionalString(item, 'dueDate');
   const assigneeRefs = [...(optionalStringArray(item, 'assigneeIds') ?? []), ...extraAssignees];
   return {
@@ -85,7 +89,11 @@ async function readCreateFields(item: JsonRecord, ctx: ToolContext, extraAssigne
 
 const createTask: ToolHandler = async (args, ctx, services) => {
   const project = await ctx.requireProject(requiredString(args, 'projectId'));
-  const fields = await readCreateFields(args, ctx, optionalBoolean(args, 'autoAssign') ? ['me'] : []);
+  const fields = await readCreateFields(
+    args,
+    ctx,
+    optionalBoolean(args, 'autoAssign') ? ['me'] : []
+  );
   const mode = resolveWriteMode(args);
 
   const task = unwrap(
@@ -131,7 +139,12 @@ const bulkCreateTasks: ToolHandler = async (args, ctx, services) => {
 
 // ---------- update ----------
 
-async function syncLabels(task: TaskWithRelations, labelIds: string[], ctx: ToolContext, services: ToolServices) {
+async function syncLabels(
+  task: TaskWithRelations,
+  labelIds: string[],
+  ctx: ToolContext,
+  services: ToolServices
+) {
   const current = new Set(task.labels.map((label) => label.id));
   const next = new Set(labelIds);
   for (const labelId of next) {
@@ -142,7 +155,12 @@ async function syncLabels(task: TaskWithRelations, labelIds: string[], ctx: Tool
   }
 }
 
-async function syncAssignees(task: TaskWithRelations, refs: string[], ctx: ToolContext, services: ToolServices) {
+async function syncAssignees(
+  task: TaskWithRelations,
+  refs: string[],
+  ctx: ToolContext,
+  services: ToolServices
+) {
   const nextIds = new Set<string>();
   for (const ref of refs) {
     nextIds.add((await ctx.resolveUser(ref)).id);
@@ -154,8 +172,10 @@ async function syncAssignees(task: TaskWithRelations, refs: string[], ctx: ToolC
     ctx.assertPermission('task:assign');
   }
   const options = { mcpClientId: ctx.mcpClientId };
-  for (const id of toAdd) unwrap(await services.tasks.addAssignee(task.id, id, ctx.userId, options));
-  for (const id of toRemove) unwrap(await services.tasks.removeAssignee(task.id, id, ctx.userId, options));
+  for (const id of toAdd)
+    unwrap(await services.tasks.addAssignee(task.id, id, ctx.userId, options));
+  for (const id of toRemove)
+    unwrap(await services.tasks.removeAssignee(task.id, id, ctx.userId, options));
 }
 
 /**
@@ -168,7 +188,9 @@ async function applyTaskUpdate(
   outer: ToolServices
 ): Promise<{ before: TaskWithRelations; after: TaskWithRelations }> {
   const task = await ctx.requireTask(requiredString(item, 'taskId'));
-  return outer.withTaskTransaction((tasks) => applyTaskUpdateIn(task, item, ctx, { ...outer, tasks }));
+  return outer.withTaskTransaction((tasks) =>
+    applyTaskUpdateIn(task, item, ctx, { ...outer, tasks })
+  );
 }
 
 async function applyTaskUpdateIn(
@@ -183,7 +205,8 @@ async function applyTaskUpdateIn(
     description: optionalString(item, 'description'),
     priority: optionalPriority(item),
     stateId: optionalString(item, 'stateId'),
-    dueDate: rawDueDate === undefined ? undefined : rawDueDate === null ? null : parseDueDate(rawDueDate),
+    dueDate:
+      rawDueDate === undefined ? undefined : rawDueDate === null ? null : parseDueDate(rawDueDate),
   };
   const hasScalarChange = Object.values(scalar).some((value) => value !== undefined);
 
@@ -250,7 +273,11 @@ const bulkUpdateTasks: ToolHandler = async (args, ctx, services) => {
       results.push({ taskId: taskRef, ok: true, id: after.id });
       updated += 1;
     } catch (error) {
-      results.push({ taskId: taskRef, ok: false, error: toToolErrorPayload(error, 'bulk_update_tasks').message });
+      results.push({
+        taskId: taskRef,
+        ok: false,
+        error: toToolErrorPayload(error, 'bulk_update_tasks').message,
+      });
     }
   }
 
@@ -273,7 +300,9 @@ const deleteTask: ToolHandler = async (args, ctx, services) => {
 
 async function resolveTargetState(task: TaskWithRelations, args: JsonRecord, ctx: ToolContext) {
   const project = await ctx.requireProject(task.projectId);
-  const states = [...project.taskStates].sort((a, b) => (a.position < b.position ? -1 : a.position > b.position ? 1 : 0));
+  const states = [...project.taskStates].sort((a, b) =>
+    a.position < b.position ? -1 : a.position > b.position ? 1 : 0
+  );
   const stateId = optionalString(args, 'stateId');
   const stateRef = optionalString(args, 'state')?.trim();
   const available = states.map((state) => `${state.name} (${state.category})`).join(', ');
@@ -281,7 +310,10 @@ async function resolveTargetState(task: TaskWithRelations, args: JsonRecord, ctx
   if (stateId) {
     const state = states.find((candidate) => candidate.id === stateId);
     if (!state) {
-      throw new ToolExecutionError(`stateId does not belong to the task's project. Available: ${available}`, 'VALIDATION_ERROR');
+      throw new ToolExecutionError(
+        `stateId does not belong to the task's project. Available: ${available}`,
+        'VALIDATION_ERROR'
+      );
     }
     return state;
   }
@@ -293,12 +325,18 @@ async function resolveTargetState(task: TaskWithRelations, args: JsonRecord, ctx
       states.find((candidate) => candidate.name.toLowerCase() === needle) ??
       states.find((candidate) => candidate.category === normalizedCategory);
     if (!state) {
-      throw new ToolExecutionError(`No state named or categorised "${stateRef}". Available: ${available}`, 'VALIDATION_ERROR');
+      throw new ToolExecutionError(
+        `No state named or categorised "${stateRef}". Available: ${available}`,
+        'VALIDATION_ERROR'
+      );
     }
     return state;
   }
 
-  throw new ToolExecutionError('Provide stateId or state (a state name or category)', 'VALIDATION_ERROR');
+  throw new ToolExecutionError(
+    'Provide stateId or state (a state name or category)',
+    'VALIDATION_ERROR'
+  );
 }
 
 const moveTask: ToolHandler = async (args, ctx, services) => {
@@ -355,7 +393,10 @@ async function listScopedTasks(
   extra: Pick<TaskFilters, 'search'>
 ): Promise<ToolOutput> {
   const projection = resolveTaskProjectionArgs(args);
-  const window = resolvePageWindow({ limit: optionalInteger(args, 'limit'), cursor: optionalString(args, 'cursor') });
+  const window = resolvePageWindow({
+    limit: optionalInteger(args, 'limit'),
+    cursor: optionalString(args, 'cursor'),
+  });
   // Never omit projectIds: without it TaskService.list spans every workspace.
   const projectIds = await scopedProjectIds(args, ctx);
   if (projectIds.length === 0) {
@@ -381,7 +422,12 @@ async function listScopedTasks(
     })
   );
 
-  return projectTaskList(result.tasks, result.total, projection, nextCursorFor(window, result.total));
+  return projectTaskList(
+    result.tasks,
+    result.total,
+    projection,
+    nextCursorFor(window, result.total)
+  );
 }
 
 const queryTasks: ToolHandler = (args, ctx, services) => listScopedTasks(args, ctx, services, {});

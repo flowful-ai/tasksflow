@@ -23,7 +23,12 @@ export {
 } from './DropdownMenu';
 export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor, PopoverClose } from './Popover';
 export { Tooltip, TooltipProvider, type TooltipProps } from './Tooltip';
-export { IconButton, type IconButtonProps, type IconButtonVariant, type IconButtonSize } from './IconButton';
+export {
+  IconButton,
+  type IconButtonProps,
+  type IconButtonVariant,
+  type IconButtonSize,
+} from './IconButton';
 export { Spinner, PageSpinner, type SpinnerProps } from './Spinner';
 export { EmptyState, type EmptyStateProps } from './EmptyState';
 export { ErrorState, classifyError, type ErrorStateProps, type ErrorKind } from './ErrorState';

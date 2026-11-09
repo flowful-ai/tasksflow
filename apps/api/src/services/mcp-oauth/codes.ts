@@ -69,7 +69,9 @@ export async function exchangeAuthorizationCode(
   const codeHash = hashSecret(input.code);
   const expectedChallenge = buildS256CodeChallenge(input.codeVerifier);
   const requestedResource =
-    input.resource && input.resource.length > 0 ? resolveRequestedResource(input.resource, input.baseUrl) : null;
+    input.resource && input.resource.length > 0
+      ? resolveRequestedResource(input.resource, input.baseUrl)
+      : null;
   const familyId = randomUUID();
   const now = new Date();
 
@@ -127,7 +129,9 @@ export async function exchangeAuthorizationCode(
     if (existing.tokenFamilyId) {
       await revokeTokenFamily(db, existing.tokenFamilyId);
     }
-    console.warn('MCP OAuth authorization code replay detected; issued tokens revoked', { codeId: existing.id });
+    console.warn('MCP OAuth authorization code replay detected; issued tokens revoked', {
+      codeId: existing.id,
+    });
     throw new OAuthError('invalid_grant', 'Authorization code has already been used');
   }
 

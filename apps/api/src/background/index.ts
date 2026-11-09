@@ -6,7 +6,11 @@
  */
 import type { Database } from '../db/index.js';
 import { enqueueJob, startBackgroundServices, type JobHandlers } from '../domain/index.js';
-import { getBackgroundJobRunners, isNonRetryableBackgroundError, useDurableJobQueue } from '../integrations/index.js';
+import {
+  getBackgroundJobRunners,
+  isNonRetryableBackgroundError,
+  useDurableJobQueue,
+} from '../integrations/index.js';
 import { registerDomainEventBridges } from './domain-bridges.js';
 
 export interface ApiBackground {
@@ -44,7 +48,10 @@ export function startApiBackground(db: Database): ApiBackground {
       },
     });
   }
-  const services = startBackgroundServices(db, { runJobs, extraHandlers: integrationJobHandlers() });
+  const services = startBackgroundServices(db, {
+    runJobs,
+    extraHandlers: integrationJobHandlers(),
+  });
 
   let stopped: Promise<void> | null = null;
   return {

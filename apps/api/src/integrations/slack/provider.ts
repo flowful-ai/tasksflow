@@ -15,6 +15,9 @@ export class SlackProvider implements IntegrationProvider<SlackConfig> {
   }
 
   isConfigured(config: SlackConfig): boolean {
-    return config.channelId.length > 0 && (config.botTokenEncrypted !== undefined || getEnvSlackBotToken() !== undefined);
+    return (
+      config.channelId.length > 0 &&
+      (config.botTokenEncrypted !== undefined || getEnvSlackBotToken() !== undefined)
+    );
   }
 }

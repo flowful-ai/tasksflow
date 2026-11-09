@@ -50,10 +50,9 @@ function isLegacyState(value: unknown): value is LegacyPersistedState {
 }
 
 /** v0 persisted whole objects; keep only their ids. */
-export function migrateWorkspaceState(persisted: LegacyPersistedState | null | undefined): Pick<
-  WorkspaceUiState,
-  'currentWorkspaceId' | 'currentProjectId'
-> {
+export function migrateWorkspaceState(
+  persisted: LegacyPersistedState | null | undefined
+): Pick<WorkspaceUiState, 'currentWorkspaceId' | 'currentProjectId'> {
   const ws = persisted?.currentWorkspace;
   const project = persisted?.currentProject;
   return {
@@ -68,7 +67,9 @@ export const useWorkspaceStore = create<WorkspaceUiState>()(
       ...INITIAL,
       setCurrentWorkspaceId: (currentWorkspaceId) =>
         set((state) =>
-          state.currentWorkspaceId === currentWorkspaceId ? state : { currentWorkspaceId, currentProjectId: null }
+          state.currentWorkspaceId === currentWorkspaceId
+            ? state
+            : { currentWorkspaceId, currentProjectId: null }
         ),
       setCurrentProjectId: (currentProjectId) => set({ currentProjectId }),
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),

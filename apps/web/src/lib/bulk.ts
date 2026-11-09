@@ -24,7 +24,10 @@ export function resolveCancelStateId(states: readonly StateLike[]): string | nul
 }
 
 /** "Move to Done: 3 updated, 1 unchanged, 1 failed." and the toast level to use. */
-export function describeBulkSummary(action: string, summary: BulkSummary): { level: 'success' | 'warning' | 'error'; message: string } {
+export function describeBulkSummary(
+  action: string,
+  summary: BulkSummary
+): { level: 'success' | 'warning' | 'error'; message: string } {
   const parts = [
     `${summary.updated} updated`,
     summary.unchanged > 0 ? `${summary.unchanged} unchanged` : null,
@@ -42,11 +45,17 @@ export function assignOperation(
 ): BulkTaskOperation {
   if (mode === 'add') return { addAssigneeIds: [userId] };
   const remove = currentAssigneeIds.filter((id) => id !== userId);
-  return { addAssigneeIds: [userId], ...(remove.length > 0 ? { removeAssigneeIds: [...new Set(remove)] } : {}) };
+  return {
+    addAssigneeIds: [userId],
+    ...(remove.length > 0 ? { removeAssigneeIds: [...new Set(remove)] } : {}),
+  };
 }
 
 /** Make every task carry exactly `labelIds`, given the labels currently on the selection. */
-export function setLabelsOperation(labelIds: readonly string[], currentLabelIds: readonly string[]): BulkTaskOperation {
+export function setLabelsOperation(
+  labelIds: readonly string[],
+  currentLabelIds: readonly string[]
+): BulkTaskOperation {
   const remove = [...new Set(currentLabelIds)].filter((id) => !labelIds.includes(id));
   return {
     ...(labelIds.length > 0 ? { addLabelIds: [...labelIds] } : {}),

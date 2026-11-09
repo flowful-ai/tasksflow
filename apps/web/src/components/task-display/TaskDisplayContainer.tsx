@@ -47,5 +47,11 @@ export function TaskDisplayContainer({
       />
     );
   }
-  return <TaskListView {...shared} showProject={showProject} secondaryGroupBy={secondaryGroupBy ?? undefined} />;
+  return (
+    <TaskListView
+      {...shared}
+      showProject={showProject}
+      secondaryGroupBy={secondaryGroupBy ?? undefined}
+    />
+  );
 }

@@ -19,7 +19,15 @@ interface TaskSearchPopoverProps {
 }
 
 /** A popover with a task search (key or words) for picking a related task or a parent. */
-export function TaskSearchPopover({ workspaceId, trigger, label, excludeIds, projectId, onPick, footer }: TaskSearchPopoverProps) {
+export function TaskSearchPopover({
+  workspaceId,
+  trigger,
+  label,
+  excludeIds,
+  projectId,
+  onPick,
+  footer,
+}: TaskSearchPopoverProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const debounced = useDebouncedValue(query, 150);
@@ -53,9 +61,15 @@ export function TaskSearchPopover({ workspaceId, trigger, label, excludeIds, pro
           </div>
           <Command.List className="max-h-64 overflow-y-auto p-1">
             {hasQuery && !search.isFetching && hits.length === 0 && (
-              <div className="px-3 py-4 text-center text-sm text-neutral-400">No matching tasks</div>
+              <div className="px-3 py-4 text-center text-sm text-neutral-400">
+                No matching tasks
+              </div>
             )}
-            {!hasQuery && <div className="px-3 py-4 text-center text-sm text-neutral-400">Type a key (TF-12) or words</div>}
+            {!hasQuery && (
+              <div className="px-3 py-4 text-center text-sm text-neutral-400">
+                Type a key (TF-12) or words
+              </div>
+            )}
             {hits.map((hit) => (
               <Command.Item
                 key={hit.id}

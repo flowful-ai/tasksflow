@@ -30,7 +30,8 @@ function mapServiceError(error: Error): AppError {
 async function requireAppManager(userId: string): Promise<void> {
   const contextResult = await appAdminService.getAppContext(userId);
   if (!contextResult.ok) throw notFound('User');
-  if (!contextResult.value.isAppManager) throw forbidden('Only app managers can access app settings');
+  if (!contextResult.value.isAppManager)
+    throw forbidden('Only app managers can access app settings');
 }
 
 appAdminRoutes.get('/me', async (c) => {
@@ -51,19 +52,23 @@ appAdminRoutes.get('/users', zValidator('query', AppUsersListQuerySchema), async
   return c.json({ success: true, data: result });
 });
 
-appAdminRoutes.patch('/users/:userId/role', zValidator('json', UpdateAppUserRoleSchema), async (c) => {
-  const user = requireUser(c);
-  await requireAppManager(user.id);
+appAdminRoutes.patch(
+  '/users/:userId/role',
+  zValidator('json', UpdateAppUserRoleSchema),
+  async (c) => {
+    const user = requireUser(c);
+    await requireAppManager(user.id);
 
-  const { appRole } = c.req.valid('json');
-  const result = await appAdminService.updateUserRole({
-    targetUserId: c.req.param('userId'),
-    appRole,
-    actorUserId: user.id,
-  });
-  if (!result.ok) throw mapServiceError(result.error);
+    const { appRole } = c.req.valid('json');
+    const result = await appAdminService.updateUserRole({
+      targetUserId: c.req.param('userId'),
+      appRole,
+      actorUserId: user.id,
+    });
+    if (!result.ok) throw mapServiceError(result.error);
 
-  return c.json({ success: true, data: result.value });
-});
+    return c.json({ success: true, data: result.value });
+  }
+);
 
 export { appAdminRoutes };

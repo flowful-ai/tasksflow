@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { createHmac } from 'crypto';
-import { SLACK_MAX_REQUEST_AGE_SECONDS, verifyGitHubSignature, verifySlackRequest } from './signatures.js';
+import {
+  SLACK_MAX_REQUEST_AGE_SECONDS,
+  verifyGitHubSignature,
+  verifySlackRequest,
+} from './signatures.js';
 
 const SECRET = 'test-secret';
 
@@ -20,7 +24,9 @@ describe('verifyGitHubSignature', () => {
   });
 
   test('rejects a tampered body', () => {
-    expect(verifyGitHubSignature(body.replace('opened', 'closed'), githubSignature(body), SECRET)).toBe(false);
+    expect(
+      verifyGitHubSignature(body.replace('opened', 'closed'), githubSignature(body), SECRET)
+    ).toBe(false);
   });
 
   test('rejects a signature made with another secret', () => {
@@ -41,7 +47,13 @@ describe('verifySlackRequest', () => {
 
   test('accepts a valid, fresh request', () => {
     expect(
-      verifySlackRequest({ body, timestamp, signature: slackSignature(body, timestamp), secret: SECRET, nowSeconds: now })
+      verifySlackRequest({
+        body,
+        timestamp,
+        signature: slackSignature(body, timestamp),
+        secret: SECRET,
+        nowSeconds: now,
+      })
     ).toEqual({ ok: true });
   });
 
@@ -57,7 +69,15 @@ describe('verifySlackRequest', () => {
   });
 
   test('rejects wrong-length signatures without throwing', () => {
-    expect(verifySlackRequest({ body, timestamp, signature: 'v0=short', secret: SECRET, nowSeconds: now })).toEqual({
+    expect(
+      verifySlackRequest({
+        body,
+        timestamp,
+        signature: 'v0=short',
+        secret: SECRET,
+        nowSeconds: now,
+      })
+    ).toEqual({
       ok: false,
       reason: 'invalid_signature',
     });
@@ -66,25 +86,49 @@ describe('verifySlackRequest', () => {
   test('rejects replays outside the 5-minute window, even with a valid signature', () => {
     const old = String(now - SLACK_MAX_REQUEST_AGE_SECONDS - 1);
     expect(
-      verifySlackRequest({ body, timestamp: old, signature: slackSignature(body, old), secret: SECRET, nowSeconds: now })
+      verifySlackRequest({
+        body,
+        timestamp: old,
+        signature: slackSignature(body, old),
+        secret: SECRET,
+        nowSeconds: now,
+      })
     ).toEqual({ ok: false, reason: 'stale_timestamp' });
 
     const future = String(now + SLACK_MAX_REQUEST_AGE_SECONDS + 1);
     expect(
-      verifySlackRequest({ body, timestamp: future, signature: slackSignature(body, future), secret: SECRET, nowSeconds: now })
+      verifySlackRequest({
+        body,
+        timestamp: future,
+        signature: slackSignature(body, future),
+        secret: SECRET,
+        nowSeconds: now,
+      })
     ).toEqual({ ok: false, reason: 'stale_timestamp' });
   });
 
   test('accepts a request at the edge of the window', () => {
     const edge = String(now - SLACK_MAX_REQUEST_AGE_SECONDS);
     expect(
-      verifySlackRequest({ body, timestamp: edge, signature: slackSignature(body, edge), secret: SECRET, nowSeconds: now })
+      verifySlackRequest({
+        body,
+        timestamp: edge,
+        signature: slackSignature(body, edge),
+        secret: SECRET,
+        nowSeconds: now,
+      })
     ).toEqual({ ok: true });
   });
 
   test('rejects a non-numeric timestamp', () => {
     expect(
-      verifySlackRequest({ body, timestamp: 'abc', signature: slackSignature(body, 'abc'), secret: SECRET, nowSeconds: now })
+      verifySlackRequest({
+        body,
+        timestamp: 'abc',
+        signature: slackSignature(body, 'abc'),
+        secret: SECRET,
+        nowSeconds: now,
+      })
     ).toEqual({ ok: false, reason: 'stale_timestamp' });
   });
 });

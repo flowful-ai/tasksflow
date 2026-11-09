@@ -52,50 +52,95 @@ function respond(c: Context, result: Result<NotificationRecord | null, Error>) {
   return c.json({ success: true, data: result.value });
 }
 
-notificationRoutes.get('/', zValidator('query', ListNotificationsQuerySchema, validationHook), async (c) => {
-  const user = getCurrentUser(c);
-  const query = c.req.valid('query');
-  if (!(await isMember(query.workspaceId, user.id))) return fail(c, 403, 'FORBIDDEN', 'Not authorized');
-  const result = await notificationService.list(user.id, query);
-  if (!result.ok) {
-    console.error('[notifications]', result.error);
-    return fail(c, 500, 'NOTIFICATION_FAILED', 'Failed to load notifications');
+notificationRoutes.get(
+  '/',
+  zValidator('query', ListNotificationsQuerySchema, validationHook),
+  async (c) => {
+    const user = getCurrentUser(c);
+    const query = c.req.valid('query');
+    if (!(await isMember(query.workspaceId, user.id)))
+      return fail(c, 403, 'FORBIDDEN', 'Not authorized');
+    const result = await notificationService.list(user.id, query);
+    if (!result.ok) {
+      console.error('[notifications]', result.error);
+      return fail(c, 500, 'NOTIFICATION_FAILED', 'Failed to load notifications');
+    }
+    return c.json({
+      success: true,
+      data: result.value.items,
+      meta: { nextCursor: result.value.nextCursor },
+    });
   }
-  return c.json({ success: true, data: result.value.items, meta: { nextCursor: result.value.nextCursor } });
-});
+);
 
-notificationRoutes.get('/unread-count', zValidator('query', UnreadCountQuerySchema, validationHook), async (c) => {
-  const user = getCurrentUser(c);
-  const { workspaceId } = c.req.valid('query');
-  if (!(await isMember(workspaceId, user.id))) return fail(c, 403, 'FORBIDDEN', 'Not authorized');
-  const result = await notificationService.unreadCount(user.id, workspaceId);
-  if (!result.ok) return fail(c, 500, 'NOTIFICATION_FAILED', 'Failed to count notifications');
-  return c.json({ success: true, data: { count: result.value } });
-});
+notificationRoutes.get(
+  '/unread-count',
+  zValidator('query', UnreadCountQuerySchema, validationHook),
+  async (c) => {
+    const user = getCurrentUser(c);
+    const { workspaceId } = c.req.valid('query');
+    if (!(await isMember(workspaceId, user.id))) return fail(c, 403, 'FORBIDDEN', 'Not authorized');
+    const result = await notificationService.unreadCount(user.id, workspaceId);
+    if (!result.ok) return fail(c, 500, 'NOTIFICATION_FAILED', 'Failed to count notifications');
+    return c.json({ success: true, data: { count: result.value } });
+  }
+);
 
-notificationRoutes.post('/read-all', zValidator('json', ReadAllNotificationsSchema, validationHook), async (c) => {
-  const user = getCurrentUser(c);
-  const { workspaceId } = c.req.valid('json');
-  const result = await notificationService.markAllRead(user.id, workspaceId);
-  if (!result.ok) return fail(c, 500, 'NOTIFICATION_FAILED', 'Failed to update notifications');
-  return c.json({ success: true, data: { updated: result.value } });
-});
+notificationRoutes.post(
+  '/read-all',
+  zValidator('json', ReadAllNotificationsSchema, validationHook),
+  async (c) => {
+    const user = getCurrentUser(c);
+    const { workspaceId } = c.req.valid('json');
+    const result = await notificationService.markAllRead(user.id, workspaceId);
+    if (!result.ok) return fail(c, 500, 'NOTIFICATION_FAILED', 'Failed to update notifications');
+    return c.json({ success: true, data: { updated: result.value } });
+  }
+);
 
-notificationRoutes.post('/:id/read', zValidator('param', IdParamSchema, validationHook), async (c) => {
-  return respond(c, await notificationService.markRead(getCurrentUser(c).id, c.req.valid('param').id));
-});
+notificationRoutes.post(
+  '/:id/read',
+  zValidator('param', IdParamSchema, validationHook),
+  async (c) => {
+    return respond(
+      c,
+      await notificationService.markRead(getCurrentUser(c).id, c.req.valid('param').id)
+    );
+  }
+);
 
-notificationRoutes.post('/:id/unread', zValidator('param', IdParamSchema, validationHook), async (c) => {
-  return respond(c, await notificationService.markUnread(getCurrentUser(c).id, c.req.valid('param').id));
-});
+notificationRoutes.post(
+  '/:id/unread',
+  zValidator('param', IdParamSchema, validationHook),
+  async (c) => {
+    return respond(
+      c,
+      await notificationService.markUnread(getCurrentUser(c).id, c.req.valid('param').id)
+    );
+  }
+);
 
-notificationRoutes.post('/:id/archive', zValidator('param', IdParamSchema, validationHook), async (c) => {
-  return respond(c, await notificationService.archive(getCurrentUser(c).id, c.req.valid('param').id));
-});
+notificationRoutes.post(
+  '/:id/archive',
+  zValidator('param', IdParamSchema, validationHook),
+  async (c) => {
+    return respond(
+      c,
+      await notificationService.archive(getCurrentUser(c).id, c.req.valid('param').id)
+    );
+  }
+);
 
-notificationRoutes.post('/:id/unarchive', zValidator('param', IdParamSchema, validationHook), async (c) => {
-  return respond(c, await notificationService.unarchive(getCurrentUser(c).id, c.req.valid('param').id));
-});
+notificationRoutes.post(
+  '/:id/unarchive',
+  zValidator('param', IdParamSchema, validationHook),
+  async (c) => {
+    return respond(
+      c,
+      await notificationService.unarchive(getCurrentUser(c).id, c.req.valid('param').id)
+    );
+  }
+);
 
 notificationRoutes.post(
   '/:id/snooze',
@@ -103,8 +148,12 @@ notificationRoutes.post(
   zValidator('json', SnoozeNotificationSchema, validationHook),
   async (c) => {
     const { until } = c.req.valid('json');
-    if (until.getTime() <= Date.now()) return fail(c, 400, 'VALIDATION_ERROR', '`until` must be in the future');
-    return respond(c, await notificationService.snooze(getCurrentUser(c).id, c.req.valid('param').id, until));
+    if (until.getTime() <= Date.now())
+      return fail(c, 400, 'VALIDATION_ERROR', '`until` must be in the future');
+    return respond(
+      c,
+      await notificationService.snooze(getCurrentUser(c).id, c.req.valid('param').id, until)
+    );
   }
 );
 

@@ -9,7 +9,13 @@ import {
   validateOptionalMetadataUrl,
   validateRedirectUris,
 } from './redirect-uri.js';
-import { isSubset, parseToolScopes, splitScopeString, validateToolScopes, WORKSPACE_SCOPE_PREFIX } from './scopes.js';
+import {
+  isSubset,
+  parseToolScopes,
+  splitScopeString,
+  validateToolScopes,
+  WORKSPACE_SCOPE_PREFIX,
+} from './scopes.js';
 
 const ClientRegistrationSchema = z.object({
   client_name: z.string(),
@@ -42,19 +48,27 @@ export interface McpOAuthClientRegistration {
 }
 
 function stringArray(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
 }
 
 export function getClientRedirectUris(client: McpOAuthClient): string[] {
   return stringArray(client.redirectUris);
 }
 
-export async function registerClient(db: Database, payload: unknown): Promise<McpOAuthClientRegistration> {
+export async function registerClient(
+  db: Database,
+  payload: unknown
+): Promise<McpOAuthClientRegistration> {
   const parsed = ClientRegistrationSchema.safeParse(payload);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
     const field = issue?.path.join('.') || 'body';
-    throw new OAuthError('invalid_client_metadata', `Invalid client metadata (${field}): ${issue?.message ?? 'invalid'}`);
+    throw new OAuthError(
+      'invalid_client_metadata',
+      `Invalid client metadata (${field}): ${issue?.message ?? 'invalid'}`
+    );
   }
   const input = parsed.data;
 
@@ -62,7 +76,10 @@ export async function registerClient(db: Database, payload: unknown): Promise<Mc
   const redirectUris = validateRedirectUris(input.redirect_uris);
 
   if ((input.token_endpoint_auth_method || 'none') !== 'none') {
-    throw new OAuthError('invalid_client_metadata', 'Only token_endpoint_auth_method=none is supported');
+    throw new OAuthError(
+      'invalid_client_metadata',
+      'Only token_endpoint_auth_method=none is supported'
+    );
   }
 
   if (input.grant_types && !isSubset(input.grant_types, ['authorization_code', 'refresh_token'])) {
@@ -111,8 +128,14 @@ export async function registerClient(db: Database, payload: unknown): Promise<Mc
   };
 }
 
-export async function getClientByPublicId(db: Database, clientId: string): Promise<McpOAuthClient | null> {
-  const [client] = await db.select().from(mcpOAuthClients).where(eq(mcpOAuthClients.clientId, clientId));
+export async function getClientByPublicId(
+  db: Database,
+  clientId: string
+): Promise<McpOAuthClient | null> {
+  const [client] = await db
+    .select()
+    .from(mcpOAuthClients)
+    .where(eq(mcpOAuthClients.clientId, clientId));
   return client || null;
 }
 
@@ -180,16 +203,23 @@ export function validateAuthorizeRequest(params: {
 
   const toolValidation = validateToolScopes(scopes);
   if (!toolValidation.ok) {
-    throw new OAuthError('invalid_scope', `Unknown tool scopes: ${toolValidation.invalidTools.join(', ')}`);
+    throw new OAuthError(
+      'invalid_scope',
+      `Unknown tool scopes: ${toolValidation.invalidTools.join(', ')}`
+    );
   }
 
   const requestedWorkspaceIdRaw =
-    workspaceScopes.length === 1 ? workspaceScopes[0]?.slice(WORKSPACE_SCOPE_PREFIX.length) || null : null;
+    workspaceScopes.length === 1
+      ? workspaceScopes[0]?.slice(WORKSPACE_SCOPE_PREFIX.length) || null
+      : null;
 
   // Some MCP clients (including ChatGPT) send template placeholder scopes like "{workspaceId}".
   // Treat those as "workspace to be selected at consent time" instead of a literal workspace id.
   const requestedWorkspaceId =
-    requestedWorkspaceIdRaw && !/^\{.+\}$/.test(requestedWorkspaceIdRaw) ? requestedWorkspaceIdRaw : null;
+    requestedWorkspaceIdRaw && !/^\{.+\}$/.test(requestedWorkspaceIdRaw)
+      ? requestedWorkspaceIdRaw
+      : null;
 
   return {
     codeChallenge: params.codeChallenge,

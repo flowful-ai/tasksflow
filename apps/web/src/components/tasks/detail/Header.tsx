@@ -43,7 +43,11 @@ export function Header({ task, mode, onClose, onDelete, readOnly = false }: Head
             {readOnly ? (
               <span>{task.project.name}</span>
             ) : (
-              <Link to={`/project/${task.project.id}`} className="hover:text-neutral-900 hover:underline" onClick={onClose}>
+              <Link
+                to={`/project/${task.project.id}`}
+                className="hover:text-neutral-900 hover:underline"
+                onClick={onClose}
+              >
                 {task.project.name}
               </Link>
             )}

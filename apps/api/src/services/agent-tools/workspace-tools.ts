@@ -1,5 +1,14 @@
-import { FilterEngine, type SmartViewWithRelations, type TaskListOptions } from '../../domain/index.js';
-import { FilterGroupSchema, REALTIME_EVENTS, SortOrderSchema, type FilterGroup } from '@flowtask/shared';
+import {
+  FilterEngine,
+  type SmartViewWithRelations,
+  type TaskListOptions,
+} from '../../domain/index.js';
+import {
+  FilterGroupSchema,
+  REALTIME_EVENTS,
+  SortOrderSchema,
+  type FilterGroup,
+} from '@flowtask/shared';
 import { ToolExecutionError } from '../../lib/mcp/errors.js';
 import { formatZodIssues } from '../../lib/mcp/json-schema-zod.js';
 import {
@@ -33,18 +42,27 @@ const listProjects: ToolHandler = async (_args, ctx) => {
       name: project.name,
       identifier: project.identifier,
       taskCount: project.taskCount,
-      states: project.taskStates.map((state) => ({ id: state.id, name: state.name, category: state.category })),
+      states: project.taskStates.map((state) => ({
+        id: state.id,
+        name: state.name,
+        category: state.category,
+      })),
     })),
   };
 };
 
 const listMembers: ToolHandler = async (args, ctx) => {
-  const window = resolvePageWindow({ limit: optionalInteger(args, 'limit'), cursor: optionalString(args, 'cursor') });
+  const window = resolvePageWindow({
+    limit: optionalInteger(args, 'limit'),
+    cursor: optionalString(args, 'cursor'),
+  });
   const search = optionalString(args, 'search')?.trim().toLowerCase();
   const members = (await ctx.members())
     .filter(
       (member) =>
-        !search || member.email.toLowerCase().includes(search) || (member.name ?? '').toLowerCase().includes(search)
+        !search ||
+        member.email.toLowerCase().includes(search) ||
+        (member.name ?? '').toLowerCase().includes(search)
     )
     .sort((a, b) => (a.name ?? a.email).localeCompare(b.name ?? b.email));
 
@@ -65,10 +83,17 @@ const listMembers: ToolHandler = async (args, ctx) => {
 
 const listLabels: ToolHandler = async (args, ctx) => {
   const projectId = optionalString(args, 'projectId');
-  const projects = projectId ? [await ctx.requireProject(projectId)] : await ctx.accessibleProjects();
+  const projects = projectId
+    ? [await ctx.requireProject(projectId)]
+    : await ctx.accessibleProjects();
   return {
     labels: projects.flatMap((project) =>
-      project.labels.map((label) => ({ id: label.id, name: label.name, color: label.color, projectId: project.id }))
+      project.labels.map((label) => ({
+        id: label.id,
+        name: label.name,
+        color: label.color,
+        projectId: project.id,
+      }))
     ),
   };
 };
@@ -78,7 +103,10 @@ const SUMMARY_SAMPLE_LIMIT = 1000;
 const summarizeProject: ToolHandler = async (args, ctx, services) => {
   const project = await ctx.requireProject(requiredString(args, 'projectId'));
   const result = unwrap(
-    await services.tasks.list({ filters: { projectIds: [project.id] }, limit: SUMMARY_SAMPLE_LIMIT })
+    await services.tasks.list({
+      filters: { projectIds: [project.id] },
+      limit: SUMMARY_SAMPLE_LIMIT,
+    })
   );
 
   const byState = new Map<string, number>(project.taskStates.map((state) => [state.name, 0]));
@@ -92,7 +120,11 @@ const summarizeProject: ToolHandler = async (args, ctx, services) => {
 
   return {
     project: { id: project.id, name: project.name, identifier: project.identifier },
-    states: project.taskStates.map((state) => ({ id: state.id, name: state.name, category: state.category })),
+    states: project.taskStates.map((state) => ({
+      id: state.id,
+      name: state.name,
+      category: state.category,
+    })),
     statistics: {
       totalTasks: result.total,
       byState: Object.fromEntries(byState),
@@ -127,8 +159,13 @@ const addComment: ToolHandler = async (args, ctx, services) => {
 
 const listComments: ToolHandler = async (args, ctx, services) => {
   const task = await ctx.requireTask(requiredString(args, 'taskId'));
-  const window = resolvePageWindow({ limit: optionalInteger(args, 'limit'), cursor: optionalString(args, 'cursor') });
-  const result = unwrap(await services.comments.list({ taskId: task.id, page: pageNumber(window), limit: window.limit }));
+  const window = resolvePageWindow({
+    limit: optionalInteger(args, 'limit'),
+    cursor: optionalString(args, 'cursor'),
+  });
+  const result = unwrap(
+    await services.comments.list({ taskId: task.id, page: pageNumber(window), limit: window.limit })
+  );
   const nextCursor = nextCursorFor(window, result.total);
   return {
     total: result.total,
@@ -155,13 +192,23 @@ function projectSmartView(view: SmartViewWithRelations): ToolOutput {
 function parseFilterGroup(value: unknown, source: string): FilterGroup {
   const parsed = FilterGroupSchema.safeParse(value);
   if (!parsed.success) {
-    throw new ToolExecutionError(`${source} is not a valid filter group: ${formatZodIssues(parsed.error)}`, 'VALIDATION_ERROR');
+    throw new ToolExecutionError(
+      `${source} is not a valid filter group: ${formatZodIssues(parsed.error)}`,
+      'VALIDATION_ERROR'
+    );
   }
   return parsed.data;
 }
 
 type TaskSortBy = NonNullable<TaskListOptions['sortBy']>;
-const TASK_SORT_FIELDS: readonly TaskSortBy[] = ['position', 'created_at', 'updated_at', 'due_date', 'priority', 'sequence_number'];
+const TASK_SORT_FIELDS: readonly TaskSortBy[] = [
+  'position',
+  'created_at',
+  'updated_at',
+  'due_date',
+  'priority',
+  'sequence_number',
+];
 
 function resolveTaskSortBy(value: string): TaskSortBy {
   return TASK_SORT_FIELDS.find((field) => field === value) ?? 'position';
@@ -195,14 +242,19 @@ const createSmartView: ToolHandler = async (args, ctx, services) => {
 
 const listSmartViews: ToolHandler = async (_args, ctx, services) => {
   const views = unwrap(
-    await services.smartViews.list({ filters: { workspaceId: ctx.workspaceId, userId: ctx.userId, includeShared: true } })
+    await services.smartViews.list({
+      filters: { workspaceId: ctx.workspaceId, userId: ctx.userId, includeShared: true },
+    })
   );
   return { smartViews: views.filter((view) => canSeeSmartView(view, ctx)).map(projectSmartView) };
 };
 
 const runSmartView: ToolHandler = async (args, ctx, services) => {
   const projection = resolveTaskProjectionArgs(args);
-  const window = resolvePageWindow({ limit: optionalInteger(args, 'limit'), cursor: optionalString(args, 'cursor') });
+  const window = resolvePageWindow({
+    limit: optionalInteger(args, 'limit'),
+    cursor: optionalString(args, 'cursor'),
+  });
   const viewResult = await services.smartViews.getById(requiredString(args, 'smartViewId'));
   if (!viewResult.ok || !canSeeSmartView(viewResult.value, ctx)) {
     throw new ToolExecutionError('Smart view not found', 'NOT_FOUND');
@@ -222,7 +274,9 @@ const runSmartView: ToolHandler = async (args, ctx, services) => {
   const result = unwrap(
     await services.tasks.list({
       filters: { projectIds },
-      filterSql: hasConditions ? FilterEngine.buildWhereClause(filters, FilterEngine.createContext(ctx.userId)) : null,
+      filterSql: hasConditions
+        ? FilterEngine.buildWhereClause(filters, FilterEngine.createContext(ctx.userId))
+        : null,
       requiredJoins: hasConditions ? FilterEngine.getRequiredJoins(filters) : undefined,
       sortBy: resolveTaskSortBy(view.sortBy),
       sortOrder: sortOrder.success ? sortOrder.data : 'asc',

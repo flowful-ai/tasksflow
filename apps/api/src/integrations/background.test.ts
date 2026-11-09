@@ -26,37 +26,58 @@ describe('runInBackground', () => {
 
   test('gives up after the last attempt and never rejects', async () => {
     let calls = 0;
-    const result = await runInBackground('test.always_fails', async () => {
-      calls++;
-      throw new Error('down');
-    }, { baseDelayMs: 1 });
+    const result = await runInBackground(
+      'test.always_fails',
+      async () => {
+        calls++;
+        throw new Error('down');
+      },
+      { baseDelayMs: 1 }
+    );
     expect(result).toEqual({ ok: false, attempts: 3 });
     expect(calls).toBe(3);
   });
 
   test('does not retry non-retryable errors or 4xx responses', async () => {
     let calls = 0;
-    await runInBackground('test.non_retryable', async () => {
-      calls++;
-      throw new NonRetryableError('bad config');
-    }, { baseDelayMs: 1 });
+    await runInBackground(
+      'test.non_retryable',
+      async () => {
+        calls++;
+        throw new NonRetryableError('bad config');
+      },
+      { baseDelayMs: 1 }
+    );
     expect(calls).toBe(1);
 
     const notFound = Object.assign(new Error('Not Found'), { status: 404 });
     calls = 0;
-    await runInBackground('test.not_found', async () => {
-      calls++;
-      throw notFound;
-    }, { baseDelayMs: 1 });
+    await runInBackground(
+      'test.not_found',
+      async () => {
+        calls++;
+        throw notFound;
+      },
+      { baseDelayMs: 1 }
+    );
     expect(calls).toBe(1);
   });
 
   test('logs structured JSON with the task name', async () => {
-    await runInBackground('test.logged', async () => {
-      throw new Error('nope');
-    }, { attempts: 1, context: { taskId: 't1' } });
+    await runInBackground(
+      'test.logged',
+      async () => {
+        throw new Error('nope');
+      },
+      { attempts: 1, context: { taskId: 't1' } }
+    );
     const line = String(errorSpy.mock.calls[0]?.[0]);
-    expect(JSON.parse(line)).toMatchObject({ msg: 'background_task_failed', task: 'test.logged', taskId: 't1', error: 'nope' });
+    expect(JSON.parse(line)).toMatchObject({
+      msg: 'background_task_failed',
+      task: 'test.logged',
+      taskId: 't1',
+      error: 'nope',
+    });
   });
 });
 

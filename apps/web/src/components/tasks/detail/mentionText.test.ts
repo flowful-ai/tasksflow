@@ -13,7 +13,9 @@ describe('mention text', () => {
       { userId: A, name: 'Jo' },
       { userId: B, name: 'Jo Doe' },
     ]);
-    expect(out).toBe(`${formatMention('Jo Doe', B)} and ${formatMention('Jo', A)}, ping ${formatMention('Jo', A)}`);
+    expect(out).toBe(
+      `${formatMention('Jo Doe', B)} and ${formatMention('Jo', A)}, ping ${formatMention('Jo', A)}`
+    );
   });
 
   test('encode ignores names that are only a prefix of a word', () => {

@@ -13,7 +13,9 @@ const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** "@Jo hi" + [{Jo}] → "@[Jo](user:…) hi". Longer names first so "@Jo Doe" wins over "@Jo". */
 export function encodeMentions(text: string, mentions: DraftMention[]): string {
-  const unique = [...new Map(mentions.map((m) => [m.userId, m])).values()].sort((a, b) => b.name.length - a.name.length);
+  const unique = [...new Map(mentions.map((m) => [m.userId, m])).values()].sort(
+    (a, b) => b.name.length - a.name.length
+  );
   // Two passes through placeholders so a replaced token is never matched again.
   const placeholders: string[] = [];
   let out = text;
@@ -26,7 +28,10 @@ export function encodeMentions(text: string, mentions: DraftMention[]): string {
   }
   // NUL-delimited placeholders cannot occur in user text.
   // eslint-disable-next-line no-control-regex
-  return out.replace(/\u0000(\d+)\u0000/g, (_m, index: string) => placeholders[Number(index)] ?? '');
+  return out.replace(
+    /\u0000(\d+)\u0000/g,
+    (_m, index: string) => placeholders[Number(index)] ?? ''
+  );
 }
 
 /** Stored text → composer text and the mentions it contains. */
@@ -43,7 +48,10 @@ export function decodeMentions(text: string): { text: string; mentions: DraftMen
 }
 
 /** The "@query" being typed right before the caret, if any. */
-export function activeMentionQuery(text: string, caret: number): { query: string; start: number } | null {
+export function activeMentionQuery(
+  text: string,
+  caret: number
+): { query: string; start: number } | null {
   const before = text.slice(0, caret);
   const match = /(^|\s)@([^\s@]{0,30})$/.exec(before);
   if (!match) return null;

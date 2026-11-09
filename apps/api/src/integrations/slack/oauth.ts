@@ -2,7 +2,13 @@ import { webApi } from '@slack/bolt';
 import { readSecretEnv } from '../env.js';
 
 /** Bot scopes FlowTask requests. `incoming-webhook` lets the installer pick the channel in Slack's UI. */
-export const SLACK_BOT_SCOPES = ['chat:write', 'chat:write.public', 'channels:read', 'groups:read', 'incoming-webhook'];
+export const SLACK_BOT_SCOPES = [
+  'chat:write',
+  'chat:write.public',
+  'channels:read',
+  'groups:read',
+  'incoming-webhook',
+];
 
 export interface SlackOAuthCredentials {
   clientId: string;
@@ -15,7 +21,11 @@ export function getSlackOAuthCredentials(): SlackOAuthCredentials | null {
   return clientId && clientSecret ? { clientId, clientSecret } : null;
 }
 
-export function buildSlackAuthorizeUrl(params: { clientId: string; state: string; redirectUri: string }): string {
+export function buildSlackAuthorizeUrl(params: {
+  clientId: string;
+  state: string;
+  redirectUri: string;
+}): string {
   const url = new URL('https://slack.com/oauth/v2/authorize');
   url.searchParams.set('client_id', params.clientId);
   url.searchParams.set('scope', SLACK_BOT_SCOPES.join(','));
@@ -57,11 +67,15 @@ export async function exchangeSlackOAuthCode(params: {
       redirect_uri: params.redirectUri,
     });
   } catch (error) {
-    throw new SlackOAuthError(`Slack OAuth exchange failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+    throw new SlackOAuthError(
+      `Slack OAuth exchange failed: ${error instanceof Error ? error.message : 'unknown error'}`
+    );
   }
 
   if (!result.ok || !result.access_token || !result.team?.id) {
-    throw new SlackOAuthError(`Slack OAuth exchange failed: ${result.error ?? 'missing bot token'}`);
+    throw new SlackOAuthError(
+      `Slack OAuth exchange failed: ${result.error ?? 'missing bot token'}`
+    );
   }
   if (result.token_type && result.token_type !== 'bot') {
     throw new SlackOAuthError('Slack OAuth did not return a bot token');
@@ -73,7 +87,8 @@ export async function exchangeSlackOAuthCode(params: {
     teamName: result.team.name ?? null,
     botToken: result.access_token,
     botUserId: result.bot_user_id ?? null,
-    channel:
-      webhook?.channel_id ? { id: webhook.channel_id, name: (webhook.channel ?? webhook.channel_id).replace(/^#/, '') } : null,
+    channel: webhook?.channel_id
+      ? { id: webhook.channel_id, name: (webhook.channel ?? webhook.channel_id).replace(/^#/, '') }
+      : null,
   };
 }

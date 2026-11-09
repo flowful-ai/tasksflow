@@ -93,7 +93,8 @@ export function TaskDetailView({
   const title = task?.title;
   const key = task ? taskKeyOf(task) : null;
   useEffect(() => {
-    if (!readOnly && workspaceId && key && title) recordRecent(workspaceId, { kind: 'task', id: taskId, key, title });
+    if (!readOnly && workspaceId && key && title)
+      recordRecent(workspaceId, { kind: 'task', id: taskId, key, title });
   }, [readOnly, workspaceId, key, title, taskId]);
 
   if (!task) {
@@ -138,21 +139,35 @@ export function TaskDetailView({
 
   const handleDelete = canModerate
     ? () => {
-        deleteTask.mutate({ taskId, projectId: task.project.id, label: taskKeyOf(task) }, withUpdated);
+        deleteTask.mutate(
+          { taskId, projectId: task.project.id, label: taskKeyOf(task) },
+          withUpdated
+        );
         onClose?.();
       }
     : undefined;
 
-  const twoColumns = mode === 'inline' ? 'xl:grid-cols-[minmax(0,1fr)_248px]' : 'md:grid-cols-[minmax(0,1fr)_264px]';
+  const twoColumns =
+    mode === 'inline' ? 'xl:grid-cols-[minmax(0,1fr)_248px]' : 'md:grid-cols-[minmax(0,1fr)_264px]';
 
   return (
     <div className={clsx('flex min-h-0 flex-col', mode !== 'page' && 'h-full')}>
-      <Header task={task} mode={mode} onClose={onClose} onDelete={handleDelete} readOnly={readOnly} />
+      <Header
+        task={task}
+        mode={mode}
+        onClose={onClose}
+        onDelete={handleDelete}
+        readOnly={readOnly}
+      />
 
       <div className={clsx('min-h-0 flex-1', mode !== 'page' && 'overflow-y-auto')}>
         <div className={clsx('grid grid-cols-1', twoColumns)}>
           <div className="min-w-0 space-y-5 px-4 py-5 sm:px-6">
-            <TaskTitle title={task.title} readOnly={readOnly} onSave={(t) => update({ title: t })} />
+            <TaskTitle
+              title={task.title}
+              readOnly={readOnly}
+              onSave={(t) => update({ title: t })}
+            />
             <TaskDescription
               description={task.description}
               readOnly={readOnly}
@@ -171,10 +186,18 @@ export function TaskDetailView({
                 <Relations taskId={taskId} workspaceId={workspaceId} onOpenTask={onOpenTask} />
 
                 <section aria-labelledby={`activity-${taskId}`} className="space-y-3">
-                  <h3 id={`activity-${taskId}`} className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+                  <h3
+                    id={`activity-${taskId}`}
+                    className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500"
+                  >
                     Activity
                   </h3>
-                  <Timeline taskId={taskId} currentUserId={currentUserId} canModerate={canModerate} members={members} />
+                  <Timeline
+                    taskId={taskId}
+                    currentUserId={currentUserId}
+                    canModerate={canModerate}
+                    members={members}
+                  />
                   <CommentComposer
                     members={members}
                     isSubmitting={addComment.isPending}
@@ -201,10 +224,14 @@ export function TaskDetailView({
               readOnly={readOnly}
               onUpdate={(input) => void update(input)}
               onToggleAssignee={(userId) =>
-                assigneeIds.has(userId) ? sets.removeAssignee.mutate(userId, withUpdated) : sets.addAssignee.mutate(userId, withUpdated)
+                assigneeIds.has(userId)
+                  ? sets.removeAssignee.mutate(userId, withUpdated)
+                  : sets.addAssignee.mutate(userId, withUpdated)
               }
               onToggleLabel={(labelId) =>
-                labelIds.has(labelId) ? sets.removeLabel.mutate(labelId, withUpdated) : sets.addLabel.mutate(labelId, withUpdated)
+                labelIds.has(labelId)
+                  ? sets.removeLabel.mutate(labelId, withUpdated)
+                  : sets.addLabel.mutate(labelId, withUpdated)
               }
               onOpenTask={onOpenTask}
               onUpdated={onUpdated}

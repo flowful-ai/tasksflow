@@ -42,12 +42,19 @@ export function IntegrationSettings() {
       <p className="text-gray-600">Connect your own accounts to TasksFlow.</p>
 
       {error ? (
-        <ErrorState error={error} resource="list of linked accounts" onRetry={() => void refetch()} />
+        <ErrorState
+          error={error}
+          resource="list of linked accounts"
+          onRetry={() => void refetch()}
+        />
       ) : (
         <ul className="mt-6 space-y-4">
           <li className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
             <div className="flex items-center space-x-3">
-              <div aria-hidden className="w-10 h-10 bg-gray-900 rounded-lg flex items-center justify-center">
+              <div
+                aria-hidden
+                className="w-10 h-10 bg-gray-900 rounded-lg flex items-center justify-center"
+              >
                 <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
                   <path d={GITHUB_PATH} />
                 </svg>
@@ -69,7 +76,11 @@ export function IntegrationSettings() {
               </div>
             </div>
             {githubAccount ? (
-              <button type="button" className="btn btn-secondary" onClick={() => setConfirmDisconnect(true)}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setConfirmDisconnect(true)}
+              >
                 Disconnect
               </button>
             ) : (

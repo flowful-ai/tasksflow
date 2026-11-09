@@ -7,7 +7,11 @@ import type { PublishRealtimeEvent } from '../types.js';
 import { getGitHubAppId } from './client.js';
 import type { GitHubRepoTarget } from './integration-store.js';
 import { GitHubSyncService } from './sync.js';
-import { findFirstStateByCategory, getStateCategory, resolveTaskReferencesInProject } from './task-lookup.js';
+import {
+  findFirstStateByCategory,
+  getStateCategory,
+  resolveTaskReferencesInProject,
+} from './task-lookup.js';
 import type { GitHubWebhookAction } from './webhook.js';
 
 export interface GitHubWebhookProcessorDeps {
@@ -81,16 +85,22 @@ export class GitHubWebhookProcessor {
     // Issues FlowTask itself opened are linked by the creating request, not imported again.
     const openedByUs = this.appId !== null && action.createdByAppId === this.appId;
     const createIfMissing = action.action !== 'closed' && !openedByUs;
-    const result = await this.sync.syncIssueFromGitHub(target, action.issueNumber, { createIfMissing });
+    const result = await this.sync.syncIssueFromGitHub(target, action.issueNumber, {
+      createIfMissing,
+    });
     return {
-      status: result.action === 'ignored' || result.action === 'unchanged' ? 'ignored' : 'processed',
+      status:
+        result.action === 'ignored' || result.action === 'unchanged' ? 'ignored' : 'processed',
       action: result.action,
       taskId: result.taskId,
       ...(result.action === 'unchanged' ? { reason: 'Content matches last sync' } : {}),
     };
   }
 
-  private async findIssueTaskId(target: GitHubRepoTarget, issueNumber: number): Promise<string | null> {
+  private async findIssueTaskId(
+    target: GitHubRepoTarget,
+    issueNumber: number
+  ): Promise<string | null> {
     const [link] = await this.db
       .select({ taskId: externalLinks.taskId })
       .from(externalLinks)
@@ -98,7 +108,10 @@ export class GitHubWebhookProcessor {
         and(
           eq(externalLinks.integrationId, target.integrationId),
           eq(externalLinks.externalType, 'github_issue'),
-          eq(externalLinks.externalId, formatGitHubExternalId(target.repo.owner, target.repo.repo, issueNumber))
+          eq(
+            externalLinks.externalId,
+            formatGitHubExternalId(target.repo.owner, target.repo.repo, issueNumber)
+          )
         )
       );
     return link?.taskId ?? null;
@@ -114,7 +127,11 @@ export class GitHubWebhookProcessor {
     }
 
     // Comments posted by FlowTask (reverse sync) come back as webhooks; skip them.
-    if (action.action !== 'deleted' && this.appId !== null && action.comment.viaAppId === this.appId) {
+    if (
+      action.action !== 'deleted' &&
+      this.appId !== null &&
+      action.comment.viaAppId === this.appId
+    ) {
       return { status: 'ignored', reason: 'Comment posted by FlowTask', taskId };
     }
 
@@ -143,7 +160,9 @@ export class GitHubWebhookProcessor {
       const created = await this.commentService.create({
         taskId,
         userId: matchedAccount?.userId ?? null,
-        content: matchedAccount ? comment.body : `**@${comment.authorLogin}** commented on GitHub:\n\n${comment.body}`,
+        content: matchedAccount
+          ? comment.body
+          : `**@${comment.authorLogin}** commented on GitHub:\n\n${comment.body}`,
         externalCommentId: comment.id,
         ...(matchedAccount ? {} : { actorLabel: `@${comment.authorLogin} on GitHub` }),
       });
@@ -210,7 +229,11 @@ export class GitHubWebhookProcessor {
           lastSyncedAt: new Date(),
         })
         .onConflictDoNothing({
-          target: [externalLinks.integrationId, externalLinks.externalType, externalLinks.externalId],
+          target: [
+            externalLinks.integrationId,
+            externalLinks.externalType,
+            externalLinks.externalId,
+          ],
         })
         .returning({ id: externalLinks.id });
       if (inserted) {
@@ -247,7 +270,8 @@ export class GitHubWebhookProcessor {
 
   private async moveToDone(target: GitHubRepoTarget, taskId: string): Promise<boolean> {
     const current = await this.taskService.getById(taskId);
-    if (!current.ok || current.value.deletedAt || current.value.projectId !== target.projectId) return false;
+    if (!current.ok || current.value.deletedAt || current.value.projectId !== target.projectId)
+      return false;
     if ((await getStateCategory(this.db, current.value.stateId)) === 'done') return false;
     const doneState = await findFirstStateByCategory(this.db, target.projectId, 'done');
     if (!doneState) return false;

@@ -1,6 +1,17 @@
 import { useMemo } from 'react';
 import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
-import { User, Building2, Link2, Bot, Eye, Users, Shield, Plug, Webhook, type LucideIcon } from 'lucide-react';
+import {
+  User,
+  Building2,
+  Link2,
+  Bot,
+  Eye,
+  Users,
+  Shield,
+  Plug,
+  Webhook,
+  type LucideIcon,
+} from 'lucide-react';
 import clsx from 'clsx';
 import { AgentSettings } from '../components/settings/AgentSettings';
 import { AiSettings } from '../components/settings/AiSettings';
@@ -67,7 +78,11 @@ export function SettingsPage() {
           { name: 'Integrations', href: '/settings/user/integrations', icon: Link2 },
         ],
       },
-      { title: 'Workspace Settings', description: 'Settings for the selected workspace.', items: workspaceItems },
+      {
+        title: 'Workspace Settings',
+        description: 'Settings for the selected workspace.',
+        items: workspaceItems,
+      },
     ];
     if (isAppManager) {
       sections.push({
@@ -84,13 +99,19 @@ export function SettingsPage() {
 
   /** Admin-only tabs: wait for the role instead of redirecting while it loads. */
   const adminOnly = (element: JSX.Element) =>
-    canManageWorkspace || isRolePending ? element : <Navigate to="/settings/workspace/general" replace />;
+    canManageWorkspace || isRolePending ? (
+      element
+    ) : (
+      <Navigate to="/settings/workspace/general" replace />
+    );
 
   return (
     <div className="max-w-5xl mx-auto">
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Settings</h1>
-        <p className="text-sm text-gray-600">Settings are separated by scope: user, workspace, and app.</p>
+        <p className="text-sm text-gray-600">
+          Settings are separated by scope: user, workspace, and app.
+        </p>
       </header>
 
       {appContext.error && (
@@ -100,9 +121,17 @@ export function SettingsPage() {
       )}
 
       <div className="flex flex-col md:flex-row gap-6">
-        <nav aria-label="Settings" className="w-full md:w-64 space-y-4" aria-busy={isLoadingPermissions}>
+        <nav
+          aria-label="Settings"
+          className="w-full md:w-64 space-y-4"
+          aria-busy={isLoadingPermissions}
+        >
           {navigationSections.map((section) => (
-            <section key={section.title} aria-labelledby={`settings-${section.title}`} className="border border-gray-200 rounded-lg p-3">
+            <section
+              key={section.title}
+              aria-labelledby={`settings-${section.title}`}
+              className="border border-gray-200 rounded-lg p-3"
+            >
               <h2 id={`settings-${section.title}`} className="text-sm font-semibold text-gray-900">
                 {section.title}
               </h2>
@@ -110,7 +139,9 @@ export function SettingsPage() {
               <ul className="space-y-1">
                 {section.items.map((item) => {
                   const Icon = item.icon;
-                  const isActive = location.pathname === item.href || location.pathname.startsWith(`${item.href}/`);
+                  const isActive =
+                    location.pathname === item.href ||
+                    location.pathname.startsWith(`${item.href}/`);
                   return (
                     <li key={item.name}>
                       <Link
@@ -118,7 +149,9 @@ export function SettingsPage() {
                         aria-current={isActive ? 'page' : undefined}
                         className={clsx(
                           'flex items-center px-3 py-2 text-sm font-medium rounded-lg',
-                          isActive ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:bg-gray-100'
+                          isActive
+                            ? 'bg-primary-50 text-primary-700'
+                            : 'text-gray-700 hover:bg-gray-100'
                         )}
                       >
                         <Icon aria-hidden className="w-5 h-5 mr-3" />
@@ -138,7 +171,10 @@ export function SettingsPage() {
 
             <Route path="user/profile" element={<ProfileSettings />} />
             <Route path="user/integrations" element={<IntegrationSettings />} />
-            <Route path="user/api-keys" element={<Navigate to="/settings/workspace/api-keys" replace />} />
+            <Route
+              path="user/api-keys"
+              element={<Navigate to="/settings/workspace/api-keys" replace />}
+            />
 
             <Route path="workspace/general" element={<WorkspaceGeneralSettings />} />
             <Route path="workspace/new" element={<NewWorkspaceSettings />} />
@@ -149,29 +185,61 @@ export function SettingsPage() {
             <Route path="workspace/api-keys" element={adminOnly(<AiSettings />)} />
             <Route path="workspace/mcp-connections" element={adminOnly(<AgentSettings />)} />
             <Route path="workspace/webhooks" element={adminOnly(<WebhookSettings />)} />
-            <Route path="workspace/agents" element={<Navigate to="/settings/workspace/mcp-connections" replace />} />
+            <Route
+              path="workspace/agents"
+              element={<Navigate to="/settings/workspace/mcp-connections" replace />}
+            />
 
             <Route
               path="app/overview"
-              element={isAppManager ? <AppOverviewSettings appRole={appRole} /> : <AppScopeForbidden />}
+              element={
+                isAppManager ? <AppOverviewSettings appRole={appRole} /> : <AppScopeForbidden />
+              }
             />
             <Route
               path="app/users"
-              element={isAppManager ? <AppUserManagementSettings isAppManager={isAppManager} /> : <AppScopeForbidden />}
+              element={
+                isAppManager ? (
+                  <AppUserManagementSettings isAppManager={isAppManager} />
+                ) : (
+                  <AppScopeForbidden />
+                )
+              }
             />
 
             {/* Legacy compatibility paths */}
             <Route path="profile" element={<Navigate to="/settings/user/profile" replace />} />
-            <Route path="integrations" element={<Navigate to="/settings/user/integrations" replace />} />
-            <Route path="api-keys" element={<Navigate to="/settings/workspace/api-keys" replace />} />
-            <Route path="workspace" element={<Navigate to="/settings/workspace/general" replace />} />
-            <Route path="workspaces/new" element={<Navigate to="/settings/workspace/new" replace />} />
+            <Route
+              path="integrations"
+              element={<Navigate to="/settings/user/integrations" replace />}
+            />
+            <Route
+              path="api-keys"
+              element={<Navigate to="/settings/workspace/api-keys" replace />}
+            />
+            <Route
+              path="workspace"
+              element={<Navigate to="/settings/workspace/general" replace />}
+            />
+            <Route
+              path="workspaces/new"
+              element={<Navigate to="/settings/workspace/new" replace />}
+            />
             <Route path="members" element={<Navigate to="/settings/workspace/members" replace />} />
             <Route path="views" element={<Navigate to="/settings/workspace/views" replace />} />
-            <Route path="views/new" element={<Navigate to="/settings/workspace/views/new" replace />} />
+            <Route
+              path="views/new"
+              element={<Navigate to="/settings/workspace/views/new" replace />}
+            />
             <Route path="views/:viewId/edit" element={<SmartViewForm />} />
-            <Route path="agents" element={<Navigate to="/settings/workspace/mcp-connections" replace />} />
-            <Route path="webhooks" element={<Navigate to="/settings/workspace/webhooks" replace />} />
+            <Route
+              path="agents"
+              element={<Navigate to="/settings/workspace/mcp-connections" replace />}
+            />
+            <Route
+              path="webhooks"
+              element={<Navigate to="/settings/workspace/webhooks" replace />}
+            />
           </Routes>
         </div>
       </div>

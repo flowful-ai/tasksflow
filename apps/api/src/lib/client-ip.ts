@@ -86,5 +86,7 @@ export function getClientIp(
 ): string {
   const resolved = c.req.header(CLIENT_IP_HEADER);
   if (resolved) return resolved;
-  return resolveClientIp(c.req.header('x-forwarded-for'), socketAddressOf(c), trustedHops) ?? 'unknown';
+  return (
+    resolveClientIp(c.req.header('x-forwarded-for'), socketAddressOf(c), trustedHops) ?? 'unknown'
+  );
 }

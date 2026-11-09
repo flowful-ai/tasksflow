@@ -12,10 +12,13 @@ import type {
 
 export const workspacesApi = {
   list: (): Promise<WorkspaceDetailDto[]> => http.get('/api/workspaces'),
-  get: (workspaceId: string): Promise<WorkspaceDetailDto> => http.get(`/api/workspaces/${workspaceId}`),
-  create: (input: { name: string; slug: string }): Promise<WorkspaceDto> => http.post('/api/workspaces', input),
+  get: (workspaceId: string): Promise<WorkspaceDetailDto> =>
+    http.get(`/api/workspaces/${workspaceId}`),
+  create: (input: { name: string; slug: string }): Promise<WorkspaceDto> =>
+    http.post('/api/workspaces', input),
   /** The caller's role in the workspace. */
-  me: (workspaceId: string): Promise<{ role: WorkspaceRole }> => http.get(`/api/workspaces/${workspaceId}/me`),
+  me: (workspaceId: string): Promise<{ role: WorkspaceRole }> =>
+    http.get(`/api/workspaces/${workspaceId}/me`),
   activity: (
     workspaceId: string,
     params: { limit?: number; cursor?: string | null } = {}
@@ -27,9 +30,14 @@ export const workspacesApi = {
 };
 
 export const memberApi = {
-  list: (workspaceId: string): Promise<WorkspaceMemberDto[]> => http.get(`/api/workspaces/${workspaceId}/members`),
+  list: (workspaceId: string): Promise<WorkspaceMemberDto[]> =>
+    http.get(`/api/workspaces/${workspaceId}/members`),
   /** `userId` is the member's user id. */
-  updateRole: (workspaceId: string, userId: string, role: 'admin' | 'member'): Promise<WorkspaceMemberDto> =>
+  updateRole: (
+    workspaceId: string,
+    userId: string,
+    role: 'admin' | 'member'
+  ): Promise<WorkspaceMemberDto> =>
     http.patch(`/api/workspaces/${workspaceId}/members/${userId}`, { role }),
   remove: (workspaceId: string, userId: string): Promise<null> =>
     http.delete(`/api/workspaces/${workspaceId}/members/${userId}`),
@@ -65,7 +73,10 @@ export interface CreateInvitationInput {
 }
 
 export const invitationApi = {
-  list: (workspaceId: string, status?: 'pending' | 'accepted' | 'revoked'): Promise<WorkspaceInvitation[]> =>
+  list: (
+    workspaceId: string,
+    status?: 'pending' | 'accepted' | 'revoked'
+  ): Promise<WorkspaceInvitation[]> =>
     http.get(`/api/workspaces/${workspaceId}/invitations${qs({ status })}`),
   create: (workspaceId: string, data: CreateInvitationInput): Promise<WorkspaceInvitation> =>
     http.post(`/api/workspaces/${workspaceId}/invitations`, data),
@@ -99,7 +110,8 @@ export const workspaceApiKeyApi = {
 };
 
 export const workspaceAiSettingsApi = {
-  get: (workspaceId: string): Promise<WorkspaceAiSettings> => http.get(`/api/workspaces/${workspaceId}/ai-settings`),
+  get: (workspaceId: string): Promise<WorkspaceAiSettings> =>
+    http.get(`/api/workspaces/${workspaceId}/ai-settings`),
   update: (workspaceId: string, data: WorkspaceAiSettings): Promise<WorkspaceAiSettings> =>
     http.patch(`/api/workspaces/${workspaceId}/ai-settings`, data),
 };
@@ -120,10 +132,19 @@ export interface McpOAuthConnection {
 
 export const mcpConnectionApi = {
   list: async (workspaceId: string): Promise<McpOAuthConnection[]> =>
-    (await http.get<{ connections: McpOAuthConnection[] }>(`/api/workspaces/${workspaceId}/mcp-connections`))
-      .connections,
-  updateScopes: (workspaceId: string, consentId: string, toolScopes: string[]): Promise<McpOAuthConnection> =>
-    http.patch(`/api/workspaces/${workspaceId}/mcp-connections/${consentId}/scopes`, { toolScopes }),
+    (
+      await http.get<{ connections: McpOAuthConnection[] }>(
+        `/api/workspaces/${workspaceId}/mcp-connections`
+      )
+    ).connections,
+  updateScopes: (
+    workspaceId: string,
+    consentId: string,
+    toolScopes: string[]
+  ): Promise<McpOAuthConnection> =>
+    http.patch(`/api/workspaces/${workspaceId}/mcp-connections/${consentId}/scopes`, {
+      toolScopes,
+    }),
   delete: (workspaceId: string, consentId: string): Promise<null> =>
     http.delete(`/api/workspaces/${workspaceId}/mcp-connections/${consentId}`),
 };

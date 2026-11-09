@@ -40,19 +40,24 @@ const validationHook = (result: { success: boolean; error?: z.ZodError }, c: Con
   }
 };
 
-taskRelationRoutes.get('/:taskId/relations', zValidator('param', ParamsSchema, validationHook), async (c) => {
-  const { taskId } = c.req.valid('param');
-  const { user } = await requireTask(c, taskId, 'task:read');
+taskRelationRoutes.get(
+  '/:taskId/relations',
+  zValidator('param', ParamsSchema, validationHook),
+  async (c) => {
+    const { taskId } = c.req.valid('param');
+    const { user } = await requireTask(c, taskId, 'task:read');
 
-  const result = await relationService.list(taskId);
-  if (!result.ok) return failFromError(c, result.error);
-  // Hide relations to tasks the user cannot see (restricted projects).
-  const visible = [];
-  for (const view of result.value) {
-    if ((await getAuthz().authorizeTask(view.task.id, user.id, 'task:read')).ok) visible.push(view);
+    const result = await relationService.list(taskId);
+    if (!result.ok) return failFromError(c, result.error);
+    // Hide relations to tasks the user cannot see (restricted projects).
+    const visible = [];
+    for (const view of result.value) {
+      if ((await getAuthz().authorizeTask(view.task.id, user.id, 'task:read')).ok)
+        visible.push(view);
+    }
+    return c.json({ success: true, data: visible });
   }
-  return c.json({ success: true, data: visible });
-});
+);
 
 taskRelationRoutes.post(
   '/:taskId/relations',

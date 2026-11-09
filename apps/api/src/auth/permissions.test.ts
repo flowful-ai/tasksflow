@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'bun:test';
-import { canAccess, getPermissions, hasPermission, isWorkspacePermission, type WorkspacePermission } from './permissions.js';
+import {
+  canAccess,
+  getPermissions,
+  hasPermission,
+  isWorkspacePermission,
+  type WorkspacePermission,
+} from './permissions.js';
 
 const OWNER_ONLY: WorkspacePermission[] = ['workspace:delete'];
 const ADMIN_AND_UP: WorkspacePermission[] = [
@@ -44,11 +50,13 @@ describe('hasPermission matrix', () => {
 
   it('admin has everything except owner-only permissions', () => {
     for (const permission of OWNER_ONLY) expect(hasPermission('admin', permission)).toBe(false);
-    for (const permission of [...ADMIN_AND_UP, ...EVERYONE]) expect(hasPermission('admin', permission)).toBe(true);
+    for (const permission of [...ADMIN_AND_UP, ...EVERYONE])
+      expect(hasPermission('admin', permission)).toBe(true);
   });
 
   it('member has only the baseline permissions', () => {
-    for (const permission of [...OWNER_ONLY, ...ADMIN_AND_UP]) expect(hasPermission('member', permission)).toBe(false);
+    for (const permission of [...OWNER_ONLY, ...ADMIN_AND_UP])
+      expect(hasPermission('member', permission)).toBe(false);
     for (const permission of EVERYONE) expect(hasPermission('member', permission)).toBe(true);
   });
 

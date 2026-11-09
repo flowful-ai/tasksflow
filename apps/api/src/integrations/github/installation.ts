@@ -1,4 +1,7 @@
-import { GitHubOAuthTokenResponseSchema, GitHubUserInstallationsResponseSchema } from '@flowtask/shared';
+import {
+  GitHubOAuthTokenResponseSchema,
+  GitHubUserInstallationsResponseSchema,
+} from '@flowtask/shared';
 import { readSecretEnv } from '../env.js';
 
 /**
@@ -62,12 +65,20 @@ export async function exchangeGitHubOAuthCode(params: {
   const response = await params.fetchImpl('https://github.com/login/oauth/access_token', {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ client_id: params.clientId, client_secret: params.clientSecret, code: params.code }),
+    body: JSON.stringify({
+      client_id: params.clientId,
+      client_secret: params.clientSecret,
+      code: params.code,
+    }),
   });
   const parsed = GitHubOAuthTokenResponseSchema.safeParse(await readJson(response));
   if (!response.ok || !parsed.success || !('access_token' in parsed.data)) {
-    const detail = parsed.success && 'error' in parsed.data ? parsed.data.error : `HTTP ${response.status}`;
-    throw new InstallationVerificationError('CODE_EXCHANGE_FAILED', `GitHub OAuth code exchange failed (${detail})`);
+    const detail =
+      parsed.success && 'error' in parsed.data ? parsed.data.error : `HTTP ${response.status}`;
+    throw new InstallationVerificationError(
+      'CODE_EXCHANGE_FAILED',
+      `GitHub OAuth code exchange failed (${detail})`
+    );
   }
   return parsed.data.access_token;
 }
@@ -76,7 +87,9 @@ export async function exchangeGitHubOAuthCode(params: {
  * Exchange the OAuth code and confirm the user can access `installationId`.
  * Throws InstallationVerificationError when the proof fails.
  */
-export async function verifyUserInstallation(params: VerifyInstallationParams): Promise<VerifiedInstallation> {
+export async function verifyUserInstallation(
+  params: VerifyInstallationParams
+): Promise<VerifiedInstallation> {
   const clientId = params.clientId ?? readSecretEnv('GITHUB_APP_CLIENT_ID');
   const clientSecret = params.clientSecret ?? readSecretEnv('GITHUB_APP_CLIENT_SECRET');
   const fetchImpl = params.fetchImpl ?? fetch;
@@ -87,19 +100,30 @@ export async function verifyUserInstallation(params: VerifyInstallationParams): 
     );
   }
 
-  const token = await exchangeGitHubOAuthCode({ code: params.code, clientId, clientSecret, fetchImpl });
+  const token = await exchangeGitHubOAuthCode({
+    code: params.code,
+    clientId,
+    clientSecret,
+    fetchImpl,
+  });
 
   for (let page = 1; page <= MAX_INSTALLATION_PAGES; page++) {
-    const response = await fetchImpl(`https://api.github.com/user/installations?per_page=${PER_PAGE}&page=${page}`, {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        Authorization: `Bearer ${token}`,
-        'X-GitHub-Api-Version': '2022-11-28',
-      },
-    });
+    const response = await fetchImpl(
+      `https://api.github.com/user/installations?per_page=${PER_PAGE}&page=${page}`,
+      {
+        headers: {
+          Accept: 'application/vnd.github+json',
+          Authorization: `Bearer ${token}`,
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
+      }
+    );
     const parsed = GitHubUserInstallationsResponseSchema.safeParse(await readJson(response));
     if (!response.ok || !parsed.success) {
-      throw new InstallationVerificationError('GITHUB_ERROR', `Failed to list user installations (HTTP ${response.status})`);
+      throw new InstallationVerificationError(
+        'GITHUB_ERROR',
+        `Failed to list user installations (HTTP ${response.status})`
+      );
     }
 
     const match = parsed.data.installations.find((i) => i.id === params.installationId);

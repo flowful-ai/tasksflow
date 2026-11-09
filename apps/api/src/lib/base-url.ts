@@ -36,7 +36,11 @@ function firstHeaderValue(value: string | null): string | null {
   return first ? first : null;
 }
 
-export function resolveBaseUrl(requestUrl: string, headers: Headers, env: BaseUrlEnv = process.env): string {
+export function resolveBaseUrl(
+  requestUrl: string,
+  headers: Headers,
+  env: BaseUrlEnv = process.env
+): string {
   const publicUrl = normalizeConfiguredUrl(env.PUBLIC_URL);
   if (publicUrl) {
     return publicUrl;
@@ -51,7 +55,9 @@ export function resolveBaseUrl(requestUrl: string, headers: Headers, env: BaseUr
     }
     if (!warnedMissingProductionUrl) {
       warnedMissingProductionUrl = true;
-      console.warn('PUBLIC_URL / BETTER_AUTH_URL is not set; falling back to the request origin for OAuth metadata.');
+      console.warn(
+        'PUBLIC_URL / BETTER_AUTH_URL is not set; falling back to the request origin for OAuth metadata.'
+      );
     }
     return requestOrigin;
   }
@@ -64,7 +70,9 @@ export function resolveBaseUrl(requestUrl: string, headers: Headers, env: BaseUr
 
   const url = new URL(requestUrl);
   const protocol =
-    forwardedProto === 'http' || forwardedProto === 'https' ? forwardedProto : url.protocol.replace(':', '');
+    forwardedProto === 'http' || forwardedProto === 'https'
+      ? forwardedProto
+      : url.protocol.replace(':', '');
   const host = forwardedHost ?? url.host;
   return `${protocol}://${host}`;
 }

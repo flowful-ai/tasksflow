@@ -43,7 +43,9 @@ const LegacyGitHubConfigSchema = z.object({
 
 function sameRepo(a: { owner: string; repo: string }, owner: string, repo: string): boolean {
   // GitHub owner and repository names are case-insensitive.
-  return a.owner.toLowerCase() === owner.toLowerCase() && a.repo.toLowerCase() === repo.toLowerCase();
+  return (
+    a.owner.toLowerCase() === owner.toLowerCase() && a.repo.toLowerCase() === repo.toLowerCase()
+  );
 }
 
 /**
@@ -65,7 +67,8 @@ export function parseGitHubConfig(raw: unknown): GitHubConfig {
     if (!repoResult.success) continue;
     const installationId = repoResult.data.installationId ?? legacy.installationId;
     if (!installationId) continue;
-    if (repositories.some((r) => sameRepo(r, repoResult.data.owner, repoResult.data.repo))) continue;
+    if (repositories.some((r) => sameRepo(r, repoResult.data.owner, repoResult.data.repo)))
+      continue;
     repositories.push({ ...repoResult.data, installationId });
   }
 
@@ -103,7 +106,11 @@ export function findLinkedRepository(
  * Returns null when the repository isn't linked: there is deliberately no
  * fallback to another installation.
  */
-export function findInstallationForRepo(config: GitHubConfig, owner: string, repo: string): number | null {
+export function findInstallationForRepo(
+  config: GitHubConfig,
+  owner: string,
+  repo: string
+): number | null {
   return findLinkedRepository(config, owner, repo)?.installationId ?? null;
 }
 
@@ -133,7 +140,9 @@ export function parseGitHubExternalId(externalId: string): GitHubItemRef | null 
 
 const GITHUB_URL_PATTERN = /^https:\/\/github\.com\/([^/\s]+)\/([^/\s]+)\/(issues|pull)\/(\d+)/;
 
-export function parseGitHubItemUrl(url: string): (GitHubItemRef & { kind: 'issue' | 'pull' }) | null {
+export function parseGitHubItemUrl(
+  url: string
+): (GitHubItemRef & { kind: 'issue' | 'pull' }) | null {
   const match = GITHUB_URL_PATTERN.exec(url);
   if (!match || !match[1] || !match[2] || !match[3] || !match[4]) return null;
   return {
@@ -145,7 +154,10 @@ export function parseGitHubItemUrl(url: string): (GitHubItemRef & { kind: 'issue
 }
 
 /** Resolve a link's repo and number from its external id, falling back to its URL. */
-export function resolveGitHubLinkRef(link: { externalId: string; externalUrl: string }): GitHubItemRef | null {
+export function resolveGitHubLinkRef(link: {
+  externalId: string;
+  externalUrl: string;
+}): GitHubItemRef | null {
   const fromId = parseGitHubExternalId(link.externalId);
   if (fromId) return fromId;
   const fromUrl = parseGitHubItemUrl(link.externalUrl);
@@ -202,7 +214,10 @@ export const GitHubWebhookRepositorySchema = z.object({
   owner: z.object({ login: z.string() }),
 });
 
-const GitHubLabelSchema = z.union([z.string(), z.object({ name: z.string().nullable().optional() })]);
+const GitHubLabelSchema = z.union([
+  z.string(),
+  z.object({ name: z.string().nullable().optional() }),
+]);
 
 export const GitHubIssueSchema = z.object({
   id: z.number(),

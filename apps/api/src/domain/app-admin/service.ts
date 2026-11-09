@@ -81,10 +81,7 @@ export class AppAdminService {
           .orderBy(asc(users.email))
           .limit(limit)
           .offset(offset),
-        this.db
-          .select({ count: count() })
-          .from(users)
-          .where(whereClause),
+        this.db.select({ count: count() }).from(users).where(whereClause),
       ]);
 
       return ok({

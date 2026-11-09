@@ -1,5 +1,15 @@
 import { describe, expect, test } from 'bun:test';
-import { colorDot, contrastRatio, dotColor, meetsContrast, normalizeHex, readableTextColor, relativeLuminance, INK, WHITE } from './color';
+import {
+  colorDot,
+  contrastRatio,
+  dotColor,
+  meetsContrast,
+  normalizeHex,
+  readableTextColor,
+  relativeLuminance,
+  INK,
+  WHITE,
+} from './color';
 
 describe('normalizeHex', () => {
   test('expands and lowercases', () => {

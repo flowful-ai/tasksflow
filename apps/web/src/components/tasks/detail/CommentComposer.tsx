@@ -9,7 +9,12 @@ import clsx from 'clsx';
 import { IconButton, Kbd } from '../../ui';
 import { Avatar, type PickerMember } from '../AssigneePicker';
 import { modKeyLabel } from '../../../lib/hotkeys';
-import { activeMentionQuery, decodeMentions, encodeMentions, type DraftMention } from './mentionText';
+import {
+  activeMentionQuery,
+  decodeMentions,
+  encodeMentions,
+  type DraftMention,
+} from './mentionText';
 
 interface CommentComposerProps {
   members: PickerMember[];
@@ -58,7 +63,10 @@ export function CommentComposer({
     if (!mention) return [];
     const q = mention.query.toLowerCase();
     return members
-      .filter((m) => (m.user.name ?? '').toLowerCase().includes(q) || m.user.email.toLowerCase().includes(q))
+      .filter(
+        (m) =>
+          (m.user.name ?? '').toLowerCase().includes(q) || m.user.email.toLowerCase().includes(q)
+      )
       .slice(0, MAX_SUGGESTIONS);
   }, [members, mention]);
   const menuOpen = mention !== null && suggestions.length > 0;
@@ -71,14 +79,19 @@ export function CommentComposer({
 
   const insertMention = (member: PickerMember) => {
     if (!mention) return;
-    const name = (member.user.name || member.user.email.split('@')[0] || 'user').replace(/[\]\n]/g, '').trim();
+    const name = (member.user.name || member.user.email.split('@')[0] || 'user')
+      .replace(/[\]\n]/g, '')
+      .trim();
     const caret = textareaRef.current?.selectionStart ?? text.length;
     const before = text.slice(0, mention.start);
     const after = text.slice(caret);
     const inserted = `@${name} `;
     const value = before + inserted + after;
     setText(value);
-    setMentions((list) => [...list.filter((m) => m.userId !== member.user.id), { userId: member.user.id, name }]);
+    setMentions((list) => [
+      ...list.filter((m) => m.userId !== member.user.id),
+      { userId: member.user.id, name },
+    ]);
     setMention(null);
     pendingCaret.current = before.length + inserted.length;
   };
@@ -156,7 +169,10 @@ export function CommentComposer({
           className="block w-full resize-y rounded-t-xl border-0 bg-transparent px-3 py-2.5 text-base placeholder:text-neutral-400 focus:ring-0 md:text-sm"
         />
         <div className="flex items-center justify-end gap-2 px-2 pb-2">
-          <span className="mr-auto hidden items-center gap-1 pl-1 text-xs text-neutral-400 sm:flex" aria-hidden>
+          <span
+            className="mr-auto hidden items-center gap-1 pl-1 text-xs text-neutral-400 sm:flex"
+            aria-hidden
+          >
             <Kbd>{modKeyLabel()}</Kbd>
             <Kbd>↵</Kbd>
             to send
@@ -213,7 +229,11 @@ export function CommentComposer({
             >
               <Avatar person={member.user} size="sm" />
               <span className="truncate">{member.user.name || member.user.email}</span>
-              {member.user.name && <span className="ml-auto truncate text-xs text-neutral-400">{member.user.email}</span>}
+              {member.user.name && (
+                <span className="ml-auto truncate text-xs text-neutral-400">
+                  {member.user.email}
+                </span>
+              )}
             </li>
           ))}
         </ul>

@@ -5,7 +5,14 @@
  * that user's email through the response).
  */
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { labels, projectMembers, projects, taskStates, tasks, workspaceMembers } from '../../db/index.js';
+import {
+  labels,
+  projectMembers,
+  projects,
+  taskStates,
+  tasks,
+  workspaceMembers,
+} from '../../db/index.js';
 import type { DbExecutor } from './db.js';
 import { TaskError } from './errors.js';
 
@@ -37,16 +44,25 @@ function unique(ids: readonly string[]): string[] {
 }
 
 /** The state must belong to the project. Returns its category. */
-export async function assertStateInProject(db: DbExecutor, projectId: string, stateId: string): Promise<string> {
+export async function assertStateInProject(
+  db: DbExecutor,
+  projectId: string,
+  stateId: string
+): Promise<string> {
   const [state] = await db
     .select({ id: taskStates.id, category: taskStates.category })
     .from(taskStates)
     .where(and(eq(taskStates.id, stateId), eq(taskStates.projectId, projectId)));
-  if (!state) throw new TaskError('INVALID_STATE', 'State does not belong to this project', [stateId]);
+  if (!state)
+    throw new TaskError('INVALID_STATE', 'State does not belong to this project', [stateId]);
   return state.category;
 }
 
-export async function assertLabelsInProject(db: DbExecutor, projectId: string, labelIds: readonly string[]): Promise<void> {
+export async function assertLabelsInProject(
+  db: DbExecutor,
+  projectId: string,
+  labelIds: readonly string[]
+): Promise<void> {
   const ids = unique(labelIds);
   if (ids.length === 0) return;
   const rows = await db
@@ -81,9 +97,17 @@ export async function assertAssigneesCanAccess(
     .from(workspaceMembers)
     .leftJoin(
       projectMembers,
-      and(eq(projectMembers.userId, workspaceMembers.userId), eq(projectMembers.projectId, project.id))
+      and(
+        eq(projectMembers.userId, workspaceMembers.userId),
+        eq(projectMembers.projectId, project.id)
+      )
     )
-    .where(and(eq(workspaceMembers.workspaceId, project.workspaceId), inArray(workspaceMembers.userId, ids)));
+    .where(
+      and(
+        eq(workspaceMembers.workspaceId, project.workspaceId),
+        inArray(workspaceMembers.userId, ids)
+      )
+    );
 
   const allowed = new Set(
     rows
@@ -97,7 +121,11 @@ export async function assertAssigneesCanAccess(
   );
   const rejected = ids.filter((id) => !allowed.has(id));
   if (rejected.length > 0) {
-    throw new TaskError('INVALID_ASSIGNEE', 'Assignee is not a member with access to this project', rejected);
+    throw new TaskError(
+      'INVALID_ASSIGNEE',
+      'Assignee is not a member with access to this project',
+      rejected
+    );
   }
 }
 

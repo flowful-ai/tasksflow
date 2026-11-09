@@ -141,7 +141,17 @@ export function getPermissions(role: WorkspaceRole): WorkspacePermission[] {
 export function canAccess(
   role: WorkspaceRole,
   resource: 'workspace' | 'project' | 'task' | 'comment' | 'smart_view' | 'agent',
-  action: 'create' | 'read' | 'update' | 'delete' | 'manage_members' | 'manage_settings' | 'manage_integrations' | 'assign' | 'share' | 'execute'
+  action:
+    | 'create'
+    | 'read'
+    | 'update'
+    | 'delete'
+    | 'manage_members'
+    | 'manage_settings'
+    | 'manage_integrations'
+    | 'assign'
+    | 'share'
+    | 'execute'
 ): boolean {
   const permission = `${resource}:${action}`;
   return isWorkspacePermission(permission) && hasPermission(role, permission);

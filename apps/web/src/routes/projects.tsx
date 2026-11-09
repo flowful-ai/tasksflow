@@ -23,7 +23,8 @@ export function ProjectsPage() {
   }
 
   if (isLoading) return <PageSpinner label="Loading projects" />;
-  if (error) return <ErrorState error={error} resource="list of projects" onRetry={() => void refetch()} />;
+  if (error)
+    return <ErrorState error={error} resource="list of projects" onRetry={() => void refetch()} />;
 
   return (
     <div>
@@ -56,7 +57,10 @@ export function ProjectsPage() {
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((project) => (
             <li key={project.id}>
-              <Link to={`/project/${project.id}`} className="card block p-4 hover:shadow-md transition-shadow">
+              <Link
+                to={`/project/${project.id}`}
+                className="card block p-4 hover:shadow-md transition-shadow"
+              >
                 <div className="flex items-start gap-3">
                   <div
                     aria-hidden
@@ -67,7 +71,8 @@ export function ProjectsPage() {
                   <div className="flex-1 min-w-0">
                     <h2 className="font-medium text-gray-900 truncate">{project.name}</h2>
                     <p className="text-sm text-gray-500 mt-1">
-                      {project.identifier} · {project.taskCount} task{project.taskCount === 1 ? '' : 's'}
+                      {project.identifier} · {project.taskCount} task
+                      {project.taskCount === 1 ? '' : 's'}
                     </p>
                   </div>
                 </div>

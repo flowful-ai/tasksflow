@@ -33,10 +33,16 @@ export async function filterUsersWithProjectAccess(
     .innerJoin(workspaceMembers, eq(workspaceMembers.workspaceId, projects.workspaceId))
     .leftJoin(
       projectMembers,
-      and(eq(projectMembers.projectId, projects.id), eq(projectMembers.userId, workspaceMembers.userId))
+      and(
+        eq(projectMembers.projectId, projects.id),
+        eq(projectMembers.userId, workspaceMembers.userId)
+      )
     )
     .where(and(eq(projects.id, projectId), inArray(workspaceMembers.userId, ids)));
   return rows
-    .filter((r) => isWorkspaceRole(r.role) && projectAclAllows(r.access, r.role, r.projectMemberId !== null))
+    .filter(
+      (r) =>
+        isWorkspaceRole(r.role) && projectAclAllows(r.access, r.role, r.projectMemberId !== null)
+    )
     .map((r) => r.userId);
 }

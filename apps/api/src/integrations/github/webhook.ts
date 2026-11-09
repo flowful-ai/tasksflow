@@ -13,7 +13,15 @@ import type { GitHubRepoRef } from '../types.js';
 export type GitHubWebhookAction =
   | {
       kind: 'issue';
-      action: 'opened' | 'edited' | 'closed' | 'reopened' | 'labeled' | 'unlabeled' | 'assigned' | 'unassigned';
+      action:
+        | 'opened'
+        | 'edited'
+        | 'closed'
+        | 'reopened'
+        | 'labeled'
+        | 'unlabeled'
+        | 'assigned'
+        | 'unassigned';
       repo: GitHubRepoRef;
       installationId: number | null;
       issueNumber: number;
@@ -50,7 +58,16 @@ export type GitHubWebhookAction =
     }
   | { kind: 'ignore'; reason: string };
 
-const ISSUE_ACTIONS = ['opened', 'edited', 'closed', 'reopened', 'labeled', 'unlabeled', 'assigned', 'unassigned'] as const;
+const ISSUE_ACTIONS = [
+  'opened',
+  'edited',
+  'closed',
+  'reopened',
+  'labeled',
+  'unlabeled',
+  'assigned',
+  'unassigned',
+] as const;
 const COMMENT_ACTIONS = ['created', 'edited', 'deleted'] as const;
 const PR_ACTIONS = ['opened', 'edited', 'reopened', 'closed', 'synchronize'] as const;
 
@@ -67,7 +84,8 @@ export function parseGitHubWebhook(eventName: string, payload: unknown): GitHubW
     const parsed = GitHubIssuesEventSchema.safeParse(payload);
     if (!parsed.success) return { kind: 'ignore', reason: 'Malformed issues payload' };
     const { action, issue, repository, installation } = parsed.data;
-    if (!isOneOf(ISSUE_ACTIONS, action)) return { kind: 'ignore', reason: `Unhandled issues action: ${action}` };
+    if (!isOneOf(ISSUE_ACTIONS, action))
+      return { kind: 'ignore', reason: `Unhandled issues action: ${action}` };
     // Issues API objects can describe pull requests; those are handled via pull_request events.
     if (issue.pull_request) return { kind: 'ignore', reason: 'Issue event for a pull request' };
     return {
@@ -84,7 +102,8 @@ export function parseGitHubWebhook(eventName: string, payload: unknown): GitHubW
     const parsed = GitHubIssueCommentEventSchema.safeParse(payload);
     if (!parsed.success) return { kind: 'ignore', reason: 'Malformed issue_comment payload' };
     const { action, comment, issue, repository, installation, sender } = parsed.data;
-    if (!isOneOf(COMMENT_ACTIONS, action)) return { kind: 'ignore', reason: `Unhandled comment action: ${action}` };
+    if (!isOneOf(COMMENT_ACTIONS, action))
+      return { kind: 'ignore', reason: `Unhandled comment action: ${action}` };
     if (issue.pull_request) return { kind: 'ignore', reason: 'Comment on a pull request' };
     return {
       kind: 'issue_comment',
@@ -106,7 +125,8 @@ export function parseGitHubWebhook(eventName: string, payload: unknown): GitHubW
     const parsed = GitHubPullRequestEventSchema.safeParse(payload);
     if (!parsed.success) return { kind: 'ignore', reason: 'Malformed pull_request payload' };
     const { action, pull_request: pr, repository, installation } = parsed.data;
-    if (!isOneOf(PR_ACTIONS, action)) return { kind: 'ignore', reason: `Unhandled pull_request action: ${action}` };
+    if (!isOneOf(PR_ACTIONS, action))
+      return { kind: 'ignore', reason: `Unhandled pull_request action: ${action}` };
     return {
       kind: 'pull_request',
       action,

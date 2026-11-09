@@ -84,7 +84,10 @@ export function TaskStatesSettings({ projectId, states }: TaskStatesSettingsProp
         {editStates.map((state) => {
           const isSaving = update.isPending && update.variables?.stateId === state.id;
           return (
-            <li key={state.id} className="flex flex-col gap-3 border border-gray-200 rounded-lg p-4">
+            <li
+              key={state.id}
+              className="flex flex-col gap-3 border border-gray-200 rounded-lg p-4"
+            >
               <div className="flex flex-wrap items-center gap-3">
                 <ColorDot color={state.color} size="md" />
                 <label htmlFor={`state-name-${state.id}`} className="sr-only">
@@ -119,14 +122,21 @@ export function TaskStatesSettings({ projectId, states }: TaskStatesSettingsProp
                   <input
                     type="color"
                     value={state.color || DEFAULT_COLOR}
-                    onChange={(e) => patchLocal(state.id, { color: e.target.value, colorTouched: true })}
+                    onChange={(e) =>
+                      patchLocal(state.id, { color: e.target.value, colorTouched: true })
+                    }
                     className="h-9 w-12 border border-gray-200 rounded-lg"
                   />
                 </label>
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <button type="button" className="btn btn-secondary" onClick={() => handleUpdate(state)} disabled={isSaving}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => handleUpdate(state)}
+                  disabled={isSaving}
+                >
                   {isSaving ? 'Saving...' : 'Save'}
                 </button>
                 <button
@@ -147,7 +157,10 @@ export function TaskStatesSettings({ projectId, states }: TaskStatesSettingsProp
         <h3 className="text-sm font-semibold text-gray-700">Add State</h3>
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="sm:col-span-2">
-            <label htmlFor="new-state-name" className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor="new-state-name"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
               Name
             </label>
             <input
@@ -160,7 +173,10 @@ export function TaskStatesSettings({ projectId, states }: TaskStatesSettingsProp
             />
           </div>
           <div>
-            <label htmlFor="new-state-category" className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor="new-state-category"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
               Category
             </label>
             <select
@@ -177,7 +193,10 @@ export function TaskStatesSettings({ projectId, states }: TaskStatesSettingsProp
             </select>
           </div>
           <div>
-            <label htmlFor="new-state-color" className="block text-sm font-medium text-gray-700 mb-1">
+            <label
+              htmlFor="new-state-color"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
               Color
             </label>
             <input
@@ -189,7 +208,11 @@ export function TaskStatesSettings({ projectId, states }: TaskStatesSettingsProp
             />
           </div>
         </div>
-        <button type="submit" className="btn btn-primary" disabled={create.isPending || !newName.trim()}>
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={create.isPending || !newName.trim()}
+        >
           {create.isPending ? 'Adding...' : 'Add State'}
         </button>
       </form>

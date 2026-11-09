@@ -1,6 +1,11 @@
 import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'bun:test';
-import { generateWebhookSecret, maskWebhookSecret, signWebhookPayload, verifyWebhookSignature } from './signing.js';
+import {
+  generateWebhookSecret,
+  maskWebhookSecret,
+  signWebhookPayload,
+  verifyWebhookSignature,
+} from './signing.js';
 
 describe('webhook signing', () => {
   const secret = 'whsec_test';

@@ -97,7 +97,11 @@ export function validateToolScopes(scopes: string[]): { ok: boolean; invalidTool
   return { ok: invalidTools.length === 0, invalidTools };
 }
 
-export function validateRequestedMcpScopes(scope: string): { scopes: string[]; workspaceId: string; toolScopes: string[] } {
+export function validateRequestedMcpScopes(scope: string): {
+  scopes: string[];
+  workspaceId: string;
+  toolScopes: string[];
+} {
   const scopes = splitScopeString(scope);
 
   if (!hasExactlyOneWorkspaceScope(scopes)) {
@@ -108,7 +112,10 @@ export function validateRequestedMcpScopes(scope: string): { scopes: string[]; w
 
   const validation = validateToolScopes(scopes);
   if (!validation.ok) {
-    throw new OAuthError('invalid_scope', `Unknown tool scopes: ${validation.invalidTools.join(', ')}`);
+    throw new OAuthError(
+      'invalid_scope',
+      `Unknown tool scopes: ${validation.invalidTools.join(', ')}`
+    );
   }
 
   const workspaceId = parseWorkspaceScope(scopes);

@@ -1,8 +1,19 @@
 import type { Database } from '../../db/index.js';
 import { comments, externalLinks, labels, projectIntegrations, users } from '../../db/index.js';
-import { findInstallationForRepo, isJsonValue, parseGitHubConfig, resolveGitHubLinkRef, type GitHubItemRef } from '@flowtask/shared';
+import {
+  findInstallationForRepo,
+  isJsonValue,
+  parseGitHubConfig,
+  resolveGitHubLinkRef,
+  type GitHubItemRef,
+} from '@flowtask/shared';
 import { and, eq, inArray } from 'drizzle-orm';
-import { NonRetryableError, registerBackgroundJob, scheduleBackgroundJob, type BackgroundJobPayload } from '../background.js';
+import {
+  NonRetryableError,
+  registerBackgroundJob,
+  scheduleBackgroundJob,
+  type BackgroundJobPayload,
+} from '../background.js';
 import { createGitHubClientForInstallation, type GitHubClient } from './client.js';
 import { computeIssueSyncHash } from './sync-hash.js';
 import { getStateCategory } from './task-lookup.js';
@@ -57,7 +68,8 @@ function changesFromPayload(value: BackgroundJobPayload[string] | undefined): Ta
   if (typeof value.title === 'string') changes.title = value.title;
   if (typeof value.description === 'string') changes.description = value.description;
   if (typeof value.stateId === 'string' || value.stateId === null) changes.stateId = value.stateId;
-  if (typeof value.priority === 'string' || value.priority === null) changes.priority = value.priority;
+  if (typeof value.priority === 'string' || value.priority === null)
+    changes.priority = value.priority;
   if (Array.isArray(value.labelIds)) {
     changes.labelIds = value.labelIds.filter((id): id is string => typeof id === 'string');
   }
@@ -65,7 +77,12 @@ function changesFromPayload(value: BackgroundJobPayload[string] | undefined): Ta
 }
 
 function commentFromPayload(value: BackgroundJobPayload[string] | undefined): CommentForGitHub {
-  if (!value || typeof value !== 'object' || Array.isArray(value) || typeof value.content !== 'string') {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    Array.isArray(value) ||
+    typeof value.content !== 'string'
+  ) {
     throw new NonRetryableError('Job payload is missing the comment');
   }
   return {
@@ -128,7 +145,8 @@ export class GitHubReverseSyncService {
       if (category) updates.state = category === 'done' ? 'closed' : 'open';
     }
 
-    const labelNames = changes.labelIds !== undefined ? await this.getLabelNames(changes.labelIds) : null;
+    const labelNames =
+      changes.labelIds !== undefined ? await this.getLabelNames(changes.labelIds) : null;
     if (Object.keys(updates).length === 0 && labelNames === null) {
       return { synced: false, reason: 'No GitHub-relevant changes' };
     }
@@ -151,7 +169,10 @@ export class GitHubReverseSyncService {
 
     let authorName = comment.authorName;
     if (!authorName && comment.authorId) {
-      const [user] = await this.db.select({ name: users.name }).from(users).where(eq(users.id, comment.authorId));
+      const [user] = await this.db
+        .select({ name: users.name })
+        .from(users)
+        .where(eq(users.id, comment.authorId));
       authorName = user?.name ?? undefined;
     }
 
@@ -180,7 +201,11 @@ export class GitHubReverseSyncService {
   }
 
   /** GitHub username mapping isn't implemented, so assignees aren't pushed. */
-  async syncAssigneesToGitHub(_taskId: string, _action: 'add' | 'remove', _userId: string): Promise<ReverseSyncResult> {
+  async syncAssigneesToGitHub(
+    _taskId: string,
+    _action: 'add' | 'remove',
+    _userId: string
+  ): Promise<ReverseSyncResult> {
     return { synced: false, reason: 'GitHub username mapping not implemented' };
   }
 
@@ -196,7 +221,11 @@ export class GitHubReverseSyncService {
   // ============ Background entry points (single retry seam) ============
 
   scheduleTaskSync(taskId: string, changes: TaskChangesForGitHub): void {
-    scheduleBackgroundJob(REVERSE_SYNC_JOBS.task, { taskId, changes: toPayload(changes) }, { context: { taskId } });
+    scheduleBackgroundJob(
+      REVERSE_SYNC_JOBS.task,
+      { taskId, changes: toPayload(changes) },
+      { context: { taskId } }
+    );
   }
 
   scheduleCommentSync(taskId: string, comment: CommentForGitHub): void {
@@ -213,7 +242,11 @@ export class GitHubReverseSyncService {
 
   // ============ Helpers ============
 
-  private async recordSyncedContent(client: GitHubClient, issueNumber: number, linkId: string): Promise<void> {
+  private async recordSyncedContent(
+    client: GitHubClient,
+    issueNumber: number,
+    linkId: string
+  ): Promise<void> {
     const fresh = await client.getIssue(issueNumber);
     await this.db
       .update(externalLinks)
@@ -240,16 +273,26 @@ export class GitHubReverseSyncService {
     const ref = resolveGitHubLinkRef(row);
     if (!ref) return { reason: 'Could not determine repository from link' };
 
-    const installationId = findInstallationForRepo(parseGitHubConfig(row.config), ref.owner, ref.repo);
+    const installationId = findInstallationForRepo(
+      parseGitHubConfig(row.config),
+      ref.owner,
+      ref.repo
+    );
     if (!installationId) return { reason: 'Repository is no longer linked to this project' };
 
-    const client = await createGitHubClientForInstallation(installationId, { owner: ref.owner, repo: ref.repo });
+    const client = await createGitHubClientForInstallation(installationId, {
+      owner: ref.owner,
+      repo: ref.repo,
+    });
     return { linkId: row.linkId, ref, client };
   }
 
   private async getLabelNames(labelIds: string[]): Promise<string[]> {
     if (labelIds.length === 0) return [];
-    const rows = await this.db.select({ name: labels.name }).from(labels).where(inArray(labels.id, labelIds));
+    const rows = await this.db
+      .select({ name: labels.name })
+      .from(labels)
+      .where(inArray(labels.id, labelIds));
     return rows.map((l) => l.name);
   }
 }

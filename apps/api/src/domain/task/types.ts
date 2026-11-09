@@ -1,6 +1,13 @@
 import type { SQL } from 'drizzle-orm';
 import type { Task, TaskState, User, Label } from '../../db/index.js';
-import type { CreateTask, UpdateTask, MoveTask, TaskPriority, TaskRelationType, JsonValue } from '@flowtask/shared';
+import type {
+  CreateTask,
+  UpdateTask,
+  MoveTask,
+  TaskPriority,
+  TaskRelationType,
+  JsonValue,
+} from '@flowtask/shared';
 
 export interface TaskAgent {
   id: string;

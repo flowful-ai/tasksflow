@@ -86,41 +86,59 @@ workspaces.get('/:workspaceId/me', async (c) => {
 });
 
 // List recent task activity for workspace, limited to projects the caller can access
-workspaces.get('/:workspaceId/activity', zValidator('query', WorkspaceActivityQuerySchema), async (c) => {
-  const { workspaceId, role, user } = await requireWorkspace(c, c.req.param('workspaceId'), 'project:read');
-  const query = c.req.valid('query');
+workspaces.get(
+  '/:workspaceId/activity',
+  zValidator('query', WorkspaceActivityQuerySchema),
+  async (c) => {
+    const { workspaceId, role, user } = await requireWorkspace(
+      c,
+      c.req.param('workspaceId'),
+      'project:read'
+    );
+    const query = c.req.valid('query');
 
-  let cursor: { createdAt: Date; id: string } | undefined;
-  if (query.cursor) {
-    cursor = decodeCursor(query.cursor) || undefined;
-    if (!cursor) throw badRequest('Invalid cursor format', 'INVALID_CURSOR');
+    let cursor: { createdAt: Date; id: string } | undefined;
+    if (query.cursor) {
+      cursor = decodeCursor(query.cursor) || undefined;
+      if (!cursor) throw badRequest('Invalid cursor format', 'INVALID_CURSOR');
+    }
+
+    const projectIds = await getAuthz().listAccessibleProjectIds(workspaceId, user.id, role);
+    const page = fromResult(
+      await workspaceService.listActivity(workspaceId, { limit: query.limit, cursor, projectIds }),
+      {
+        code: 'LIST_FAILED',
+        message: 'Failed to load activity',
+      }
+    );
+
+    return c.json({
+      success: true,
+      data: page.items,
+      meta: {
+        limit: query.limit,
+        nextCursor: page.nextCursor ? encodeCursor(page.nextCursor) : null,
+      },
+    });
   }
-
-  const projectIds = await getAuthz().listAccessibleProjectIds(workspaceId, user.id, role);
-  const page = fromResult(await workspaceService.listActivity(workspaceId, { limit: query.limit, cursor, projectIds }), {
-    code: 'LIST_FAILED',
-    message: 'Failed to load activity',
-  });
-
-  return c.json({
-    success: true,
-    data: page.items,
-    meta: {
-      limit: query.limit,
-      nextCursor: page.nextCursor ? encodeCursor(page.nextCursor) : null,
-    },
-  });
-});
+);
 
 // Update workspace
 workspaces.patch('/:workspaceId', zValidator('json', UpdateWorkspaceSchema), async (c) => {
-  const { workspaceId, user } = await requireWorkspace(c, c.req.param('workspaceId'), 'workspace:update');
+  const { workspaceId, user } = await requireWorkspace(
+    c,
+    c.req.param('workspaceId'),
+    'workspace:update'
+  );
   const data = c.req.valid('json');
-  const workspace = fromResult(await workspaceService.update(workspaceId, { ...data, updatedBy: user.id }), {
-    status: 400,
-    code: 'UPDATE_FAILED',
-    message: 'Failed to update workspace',
-  });
+  const workspace = fromResult(
+    await workspaceService.update(workspaceId, { ...data, updatedBy: user.id }),
+    {
+      status: 400,
+      code: 'UPDATE_FAILED',
+      message: 'Failed to update workspace',
+    }
+  );
   return c.json({ success: true, data: workspace });
 });
 
@@ -152,16 +170,26 @@ workspaces.get('/:workspaceId/members', async (c) => {
 // assign roles at or below their own (enforced in WorkspaceService).
 workspaces.post(
   '/:workspaceId/members',
-  zValidator('json', z.object({ userId: z.string().uuid(), role: WorkspaceRoleSchema.default('member') })),
+  zValidator(
+    'json',
+    z.object({ userId: z.string().uuid(), role: WorkspaceRoleSchema.default('member') })
+  ),
   async (c) => {
-    const { workspaceId, user } = await requireWorkspace(c, c.req.param('workspaceId'), 'workspace:manage_members');
+    const { workspaceId, user } = await requireWorkspace(
+      c,
+      c.req.param('workspaceId'),
+      'workspace:manage_members'
+    );
     const { userId, role } = c.req.valid('json');
 
-    const member = fromResult(await workspaceService.addMember({ workspaceId, userId, role, addedBy: user.id }), {
-      status: 400,
-      code: 'ADD_FAILED',
-      message: 'Failed to add member',
-    });
+    const member = fromResult(
+      await workspaceService.addMember({ workspaceId, userId, role, addedBy: user.id }),
+      {
+        status: 400,
+        code: 'ADD_FAILED',
+        message: 'Failed to add member',
+      }
+    );
 
     publishEvent(workspaceId, REALTIME_EVENTS.MEMBER_JOINED, { workspaceId, userId });
     return c.json({ success: true, data: member }, 201);
@@ -173,12 +201,20 @@ workspaces.post(
   '/:workspaceId/transfer-ownership',
   zValidator('json', z.object({ userId: z.string().uuid() })),
   async (c) => {
-    const { workspaceId, user, role } = await requireWorkspace(c, c.req.param('workspaceId'), 'workspace:read');
+    const { workspaceId, user, role } = await requireWorkspace(
+      c,
+      c.req.param('workspaceId'),
+      'workspace:read'
+    );
     if (role !== 'owner') throw forbidden('Only an owner can transfer ownership');
     const { userId } = c.req.valid('json');
 
     const member = fromResult(
-      await workspaceService.transferOwnership({ workspaceId, fromUserId: user.id, toUserId: userId }),
+      await workspaceService.transferOwnership({
+        workspaceId,
+        fromUserId: user.id,
+        toUserId: userId,
+      }),
       { status: 400, code: 'TRANSFER_FAILED', message: 'Failed to transfer ownership' }
     );
 
@@ -193,12 +229,21 @@ workspaces.patch(
   '/:workspaceId/members/:memberId',
   zValidator('json', z.object({ role: WorkspaceRoleSchema })),
   async (c) => {
-    const { workspaceId, user } = await requireWorkspace(c, c.req.param('workspaceId'), 'workspace:manage_members');
+    const { workspaceId, user } = await requireWorkspace(
+      c,
+      c.req.param('workspaceId'),
+      'workspace:manage_members'
+    );
     const memberId = c.req.param('memberId');
     const { role } = c.req.valid('json');
 
     const member = fromResult(
-      await workspaceService.updateMember({ workspaceId, userId: memberId, role, updatedBy: user.id }),
+      await workspaceService.updateMember({
+        workspaceId,
+        userId: memberId,
+        role,
+        updatedBy: user.id,
+      }),
       { status: 400, code: 'UPDATE_FAILED', message: 'Failed to update member' }
     );
 
@@ -219,11 +264,14 @@ workspaces.delete('/:workspaceId/members/:memberId', async (c) => {
     await requireWorkspace(c, workspaceId, 'workspace:read');
   }
 
-  fromResult(await workspaceService.removeMember({ workspaceId, userId: memberId, removedBy: user.id }), {
-    status: 400,
-    code: 'REMOVE_FAILED',
-    message: 'Failed to remove member',
-  });
+  fromResult(
+    await workspaceService.removeMember({ workspaceId, userId: memberId, removedBy: user.id }),
+    {
+      status: 400,
+      code: 'REMOVE_FAILED',
+      message: 'Failed to remove member',
+    }
+  );
 
   // Close the removed user's realtime streams on every instance immediately.
   notifyMemberRemoved(workspaceId, memberId);

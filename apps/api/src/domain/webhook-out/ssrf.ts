@@ -15,7 +15,11 @@
 import { lookup as dnsLookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 
-export type WebhookUrlErrorCode = 'INVALID_URL' | 'HTTPS_REQUIRED' | 'PRIVATE_ADDRESS' | 'DNS_FAILED';
+export type WebhookUrlErrorCode =
+  | 'INVALID_URL'
+  | 'HTTPS_REQUIRED'
+  | 'PRIVATE_ADDRESS'
+  | 'DNS_FAILED';
 
 export class WebhookUrlError extends Error {
   readonly code: WebhookUrlErrorCode;
@@ -177,7 +181,10 @@ export function isPrivateAddress(address: string): boolean {
 /**
  * Validate a webhook URL and resolve its host. Throws WebhookUrlError.
  */
-export async function assertSafeWebhookUrl(rawUrl: string, opts: SafeUrlOptions = {}): Promise<SafeUrl> {
+export async function assertSafeWebhookUrl(
+  rawUrl: string,
+  opts: SafeUrlOptions = {}
+): Promise<SafeUrl> {
   const production = opts.production ?? process.env.NODE_ENV === 'production';
   const allowPrivate = opts.allowPrivate ?? process.env.ALLOW_PRIVATE_WEBHOOK_TARGETS === 'true';
   const lookup = opts.lookup ?? defaultLookup;
@@ -211,13 +218,17 @@ export async function assertSafeWebhookUrl(rawUrl: string, opts: SafeUrlOptions 
     } catch {
       throw new WebhookUrlError('DNS_FAILED', `Could not resolve ${host}`);
     }
-    if (addresses.length === 0) throw new WebhookUrlError('DNS_FAILED', `Could not resolve ${host}`);
+    if (addresses.length === 0)
+      throw new WebhookUrlError('DNS_FAILED', `Could not resolve ${host}`);
   }
 
   if (!allowPrivate) {
     const blocked = addresses.find(isPrivateAddress);
     if (blocked) {
-      throw new WebhookUrlError('PRIVATE_ADDRESS', `Webhook host ${host} resolves to a private or reserved address`);
+      throw new WebhookUrlError(
+        'PRIVATE_ADDRESS',
+        `Webhook host ${host} resolves to a private or reserved address`
+      );
     }
   }
 

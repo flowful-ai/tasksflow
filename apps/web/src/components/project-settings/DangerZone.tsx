@@ -24,14 +24,20 @@ export function DangerZone({ project, onDeleted }: DangerZoneProps) {
           Danger Zone
         </h2>
       </div>
-      <p className="text-sm text-gray-600 mb-4">Actions here are destructive. Please proceed with caution.</p>
+      <p className="text-sm text-gray-600 mb-4">
+        Actions here are destructive. Please proceed with caution.
+      </p>
 
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border border-gray-200 rounded-lg p-4">
           <div>
-            <h3 className="font-medium text-gray-900">{isArchived ? 'Unarchive Project' : 'Archive Project'}</h3>
+            <h3 className="font-medium text-gray-900">
+              {isArchived ? 'Unarchive Project' : 'Archive Project'}
+            </h3>
             <p className="text-sm text-gray-500">
-              {isArchived ? 'Restore this project and make it visible again.' : 'Hide this project from active lists.'}
+              {isArchived
+                ? 'Restore this project and make it visible again.'
+                : 'Hide this project from active lists.'}
             </p>
           </div>
           <button
@@ -39,13 +45,20 @@ export function DangerZone({ project, onDeleted }: DangerZoneProps) {
             onClick={() =>
               updateProject.mutate(
                 { isArchived: !isArchived },
-                { onSuccess: () => toast.success(isArchived ? 'Project restored' : 'Project archived') }
+                {
+                  onSuccess: () =>
+                    toast.success(isArchived ? 'Project restored' : 'Project archived'),
+                }
               )
             }
             className="btn btn-secondary"
             disabled={updateProject.isPending}
           >
-            {isArchived ? <ArchiveRestore aria-hidden className="w-4 h-4 mr-2" /> : <Archive aria-hidden className="w-4 h-4 mr-2" />}
+            {isArchived ? (
+              <ArchiveRestore aria-hidden className="w-4 h-4 mr-2" />
+            ) : (
+              <Archive aria-hidden className="w-4 h-4 mr-2" />
+            )}
             {isArchived
               ? updateProject.isPending
                 ? 'Restoring...'
@@ -59,7 +72,9 @@ export function DangerZone({ project, onDeleted }: DangerZoneProps) {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border border-red-200 rounded-lg p-4 bg-red-50/40">
           <div>
             <h3 className="font-medium text-gray-900">Delete Project</h3>
-            <p className="text-sm text-gray-500">Permanently delete this project and all associated tasks.</p>
+            <p className="text-sm text-gray-500">
+              Permanently delete this project and all associated tasks.
+            </p>
           </div>
           <button
             type="button"

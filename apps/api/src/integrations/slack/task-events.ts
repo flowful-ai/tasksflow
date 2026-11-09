@@ -1,9 +1,21 @@
 import { webApi } from '@slack/bolt';
 import { getDatabase, type Database } from '../../db/index.js';
-import { comments, projectIntegrations, projects, taskStates, tasks, users } from '../../db/index.js';
+import {
+  comments,
+  projectIntegrations,
+  projects,
+  taskStates,
+  tasks,
+  users,
+} from '../../db/index.js';
 import { isJsonValue, parseSlackConfig, type SlackConfig } from '@flowtask/shared';
 import { and, eq } from 'drizzle-orm';
-import { NonRetryableError, registerBackgroundJob, scheduleBackgroundJob, type BackgroundJobPayload } from '../background.js';
+import {
+  NonRetryableError,
+  registerBackgroundJob,
+  scheduleBackgroundJob,
+  type BackgroundJobPayload,
+} from '../background.js';
 import { decryptSecret } from '../crypto.js';
 import { getWebUrl } from '../env.js';
 import type { TaskNotification } from '../types.js';
@@ -44,11 +56,17 @@ function isSlackPlatformError(error: unknown): error is Error & { code: string }
 
 async function userName(db: Database, userId: string | null | undefined): Promise<string | null> {
   if (!userId) return null;
-  const [user] = await db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, userId));
+  const [user] = await db
+    .select({ name: users.name, email: users.email })
+    .from(users)
+    .where(eq(users.id, userId));
   return user ? user.name || user.email : null;
 }
 
-async function eventDetails(db: Database, event: SlackTaskEvent): Promise<{ action: TaskNotification['action']; details?: string } | null> {
+async function eventDetails(
+  db: Database,
+  event: SlackTaskEvent
+): Promise<{ action: TaskNotification['action']; details?: string } | null> {
   switch (event.type) {
     case 'task.created':
       return { action: 'created' };
@@ -59,7 +77,10 @@ async function eventDetails(db: Database, event: SlackTaskEvent): Promise<{ acti
         .from(taskStates)
         .where(eq(taskStates.id, event.toStateId));
       if (!state) return { action: 'state_changed' };
-      return { action: state.category === 'done' ? 'completed' : 'state_changed', details: `Now in ${state.name}` };
+      return {
+        action: state.category === 'done' ? 'completed' : 'state_changed',
+        details: `Now in ${state.name}`,
+      };
     }
     case 'task.assigned': {
       const name = await userName(db, event.assigneeUserId);
@@ -111,7 +132,9 @@ export async function deliverSlackTaskEvent(
   const config = parseSlackConfig(row.integrationConfig);
   if (!config || !config.notifications[SETTING_FOR_EVENT[event.type]]) return 'skipped';
 
-  const botToken = config.botTokenEncrypted ? decryptSecret(config.botTokenEncrypted) : getEnvSlackBotToken();
+  const botToken = config.botTokenEncrypted
+    ? decryptSecret(config.botTokenEncrypted)
+    : getEnvSlackBotToken();
   if (!botToken) return 'skipped';
 
   const detail = await eventDetails(db, event);
@@ -165,7 +188,8 @@ function slackEventFromPayload(payload: BackgroundJobPayload): SlackTaskEvent {
       return { ...base, type: 'task.state_changed', toStateId: str('toStateId') ?? null };
     case 'task.assigned': {
       const assigneeUserId = str('assigneeUserId');
-      if (!assigneeUserId) throw new NonRetryableError('Slack job payload is missing assigneeUserId');
+      if (!assigneeUserId)
+        throw new NonRetryableError('Slack job payload is missing assigneeUserId');
       return { ...base, type: 'task.assigned', assigneeUserId };
     }
     case 'comment.added': {
@@ -187,5 +211,7 @@ export function notifySlackForTaskEvent(event: SlackTaskEvent): void {
   for (const [key, value] of Object.entries(event)) {
     if (isJsonValue(value)) payload[key] = value;
   }
-  scheduleBackgroundJob(SLACK_NOTIFY_JOB, payload, { context: { eventType: event.type, taskId: event.taskId } });
+  scheduleBackgroundJob(SLACK_NOTIFY_JOB, payload, {
+    context: { eventType: event.type, taskId: event.taskId },
+  });
 }

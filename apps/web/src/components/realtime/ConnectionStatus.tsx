@@ -14,12 +14,19 @@ const LABELS = { live: 'Live', connecting: 'Connecting…', reconnecting: 'Recon
 export function LiveIndicator({ suffix, className }: { suffix?: string; className?: string }) {
   const status = useConnectionStatus();
   return (
-    <span role="status" className={clsx('inline-flex items-center gap-1.5 text-xs text-neutral-500', className)}>
+    <span
+      role="status"
+      className={clsx('inline-flex items-center gap-1.5 text-xs text-neutral-500', className)}
+    >
       <span
         aria-hidden
         className={clsx(
           'h-2 w-2 rounded-full',
-          status === 'live' ? 'bg-emerald-600' : status === 'reconnecting' ? 'bg-amber-500 animate-pulse' : 'bg-neutral-300'
+          status === 'live'
+            ? 'bg-emerald-600'
+            : status === 'reconnecting'
+              ? 'bg-amber-500 animate-pulse'
+              : 'bg-neutral-300'
         )}
       />
       {LABELS[status]}
@@ -32,7 +39,13 @@ export function LiveIndicator({ suffix, className }: { suffix?: string; classNam
  * "Reconnecting… changes will sync when the connection returns". Waits 2 s
  * before showing so a quick blip (or a server restart) doesn't flash it.
  */
-export function ReconnectingBanner({ delayMs = 2000, className }: { delayMs?: number; className?: string }) {
+export function ReconnectingBanner({
+  delayMs = 2000,
+  className,
+}: {
+  delayMs?: number;
+  className?: string;
+}) {
   const status = useConnectionStatus();
   const [visible, setVisible] = useState(false);
 

@@ -44,7 +44,8 @@ export function optionalBoolean(args: JsonRecord, key: string): boolean | undefi
 export function optionalInteger(args: JsonRecord, key: string): number | undefined {
   const value = args[key];
   if (value === undefined) return undefined;
-  if (typeof value !== 'number' || !Number.isInteger(value)) throw schemaMismatch(key, 'an integer');
+  if (typeof value !== 'number' || !Number.isInteger(value))
+    throw schemaMismatch(key, 'an integer');
   return value;
 }
 
@@ -99,7 +100,10 @@ export function parseDueDate(value: string, key = 'dueDate'): Date {
   const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(trimmed);
   const parsed = new Date(dateOnly ? `${trimmed}T00:00:00.000Z` : trimmed);
   if (Number.isNaN(parsed.getTime())) {
-    throw new ToolExecutionError(`${key} must be YYYY-MM-DD or an ISO 8601 datetime`, 'VALIDATION_ERROR');
+    throw new ToolExecutionError(
+      `${key} must be YYYY-MM-DD or an ISO 8601 datetime`,
+      'VALIDATION_ERROR'
+    );
   }
   return parsed;
 }
@@ -139,7 +143,10 @@ export function resolveMcpTaskViewArgs(args: JsonRecord): McpTaskViewArgs {
   }
 
   if (view !== 'custom' && fields) {
-    throw new ToolExecutionError('fields is only supported when view is custom', 'VALIDATION_ERROR');
+    throw new ToolExecutionError(
+      'fields is only supported when view is custom',
+      'VALIDATION_ERROR'
+    );
   }
 
   return {
@@ -176,11 +183,17 @@ export function resolveUpdateTaskGitHubPrArgs(args: JsonRecord): UpdateTaskGitHu
   }
 
   if (typeof rawOwner !== 'string' || !rawOwner.trim()) {
-    throw new ToolExecutionError('githubPrOwner is required when linking a pull request', 'VALIDATION_ERROR');
+    throw new ToolExecutionError(
+      'githubPrOwner is required when linking a pull request',
+      'VALIDATION_ERROR'
+    );
   }
 
   if (typeof rawRepo !== 'string' || !rawRepo.trim()) {
-    throw new ToolExecutionError('githubPrRepo is required when linking a pull request', 'VALIDATION_ERROR');
+    throw new ToolExecutionError(
+      'githubPrRepo is required when linking a pull request',
+      'VALIDATION_ERROR'
+    );
   }
 
   if (typeof rawPrNumber !== 'number' || !Number.isInteger(rawPrNumber) || rawPrNumber <= 0) {

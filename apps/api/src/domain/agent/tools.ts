@@ -6,7 +6,14 @@ import type { AgentTool } from '@flowtask/shared';
  * turned into Zod validators by the runtime.
  */
 
-export type ToolJsonType = 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array' | 'null';
+export type ToolJsonType =
+  | 'string'
+  | 'number'
+  | 'integer'
+  | 'boolean'
+  | 'object'
+  | 'array'
+  | 'null';
 
 export interface ToolParameterSchema {
   /** Omitted = any JSON value. An array allows several types (e.g. ['string', 'null']). */
@@ -73,13 +80,15 @@ const PROJECT_ID: ToolParameterSchema = {
 
 const TASK_REF: ToolParameterSchema = {
   type: 'string',
-  description: 'Task id (uuid) or task key such as "ENG-123" (project identifier + number) from query_tasks/search_tasks',
+  description:
+    'Task id (uuid) or task key such as "ENG-123" (project identifier + number) from query_tasks/search_tasks',
 };
 
 const STATE_ID: ToolParameterSchema = {
   type: 'string',
   format: 'uuid',
-  description: "State id (uuid) from list_projects (states[].id); must belong to the task's project",
+  description:
+    "State id (uuid) from list_projects (states[].id); must belong to the task's project",
 };
 
 const LABEL_IDS: ToolParameterSchema = {
@@ -98,8 +107,17 @@ const ASSIGNEE_IDS: ToolParameterSchema = {
   description: `Assignees, each ${USER_REF_DESCRIPTION}`,
 };
 
-const TITLE: ToolParameterSchema = { type: 'string', minLength: 1, maxLength: 500, description: 'Task title' };
-const DESCRIPTION: ToolParameterSchema = { type: 'string', maxLength: 50000, description: 'Task description (Markdown)' };
+const TITLE: ToolParameterSchema = {
+  type: 'string',
+  minLength: 1,
+  maxLength: 500,
+  description: 'Task title',
+};
+const DESCRIPTION: ToolParameterSchema = {
+  type: 'string',
+  maxLength: 50000,
+  description: 'Task description (Markdown)',
+};
 
 const DUE_DATE_CREATE: ToolParameterSchema = {
   type: 'string',
@@ -129,8 +147,14 @@ const FIELDS: ToolParameterSchema = {
   description: 'Fields to return; required only when view=custom',
 };
 
-const INCLUDE_ASSIGNEES: ToolParameterSchema = { type: 'boolean', description: 'Include assignees only if needed' };
-const INCLUDE_LABELS: ToolParameterSchema = { type: 'boolean', description: 'Include labels only if needed' };
+const INCLUDE_ASSIGNEES: ToolParameterSchema = {
+  type: 'boolean',
+  description: 'Include assignees only if needed',
+};
+const INCLUDE_LABELS: ToolParameterSchema = {
+  type: 'boolean',
+  description: 'Include labels only if needed',
+};
 const INCLUDE_EXTERNAL_LINKS: ToolParameterSchema = {
   type: 'boolean',
   description: 'Include linked GitHub issues/PRs only if needed',
@@ -146,7 +170,8 @@ const LIMIT: ToolParameterSchema = {
 
 const CURSOR: ToolParameterSchema = {
   type: 'string',
-  description: 'Opaque nextCursor from a previous page of the same query; when set, limit is taken from the cursor',
+  description:
+    'Opaque nextCursor from a previous page of the same query; when set, limit is taken from the cursor',
 };
 
 const PROJECTION_PARAMS: Record<string, ToolParameterSchema> = {
@@ -214,7 +239,8 @@ const FILTER_GROUP: ToolParameterSchema = {
           value: {
             type: ['string', 'number', 'boolean', 'array', 'null'],
             items: { type: 'string', description: 'One value for in/nin' },
-            description: 'Comparison value; an array for in/nin; omit or null for is_null/is_not_null',
+            description:
+              'Comparison value; an array for in/nin; omit or null for is_null/is_not_null',
           },
         },
         required: ['field', 'op'],
@@ -226,7 +252,10 @@ const FILTER_GROUP: ToolParameterSchema = {
   additionalProperties: false,
 };
 
-function params(properties: Record<string, ToolParameterSchema>, required: string[] = []): ToolObjectSchema {
+function params(
+  properties: Record<string, ToolParameterSchema>,
+  required: string[] = []
+): ToolObjectSchema {
   return { type: 'object', properties, required, additionalProperties: false };
 }
 
@@ -266,7 +295,10 @@ const OBJECT_ARRAY = (description: string): ToolParameterSchema => ({
   description,
 });
 
-function output(properties: Record<string, ToolParameterSchema>, required: string[]): ToolObjectSchema {
+function output(
+  properties: Record<string, ToolParameterSchema>,
+  required: string[]
+): ToolObjectSchema {
   return { type: 'object', properties, required };
 }
 
@@ -275,24 +307,37 @@ function output(properties: Record<string, ToolParameterSchema>, required: strin
 export const AGENT_TOOLS: ToolDefinition[] = [
   {
     name: 'create_task',
-    description: 'Create a task in a project. Get projectId, stateId and label ids from list_projects/list_labels.',
+    description:
+      'Create a task in a project. Get projectId, stateId and label ids from list_projects/list_labels.',
     parameters: params(
       {
         projectId: PROJECT_ID,
         title: TITLE,
         description: DESCRIPTION,
         priority: PRIORITY,
-        stateId: { ...STATE_ID, description: `${STATE_ID.description}; defaults to the first backlog state` },
+        stateId: {
+          ...STATE_ID,
+          description: `${STATE_ID.description}; defaults to the first backlog state`,
+        },
         dueDate: DUE_DATE_CREATE,
         labelIds: LABEL_IDS,
         assigneeIds: ASSIGNEE_IDS,
-        autoAssign: { type: 'boolean', description: 'Also assign the task to the authenticated user' },
+        autoAssign: {
+          type: 'boolean',
+          description: 'Also assign the task to the authenticated user',
+        },
         return: RETURN_MODE,
       },
       ['projectId', 'title']
     ),
     outputSchema: WRITE_TASK_OUTPUT,
-    annotations: { title: 'Create task', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    annotations: {
+      title: 'Create task',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
   },
   {
     name: 'bulk_create_tasks',
@@ -329,13 +374,27 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       {
         ok: { type: 'boolean', description: 'True when the call ran (check failed[])' },
         tool: { type: 'string', description: 'Tool name' },
-        createdIds: { type: 'array', items: { type: 'string', description: 'Created task id' }, description: 'Created task ids (ack mode)' },
-        tasks: { type: 'array', items: TASK_OUTPUT, description: 'Created tasks (compact/full mode)' },
+        createdIds: {
+          type: 'array',
+          items: { type: 'string', description: 'Created task id' },
+          description: 'Created task ids (ack mode)',
+        },
+        tasks: {
+          type: 'array',
+          items: TASK_OUTPUT,
+          description: 'Created tasks (compact/full mode)',
+        },
         failed: OBJECT_ARRAY('Items that failed: {index, error}'),
       },
       ['ok', 'tool', 'failed']
     ),
-    annotations: { title: 'Bulk create tasks', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    annotations: {
+      title: 'Bulk create tasks',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
   },
   {
     name: 'update_task',
@@ -349,17 +408,36 @@ export const AGENT_TOOLS: ToolDefinition[] = [
         priority: PRIORITY,
         stateId: STATE_ID,
         dueDate: DUE_DATE_UPDATE,
-        labelIds: { ...LABEL_IDS, description: `${LABEL_IDS.description}; replaces existing labels` },
-        assigneeIds: { ...ASSIGNEE_IDS, description: `${ASSIGNEE_IDS.description}; replaces existing assignees` },
-        githubPrOwner: { type: 'string', description: 'GitHub owner of a pull request to link (with githubPrRepo and githubPrNumber)' },
-        githubPrRepo: { type: 'string', description: 'GitHub repository name of the pull request to link' },
+        labelIds: {
+          ...LABEL_IDS,
+          description: `${LABEL_IDS.description}; replaces existing labels`,
+        },
+        assigneeIds: {
+          ...ASSIGNEE_IDS,
+          description: `${ASSIGNEE_IDS.description}; replaces existing assignees`,
+        },
+        githubPrOwner: {
+          type: 'string',
+          description:
+            'GitHub owner of a pull request to link (with githubPrRepo and githubPrNumber)',
+        },
+        githubPrRepo: {
+          type: 'string',
+          description: 'GitHub repository name of the pull request to link',
+        },
         githubPrNumber: { type: 'integer', minimum: 1, description: 'Pull request number to link' },
         return: RETURN_MODE,
       },
       ['taskId']
     ),
     outputSchema: WRITE_TASK_OUTPUT,
-    annotations: { title: 'Update task', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    annotations: {
+      title: 'Update task',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
   {
     name: 'bulk_update_tasks',
@@ -381,8 +459,14 @@ export const AGENT_TOOLS: ToolDefinition[] = [
               priority: PRIORITY,
               stateId: STATE_ID,
               dueDate: DUE_DATE_UPDATE,
-              labelIds: { ...LABEL_IDS, description: `${LABEL_IDS.description}; replaces existing labels` },
-              assigneeIds: { ...ASSIGNEE_IDS, description: `${ASSIGNEE_IDS.description}; replaces existing assignees` },
+              labelIds: {
+                ...LABEL_IDS,
+                description: `${LABEL_IDS.description}; replaces existing labels`,
+              },
+              assigneeIds: {
+                ...ASSIGNEE_IDS,
+                description: `${ASSIGNEE_IDS.description}; replaces existing assignees`,
+              },
             },
             required: ['taskId'],
             additionalProperties: false,
@@ -401,7 +485,13 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       },
       ['ok', 'tool', 'updated', 'failed', 'results']
     ),
-    annotations: { title: 'Bulk update tasks', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: {
+      title: 'Bulk update tasks',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
   },
   {
     name: 'delete_task',
@@ -414,19 +504,32 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       },
       ['deleted', 'taskId']
     ),
-    annotations: { title: 'Delete task', readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    annotations: {
+      title: 'Delete task',
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
   },
   {
     name: 'query_tasks',
     description:
       'List/filter tasks across the projects you can access. Use assigneeId="me" for my tasks; search_tasks for keywords.',
     parameters: params({
-      projectId: { ...PROJECT_ID, description: `${PROJECT_ID.description}; omit to search all accessible projects` },
+      projectId: {
+        ...PROJECT_ID,
+        description: `${PROJECT_ID.description}; omit to search all accessible projects`,
+      },
       stateId: STATE_ID,
       priority: PRIORITY,
       assigneeId: { type: 'string', description: `Assignee: ${USER_REF_DESCRIPTION}` },
       labelId: { type: 'string', format: 'uuid', description: 'Label id (uuid) from list_labels' },
-      search: { type: 'string', maxLength: 200, description: 'Text that must appear in title or description' },
+      search: {
+        type: 'string',
+        maxLength: 200,
+        description: 'Text that must appear in title or description',
+      },
       limit: LIMIT,
       cursor: CURSOR,
       ...PROJECTION_PARAMS,
@@ -451,14 +554,21 @@ export const AGENT_TOOLS: ToolDefinition[] = [
         stateId: STATE_ID,
         state: {
           type: 'string',
-          description: 'Target state name (e.g. "In Progress") or category (backlog, in_progress, done) when stateId is unknown',
+          description:
+            'Target state name (e.g. "In Progress") or category (backlog, in_progress, done) when stateId is unknown',
         },
         return: RETURN_MODE,
       },
       ['taskId']
     ),
     outputSchema: WRITE_TASK_OUTPUT,
-    annotations: { title: 'Move task', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: {
+      title: 'Move task',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
   },
   {
     name: 'assign_task',
@@ -473,7 +583,13 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       ['taskId', 'userId', 'action']
     ),
     outputSchema: WRITE_TASK_OUTPUT,
-    annotations: { title: 'Assign task', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: {
+      title: 'Assign task',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
   },
   {
     name: 'add_comment',
@@ -481,7 +597,12 @@ export const AGENT_TOOLS: ToolDefinition[] = [
     parameters: params(
       {
         taskId: TASK_REF,
-        content: { type: 'string', minLength: 1, maxLength: 20000, description: 'Comment body (Markdown)' },
+        content: {
+          type: 'string',
+          minLength: 1,
+          maxLength: 20000,
+          description: 'Comment body (Markdown)',
+        },
         return: RETURN_MODE,
       },
       ['taskId', 'content']
@@ -495,7 +616,13 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       },
       ['ok', 'tool']
     ),
-    annotations: { title: 'Add comment', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    annotations: {
+      title: 'Add comment',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
   },
   {
     name: 'list_comments',
@@ -533,7 +660,10 @@ export const AGENT_TOOLS: ToolDefinition[] = [
         name: { type: 'string', minLength: 1, maxLength: 100, description: 'View name' },
         description: { type: 'string', maxLength: 1000, description: 'View description' },
         filters: FILTER_GROUP,
-        isPersonal: { type: 'boolean', description: 'Only visible to you when true (default false)' },
+        isPersonal: {
+          type: 'boolean',
+          description: 'Only visible to you when true (default false)',
+        },
       },
       ['name']
     ),
@@ -545,13 +675,21 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       },
       ['ok', 'tool', 'smartView']
     ),
-    annotations: { title: 'Create smart view', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    annotations: {
+      title: 'Create smart view',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
   },
   {
     name: 'list_smart_views',
     description: 'List smart views you can see in the workspace; run one with run_smart_view.',
     parameters: params({}),
-    outputSchema: output({ smartViews: OBJECT_ARRAY(`Smart views; ${UNTRUSTED_TEXT_NOTE}`) }, ['smartViews']),
+    outputSchema: output({ smartViews: OBJECT_ARRAY(`Smart views; ${UNTRUSTED_TEXT_NOTE}`) }, [
+      'smartViews',
+    ]),
     annotations: { title: 'List smart views', readOnlyHint: true, openWorldHint: false },
   },
   {
@@ -559,7 +697,11 @@ export const AGENT_TOOLS: ToolDefinition[] = [
     description: 'Run a smart view and return its tasks (limited to projects you can access).',
     parameters: params(
       {
-        smartViewId: { type: 'string', format: 'uuid', description: 'Smart view id (uuid) from list_smart_views' },
+        smartViewId: {
+          type: 'string',
+          format: 'uuid',
+          description: 'Smart view id (uuid) from list_smart_views',
+        },
         limit: LIMIT,
         cursor: CURSOR,
         ...PROJECTION_PARAMS,
@@ -579,11 +721,15 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'search_tasks',
-    description: 'Keyword search over task titles and descriptions; use query_tasks for structured filters.',
+    description:
+      'Keyword search over task titles and descriptions; use query_tasks for structured filters.',
     parameters: params(
       {
         query: { type: 'string', minLength: 1, maxLength: 200, description: 'Keywords' },
-        projectId: { ...PROJECT_ID, description: `${PROJECT_ID.description}; omit to search all accessible projects` },
+        projectId: {
+          ...PROJECT_ID,
+          description: `${PROJECT_ID.description}; omit to search all accessible projects`,
+        },
         limit: LIMIT,
         cursor: CURSOR,
         ...PROJECTION_PARAMS,
@@ -597,14 +743,21 @@ export const AGENT_TOOLS: ToolDefinition[] = [
     name: 'list_projects',
     description: 'List projects you can access, with their identifiers (for task keys) and states.',
     parameters: params({}),
-    outputSchema: output({ projects: OBJECT_ARRAY('Projects with id, name, identifier and states') }, ['projects']),
+    outputSchema: output(
+      { projects: OBJECT_ARRAY('Projects with id, name, identifier and states') },
+      ['projects']
+    ),
     annotations: { title: 'List projects', readOnlyHint: true, openWorldHint: false },
   },
   {
     name: 'list_members',
     description: 'List workspace members (ids and emails for assigneeIds/userId).',
     parameters: params({
-      search: { type: 'string', maxLength: 100, description: 'Filter by name or email (case-insensitive)' },
+      search: {
+        type: 'string',
+        maxLength: 100,
+        description: 'Filter by name or email (case-insensitive)',
+      },
       limit: LIMIT,
       cursor: CURSOR,
     }),
@@ -620,11 +773,17 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'list_labels',
-    description: 'List labels of a project, or of every accessible project when projectId is omitted.',
+    description:
+      'List labels of a project, or of every accessible project when projectId is omitted.',
     parameters: params({
-      projectId: { ...PROJECT_ID, description: `${PROJECT_ID.description}; omit for all accessible projects` },
+      projectId: {
+        ...PROJECT_ID,
+        description: `${PROJECT_ID.description}; omit for all accessible projects`,
+      },
     }),
-    outputSchema: output({ labels: OBJECT_ARRAY('Labels: {id, name, color, projectId}') }, ['labels']),
+    outputSchema: output({ labels: OBJECT_ARRAY('Labels: {id, name, color, projectId}') }, [
+      'labels',
+    ]),
     annotations: { title: 'List labels', readOnlyHint: true, openWorldHint: false },
   },
 ];

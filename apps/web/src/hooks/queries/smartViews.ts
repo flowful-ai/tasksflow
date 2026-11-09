@@ -1,5 +1,11 @@
 import { useEffect, useMemo } from 'react';
-import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import type { CreateSmartView, UpdateSmartView } from '@flowtask/shared';
 import { queryKeys } from '../../api/queryKeys';
 import { SMART_VIEW_PAGE_SIZE, publicShareApi, smartViewsApi } from '../../api/smartViews';
@@ -29,7 +35,8 @@ export function useSmartView(viewId: string | null | undefined) {
 export function useSmartViewTasks(viewId: string | null | undefined) {
   const query = useInfiniteQuery({
     queryKey: queryKeys.smartViews.execute(viewId ?? ''),
-    queryFn: ({ pageParam, signal }) => smartViewsApi.execute(viewId ?? '', pageParam, SMART_VIEW_PAGE_SIZE, signal),
+    queryFn: ({ pageParam, signal }) =>
+      smartViewsApi.execute(viewId ?? '', pageParam, SMART_VIEW_PAGE_SIZE, signal),
     initialPageParam: 1,
     getNextPageParam: (last: SmartViewExecuteDto, pages: SmartViewExecuteDto[]) => {
       const loaded = pages.reduce((sum, page) => sum + page.tasks.length, 0);
@@ -54,8 +61,14 @@ function useInvalidateViews() {
   const queryClient = useQueryClient();
   return (viewId?: string) =>
     Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.smartViews.all, exact: false, refetchType: 'active' }),
-      viewId ? queryClient.invalidateQueries({ queryKey: queryKeys.smartViews.execute(viewId) }) : undefined,
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.smartViews.all,
+        exact: false,
+        refetchType: 'active',
+      }),
+      viewId
+        ? queryClient.invalidateQueries({ queryKey: queryKeys.smartViews.execute(viewId) })
+        : undefined,
     ]);
 }
 

@@ -69,7 +69,10 @@ function groupBy<T>(rows: readonly T[], key: (row: T) => string): Map<string, T[
 }
 
 /** Load assignees, labels, external links and sub-task counts for task rows. */
-export async function hydrateTasks(db: DbExecutor, rows: readonly TaskRowWithJoins[]): Promise<TaskWithRelations[]> {
+export async function hydrateTasks(
+  db: DbExecutor,
+  rows: readonly TaskRowWithJoins[]
+): Promise<TaskWithRelations[]> {
   const ids = rows.map((r) => r.task.id);
   if (ids.length === 0) return [];
 
@@ -102,7 +105,8 @@ export async function hydrateTasks(db: DbExecutor, rows: readonly TaskRowWithJoi
   const links = groupBy(linkRows, (r) => r.taskId);
   const subtasks = new Map<string, { total: number; done: number }>();
   for (const row of subtaskRows) {
-    if (row.parentId) subtasks.set(row.parentId, { total: Number(row.total), done: Number(row.done) });
+    if (row.parentId)
+      subtasks.set(row.parentId, { total: Number(row.total), done: Number(row.done) });
   }
 
   return rows.map((row): TaskWithRelations => {
@@ -119,7 +123,14 @@ export async function hydrateTasks(db: DbExecutor, rows: readonly TaskRowWithJoi
       agent: row.agent?.id ? row.agent : null,
       externalLinks: (links.get(row.task.id) ?? []).flatMap((link) =>
         isExternalType(link.externalType)
-          ? [{ id: link.id, externalType: link.externalType, externalId: link.externalId, externalUrl: link.externalUrl }]
+          ? [
+              {
+                id: link.id,
+                externalType: link.externalType,
+                externalId: link.externalId,
+                externalUrl: link.externalUrl,
+              },
+            ]
           : []
       ),
       subtaskCount: counts?.total ?? 0,

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'bun:test';
-import { extractMentionedUserIds, formatMention, newlyMentionedUserIds, parseMentions, stripMentions } from './mentions.js';
+import {
+  extractMentionedUserIds,
+  formatMention,
+  newlyMentionedUserIds,
+  parseMentions,
+  stripMentions,
+} from './mentions.js';
 
 const A = '11111111-1111-4111-8111-111111111111';
 const B = '22222222-2222-4222-8222-222222222222';
@@ -12,7 +18,9 @@ describe('mentions', () => {
       ['Jo D.', A],
       ['Nico', B],
     ]);
-    expect(text.slice(mentions[0]!.index, mentions[0]!.index + mentions[0]!.length)).toBe(`@[Jo D.](user:${A})`);
+    expect(text.slice(mentions[0]!.index, mentions[0]!.index + mentions[0]!.length)).toBe(
+      `@[Jo D.](user:${A})`
+    );
   });
 
   it('ignores malformed tokens', () => {

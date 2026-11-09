@@ -40,7 +40,10 @@ function decodeBase64(raw: string): Uint8Array | null {
   }
   try {
     const normalized = raw.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = normalized.length % 4 === 0 ? normalized : normalized.padEnd(normalized.length + (4 - (normalized.length % 4)), '=');
+    const padded =
+      normalized.length % 4 === 0
+        ? normalized
+        : normalized.padEnd(normalized.length + (4 - (normalized.length % 4)), '=');
     const binary = atob(padded);
     if (binary.length !== KEY_BYTES) {
       return null;
@@ -55,7 +58,9 @@ export function deriveApiKeyEncryptionKeys(raw: string): ApiKeyEncryptionKeys {
   const trimmed = raw.trim();
   const decoded = decodeHex(trimmed) ?? decodeBase64(trimmed);
   const legacy = legacyDerivation(raw);
-  return decoded ? { current: decoded, legacy, isStrongKey: true } : { current: legacy, legacy, isStrongKey: false };
+  return decoded
+    ? { current: decoded, legacy, isStrongKey: true }
+    : { current: legacy, legacy, isStrongKey: false };
 }
 
 function readConfiguredKey(): string {
@@ -70,7 +75,9 @@ function readConfiguredKey(): string {
  * Logs once when API_KEY_ENCRYPTION_KEY is not a decodable 32-byte key.
  * Call at startup; it also runs lazily on first use.
  */
-export function checkApiKeyEncryptionConfig(raw: string | undefined = process.env.API_KEY_ENCRYPTION_KEY): void {
+export function checkApiKeyEncryptionConfig(
+  raw: string | undefined = process.env.API_KEY_ENCRYPTION_KEY
+): void {
   if (!raw || warnedWeakKey) {
     return;
   }
@@ -101,10 +108,17 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-export async function encryptWithKeys(plaintext: string, keys: ApiKeyEncryptionKeys): Promise<string> {
+export async function encryptWithKeys(
+  plaintext: string,
+  keys: ApiKeyEncryptionKeys
+): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await importKey(keys.current, 'encrypt');
-  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(plaintext));
+  const encrypted = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    new TextEncoder().encode(plaintext)
+  );
 
   const combined = new Uint8Array(iv.length + encrypted.byteLength);
   combined.set(iv);
@@ -112,12 +126,17 @@ export async function encryptWithKeys(plaintext: string, keys: ApiKeyEncryptionK
   return toBase64(combined);
 }
 
-export async function decryptWithKeys(ciphertext: string, keys: ApiKeyEncryptionKeys): Promise<string> {
+export async function decryptWithKeys(
+  ciphertext: string,
+  keys: ApiKeyEncryptionKeys
+): Promise<string> {
   const combined = Uint8Array.from(atob(ciphertext), (char) => char.charCodeAt(0));
   const iv = combined.slice(0, 12);
   const encrypted = combined.slice(12);
 
-  const candidates = sameBytes(keys.current, keys.legacy) ? [keys.current] : [keys.current, keys.legacy];
+  const candidates = sameBytes(keys.current, keys.legacy)
+    ? [keys.current]
+    : [keys.current, keys.legacy];
   let lastError: unknown = null;
   for (const candidate of candidates) {
     try {

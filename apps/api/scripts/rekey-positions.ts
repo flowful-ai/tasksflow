@@ -13,7 +13,10 @@ const args = new Set(process.argv.slice(2));
 const dryRun = args.has('--dry-run');
 
 try {
-  const report = await rekeyTaskPositions(getDatabase(), { dryRun, onlyInvalid: args.has('--only-invalid') });
+  const report = await rekeyTaskPositions(getDatabase(), {
+    dryRun,
+    onlyInvalid: args.has('--only-invalid'),
+  });
   console.log(
     `${dryRun ? '[dry-run] ' : ''}columns scanned: ${report.columnsScanned}, re-keyed: ${report.columnsRekeyed}, tasks updated: ${report.tasksUpdated}`
   );
