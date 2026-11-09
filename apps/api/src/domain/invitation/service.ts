@@ -1,9 +1,10 @@
 import { eq, and, desc } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
 import { workspaceInvitations, workspaceMembers, workspaces, users } from '../../db/index.js';
-import type { Result, WorkspaceRole } from '@flowtask/shared';
+import type { Result } from '@flowtask/shared';
 import { ok, err } from '@flowtask/shared';
 import { DomainError } from '../workspace/errors.js';
+import { isWorkspaceRole } from '../workspace/role-policy.js';
 import type {
   InvitationWithInviter,
   CreateInvitationInput,
@@ -259,13 +260,14 @@ export class InvitationService {
           );
         }
 
+        const role = invitation.role;
+        if (!isWorkspaceRole(role)) {
+          throw new DomainError('BAD_REQUEST', 'This invitation has an invalid role');
+        }
+
         const [added] = await tx
           .insert(workspaceMembers)
-          .values({
-            workspaceId: invitation.workspaceId,
-            userId: input.userId,
-            role: invitation.role as WorkspaceRole,
-          })
+          .values({ workspaceId: invitation.workspaceId, userId: input.userId, role })
           .onConflictDoNothing()
           .returning({ id: workspaceMembers.id });
         if (!added) throw new DomainError('CONFLICT', 'You are already a member of this workspace');

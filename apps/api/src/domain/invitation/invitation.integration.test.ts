@@ -87,4 +87,37 @@ describe.skipIf(!TEST_DATABASE_URL)('invitations (integration)', () => {
       .where(eq(workspaceInvitations.id, invitation.id));
     expect(row?.usesCount).toBe(1);
   });
+
+  it('rejects an invitation with an invalid stored role with a client-safe error', async () => {
+    const db = testDb();
+    const ws = await createWorkspace(db);
+    const service = new InvitationService(db);
+    const invitation = unwrap(
+      await service.create({
+        workspaceId: ws.workspaceId,
+        email: null,
+        role: 'member',
+        invitedBy: ws.owner.id,
+        maxUses: 5,
+      })
+    );
+    await db
+      .update(workspaceInvitations)
+      .set({ role: 'superuser' })
+      .where(eq(workspaceInvitations.id, invitation.id));
+    const user = await createUser(db, 'Bad role');
+
+    const result = await service.accept({ token: invitation.token, userId: user.id });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(isDomainError(result.error) && result.error.code).toBe('BAD_REQUEST');
+    }
+    const members = await db
+      .select({ id: workspaceMembers.id })
+      .from(workspaceMembers)
+      .where(
+        and(eq(workspaceMembers.workspaceId, ws.workspaceId), eq(workspaceMembers.userId, user.id))
+      );
+    expect(members).toEqual([]);
+  });
 });
