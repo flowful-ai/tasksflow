@@ -5,6 +5,7 @@ import {
   timestamp,
   boolean,
   integer,
+  bigint,
   jsonb,
   uniqueIndex,
   index,
@@ -687,6 +688,19 @@ export const accounts = pgTable(
     uniqueIndex('unique_provider_account').on(table.providerId, table.accountId),
     index('account_user_idx').on(table.userId),
   ]
+);
+
+// Better Auth rate-limit counters (rateLimit.storage = 'database'), shared by
+// every API replica. lastRequest is epoch milliseconds, as Better Auth stores it.
+export const authRateLimits = pgTable(
+  'auth_rate_limits',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    key: text('key').notNull().unique(),
+    count: integer('count').notNull(),
+    lastRequest: bigint('last_request', { mode: 'number' }).notNull(),
+  },
+  (table) => [index('auth_rate_limits_last_request_idx').on(table.lastRequest)]
 );
 
 // Type exports for use in application code

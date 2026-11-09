@@ -38,7 +38,7 @@ export async function authMiddleware(ctx: Context, next: Next) {
           id: session.user.id,
           email: session.user.email,
           name: session.user.name || null,
-          avatarUrl: (session.user as Record<string, unknown>).avatarUrl as string | null,
+          avatarUrl: session.user.image ?? null,
         },
         session: {
           id: session.session.id,
@@ -74,7 +74,7 @@ export async function requireAuth(ctx: Context, next: Next) {
           id: session.user.id,
           email: session.user.email,
           name: session.user.name || null,
-          avatarUrl: (session.user as Record<string, unknown>).avatarUrl as string | null,
+          avatarUrl: session.user.image ?? null,
         },
         session: {
           id: session.session.id,
