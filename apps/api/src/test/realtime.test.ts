@@ -55,7 +55,7 @@ describe.skipIf(!integrationEnabled)('realtime over Postgres LISTEN/NOTIFY', () 
   const staticResolver = (role: WorkspaceRole, projects: string[]): AccessResolver => ({
     getRole: async () => role,
     listAccessibleProjectIds: async () => projects,
-    isSessionActive: async () => true,
+    activeSessionIds: async (sessionIds) => new Set(sessionIds),
   });
 
   let a: RealtimeHub;

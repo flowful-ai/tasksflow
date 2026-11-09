@@ -28,7 +28,8 @@ function fakeResolver(state: FakeState): AccessResolver {
   return {
     getRole: async (_workspaceId, userId) => state.roles.get(userId) ?? null,
     listAccessibleProjectIds: async (_workspaceId, userId) => state.access.get(userId) ?? [],
-    isSessionActive: async (sessionId) => state.sessions.has(sessionId),
+    activeSessionIds: async (sessionIds) =>
+      new Set(sessionIds.filter((id) => state.sessions.has(id))),
   };
 }
 
@@ -225,6 +226,41 @@ describe('RealtimeHub membership and access changes', () => {
     expect(member.sink.closed).toBe(true);
     expect(admin.sink.closed).toBe(true);
     expect(hub.getTotalClientCount()).toBe(0);
+  });
+
+  it('checks sessions in one call and resolves access once per user', async () => {
+    const state = baseState();
+    const calls = { sessions: 0, roles: 0, projects: 0 };
+    const base = fakeResolver(state);
+    const hub = new RealtimeHub({
+      resolver: {
+        getRole: (workspaceId, userId) => {
+          calls.roles++;
+          return base.getRole(workspaceId, userId);
+        },
+        listAccessibleProjectIds: (workspaceId, userId, role) => {
+          calls.projects++;
+          return base.listAccessibleProjectIds(workspaceId, userId, role);
+        },
+        activeSessionIds: (sessionIds) => {
+          calls.sessions++;
+          return base.activeSessionIds(sessionIds);
+        },
+      },
+    });
+    // Three tabs of the member, one of the admin.
+    const tabs = [1, 2, 3].map(() => register(hub, 'member', 'member', [OPEN]));
+    register(hub, 'admin', 'admin', [OPEN, SECRET]);
+
+    await hub.revalidateAll();
+    expect(calls).toEqual({ sessions: 1, roles: 2, projects: 2 });
+
+    state.access.set('member', [OPEN, SECRET]);
+    hub.notifyAccessChanged(WS, 'member');
+    await Bun.sleep(0);
+    expect(calls).toEqual({ sessions: 1, roles: 3, projects: 3 });
+    await hub.publishEventAsync(WS, 'task:updated', { id: 'x' }, { projectId: SECRET });
+    for (const tab of tabs) expect(events(tab.sink)).toEqual(['task:updated']);
   });
 });
 

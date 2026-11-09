@@ -299,14 +299,15 @@ export class AuthorizationService<P extends string> {
     return rows.length === unique.length;
   }
 
-  /** Whether a Better Auth session still exists and has not expired. */
-  async isSessionActive(sessionId: string): Promise<boolean> {
-    if (!isUuid(sessionId)) return false;
-    const [row] = await this.db
+  /** The Better Auth sessions (out of `sessionIds`) that still exist and have not expired. */
+  async activeSessionIds(sessionIds: readonly string[]): Promise<Set<string>> {
+    const ids = [...new Set(sessionIds)].filter((id) => isUuid(id));
+    if (ids.length === 0) return new Set();
+    const rows = await this.db
       .select({ id: sessions.id })
       .from(sessions)
-      .where(and(eq(sessions.id, sessionId), gt(sessions.expiresAt, new Date())));
-    return Boolean(row);
+      .where(and(inArray(sessions.id, ids), gt(sessions.expiresAt, new Date())));
+    return new Set(rows.map((row) => row.id));
   }
 
   private async isProjectMember(projectId: string, userId: string): Promise<boolean> {

@@ -32,7 +32,8 @@ export interface AccessResolver {
     userId: string,
     role: WorkspaceRole
   ): Promise<string[]>;
-  isSessionActive(sessionId: string): Promise<boolean>;
+  /** The subset of `sessionIds` that still exist and have not expired. */
+  activeSessionIds(sessionIds: readonly string[]): Promise<Set<string>>;
 }
 
 export interface ClientSink {
@@ -287,25 +288,33 @@ export class RealtimeHub {
     this.applyMessage(message);
   }
 
-  /** Re-check every client's session, membership and access. Exposed for tests. */
+  /**
+   * Re-check every client's session, membership and access. Exposed for
+   * tests. Sessions are checked in one query, then role and projects are
+   * resolved once per (workspace, user).
+   */
   async revalidateAll(): Promise<void> {
     if (this.revalidating) return;
     this.revalidating = true;
     try {
-      for (const client of [...this.clients]) {
-        if (client.closed) continue;
-        try {
-          const active = await this.resolver.isSessionActive(client.sessionId);
-          if (!active) {
-            this.closeClient(client);
-            continue;
-          }
-          await this.refreshClient(client);
-        } catch (error) {
-          // Transient DB failure: keep the stream, retry next round.
-          this.logger.error('[realtime] revalidation failed:', error);
-        }
+      const clients = [...this.clients].filter((client) => !client.closed);
+      if (clients.length === 0) return;
+      let active: Set<string>;
+      try {
+        active = await this.resolver.activeSessionIds([
+          ...new Set(clients.map((client) => client.sessionId)),
+        ]);
+      } catch (error) {
+        // Transient DB failure: keep the streams, retry next round.
+        this.logger.error('[realtime] revalidation failed:', error);
+        return;
       }
+      const live: ClientState[] = [];
+      for (const client of clients) {
+        if (active.has(client.sessionId)) live.push(client);
+        else this.closeClient(client);
+      }
+      await this.refreshClients(live, '[realtime] revalidation failed:');
     } finally {
       this.revalidating = false;
     }
@@ -376,29 +385,51 @@ export class RealtimeHub {
   private async refreshAccess(workspaceId: string, userId: string | null): Promise<void> {
     const clients = this.byWorkspace.get(workspaceId);
     if (!clients) return;
-    for (const client of [...clients]) {
-      if (userId !== null && client.userId !== userId) continue;
-      try {
-        await this.refreshClient(client);
-      } catch (error) {
-        this.logger.error('[realtime] access refresh failed:', error);
-      }
-    }
+    const targets = [...clients].filter((client) => userId === null || client.userId === userId);
+    await this.refreshClients(targets, '[realtime] access refresh failed:');
   }
 
-  private async refreshClient(client: ClientState): Promise<void> {
-    const role = await this.resolver.getRole(client.workspaceId, client.userId);
+  /**
+   * Refresh role and accessible projects, resolved once per (workspace, user)
+   * with the groups in parallel. A failed group keeps its streams.
+   */
+  private async refreshClients(clients: readonly ClientState[], errorLabel: string): Promise<void> {
+    const groups = new Map<string, ClientState[]>();
+    for (const client of clients) {
+      const key = `${client.workspaceId}:${client.userId}`;
+      const group = groups.get(key);
+      if (group) group.push(client);
+      else groups.set(key, [client]);
+    }
+    await Promise.all(
+      [...groups.values()].map(async (group) => {
+        try {
+          await this.refreshGroup(group);
+        } catch (error) {
+          this.logger.error(errorLabel, error);
+        }
+      })
+    );
+  }
+
+  /** Clients of one user in one workspace. */
+  private async refreshGroup(group: readonly ClientState[]): Promise<void> {
+    const [first] = group;
+    if (!first) return;
+    const role = await this.resolver.getRole(first.workspaceId, first.userId);
     if (!role) {
-      this.closeClient(client);
+      for (const client of group) this.closeClient(client);
       return;
     }
     const projectIds = await this.resolver.listAccessibleProjectIds(
-      client.workspaceId,
-      client.userId,
+      first.workspaceId,
+      first.userId,
       role
     );
-    client.role = role;
-    client.projectIds = new Set(projectIds);
+    for (const client of group) {
+      client.role = role;
+      client.projectIds = new Set(projectIds);
+    }
   }
 
   private closeClient(client: ClientState): void {

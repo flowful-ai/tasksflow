@@ -20,7 +20,7 @@ const accessResolver: AccessResolver = {
   getRole: (workspaceId, userId) => getAuthz().getRole(workspaceId, userId),
   listAccessibleProjectIds: (workspaceId, userId, role) =>
     getAuthz().listAccessibleProjectIds(workspaceId, userId, role),
-  isSessionActive: (sessionId) => getAuthz().isSessionActive(sessionId),
+  activeSessionIds: (sessionIds) => getAuthz().activeSessionIds(sessionIds),
 };
 
 let hub: RealtimeHub = new RealtimeHub({ resolver: accessResolver });
