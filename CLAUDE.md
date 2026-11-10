@@ -61,7 +61,7 @@ apps/api  ──> @flowtask/shared
 apps/web  ──> @flowtask/shared
 ```
 
-`packages/shared` has no workspace dependencies. The API reads it from source (the `bun` export condition); the web build reads its `dist`, so run `bun run --filter @flowtask/shared build` after changing it if you build the web app on its own (`bun run build` does it first).
+`packages/shared` has no workspace dependencies and no build step: its `exports` point at the TypeScript source, which Bun (API, tests) and Vite/tsc (web) read directly.
 
 ### One process in production
 
@@ -324,7 +324,7 @@ Sign-up is GitHub/Google only, so local login needs `GITHUB_CLIENT_ID`/`GITHUB_C
 ```bash
 bun install
 bun run dev              # API + web
-bun run build            # shared, then web, then API bundle
+bun run build            # web, then API bundle
 bun run typecheck
 bun run lint             # ESLint
 bun run format           # Prettier write
