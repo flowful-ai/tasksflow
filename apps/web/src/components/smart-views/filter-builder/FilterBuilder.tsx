@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Plus, Filter } from 'lucide-react';
 import type { FilterGroup, FilterCondition } from '@flowtask/shared';
 import { useProjects, useWorkspace } from '../../../hooks/queries';
+import { Button, Panel } from '../../ui';
 import { FilterConditionRow } from './FilterConditionRow';
 import { FILTER_FIELDS, OPERATORS_BY_TYPE } from './constants';
 
@@ -97,10 +98,10 @@ export function FilterBuilder({ value, onChange, workspaceId }: FilterBuilderPro
   };
 
   return (
-    <div className="border border-gray-200 rounded-lg">
+    <Panel padding="none">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
-        <div className="flex items-center gap-2 text-sm text-gray-600">
+      <div className="flex items-center justify-between px-4 py-3 bg-neutral-50 border-b border-neutral-200">
+        <div className="flex items-center gap-2 text-sm text-neutral-600">
           <Filter aria-hidden className="w-4 h-4" />
           <span>Match</span>
           <button
@@ -119,15 +120,16 @@ export function FilterBuilder({ value, onChange, workspaceId }: FilterBuilderPro
       <div className="p-4 space-y-2">
         {conditions.length === 0 ? (
           <div className="py-6 text-center">
-            <p className="text-sm text-gray-500 mb-3">No filters. All tasks will be included.</p>
-            <button
-              type="button"
+            <p className="text-sm text-neutral-500 mb-3">No filters. All tasks will be included.</p>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={handleAddCondition}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-primary-700 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
+              className="bg-primary-50 text-primary-700 hover:bg-primary-100"
+              leadingIcon={<Plus />}
             >
-              <Plus aria-hidden className="w-4 h-4" />
               Add filter
-            </button>
+            </Button>
           </div>
         ) : (
           <>
@@ -145,17 +147,12 @@ export function FilterBuilder({ value, onChange, workspaceId }: FilterBuilderPro
             ))}
 
             {/* Add button */}
-            <button
-              type="button"
-              onClick={handleAddCondition}
-              className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <Plus aria-hidden className="w-4 h-4" />
+            <Button variant="ghost" size="sm" onClick={handleAddCondition} leadingIcon={<Plus />}>
               Add filter
-            </button>
+            </Button>
           </>
         )}
       </div>
-    </div>
+    </Panel>
   );
 }

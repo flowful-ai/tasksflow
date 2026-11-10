@@ -20,7 +20,7 @@ import {
   useSmartView,
   useUpdateSmartView,
 } from '../../hooks/queries';
-import { toast } from '../ui';
+import { Button, Card, Checkbox, Field, Input, Select, Textarea, toast } from '../ui';
 
 const isGroupBy = (value: string): value is GroupBy => GroupBySchema.safeParse(value).success;
 const isSortBy = (value: string): value is SortBy => SortBySchema.safeParse(value).success;
@@ -155,21 +155,21 @@ export function SmartViewForm() {
 
   if (!currentWorkspace) {
     return (
-      <div className="card p-6">
-        <p className="text-gray-600">Please select a workspace first.</p>
-      </div>
+      <Card>
+        <p className="text-neutral-600">Please select a workspace first.</p>
+      </Card>
     );
   }
 
   if (isEditing && isLoadingView) {
     return (
-      <div className="card p-6">
+      <Card>
         <div className="animate-pulse space-y-4">
-          <div className="h-6 w-48 bg-gray-200 rounded" />
-          <div className="h-10 bg-gray-100 rounded" />
-          <div className="h-24 bg-gray-100 rounded" />
+          <div className="h-6 w-48 bg-neutral-200 rounded" />
+          <div className="h-10 bg-neutral-100 rounded" />
+          <div className="h-24 bg-neutral-100 rounded" />
         </div>
-      </div>
+      </Card>
     );
   }
 
@@ -178,22 +178,22 @@ export function SmartViewForm() {
       <button
         type="button"
         onClick={() => navigate(-1)}
-        className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900"
+        className="inline-flex items-center text-sm text-neutral-600 hover:text-neutral-900"
       >
         <ArrowLeft aria-hidden className="w-4 h-4 mr-1" />
         Back
       </button>
 
-      <div className="card p-6">
+      <Card>
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
             <Eye aria-hidden className="w-5 h-5 text-primary-600" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold text-neutral-900">
               {isEditing ? 'Edit View' : 'Create View'}
             </h2>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-neutral-500">
               {isEditing ? 'Update the view settings' : 'Create a new filtered view for your tasks'}
             </p>
           </div>
@@ -207,45 +207,28 @@ export function SmartViewForm() {
           )}
 
           {/* Name */}
-          <div>
-            <label htmlFor="view-name" className="block text-sm font-medium text-gray-700 mb-1">
-              Name{' '}
-              <span aria-hidden className="text-red-500">
-                *
-              </span>
-            </label>
-            <input
-              id="view-name"
-              type="text"
+          <Field label="Name" id="view-name" required>
+            <Input
               value={formData?.name ?? ''}
               onChange={(e) => handleChange('name', e.target.value)}
-              className="input"
               placeholder="e.g., My Tasks, Sprint Backlog"
-              required
               autoFocus
             />
-          </div>
+          </Field>
 
           {/* Description */}
-          <div>
-            <label
-              htmlFor="view-description"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Description
-            </label>
-            <textarea
-              id="view-description"
+          <Field label="Description" id="view-description">
+            <Textarea
               value={formData?.description ?? ''}
               onChange={(e) => handleChange('description', e.target.value)}
-              className="input min-h-[80px]"
+              className="min-h-[80px]"
               placeholder="Optional description for this view"
             />
-          </div>
+          </Field>
 
           {/* Filters */}
           <div>
-            <h3 className="block text-sm font-medium text-gray-700 mb-2">Filters</h3>
+            <h3 className="block text-sm font-medium text-neutral-700 mb-2">Filters</h3>
             <FilterBuilder
               value={formData.filters}
               onChange={(filters) => setFormData((prev) => ({ ...prev, filters }))}
@@ -255,7 +238,10 @@ export function SmartViewForm() {
 
           {/* Display Type */}
           <div>
-            <span id="view-display-type" className="block text-sm font-medium text-gray-700 mb-2">
+            <span
+              id="view-display-type"
+              className="block text-sm font-medium text-neutral-700 mb-2"
+            >
               Display Type
             </span>
             <div
@@ -273,7 +259,7 @@ export function SmartViewForm() {
                     'flex items-center justify-center gap-2 p-3 rounded-lg border transition-colors',
                     formData?.displayType === option.value
                       ? 'border-primary-500 bg-primary-50 text-primary-700'
-                      : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                      : 'border-neutral-200 hover:bg-neutral-50 text-neutral-700'
                   )}
                 >
                   {option.icon}
@@ -284,12 +270,8 @@ export function SmartViewForm() {
           </div>
 
           {/* Group By */}
-          <div>
-            <label htmlFor="view-group-by" className="block text-sm font-medium text-gray-700 mb-1">
-              Group By
-            </label>
-            <select
-              id="view-group-by"
+          <Field label="Group By" id="view-group-by">
+            <Select
               value={formData?.groupBy ?? 'state'}
               onChange={(e) => {
                 const value = e.target.value;
@@ -300,33 +282,24 @@ export function SmartViewForm() {
                   secondaryGroupBy: prev.secondaryGroupBy === value ? null : prev.secondaryGroupBy,
                 }));
               }}
-              className="input"
             >
               {GROUP_BY_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
-            </select>
-          </div>
+            </Select>
+          </Field>
 
           {/* Secondary Group By */}
-          <div>
-            <label
-              htmlFor="view-secondary-group-by"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Secondary Group By
-            </label>
-            <select
-              id="view-secondary-group-by"
+          <Field label="Secondary Group By" id="view-secondary-group-by">
+            <Select
               value={formData?.secondaryGroupBy ?? 'none'}
               onChange={(e) => {
                 const raw = e.target.value;
                 const value = raw !== 'none' && isGroupBy(raw) ? raw : null;
                 handleChange('secondaryGroupBy', value === formData.groupBy ? null : value);
               }}
-              className="input"
             >
               {SECONDARY_GROUP_BY_OPTIONS.map((option) => (
                 <option
@@ -337,86 +310,60 @@ export function SmartViewForm() {
                   {option.label}
                 </option>
               ))}
-            </select>
-          </div>
+            </Select>
+          </Field>
 
           {/* Sort By and Order */}
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label
-                htmlFor="view-sort-by"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Sort By
-              </label>
-              <select
-                id="view-sort-by"
+            <Field label="Sort By" id="view-sort-by">
+              <Select
                 value={formData?.sortBy ?? 'position'}
                 onChange={(e) => {
                   if (isSortBy(e.target.value)) handleChange('sortBy', e.target.value);
                 }}
-                className="input"
               >
                 {SORT_BY_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
                 ))}
-              </select>
-            </div>
-            <div>
-              <label
-                htmlFor="view-sort-order"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Sort Order
-              </label>
-              <select
-                id="view-sort-order"
+              </Select>
+            </Field>
+            <Field label="Sort Order" id="view-sort-order">
+              <Select
                 value={formData?.sortOrder ?? 'asc'}
                 onChange={(e) => {
                   if (isSortOrder(e.target.value)) handleChange('sortOrder', e.target.value);
                 }}
-                className="input"
               >
                 {SORT_ORDER_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
                 ))}
-              </select>
-            </div>
+              </Select>
+            </Field>
           </div>
 
           {/* Personal View Toggle */}
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="isPersonal"
-              checked={formData?.isPersonal ?? false}
-              onChange={(e) => handleChange('isPersonal', e.target.checked)}
-              className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-            />
-            <label htmlFor="isPersonal" className="ml-2 text-sm text-gray-700">
-              Personal view (only visible to you)
-            </label>
-          </div>
+          <Checkbox
+            id="isPersonal"
+            checked={formData?.isPersonal ?? false}
+            onChange={(e) => handleChange('isPersonal', e.target.checked)}
+            label="Personal view (only visible to you)"
+          />
 
           {/* Submit Buttons */}
-          <div className="flex gap-3 pt-4 border-t border-gray-200">
-            <button
-              type="submit"
-              disabled={isLoading || !formData?.name?.trim()}
-              className="btn btn-primary"
-            >
+          <div className="flex gap-3 pt-4 border-t border-neutral-200">
+            <Button type="submit" disabled={isLoading || !formData?.name?.trim()}>
               {isLoading ? 'Saving...' : isEditing ? 'Save Changes' : 'Create View'}
-            </button>
-            <button type="button" onClick={() => navigate(-1)} className="btn btn-secondary">
+            </Button>
+            <Button variant="secondary" onClick={() => navigate(-1)}>
               Cancel
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
+      </Card>
     </div>
   );
 }

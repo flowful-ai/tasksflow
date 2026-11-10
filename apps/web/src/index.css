@@ -44,64 +44,68 @@ body {
   @apply outline-none ring-2 ring-primary-500/50 ring-offset-2;
 }
 
-/* Button base */
-.btn {
-  @apply inline-flex items-center justify-center px-4 py-2.5 text-sm font-semibold rounded-xl transition-all duration-200;
-}
+/* Component classes live in the components layer so utilities (and the ui
+   primitives' size props) can override them, e.g. <Button size="sm">. */
+@layer components {
+  /* Button base */
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2.5 text-sm font-semibold rounded-xl transition-all duration-200;
+  }
 
-.btn-primary {
-  @apply bg-neutral-900 text-white hover:bg-neutral-800 active:scale-[0.98];
-}
+  .btn-primary {
+    @apply bg-neutral-900 text-white hover:bg-neutral-800 active:scale-[0.98];
+  }
 
-.btn-secondary {
-  @apply bg-neutral-100 text-neutral-700 hover:bg-neutral-200 active:scale-[0.98];
-}
+  .btn-secondary {
+    @apply bg-neutral-100 text-neutral-700 hover:bg-neutral-200 active:scale-[0.98];
+  }
 
-.btn-ghost {
-  @apply bg-transparent text-neutral-600 hover:bg-neutral-100 active:scale-[0.98];
-}
+  .btn-ghost {
+    @apply bg-transparent text-neutral-600 hover:bg-neutral-100 active:scale-[0.98];
+  }
 
-.btn-danger {
-  @apply bg-primary-600 text-white hover:bg-primary-700 active:scale-[0.98];
-}
+  .btn-danger {
+    @apply bg-primary-600 text-white hover:bg-primary-700 active:scale-[0.98];
+  }
 
-.btn:disabled {
-  @apply opacity-60 cursor-not-allowed active:scale-100;
-}
+  .btn:disabled {
+    @apply opacity-60 cursor-not-allowed active:scale-100;
+  }
 
-/* Input base */
-.input {
-  @apply w-full px-4 py-2.5 text-base md:text-sm border border-neutral-200 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200;
-}
+  /* Input base */
+  .input {
+    @apply w-full px-4 py-2.5 text-base md:text-sm border border-neutral-200 rounded-xl focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all duration-200;
+  }
 
-/* Card */
-.card {
-  @apply bg-white rounded-2xl border border-neutral-200/80 shadow-card transition-all duration-300;
-}
+  /* Card */
+  .card {
+    @apply bg-white rounded-2xl border border-neutral-200/80 shadow-card transition-all duration-300;
+  }
 
-.card-hover:hover {
-  @apply border-neutral-300 shadow-card-hover -translate-y-0.5;
-}
+  .card-hover:hover {
+    @apply border-neutral-300 shadow-card-hover -translate-y-0.5;
+  }
 
-/* Badge */
-.badge {
-  @apply inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-lg;
-}
+  /* Badge */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-lg;
+  }
 
-.badge-urgent {
-  @apply bg-red-50 text-red-700;
-}
+  .badge-urgent {
+    @apply bg-red-50 text-red-700;
+  }
 
-.badge-high {
-  @apply bg-orange-50 text-orange-700;
-}
+  .badge-high {
+    @apply bg-orange-50 text-orange-700;
+  }
 
-.badge-medium {
-  @apply bg-amber-50 text-amber-700;
-}
+  .badge-medium {
+    @apply bg-amber-50 text-amber-700;
+  }
 
-.badge-low {
-  @apply bg-emerald-50 text-emerald-700;
+  .badge-low {
+    @apply bg-emerald-50 text-emerald-700;
+  }
 }
 
 /* Stagger animation delays */

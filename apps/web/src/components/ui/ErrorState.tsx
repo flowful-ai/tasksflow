@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import type { ReactNode } from 'react';
 import { AlertTriangle, SearchX, WifiOff } from 'lucide-react';
+import { Button } from './Button';
 import { ApiError } from '../../api/http';
 
 export type ErrorKind = 'network' | 'server' | 'not-found' | 'forbidden' | 'unknown';
@@ -81,9 +82,9 @@ export function ErrorState({
       <p className="max-w-sm text-sm text-neutral-500">{detail}</p>
       <div className="mt-2">
         {retryable && onRetry ? (
-          <button type="button" className="btn btn-danger" onClick={onRetry}>
+          <Button variant="danger" onClick={onRetry}>
             Retry
-          </button>
+          </Button>
         ) : (
           !retryable && notFoundAction
         )}

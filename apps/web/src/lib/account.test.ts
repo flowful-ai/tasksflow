@@ -20,6 +20,10 @@ describe('initials', () => {
     expect(initials('   ', 'bob@example.com')).toBe('B');
     expect(initials(undefined, undefined)).toBe('?');
   });
+  test('splits a dotted mailbox into two letters', () => {
+    expect(initials(null, 'john.doe@acme.com')).toBe('JD');
+    expect(initials(null, 'mary_ann-lee@acme.com')).toBe('MA');
+  });
 });
 
 describe('avatarUrlOf', () => {

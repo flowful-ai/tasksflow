@@ -27,11 +27,18 @@ import {
   useWorkspaceRole,
 } from '../../hooks/queries';
 import {
+  Badge,
+  type BadgeTone,
+  Button,
+  Card,
+  Checkbox,
   ConfirmDialog,
   Dialog,
   EmptyState,
   ErrorState,
+  Field,
   IconButton,
+  Input,
   PageSpinner,
   Spinner,
   toast,
@@ -145,87 +152,67 @@ function WebhookFormDialog({
       dismissible={!isSaving}
     >
       <form onSubmit={submit} className="space-y-4" id="webhook-form">
-        <div>
-          <label htmlFor="webhook-url" className="mb-1 block text-sm font-medium text-gray-700">
-            Payload URL
-          </label>
-          <input
-            id="webhook-url"
+        <Field label="Payload URL" id="webhook-url">
+          <Input
             type="url"
-            className="input"
             placeholder="https://example.com/hooks/flowtask"
             value={form.url}
             onChange={(e) => setForm((f) => ({ ...f, url: e.target.value }))}
             required
           />
-        </div>
-        <div>
-          <label
-            htmlFor="webhook-description"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Description (optional)
-          </label>
-          <input
-            id="webhook-description"
-            className="input"
+        </Field>
+        <Field label="Description (optional)" id="webhook-description">
+          <Input
             maxLength={500}
             value={form.description}
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
           />
-        </div>
+        </Field>
         <fieldset>
-          <legend className="mb-2 text-sm font-medium text-gray-700">Events</legend>
-          <label className="mb-2 flex items-center gap-2 text-sm text-gray-800">
-            <input
-              type="checkbox"
-              checked={form.allEvents}
-              onChange={(e) => setForm((f) => ({ ...f, allEvents: e.target.checked }))}
-            />
-            All events (including ones added later)
-          </label>
+          <legend className="mb-2 text-sm font-medium text-neutral-700">Events</legend>
+          <Checkbox
+            labelClassName="mb-2"
+            label="All events (including ones added later)"
+            checked={form.allEvents}
+            onChange={(e) => setForm((f) => ({ ...f, allEvents: e.target.checked }))}
+          />
           <div className="grid gap-2 sm:grid-cols-2">
             {OUTGOING_WEBHOOK_EVENTS.map((event) => (
               <label
                 key={event}
                 className={clsx(
-                  'flex items-center gap-2 rounded border border-gray-200 px-2 py-1.5 text-sm',
-                  form.allEvents ? 'text-gray-400' : 'text-gray-700'
+                  'flex items-center gap-2 rounded border border-neutral-200 px-2 py-1.5 text-sm',
+                  form.allEvents ? 'text-neutral-400' : 'text-neutral-700'
                 )}
               >
-                <input
-                  type="checkbox"
+                <Checkbox
                   disabled={form.allEvents}
                   checked={form.allEvents || form.events.includes(event)}
                   onChange={() => toggleEvent(event)}
                 />
                 <span>{EVENT_LABELS[event]}</span>
-                <code className="ml-auto text-[11px] text-gray-500">{event}</code>
+                <code className="ml-auto text-[11px] text-neutral-500">{event}</code>
               </label>
             ))}
           </div>
         </fieldset>
-        <label className="flex items-center gap-2 text-sm text-gray-700">
-          <input
-            type="checkbox"
-            checked={form.enabled}
-            onChange={(e) => setForm((f) => ({ ...f, enabled: e.target.checked }))}
-          />
-          Active (deliver events)
-        </label>
+        <Checkbox
+          label="Active (deliver events)"
+          checked={form.enabled}
+          onChange={(e) => setForm((f) => ({ ...f, enabled: e.target.checked }))}
+        />
         {error && (
           <p role="alert" className="rounded-lg bg-red-50 p-2 text-sm text-red-600">
             {error}
           </p>
         )}
-        <div className="flex justify-end gap-2 border-t border-gray-100 pt-3">
-          <button type="button" className="btn btn-secondary" onClick={onClose} disabled={isSaving}>
+        <div className="flex justify-end gap-2 border-t border-neutral-100 pt-3">
+          <Button variant="secondary" onClick={onClose} disabled={isSaving}>
             Cancel
-          </button>
-          <button type="submit" className="btn btn-primary" disabled={isSaving}>
-            {isSaving && <Spinner size="sm" className="mr-2 text-current" label="Saving" />}
+          </Button>
+          <Button type="submit" loading={isSaving}>
             {isEdit ? 'Save webhook' : 'Add webhook'}
-          </button>
+          </Button>
         </div>
       </form>
     </Dialog>
@@ -253,11 +240,7 @@ function SecretDialog({ secret, onClose }: { secret: string; onClose: () => void
       }}
       title="Copy your signing secret"
       description="Use it to verify the X-FlowTask-Signature header of each delivery."
-      footer={
-        <button type="button" className="btn btn-primary" onClick={onClose}>
-          I have saved it
-        </button>
-      }
+      footer={<Button onClick={onClose}>I have saved it</Button>}
     >
       <p
         role="alert"
@@ -266,8 +249,8 @@ function SecretDialog({ secret, onClose }: { secret: string; onClose: () => void
         This is the only time the full secret is shown. Store it now; you can rotate it later but
         not read it again.
       </p>
-      <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-2">
-        <code className="flex-1 select-all break-all font-mono text-xs text-gray-900">
+      <div className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 p-2">
+        <code className="flex-1 select-all break-all font-mono text-xs text-neutral-900">
           {secret}
         </code>
         <IconButton
@@ -282,10 +265,10 @@ function SecretDialog({ secret, onClose }: { secret: string; onClose: () => void
 
 // ============ Deliveries ============
 
-const STATUS_STYLES: Record<OutgoingWebhookDeliveryDto['status'], string> = {
-  success: 'bg-green-100 text-green-800',
-  failed: 'bg-red-100 text-red-800',
-  pending: 'bg-amber-100 text-amber-800',
+const STATUS_TONES: Record<OutgoingWebhookDeliveryDto['status'], BadgeTone> = {
+  success: 'success',
+  failed: 'danger',
+  pending: 'warning',
 };
 
 function Deliveries({ webhookId }: { webhookId: string }) {
@@ -309,7 +292,7 @@ function Deliveries({ webhookId }: { webhookId: string }) {
     );
   if (!deliveries || deliveries.length === 0) {
     return (
-      <p className="p-3 text-sm text-gray-500">
+      <p className="p-3 text-sm text-neutral-500">
         No deliveries yet. Send a test to check the endpoint.
       </p>
     );
@@ -326,7 +309,7 @@ function Deliveries({ webhookId }: { webhookId: string }) {
       </div>
       <table className="w-full text-left text-xs">
         <caption className="sr-only">Recent deliveries</caption>
-        <thead className="text-gray-500">
+        <thead className="text-neutral-500">
           <tr>
             <th scope="col" className="px-3 py-2 font-medium">
               Event
@@ -348,27 +331,22 @@ function Deliveries({ webhookId }: { webhookId: string }) {
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
+        <tbody className="divide-y divide-neutral-100">
           {deliveries.map((d) => (
             <tr key={d.id} className="align-top">
-              <td className="px-3 py-2 font-mono text-gray-800">{d.event}</td>
+              <td className="px-3 py-2 font-mono text-neutral-800">{d.event}</td>
               <td className="px-3 py-2">
-                <span
-                  className={clsx(
-                    'rounded-full px-2 py-0.5 font-medium capitalize',
-                    STATUS_STYLES[d.status]
-                  )}
-                >
+                <Badge shape="pill" tone={STATUS_TONES[d.status]} className="capitalize">
                   {d.status}
-                </span>
+                </Badge>
                 {d.error && <div className="mt-1 max-w-xs break-words text-red-700">{d.error}</div>}
               </td>
-              <td className="px-3 py-2 text-gray-700">{d.responseCode ?? '—'}</td>
-              <td className="px-3 py-2 text-gray-700">
+              <td className="px-3 py-2 text-neutral-700">{d.responseCode ?? '—'}</td>
+              <td className="px-3 py-2 text-neutral-700">
                 {d.durationMs !== null ? `${d.durationMs} ms` : '—'}
               </td>
-              <td className="px-3 py-2 text-gray-700">{d.attempt}</td>
-              <td className="px-3 py-2 text-gray-700">
+              <td className="px-3 py-2 text-neutral-700">{d.attempt}</td>
+              <td className="px-3 py-2 text-neutral-700">
                 {formatTime(d.deliveredAt ?? d.createdAt)}
               </td>
             </tr>
@@ -403,42 +381,37 @@ function WebhookRow({
   const [expanded, setExpanded] = useState(false);
   const panelId = `deliveries-${webhook.id}`;
   return (
-    <li className="rounded-lg border border-gray-200">
+    <li className="rounded-lg border border-neutral-200">
       <div className="flex flex-wrap items-start justify-between gap-3 p-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="truncate font-mono text-sm text-gray-900">{webhook.url}</span>
-            <span
-              className={clsx(
-                'rounded-full px-2 py-0.5 text-xs font-medium',
-                webhook.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
-              )}
-            >
+            <span className="truncate font-mono text-sm text-neutral-900">{webhook.url}</span>
+            <Badge shape="pill" tone={webhook.enabled ? 'success' : 'neutral'}>
               {webhook.enabled ? 'Active' : 'Disabled'}
-            </span>
+            </Badge>
           </div>
           {webhook.description && (
-            <p className="mt-1 text-sm text-gray-600">{webhook.description}</p>
+            <p className="mt-1 text-sm text-neutral-600">{webhook.description}</p>
           )}
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-neutral-500">
             {describeEvents(webhook.events)} · secret{' '}
             <code className="font-mono">{webhook.secretPreview}</code>
           </p>
         </div>
         <div className="flex items-center gap-1">
-          <label className="mr-2 flex items-center gap-1.5 text-xs text-gray-600">
-            <input type="checkbox" checked={webhook.enabled} onChange={onToggle} />
+          <label className="mr-2 flex items-center gap-1.5 text-xs text-neutral-600">
+            <Checkbox checked={webhook.enabled} onChange={onToggle} />
             Enabled
           </label>
-          <button
-            type="button"
-            className="btn btn-secondary !px-2 !py-1 text-xs"
+          <Button
+            variant="secondary"
+            size="xs"
+            leadingIcon={<Send />}
             onClick={onTest}
             disabled={isTesting}
           >
-            <Send aria-hidden className="mr-1 h-3.5 w-3.5" />
             {isTesting ? 'Sending…' : 'Send test'}
-          </button>
+          </Button>
           <IconButton label="Edit webhook" icon={<Pencil />} onClick={onEdit} />
           <IconButton label="Rotate secret" icon={<RefreshCw />} onClick={onRotate} />
           <IconButton
@@ -451,7 +424,7 @@ function WebhookRow({
       </div>
       <button
         type="button"
-        className="flex w-full items-center gap-1 border-t border-gray-100 px-4 py-2 text-left text-xs font-medium text-gray-600 hover:bg-gray-50"
+        className="flex w-full items-center gap-1 border-t border-neutral-100 px-4 py-2 text-left text-xs font-medium text-neutral-600 hover:bg-neutral-50"
         aria-expanded={expanded}
         aria-controls={panelId}
         onClick={() => setExpanded((v) => !v)}
@@ -464,7 +437,7 @@ function WebhookRow({
         Recent deliveries
       </button>
       {expanded && (
-        <div id={panelId} className="border-t border-gray-100">
+        <div id={panelId} className="border-t border-neutral-100">
           <Deliveries webhookId={webhook.id} />
         </div>
       )}
@@ -503,10 +476,9 @@ export function WebhookSettings() {
   if (!workspace || roleLoading) return <PageSpinner />;
   if (!canManage) {
     return (
-      <div className="card p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">Outgoing webhooks</h2>
-        <p className="text-gray-600">Only workspace owners and admins can manage webhooks.</p>
-      </div>
+      <Card title="Outgoing webhooks">
+        <p className="text-neutral-600">Only workspace owners and admins can manage webhooks.</p>
+      </Card>
     );
   }
 
@@ -547,24 +519,11 @@ export function WebhookSettings() {
   };
 
   return (
-    <div className="card p-6">
-      <div className="mb-4 flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">Outgoing webhooks</h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Send task and comment events from {workspace.name} to your own services (Slack, Zapier,
-            CI, …).
-          </p>
-        </div>
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => setDialog({ kind: 'create' })}
-        >
-          Add webhook
-        </button>
-      </div>
-
+    <Card
+      title="Outgoing webhooks"
+      description={`Send task and comment events from ${workspace.name} to your own services (Slack, Zapier, CI, …).`}
+      actions={<Button onClick={() => setDialog({ kind: 'create' })}>Add webhook</Button>}
+    >
       {error ? (
         <ErrorState error={error} resource="webhook list" onRetry={() => void refetch()} />
       ) : isLoading ? (
@@ -575,13 +534,9 @@ export function WebhookSettings() {
           title="No webhooks yet"
           body="Add a URL to receive a signed POST for every task or comment event."
           action={
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => setDialog({ kind: 'create' })}
-            >
+            <Button variant="secondary" onClick={() => setDialog({ kind: 'create' })}>
               Add webhook
-            </button>
+            </Button>
           }
         />
       ) : (
@@ -663,6 +618,6 @@ export function WebhookSettings() {
       />
 
       {secret && <SecretDialog secret={secret} onClose={() => setSecret(null)} />}
-    </div>
+    </Card>
   );
 }

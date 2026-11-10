@@ -1,5 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
-import { ColorDot, Popover, PopoverContent, PopoverTrigger } from '../../ui';
+import {
+  Avatar,
+  Badge,
+  ColorDot,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Select,
+  controlClasses,
+} from '../../ui';
 import { X, Check, ChevronDown } from 'lucide-react';
 import clsx from 'clsx';
 import type { FilterFieldType } from './constants';
@@ -10,6 +20,12 @@ import {
   operatorSupportsMultiple,
 } from './constants';
 import type { FilterCondition, FilterOperator } from '@flowtask/shared';
+
+/** Popover triggers look like the compact Select. */
+const TRIGGER_CLASSES = clsx(
+  controlClasses('sm'),
+  'flex items-center justify-between text-left hover:border-neutral-300'
+);
 
 interface WorkspaceMember {
   userId: string;
@@ -164,12 +180,12 @@ export function FilterValueInput({
 // Text input
 function TextInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
-    <input
+    <Input
+      size="sm"
       type="text"
       value={value || ''}
       onChange={(e) => onChange(e.target.value)}
       placeholder="Enter value..."
-      className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
     />
   );
 }
@@ -177,12 +193,12 @@ function TextInput({ value, onChange }: { value: string; onChange: (v: string) =
 // Number input
 function NumberInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   return (
-    <input
+    <Input
+      size="sm"
       type="number"
       value={value ?? ''}
       onChange={(e) => onChange(e.target.value ? Number(e.target.value) : 0)}
       placeholder="Enter number..."
-      className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
     />
   );
 }
@@ -206,18 +222,14 @@ function SingleSelect({
   placeholder: string;
 }) {
   return (
-    <select
-      value={value || ''}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white"
-    >
+    <Select size="sm" value={value || ''} onChange={(e) => onChange(e.target.value)}>
       <option value="">{placeholder}</option>
       {options.map((opt) => (
         <option key={opt.value} value={opt.value}>
           {opt.label}
         </option>
       ))}
-    </select>
+    </Select>
   );
 }
 
@@ -253,36 +265,25 @@ function MultiSelect({
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-haspopup="listbox"
-          className={clsx(
-            'w-full flex items-center justify-between px-3 py-1.5 text-sm border rounded-lg',
-            'hover:border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500',
-            'bg-white border-gray-200'
-          )}
-        >
+        <button type="button" aria-haspopup="listbox" className={TRIGGER_CLASSES}>
           <div className="flex flex-wrap gap-1 flex-1 min-w-0">
             {selectedOptions.length === 0 ? (
-              <span className="text-gray-400">{placeholder}</span>
+              <span className="text-neutral-400">{placeholder}</span>
             ) : (
               selectedOptions.map((opt) => (
-                <span
-                  key={opt.value}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-700"
-                >
+                <Badge key={opt.value} shape="pill">
                   {opt.color && <ColorDot color={opt.color} size="xs" />}
                   {opt.label}
                   <X
                     className="w-3 h-3 cursor-pointer hover:opacity-75"
                     onClick={(e) => removeValue(e, opt.value)}
                   />
-                </span>
+                </Badge>
               ))
             )}
           </div>
           <ChevronDown
-            className={clsx('w-4 h-4 text-gray-400 ml-2 flex-shrink-0', isOpen && 'rotate-180')}
+            className={clsx('w-4 h-4 text-neutral-400 ml-2 flex-shrink-0', isOpen && 'rotate-180')}
           />
         </button>
       </PopoverTrigger>
@@ -299,17 +300,12 @@ function MultiSelect({
                 type="button"
                 onClick={() => toggleValue(opt.value)}
                 className={clsx(
-                  'w-full flex items-center justify-between px-3 py-2 text-sm text-left hover:bg-gray-50',
+                  'w-full flex items-center justify-between px-3 py-2 text-sm text-left hover:bg-neutral-50',
                   isSelected && 'bg-primary-50'
                 )}
               >
                 <span className="flex items-center gap-2">
-                  {opt.color && (
-                    <span
-                      className="w-2.5 h-2.5 rounded-full"
-                      style={{ backgroundColor: opt.color }}
-                    />
-                  )}
+                  {opt.color && <ColorDot color={opt.color} size="md" />}
                   {opt.label}
                 </span>
                 {isSelected && <Check className="w-4 h-4 text-primary-600" />}
@@ -346,24 +342,16 @@ function DateInput({ value, onChange }: { value: string; onChange: (v: string) =
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-haspopup="listbox"
-          className={clsx(
-            'w-full flex items-center justify-between px-3 py-1.5 text-sm border rounded-lg',
-            'hover:border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500',
-            'bg-white border-gray-200'
-          )}
-        >
-          <span className={displayValue ? 'text-gray-900' : 'text-gray-400'}>
+        <button type="button" aria-haspopup="listbox" className={TRIGGER_CLASSES}>
+          <span className={displayValue ? 'text-neutral-900' : 'text-neutral-400'}>
             {displayValue || 'Select date...'}
           </span>
-          <ChevronDown className={clsx('w-4 h-4 text-gray-400', isOpen && 'rotate-180')} />
+          <ChevronDown className={clsx('w-4 h-4 text-neutral-400', isOpen && 'rotate-180')} />
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-64 !p-0 overflow-hidden">
-        <div className="p-2 border-b border-gray-100">
-          <p className="text-xs font-medium text-gray-500 mb-2">Quick options</p>
+        <div className="p-2 border-b border-neutral-100">
+          <p className="text-xs font-medium text-neutral-500 mb-2">Quick options</p>
           <div className="space-y-1">
             {DATE_TEMPLATES.map((template) => (
               <button
@@ -371,7 +359,7 @@ function DateInput({ value, onChange }: { value: string; onChange: (v: string) =
                 type="button"
                 onClick={() => handleTemplateSelect(template.value)}
                 className={clsx(
-                  'w-full px-2 py-1.5 text-sm text-left rounded hover:bg-gray-100',
+                  'w-full px-2 py-1.5 text-sm text-left rounded hover:bg-neutral-100',
                   value === template.value && 'bg-primary-50 text-primary-700'
                 )}
               >
@@ -381,12 +369,12 @@ function DateInput({ value, onChange }: { value: string; onChange: (v: string) =
           </div>
         </div>
         <div className="p-2">
-          <p className="text-xs font-medium text-gray-500 mb-2">Specific date</p>
-          <input
+          <p className="text-xs font-medium text-neutral-500 mb-2">Specific date</p>
+          <Input
+            size="sm"
             type="date"
             value={inputMode === 'custom' && value && !value.startsWith('{{') ? value : ''}
             onChange={handleCustomDateChange}
-            className="w-full px-2 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
           />
         </div>
       </PopoverContent>
@@ -437,24 +425,16 @@ function UserSelect({
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-haspopup="listbox"
-          className={clsx(
-            'w-full flex items-center justify-between px-3 py-1.5 text-sm border rounded-lg',
-            'hover:border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500',
-            'bg-white border-gray-200'
-          )}
-        >
-          <span className={getDisplayValue() ? 'text-gray-900' : 'text-gray-400'}>
+        <button type="button" aria-haspopup="listbox" className={TRIGGER_CLASSES}>
+          <span className={getDisplayValue() ? 'text-neutral-900' : 'text-neutral-400'}>
             {getDisplayValue() || 'Select user...'}
           </span>
-          <ChevronDown className={clsx('w-4 h-4 text-gray-400', isOpen && 'rotate-180')} />
+          <ChevronDown className={clsx('w-4 h-4 text-neutral-400', isOpen && 'rotate-180')} />
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-64 !p-0 overflow-hidden">
         {/* Current user template */}
-        <div className="border-b border-gray-100">
+        <div className="border-b border-neutral-100">
           {USER_TEMPLATES.map((template) => (
             <button
               key={template.value}
@@ -464,7 +444,7 @@ function UserSelect({
                 setIsOpen(false);
               }}
               className={clsx(
-                'w-full px-3 py-2 text-sm text-left hover:bg-gray-50',
+                'w-full px-3 py-2 text-sm text-left hover:bg-neutral-50',
                 value === template.value && 'bg-primary-50 text-primary-700'
               )}
             >
@@ -474,21 +454,21 @@ function UserSelect({
         </div>
 
         {/* Search */}
-        <div className="p-2 border-b border-gray-100">
-          <input
+        <div className="p-2 border-b border-neutral-100">
+          <Input
+            size="sm"
             ref={inputRef}
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search members..."
-            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500"
           />
         </div>
 
         {/* Members list */}
         <div className="max-h-48 overflow-y-auto">
           {filteredMembers.length === 0 ? (
-            <p className="px-3 py-4 text-sm text-gray-400 text-center">No members found</p>
+            <p className="px-3 py-4 text-sm text-neutral-400 text-center">No members found</p>
           ) : (
             filteredMembers.map((member) => (
               <button
@@ -499,21 +479,17 @@ function UserSelect({
                   setIsOpen(false);
                 }}
                 className={clsx(
-                  'w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-gray-50',
+                  'w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-neutral-50',
                   value === member.user.id && 'bg-primary-50'
                 )}
               >
-                <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
-                  <span className="text-xs font-medium text-primary-600">
-                    {(member.user.name?.[0] || member.user.email[0]).toUpperCase()}
-                  </span>
-                </div>
+                <Avatar name={member.user.name} email={member.user.email} size="sm" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
+                  <p className="text-sm font-medium text-neutral-900 truncate">
                     {member.user.name || member.user.email}
                   </p>
                   {member.user.name && (
-                    <p className="text-xs text-gray-500 truncate">{member.user.email}</p>
+                    <p className="text-xs text-neutral-500 truncate">{member.user.email}</p>
                   )}
                 </div>
                 {value === member.user.id && <Check className="w-4 h-4 text-primary-600" />}
@@ -569,57 +545,46 @@ function UserMultiSelect({
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-haspopup="listbox"
-          className={clsx(
-            'w-full flex items-center justify-between px-3 py-1.5 text-sm border rounded-lg',
-            'hover:border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500',
-            'bg-white border-gray-200'
-          )}
-        >
+        <button type="button" aria-haspopup="listbox" className={TRIGGER_CLASSES}>
           <div className="flex flex-wrap gap-1 flex-1 min-w-0">
             {value.length === 0 ? (
-              <span className="text-gray-400">Select users...</span>
+              <span className="text-neutral-400">Select users...</span>
             ) : (
               <>
                 {hasCurrentUser && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-primary-100 text-primary-700">
+                  <Badge shape="pill" tone="primary">
                     Current user (me)
                     <X
                       className="w-3 h-3 cursor-pointer hover:opacity-75"
                       onClick={(e) => removeValue(e, '{{current_user}}')}
                     />
-                  </span>
+                  </Badge>
                 )}
                 {selectedMembers.map((member) => (
-                  <span
-                    key={member.userId}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-700"
-                  >
+                  <Badge key={member.userId} shape="pill">
                     {member.user.name || member.user.email}
                     <X
                       className="w-3 h-3 cursor-pointer hover:opacity-75"
                       onClick={(e) => removeValue(e, member.user.id)}
                     />
-                  </span>
+                  </Badge>
                 ))}
               </>
             )}
           </div>
           <ChevronDown
-            className={clsx('w-4 h-4 text-gray-400 ml-2 flex-shrink-0', isOpen && 'rotate-180')}
+            className={clsx('w-4 h-4 text-neutral-400 ml-2 flex-shrink-0', isOpen && 'rotate-180')}
           />
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-64 !p-0 overflow-hidden">
         {/* Current user template */}
-        <div className="border-b border-gray-100">
+        <div className="border-b border-neutral-100">
           <button
             type="button"
             onClick={() => toggleValue('{{current_user}}')}
             className={clsx(
-              'w-full flex items-center justify-between px-3 py-2 text-sm text-left hover:bg-gray-50',
+              'w-full flex items-center justify-between px-3 py-2 text-sm text-left hover:bg-neutral-50',
               hasCurrentUser && 'bg-primary-50 text-primary-700'
             )}
           >
@@ -629,20 +594,20 @@ function UserMultiSelect({
         </div>
 
         {/* Search */}
-        <div className="p-2 border-b border-gray-100">
-          <input
+        <div className="p-2 border-b border-neutral-100">
+          <Input
+            size="sm"
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search members..."
-            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500"
           />
         </div>
 
         {/* Members list */}
         <div className="max-h-48 overflow-y-auto">
           {filteredMembers.length === 0 ? (
-            <p className="px-3 py-4 text-sm text-gray-400 text-center">No members found</p>
+            <p className="px-3 py-4 text-sm text-neutral-400 text-center">No members found</p>
           ) : (
             filteredMembers.map((member) => {
               const isSelected = value.includes(member.user.id);
@@ -652,17 +617,13 @@ function UserMultiSelect({
                   type="button"
                   onClick={() => toggleValue(member.user.id)}
                   className={clsx(
-                    'w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-gray-50',
+                    'w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-neutral-50',
                     isSelected && 'bg-primary-50'
                   )}
                 >
-                  <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
-                    <span className="text-xs font-medium text-primary-600">
-                      {(member.user.name?.[0] || member.user.email[0]).toUpperCase()}
-                    </span>
-                  </div>
+                  <Avatar name={member.user.name} email={member.user.email} size="sm" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
+                    <p className="text-sm font-medium text-neutral-900 truncate">
                       {member.user.name || member.user.email}
                     </p>
                   </div>
@@ -701,45 +662,34 @@ function LabelSelect({
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-haspopup="listbox"
-          className={clsx(
-            'w-full flex items-center justify-between px-3 py-1.5 text-sm border rounded-lg',
-            'hover:border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500',
-            'bg-white border-gray-200'
-          )}
-        >
-          <span className={selectedLabel ? 'text-gray-900' : 'text-gray-400'}>
+        <button type="button" aria-haspopup="listbox" className={TRIGGER_CLASSES}>
+          <span className={selectedLabel ? 'text-neutral-900' : 'text-neutral-400'}>
             {selectedLabel ? (
               <span className="flex items-center gap-2">
-                <span
-                  className="w-2.5 h-2.5 rounded-full"
-                  style={{ backgroundColor: selectedLabel.color || '#9ca3af' }}
-                />
+                <ColorDot color={selectedLabel.color} size="md" />
                 {selectedLabel.name}
               </span>
             ) : (
               'Select label...'
             )}
           </span>
-          <ChevronDown className={clsx('w-4 h-4 text-gray-400', isOpen && 'rotate-180')} />
+          <ChevronDown className={clsx('w-4 h-4 text-neutral-400', isOpen && 'rotate-180')} />
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-56 !p-0 overflow-hidden">
-        <div className="p-2 border-b border-gray-100">
-          <input
+        <div className="p-2 border-b border-neutral-100">
+          <Input
+            size="sm"
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search labels..."
-            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500"
             autoFocus
           />
         </div>
         <div className="max-h-48 overflow-y-auto">
           {filteredLabels.length === 0 ? (
-            <p className="px-3 py-4 text-sm text-gray-400 text-center">No labels found</p>
+            <p className="px-3 py-4 text-sm text-neutral-400 text-center">No labels found</p>
           ) : (
             filteredLabels.map((label) => (
               <button
@@ -750,15 +700,12 @@ function LabelSelect({
                   setIsOpen(false);
                 }}
                 className={clsx(
-                  'w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-gray-50',
+                  'w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-neutral-50',
                   value === label.id && 'bg-primary-50'
                 )}
               >
-                <span
-                  className="w-3 h-3 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: label.color || '#9ca3af' }}
-                />
-                <span className="text-sm text-gray-700 truncate">{label.name}</span>
+                <ColorDot color={label.color} size="md" />
+                <span className="text-sm text-neutral-700 truncate">{label.name}</span>
                 {value === label.id && <Check className="w-4 h-4 text-primary-600 ml-auto" />}
               </button>
             ))
@@ -806,53 +753,42 @@ function LabelMultiSelect({
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          aria-haspopup="listbox"
-          className={clsx(
-            'w-full flex items-center justify-between px-3 py-1.5 text-sm border rounded-lg',
-            'hover:border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-primary-500',
-            'bg-white border-gray-200'
-          )}
-        >
+        <button type="button" aria-haspopup="listbox" className={TRIGGER_CLASSES}>
           <div className="flex flex-wrap gap-1 flex-1 min-w-0">
             {selectedLabels.length === 0 ? (
-              <span className="text-gray-400">Select labels...</span>
+              <span className="text-neutral-400">Select labels...</span>
             ) : (
               selectedLabels.map((label) => (
-                <span
-                  key={label.id}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full border border-gray-200 bg-white text-gray-700"
-                >
+                <Badge key={label.id} shape="pill" tone="outline">
                   <ColorDot color={label.color} size="xs" />
                   {label.name}
                   <X
                     className="w-3 h-3 cursor-pointer hover:opacity-75"
                     onClick={(e) => removeValue(e, label.id)}
                   />
-                </span>
+                </Badge>
               ))
             )}
           </div>
           <ChevronDown
-            className={clsx('w-4 h-4 text-gray-400 ml-2 flex-shrink-0', isOpen && 'rotate-180')}
+            className={clsx('w-4 h-4 text-neutral-400 ml-2 flex-shrink-0', isOpen && 'rotate-180')}
           />
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-56 !p-0 overflow-hidden">
-        <div className="p-2 border-b border-gray-100">
-          <input
+        <div className="p-2 border-b border-neutral-100">
+          <Input
+            size="sm"
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search labels..."
-            className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500"
             autoFocus
           />
         </div>
         <div className="max-h-48 overflow-y-auto">
           {filteredLabels.length === 0 ? (
-            <p className="px-3 py-4 text-sm text-gray-400 text-center">No labels found</p>
+            <p className="px-3 py-4 text-sm text-neutral-400 text-center">No labels found</p>
           ) : (
             filteredLabels.map((label) => {
               const isSelected = value.includes(label.id);
@@ -862,15 +798,12 @@ function LabelMultiSelect({
                   type="button"
                   onClick={() => toggleValue(label.id)}
                   className={clsx(
-                    'w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-gray-50',
+                    'w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-neutral-50',
                     isSelected && 'bg-primary-50'
                   )}
                 >
-                  <span
-                    className="w-3 h-3 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: label.color || '#9ca3af' }}
-                  />
-                  <span className="text-sm text-gray-700 truncate flex-1">{label.name}</span>
+                  <ColorDot color={label.color} size="md" />
+                  <span className="text-sm text-neutral-700 truncate flex-1">{label.name}</span>
                   {isSelected && <Check className="w-4 h-4 text-primary-600" />}
                 </button>
               );

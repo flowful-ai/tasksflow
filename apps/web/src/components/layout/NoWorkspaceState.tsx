@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Building2 } from 'lucide-react';
-import { EmptyState } from '../ui/EmptyState';
+import { Button, EmptyState } from '../ui';
 
 export interface NoWorkspaceStateProps {
   email?: string | null;
@@ -20,7 +20,7 @@ export function NoWorkspaceState({ email, onSignOut }: NoWorkspaceStateProps) {
         <>
           {email ? (
             <>
-              Signed in as <span className="font-medium text-gray-900">{email}</span>.{' '}
+              Signed in as <span className="font-medium text-neutral-900">{email}</span>.{' '}
             </>
           ) : null}
           Ask a workspace admin to invite this email, or create your own workspace. If you usually
@@ -29,12 +29,12 @@ export function NoWorkspaceState({ email, onSignOut }: NoWorkspaceStateProps) {
       }
       action={
         <div className="flex flex-wrap items-center justify-center gap-2">
-          <Link to="/settings/workspace/new" className="btn btn-primary">
-            Create a workspace
-          </Link>
-          <button type="button" className="btn btn-secondary" onClick={onSignOut}>
+          <Button asChild>
+            <Link to="/settings/workspace/new">Create a workspace</Link>
+          </Button>
+          <Button variant="secondary" onClick={onSignOut}>
             Sign out
-          </button>
+          </Button>
         </div>
       }
     />

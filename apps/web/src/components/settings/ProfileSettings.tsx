@@ -9,16 +9,22 @@ import {
   useSessions,
   useUpdateProfileName,
 } from '../../hooks/queries';
-import {
-  MAX_NAME_LENGTH,
-  avatarUrlOf,
-  describeUserAgent,
-  initials,
-  validateName,
-} from '../../lib/account';
+import { MAX_NAME_LENGTH, avatarUrlOf, describeUserAgent, validateName } from '../../lib/account';
 import { formatDateTime, relativeTime } from '../../lib/time';
 import { useAuthStore } from '../../stores/auth';
-import { ConfirmDialog, ErrorState, Spinner, toast } from '../ui';
+import {
+  Avatar,
+  Badge,
+  Button,
+  Card,
+  ConfirmDialog,
+  ErrorState,
+  Field,
+  Input,
+  Panel,
+  Spinner,
+  toast,
+} from '../ui';
 
 export function ProfileSettings() {
   return (
@@ -54,37 +60,22 @@ function ProfileCard() {
   };
 
   return (
-    <section aria-labelledby="profile-heading" className="card p-6">
+    <Card as="section" aria-labelledby="profile-heading">
       <div className="mb-6 flex items-center gap-4">
-        {avatarUrl ? (
-          <img src={avatarUrl} alt="" className="h-16 w-16 rounded-full object-cover" />
-        ) : (
-          <div
-            aria-hidden
-            className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary-500 to-primary-600 text-xl font-semibold text-white"
-          >
-            {initials(user?.name, user?.email)}
-          </div>
-        )}
+        <Avatar src={avatarUrl} name={user?.name} email={user?.email} tone="brand" size="2xl" />
         <div className="min-w-0">
-          <h2 id="profile-heading" className="text-lg font-semibold text-gray-900">
+          <h2 id="profile-heading" className="text-lg font-semibold text-neutral-900">
             Profile
           </h2>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-neutral-500">
             Your avatar comes from the account you signed in with.
           </p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-        <div>
-          <label htmlFor="profile-name" className="mb-1 block text-sm font-medium text-gray-700">
-            Display name
-          </label>
-          <input
-            id="profile-name"
-            type="text"
-            className="input"
+        <Field label="Display name" id="profile-name" error={error}>
+          <Input
             value={name}
             maxLength={MAX_NAME_LENGTH}
             autoComplete="name"
@@ -92,49 +83,33 @@ function ProfileCard() {
               setName(e.target.value);
               setError(null);
             }}
-            aria-invalid={error ? true : undefined}
-            aria-describedby={error ? 'profile-name-error' : undefined}
           />
-          {error && (
-            <p id="profile-name-error" role="alert" className="mt-1 text-xs text-red-600">
-              {error}
-            </p>
-          )}
-        </div>
+        </Field>
 
-        <div>
-          <label htmlFor="profile-email" className="mb-1 block text-sm font-medium text-gray-700">
-            Email
-          </label>
-          <input
-            id="profile-email"
-            type="email"
-            className="input bg-gray-50 text-gray-500"
-            value={user?.email ?? ''}
-            readOnly
-            aria-describedby="profile-email-hint"
-          />
-          <p id="profile-email-hint" className="mt-1 text-xs text-gray-500">
-            Your email comes from your sign-in provider and can't be changed here. Manage linked
-            accounts in{' '}
-            <Link to="/settings/user/integrations" className="text-primary-600 hover:underline">
-              Integrations
-            </Link>
-            .
-          </p>
-        </div>
+        <Field
+          label="Email"
+          id="profile-email"
+          hint={
+            <>
+              Your email comes from your sign-in provider and can&apos;t be changed here. Manage
+              linked accounts in{' '}
+              <Link to="/settings/user/integrations" className="text-primary-600 hover:underline">
+                Integrations
+              </Link>
+              .
+            </>
+          }
+        >
+          <Input type="email" value={user?.email ?? ''} readOnly />
+        </Field>
 
         <div className="pt-2">
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={updateName.isPending || !dirty}
-          >
+          <Button type="submit" disabled={updateName.isPending || !dirty}>
             {updateName.isPending ? 'Saving...' : 'Save changes'}
-          </button>
+          </Button>
         </div>
       </form>
-    </section>
+    </Card>
   );
 }
 
@@ -163,62 +138,55 @@ function SessionsCard() {
   };
 
   return (
-    <section aria-labelledby="sessions-heading" className="card p-6">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 id="sessions-heading" className="text-lg font-semibold text-gray-900">
-            Active sessions
-          </h2>
-          <p className="text-sm text-gray-500">
-            Devices signed in to your account. Sign out any you don't recognise.
-          </p>
-        </div>
-        {others.length > 0 && (
-          <button
-            type="button"
-            className="btn btn-secondary shrink-0"
+    <Card
+      title="Active sessions"
+      description="Devices signed in to your account. Sign out any you don't recognise."
+      actions={
+        others.length > 0 && (
+          <Button
+            variant="secondary"
+            leadingIcon={<LogOut />}
             onClick={() => setConfirmOthers(true)}
           >
-            <LogOut aria-hidden className="mr-2 h-4 w-4" />
             Sign out of all other sessions
-          </button>
-        )}
-      </div>
-
+          </Button>
+        )
+      }
+    >
       {isLoading ? (
         <div className="flex justify-center py-8">
           <Spinner label="Loading sessions" />
         </div>
       ) : notFresh ? (
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+        <Panel tone="muted" className="text-sm text-neutral-700">
           <p>
             For your security, the session list is only shown within a day of signing in. Sign in
             again to review your sessions.
           </p>
-          <button type="button" className="btn btn-secondary mt-3" onClick={() => void logout()}>
+          <Button variant="secondary" className="mt-3" onClick={() => void logout()}>
             Sign out and sign in again
-          </button>
-        </div>
+          </Button>
+        </Panel>
       ) : error ? (
         <ErrorState error={error} resource="session list" onRetry={() => void refetch()} />
       ) : (
-        <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200">
+        <ul className="divide-y divide-neutral-100 rounded-lg border border-neutral-200">
           {sessions.map((session) => {
             const current = session.id === data?.currentId;
             const Icon = isMobile(session.userAgent) ? Smartphone : Monitor;
             return (
               <li key={session.id} className="flex items-center gap-3 p-4">
-                <Icon aria-hidden className="h-5 w-5 shrink-0 text-gray-400" />
+                <Icon aria-hidden className="h-5 w-5 shrink-0 text-neutral-400" />
                 <div className="min-w-0 flex-1">
-                  <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-gray-900">
+                  <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-neutral-900">
                     {describeUserAgent(session.userAgent)}
                     {current && (
-                      <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                      <Badge tone="success" shape="pill">
                         This device
-                      </span>
+                      </Badge>
                     )}
                   </p>
-                  <p className="truncate text-xs text-gray-500">
+                  <p className="truncate text-xs text-neutral-500">
                     {session.ipAddress ? `${session.ipAddress} · ` : ''}
                     <span title={formatDateTime(session.updatedAt)}>
                       Last active {relativeTime(session.updatedAt)}
@@ -227,15 +195,15 @@ function SessionsCard() {
                   </p>
                 </div>
                 {!current && (
-                  <button
-                    type="button"
-                    className="btn btn-secondary shrink-0"
+                  <Button
+                    variant="secondary"
+                    className="shrink-0"
                     disabled={revoking === session.id}
                     aria-label={`Sign out ${describeUserAgent(session.userAgent)}, last active ${relativeTime(session.updatedAt)}`}
                     onClick={() => handleRevoke(session)}
                   >
                     {revoking === session.id ? 'Signing out...' : 'Sign out'}
-                  </button>
+                  </Button>
                 )}
               </li>
             );
@@ -255,6 +223,6 @@ function SessionsCard() {
           toast.success('Signed out of all other sessions');
         }}
       />
-    </section>
+    </Card>
   );
 }

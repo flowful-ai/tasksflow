@@ -28,6 +28,7 @@ import {
 } from '../lib/responses.js';
 import { buildAiSdkTools, MCP_SERVER_INSTRUCTIONS } from '../services/agent-tool-runtime.js';
 import { buildToolContext } from '../lib/mcp/tool-context.js';
+import { ChatTiming } from '../lib/chat-timing.js';
 
 const ExecuteAgentSchema = z.object({
   // UI messages are validated structurally by validateUIMessages below.
@@ -190,6 +191,7 @@ agents.post(
     const data = c.req.valid('json');
     const { user, role, agent } = await requireAgent(c, 'agent:execute');
     const agentId = agent.id;
+    const timing = new ChatTiming({ agentId, model: agent.model });
 
     if (agent.isRateLimited) {
       throw new AppError(429, 'RATE_LIMITED', 'Agent has reached its daily token limit');
@@ -260,13 +262,24 @@ agents.post(
         .filter(Boolean)
         .join('\n');
 
+      timing.streamStart();
       const result = streamText({
         model,
         system: systemPrompt,
         messages: modelMessages,
         tools,
         stopWhen: stepCountIs(TOOL_EXECUTION_STEP_LIMIT),
-        onFinish: async ({ totalUsage }) => {
+        // Stop generating (and running tools) when the client hits Stop or leaves.
+        abortSignal: c.req.raw.signal,
+        onChunk: () => timing.firstChunk(),
+        // Replaces the SDK's default onError, so log the error here.
+        onError: ({ error }) => {
+          console.error('[agents] stream failed', error);
+          timing.fail('error');
+        },
+        onAbort: ({ steps }) => timing.fail('aborted', steps.length),
+        onFinish: async ({ totalUsage, steps, finishReason }) => {
+          timing.finish({ steps: steps.length, usage: totalUsage, finishReason });
           const totalTokens = totalUsage.totalTokens ?? 0;
           if (totalTokens > 0) {
             await agentService.recordTokenUsage(agentId, totalTokens);
@@ -275,10 +288,13 @@ agents.post(
       });
 
       return result.toUIMessageStreamResponse({
-        sendReasoning: false,
+        // Reasoning models think before the first text token: stream it so the
+        // chat shows a collapsed "Thinking" block instead of looking frozen.
+        sendReasoning: true,
         originalMessages: uiMessages,
       });
     } catch (error) {
+      timing.fail('error');
       console.error('[agents] execution failed', error);
       throw badRequest(
         process.env.NODE_ENV === 'production' ? 'Agent execution failed' : toError(error).message,

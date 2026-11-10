@@ -20,7 +20,7 @@ import {
   useUpdateTask,
   useWorkspace,
 } from '../../../hooks/queries';
-import { ErrorState, PageSpinner } from '../../ui';
+import { Button, ErrorState, PageSpinner } from '../../ui';
 import { Header } from './Header';
 import { TaskDescription, TaskTitle } from './Description';
 import { Properties } from './Properties';
@@ -110,13 +110,13 @@ export function TaskDetailView({
           onRetry={() => void query.refetch()}
           notFoundAction={
             onClose ? (
-              <button type="button" className="btn btn-secondary" onClick={onClose}>
+              <Button variant="secondary" onClick={onClose}>
                 Close
-              </button>
+              </Button>
             ) : (
-              <Link to="/projects" className="btn btn-secondary">
-                Back to projects
-              </Link>
+              <Button asChild variant="secondary">
+                <Link to="/projects">Back to projects</Link>
+              </Button>
             )
           }
         />

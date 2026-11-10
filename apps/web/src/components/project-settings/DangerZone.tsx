@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { AlertTriangle, Trash2, Archive, ArchiveRestore } from 'lucide-react';
 import type { ProjectDetailDto } from '../../api/types';
 import { useDeleteProject, useUpdateProject } from '../../hooks/queries';
-import { ConfirmDialog, toast } from '../ui';
+import { Button, Card, ConfirmDialog, Field, Input, Panel, toast } from '../ui';
 
 interface DangerZoneProps {
   project: Pick<ProjectDetailDto, 'id' | 'name' | 'isArchived'>;
@@ -17,31 +17,25 @@ export function DangerZone({ project, onDeleted }: DangerZoneProps) {
   const isArchived = project.isArchived;
 
   return (
-    <section aria-labelledby="danger-heading" className="card p-6 border border-red-100">
-      <div className="mb-4 flex items-center gap-2">
-        <AlertTriangle aria-hidden className="w-5 h-5 text-red-600" />
-        <h2 id="danger-heading" className="text-lg font-semibold text-gray-900">
-          Danger Zone
-        </h2>
-      </div>
-      <p className="text-sm text-gray-600 mb-4">
+    <Card title="Danger Zone" icon={<AlertTriangle />} tone="danger">
+      <p className="text-sm text-neutral-600 mb-4">
         Actions here are destructive. Please proceed with caution.
       </p>
 
       <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border border-gray-200 rounded-lg p-4">
+        <Panel className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h3 className="font-medium text-gray-900">
+            <h3 className="font-medium text-neutral-900">
               {isArchived ? 'Unarchive Project' : 'Archive Project'}
             </h3>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-neutral-500">
               {isArchived
                 ? 'Restore this project and make it visible again.'
                 : 'Hide this project from active lists.'}
             </p>
           </div>
-          <button
-            type="button"
+          <Button
+            variant="secondary"
             onClick={() =>
               updateProject.mutate(
                 { isArchived: !isArchived },
@@ -51,14 +45,9 @@ export function DangerZone({ project, onDeleted }: DangerZoneProps) {
                 }
               )
             }
-            className="btn btn-secondary"
             disabled={updateProject.isPending}
+            leadingIcon={isArchived ? <ArchiveRestore /> : <Archive />}
           >
-            {isArchived ? (
-              <ArchiveRestore aria-hidden className="w-4 h-4 mr-2" />
-            ) : (
-              <Archive aria-hidden className="w-4 h-4 mr-2" />
-            )}
             {isArchived
               ? updateProject.isPending
                 ? 'Restoring...'
@@ -66,28 +55,30 @@ export function DangerZone({ project, onDeleted }: DangerZoneProps) {
               : updateProject.isPending
                 ? 'Archiving...'
                 : 'Archive'}
-          </button>
-        </div>
+          </Button>
+        </Panel>
 
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border border-red-200 rounded-lg p-4 bg-red-50/40">
+        <Panel
+          tone="danger"
+          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+        >
           <div>
-            <h3 className="font-medium text-gray-900">Delete Project</h3>
-            <p className="text-sm text-gray-500">
+            <h3 className="font-medium text-neutral-900">Delete Project</h3>
+            <p className="text-sm text-neutral-500">
               Permanently delete this project and all associated tasks.
             </p>
           </div>
-          <button
-            type="button"
+          <Button
+            variant="danger"
             onClick={() => {
               setConfirmName('');
               setShowDeleteConfirm(true);
             }}
-            className="btn btn-danger"
+            leadingIcon={<Trash2 />}
           >
-            <Trash2 aria-hidden className="w-4 h-4 mr-2" />
             Delete
-          </button>
-        </div>
+          </Button>
+        </Panel>
       </div>
 
       <ConfirmDialog
@@ -104,17 +95,22 @@ export function DangerZone({ project, onDeleted }: DangerZoneProps) {
           onDeleted();
         }}
       >
-        <label htmlFor="confirm-project-name" className="block text-sm text-gray-700">
-          Type <strong className="font-semibold">{project.name}</strong> to confirm
-        </label>
-        <input
+        <Field
           id="confirm-project-name"
-          className="input mt-1"
-          value={confirmName}
-          onChange={(e) => setConfirmName(e.target.value)}
-          autoComplete="off"
-        />
+          label={
+            <>
+              Type <strong className="font-semibold">{project.name}</strong> to confirm
+            </>
+          }
+          labelClassName="font-normal"
+        >
+          <Input
+            value={confirmName}
+            onChange={(e) => setConfirmName(e.target.value)}
+            autoComplete="off"
+          />
+        </Field>
       </ConfirmDialog>
-    </section>
+    </Card>
   );
 }

@@ -7,8 +7,8 @@ import { Link } from 'react-router-dom';
 import { Check, X } from 'lucide-react';
 import clsx from 'clsx';
 import type { TaskPriority } from '@flowtask/shared';
-import { ColorDot, Popover, PopoverContent, PopoverTrigger } from '../../ui';
-import { AssigneeOptions, Avatar, type PickerMember } from '../AssigneePicker';
+import { Avatar, Badge, ColorDot, Popover, PopoverContent, PopoverTrigger } from '../../ui';
+import { AssigneeOptions, type PickerMember } from '../AssigneePicker';
 import { LabelOptions } from '../LabelPicker';
 import { DueDateOptions } from '../DueDatePicker';
 import { GitHubLinkSection } from '../GitHubLinkSection';
@@ -239,7 +239,7 @@ export function Properties({
             task.assignees.length > 0
               ? task.assignees.map((a) => (
                   <span key={a.id} className="inline-flex min-w-0 items-center gap-1.5">
-                    <Avatar person={a} size="sm" />
+                    <Avatar src={a.avatarUrl} name={a.name} email={a.email} size="xs" />
                     <span className="truncate">{a.name || a.email}</span>
                   </span>
                 ))
@@ -266,13 +266,15 @@ export function Properties({
           value={
             task.labels.length > 0
               ? task.labels.map((label) => (
-                  <span
+                  <Badge
                     key={label.id}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2 py-0.5 text-xs font-medium text-neutral-700"
+                    tone="outline"
+                    shape="pill"
+                    dot={label.color}
+                    className="gap-1.5"
                   >
-                    <ColorDot color={label.color} />
                     {label.name}
-                  </span>
+                  </Badge>
                 ))
               : muted('No labels')
           }

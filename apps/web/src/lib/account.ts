@@ -10,7 +10,14 @@ export function initials(name: string | null | undefined, email?: string | null)
   const first = words.at(0)?.charAt(0) ?? '';
   const last = words.length > 1 ? (words.at(-1)?.charAt(0) ?? '') : '';
   if (first) return `${first}${last}`.toUpperCase();
-  return (email ?? '').trim().charAt(0).toUpperCase() || '?';
+  // No name: two letters from the mailbox, so john.doe@… shows "JD".
+  const parts = (email ?? '')
+    .trim()
+    .split('@')[0]
+    .split(/[._+-]+/)
+    .filter(Boolean);
+  const fromEmail = parts.length > 1 ? `${parts[0][0]}${parts[1][0]}` : (parts[0]?.charAt(0) ?? '');
+  return fromEmail.toUpperCase() || '?';
 }
 
 /**

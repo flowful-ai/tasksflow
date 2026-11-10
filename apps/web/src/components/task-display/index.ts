@@ -1,7 +1,6 @@
 export {
   TaskCard,
   TaskCardOverlay,
-  AvatarStack,
   taskKeyOf,
   type TaskCardTask,
   type TaskOpenEvent,

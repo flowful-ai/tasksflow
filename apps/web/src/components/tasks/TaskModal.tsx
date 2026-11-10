@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { TaskPriority } from '@flowtask/shared';
 import { useAuthStore } from '../../stores/auth';
 import { useCreateTask, useGitHubIntegration, useTask, useUpdateTask } from '../../hooks/queries';
-import { Dialog } from '../ui/Dialog';
+import { Button, Checkbox, Dialog, Field, Input, Select, Textarea } from '../ui';
 
 const PRIORITIES: readonly TaskPriority[] = ['urgent', 'high', 'medium', 'low', 'none'];
 
@@ -116,129 +116,88 @@ export function TaskModal({
     >
       {/* Form */}
       <form onSubmit={submit} className="p-4 space-y-4">
-        <div>
-          <label htmlFor="task-title" className="block text-sm font-medium text-gray-700 mb-1">
-            Title *
-          </label>
-          <input
-            id="task-title"
-            type="text"
+        <Field label="Title" id="task-title" required>
+          <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="input"
             placeholder="Task title"
-            required
             autoFocus
           />
-        </div>
+        </Field>
 
-        <div>
-          <label
-            htmlFor="task-description"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Description
-          </label>
-          <textarea
-            id="task-description"
+        <Field label="Description" id="task-description">
+          <Textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="input min-h-[100px]"
+            className="min-h-[100px]"
             placeholder="Add a description..."
           />
-        </div>
+        </Field>
 
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="task-status" className="block text-sm font-medium text-gray-700 mb-1">
-              Status
-            </label>
-            <select
-              id="task-status"
-              value={stateId}
-              onChange={(e) => setStateId(e.target.value)}
-              className="input"
-            >
+          <Field label="Status" id="task-status">
+            <Select value={stateId} onChange={(e) => setStateId(e.target.value)}>
               <option value="">Select status</option>
               {states.map((state) => (
                 <option key={state.id} value={state.id}>
                   {state.name}
                 </option>
               ))}
-            </select>
-          </div>
+            </Select>
+          </Field>
 
-          <div>
-            <label htmlFor="task-priority" className="block text-sm font-medium text-gray-700 mb-1">
-              Priority
-            </label>
-            <select
-              id="task-priority"
-              value={priority}
-              onChange={(e) => setPriority(e.target.value)}
-              className="input"
-            >
+          <Field label="Priority" id="task-priority">
+            <Select value={priority} onChange={(e) => setPriority(e.target.value)}>
               <option value="">No priority</option>
               <option value="urgent">Urgent</option>
               <option value="high">High</option>
               <option value="medium">Medium</option>
               <option value="low">Low</option>
-            </select>
-          </div>
+            </Select>
+          </Field>
         </div>
 
         {/* Assign to me - only show for new tasks */}
         {!isEditing && (
-          <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
-            <input
-              type="checkbox"
+          <div className="pt-2 border-t border-neutral-100">
+            <Checkbox
               id="assignToMe"
               checked={assignToMe}
               onChange={(e) => setAssignToMe(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              label="Assign to me"
             />
-            <label htmlFor="assignToMe" className="text-sm text-gray-700">
-              Assign to me
-            </label>
           </div>
         )}
 
         {/* GitHub Integration - only show for new tasks when repos are linked */}
         {!isEditing && hasGitHub && (
-          <div className="pt-2 space-y-2 border-t border-gray-100">
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="createOnGitHub"
-                checked={createOnGitHub}
-                onChange={(e) => {
-                  setCreateOnGitHub(e.target.checked);
-                  if (e.target.checked && linkedRepos.length === 1) {
-                    setSelectedRepo({
-                      owner: linkedRepos[0].owner,
-                      repo: linkedRepos[0].repo,
-                    });
-                  }
-                  if (!e.target.checked) {
-                    setSelectedRepo(null);
-                  }
-                }}
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              <label htmlFor="createOnGitHub" className="text-sm text-gray-700">
-                Also create GitHub issue
-              </label>
-            </div>
+          <div className="pt-2 space-y-2 border-t border-neutral-100">
+            <Checkbox
+              id="createOnGitHub"
+              checked={createOnGitHub}
+              onChange={(e) => {
+                setCreateOnGitHub(e.target.checked);
+                if (e.target.checked && linkedRepos.length === 1) {
+                  setSelectedRepo({
+                    owner: linkedRepos[0].owner,
+                    repo: linkedRepos[0].repo,
+                  });
+                }
+                if (!e.target.checked) {
+                  setSelectedRepo(null);
+                }
+              }}
+              label="Also create GitHub issue"
+            />
 
             {createOnGitHub && linkedRepos.length > 1 && (
-              <select
+              <Select
                 aria-label="GitHub repository"
                 value={selectedRepo ? `${selectedRepo.owner}/${selectedRepo.repo}` : ''}
                 onChange={(e) => {
                   const [owner, repo] = e.target.value.split('/');
                   setSelectedRepo(owner && repo ? { owner, repo } : null);
                 }}
-                className="input"
               >
                 <option value="">Select repository</option>
                 {linkedRepos.map((r) => (
@@ -246,19 +205,19 @@ export function TaskModal({
                     {r.owner}/{r.repo}
                   </option>
                 ))}
-              </select>
+              </Select>
             )}
           </div>
         )}
 
         {/* Actions */}
         <div className="flex justify-end space-x-3 pt-4">
-          <button type="button" onClick={onClose} className="btn btn-secondary">
+          <Button variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button type="submit" disabled={isLoading || !title.trim()} className="btn btn-primary">
+          </Button>
+          <Button type="submit" disabled={!title.trim()} loading={isLoading}>
             {isLoading ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Task'}
-          </button>
+          </Button>
         </div>
       </form>
     </Dialog>

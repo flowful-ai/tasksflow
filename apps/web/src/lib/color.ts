@@ -101,13 +101,34 @@ const PROJECT_COLORS = [
   '#65a30d',
 ];
 
+/** 32-bit FNV-1a: spreads similar ids (sequential uuids) across a palette. */
+function fnv1a(value: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+}
+
 /** Stable colour per project (projects have no colour of their own). */
 export function projectColor(projectId: string): string {
-  // FNV-1a: spreads similar uuids across the palette.
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < projectId.length; i++) {
-    hash ^= projectId.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return PROJECT_COLORS[hash % PROJECT_COLORS.length] ?? PROJECT_COLORS[0];
+  return PROJECT_COLORS[fnv1a(projectId) % PROJECT_COLORS.length] ?? PROJECT_COLORS[0];
+}
+
+// Dark enough for white initials at 9–10px (≥ 4.5:1).
+const AVATAR_COLORS = [
+  '#6d28d9',
+  '#0e7490',
+  '#c2410c',
+  '#15803d',
+  '#1d4ed8',
+  '#be185d',
+  '#4338ca',
+  '#0f766e',
+];
+
+/** Stable initials-avatar background for a user id. */
+export function avatarColor(id: string): string {
+  return AVATAR_COLORS[fnv1a(id) % AVATAR_COLORS.length] ?? AVATAR_COLORS[0];
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
+import { Button, Textarea } from '../../ui';
 import { Markdown } from './Markdown';
 
 interface TitleProps {
@@ -40,7 +41,8 @@ export function TaskTitle({ title, readOnly = false, onSave }: TitleProps) {
 
   if (editing) {
     return (
-      <textarea
+      <Textarea
+        bare
         ref={inputRef}
         aria-label="Task title"
         data-escape-cancels
@@ -111,8 +113,9 @@ export function TaskDescription({ description, readOnly = false, onSave }: Descr
   if (editing && !readOnly) {
     return (
       <div className="space-y-2">
-        <textarea
+        <Textarea
           ref={inputRef}
+          size="sm"
           aria-label="Description (markdown)"
           data-escape-cancels
           value={draft}
@@ -128,19 +131,15 @@ export function TaskDescription({ description, readOnly = false, onSave }: Descr
             }
           }}
           placeholder="Add a description… (markdown supported)"
-          className="min-h-[140px] w-full resize-y rounded-lg border border-primary-300 px-3 py-2 text-base focus:border-primary-500 focus:ring-2 focus:ring-primary-500 md:text-sm"
+          className="min-h-[140px] resize-y !border-primary-300"
         />
         <div className="flex justify-end gap-2">
-          <button type="button" className="btn btn-ghost px-3 py-1.5 text-sm" onClick={cancel}>
+          <Button variant="ghost" size="sm" onClick={cancel}>
             Cancel
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary px-3 py-1.5 text-sm"
-            onClick={() => void save()}
-          >
+          </Button>
+          <Button size="sm" onClick={() => void save()}>
             Save
-          </button>
+          </Button>
         </div>
       </div>
     );
