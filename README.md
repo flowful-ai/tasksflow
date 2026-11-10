@@ -183,7 +183,6 @@ Production is one image (`apps/api/Dockerfile`: API bundle, built SPA and migrat
 
 - [docs/deploy.md](docs/deploy.md): Dokploy deployment, health checks, scaling, shutdown.
 - [docs/backup-restore.md](docs/backup-restore.md): backups and a restore drill.
-- [docs/v2-upgrade.md](docs/v2-upgrade.md): upgrading a v1 installation.
 
 ## Documentation
 

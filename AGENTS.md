@@ -56,11 +56,9 @@
 ## MCP OAuth Rules
 
 - MCP auth is OAuth-only for the MCP endpoint (`/api/mcp`, alias `/api/mcp/sse`) and `/api/mcp/tools`.
-- Do not introduce or re-enable static bearer token (`ft_v1_*`) auth for MCP runtime routes.
-- The legacy `/api/mcp/sse/stream` and `/api/mcp/sse/message` endpoints stay disabled (410).
+- Do not introduce static bearer token auth for MCP runtime routes.
 - Workspace role gate for MCP OAuth authorization/management is `owner` or `admin` only.
-- Legacy workspace agent token routes (`/api/workspaces/:workspaceId/agents`) are deprecated and must remain hard-disabled with explicit deprecation responses (410).
-- The settings page at `/settings/workspace/mcp-connections` (`/settings/workspace/agents` redirects there) is for MCP OAuth connection management (list/edit scopes/revoke), not token creation/regeneration.
+- The settings page at `/settings/workspace/mcp-connections` is for MCP OAuth connection management (list/edit scopes/revoke), not token creation/regeneration.
 - Tool output must wrap user- or GitHub-authored text with `untrusted()` (`{ untrusted_text }`).
 
 ## Agent Output Contract (Token-Efficient)

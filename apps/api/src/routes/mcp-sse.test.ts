@@ -104,8 +104,10 @@ describe('MCP HTTP routes', () => {
     expect(response.status).toBe(401);
   });
 
-  it('keeps the legacy split SSE endpoints disabled', async () => {
-    expect((await app.request('http://localhost/api/mcp/sse/stream')).status).toBe(410);
+  it('no longer serves the removed split SSE endpoints', async () => {
+    expect((await app.request('http://localhost/api/mcp/sse/stream')).status).toBe(404);
+    const message = await app.request('http://localhost/api/mcp/sse/message', { method: 'POST' });
+    expect(message.status).toBe(404);
   });
 
   it('rejects requests over the per-IP limit', async () => {

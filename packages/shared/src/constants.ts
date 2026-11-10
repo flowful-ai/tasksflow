@@ -133,13 +133,3 @@ export const REALTIME_EVENTS = {
   MEMBER_JOINED: 'member:joined',
   MEMBER_LEFT: 'member:left',
 } as const;
-
-// Backwards compatibility alias (deprecated)
-export const WS_EVENTS = {
-  ...REALTIME_EVENTS,
-  // Legacy client->server events (no longer used with SSE)
-  SUBSCRIBE: 'subscribe',
-  UNSUBSCRIBE: 'unsubscribe',
-  PING: 'ping',
-  PONG: 'pong',
-} as const;
