@@ -80,7 +80,6 @@ Cross-instance realtime uses Postgres `LISTEN/NOTIFY` on the same connection set
 - Database shell: `docker compose -f docker-compose.prod.yml exec postgres psql -U flowtask flowtask`.
 - Pending jobs: `SELECT type, attempts, last_error, run_at FROM jobs WHERE done_at IS NULL AND failed_at IS NULL ORDER BY run_at;`
 - Backups and restores: [backup-restore.md](backup-restore.md).
-- Upgrading from v1: [v2-upgrade.md](v2-upgrade.md).
 
 ## Without Dokploy
 

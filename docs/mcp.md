@@ -4,12 +4,11 @@ FlowTask exposes its tasks to MCP clients (Claude Code, Claude Desktop, Cursor, 
 
 ## Endpoint
 
-| Path                                          | Use                                                                                                                  |
-| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `POST /api/mcp`                               | Canonical MCP endpoint: Streamable HTTP, stateless (no session id), JSON-RPC over `POST`. `GET`/`DELETE` return 405. |
-| `POST /api/mcp/sse`                           | Alias for clients configured before v2. Same server, same tokens.                                                    |
-| `GET /api/mcp/tools`                          | The tools granted to the presented token, as JSON (convenience; authenticated).                                      |
-| `/api/mcp/sse/stream`, `/api/mcp/sse/message` | Removed split-SSE transport: 410 Gone.                                                                               |
+| Path                 | Use                                                                                                                  |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/mcp`      | Canonical MCP endpoint: Streamable HTTP, stateless (no session id), JSON-RPC over `POST`. `GET`/`DELETE` return 405. |
+| `POST /api/mcp/sse`  | Alias of `/api/mcp` for clients already configured with this URL. Same server, same tokens.                          |
+| `GET /api/mcp/tools` | The tools granted to the presented token, as JSON (convenience; authenticated).                                      |
 
 Requests are rate limited per client IP: 120 per minute on the MCP endpoint, 30 per minute on the token and revoke endpoints, 10 per minute on client registration.
 
