@@ -10,7 +10,7 @@ bun apps/api/scripts/list-routes.ts --tsv              # one route per line
 Re-run it after changing routes and paste the tables below the "Endpoints" heading. The script reads `apps/api/src/app.ts` (mount prefixes, and whether a router is mounted before the session middleware) and each router in `apps/api/src/routes/`. Its columns are heuristics over the source:
 
 - **Auth**: `session` = a Better Auth session cookie (sign in through `/api/auth/*`); `none` = public; `MCP OAuth bearer` = an MCP access token (see [mcp.md](mcp.md)); `signature (HMAC)` = verified webhook signature; `session (app manager)` = an app manager account.
-- **Permission**: the workspace permission the handler checks (`auth/permissions.ts`), `smart view <action>` for smart-view access rules, `owner or admin` for role checks, `gone (410)` for removed endpoints. `-` means only authentication (or ownership of the resource, such as your own notifications) is checked; the project ACL applies on top wherever a project or task is involved.
+- **Permission**: the workspace permission the handler checks (`auth/permissions.ts`), `smart view <action>` for smart-view access rules, `owner or admin` for role checks. `-` means only authentication (or ownership of the resource, such as your own notifications) is checked; the project ACL applies on top wherever a project or task is involved.
 - **Body**: the Zod schema the JSON body is validated with (most live in `packages/shared/src/types/`).
 
 ## Conventions
@@ -102,13 +102,11 @@ Re-run it after changing routes and paste the tables below the "Endpoints" headi
 
 ### `routes/mcp-sse.ts`
 
-| Method | Path                   | Auth             | Permission   | Body |
-| ------ | ---------------------- | ---------------- | ------------ | ---- |
-| ALL    | `/api/mcp`             | MCP OAuth bearer | -            | -    |
-| ALL    | `/api/mcp/sse`         | MCP OAuth bearer | -            | -    |
-| GET    | `/api/mcp/tools`       | MCP OAuth bearer | -            | -    |
-| GET    | `/api/mcp/sse/stream`  | none             | `gone (410)` | -    |
-| POST   | `/api/mcp/sse/message` | none             | `gone (410)` | -    |
+| Method | Path             | Auth             | Permission | Body |
+| ------ | ---------------- | ---------------- | ---------- | ---- |
+| ALL    | `/api/mcp`       | MCP OAuth bearer | -          | -    |
+| ALL    | `/api/mcp/sse`   | MCP OAuth bearer | -          | -    |
+| GET    | `/api/mcp/tools` | MCP OAuth bearer | -          | -    |
 
 ### `routes/mcp-oauth.ts`
 
@@ -225,13 +223,6 @@ Re-run it after changing routes and paste the tables below the "Endpoints" headi
 | GET    | `/api/projects/:projectId/members`         | session | `project:read`                                     | -                                |
 | PUT    | `/api/projects/:projectId/members`         | session | `project:update`                                   | `inline zod schema`              |
 
-### `routes/workspace-agents.ts`
-
-| Method | Path                                    | Auth | Permission   | Body |
-| ------ | --------------------------------------- | ---- | ------------ | ---- |
-| ALL    | `/api/workspaces/:workspaceId/agents`   | none | `gone (410)` | -    |
-| ALL    | `/api/workspaces/:workspaceId/agents/*` | none | `gone (410)` | -    |
-
 ### `routes/workspace-api-keys.ts`
 
 | Method | Path                                              | Auth    | Permission                  | Body                              |
@@ -317,7 +308,7 @@ Re-run it after changing routes and paste the tables below the "Endpoints" headi
 | GET    | `/api/app/users`              | session (app manager) | -          | -                         |
 | PATCH  | `/api/app/users/:userId/role` | session (app manager) | -          | `UpdateAppUserRoleSchema` |
 
-162 routes.
+158 routes.
 
 ## Notes
 

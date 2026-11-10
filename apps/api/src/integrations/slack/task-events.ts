@@ -1,4 +1,3 @@
-import { webApi } from '@slack/bolt';
 import { getDatabase, type Database } from '../../db/index.js';
 import {
   comments,
@@ -22,6 +21,7 @@ import { getWebUrl } from '../env.js';
 import type { TaskNotification } from '../types.js';
 import { createSlackClient, getEnvSlackBotToken, type SlackClient } from './client.js';
 import { SlackNotifier } from './notify.js';
+import { SlackApiError } from './web-api.js';
 
 interface SlackTaskEventBase {
   taskId: string;
@@ -49,10 +49,6 @@ export type SlackDeliveryOutcome = 'sent' | 'skipped';
 
 export interface SlackDeliveryDeps {
   createClient?: (botToken: string) => SlackClient;
-}
-
-function isSlackPlatformError(error: unknown): error is Error & { code: string } {
-  return error instanceof Error && 'code' in error && error.code === webApi.ErrorCode.PlatformError;
 }
 
 async function userName(db: Database, userId: string | null | undefined): Promise<string | null> {
@@ -158,7 +154,7 @@ export async function deliverSlackTaskEvent(
     await new SlackNotifier(client, config.channelId).sendTaskNotification(notification);
   } catch (error) {
     // channel_not_found, not_in_channel, invalid_auth, ... won't succeed on retry.
-    if (isSlackPlatformError(error)) {
+    if (error instanceof SlackApiError) {
       throw new NonRetryableError(error.message, { cause: error });
     }
     throw error;

@@ -5,7 +5,7 @@ import { CommentService } from '../domain/index.js';
 import { CreateCommentSchema, UpdateCommentSchema, PaginationQuerySchema } from '@flowtask/shared';
 import { hasPermission } from '../auth/index.js';
 import { requireTask } from '../lib/authorize.js';
-import { fromResult, handleRouteError, notFound } from '../lib/responses.js';
+import { fromResult, handleRouteError, notFound, validationHook } from '../lib/responses.js';
 
 const comments = new Hono();
 comments.onError(handleRouteError);
@@ -23,25 +23,29 @@ async function loadTaskComment(taskId: string, commentId: string) {
 }
 
 // List comments for a task
-comments.get('/:taskId/comments', zValidator('query', PaginationQuerySchema), async (c) => {
-  const { task } = await requireTask(c, c.req.param('taskId'), 'comment:read');
-  const { page, limit } = c.req.valid('query');
+comments.get(
+  '/:taskId/comments',
+  zValidator('query', PaginationQuerySchema, validationHook),
+  async (c) => {
+    const { task } = await requireTask(c, c.req.param('taskId'), 'comment:read');
+    const { page, limit } = c.req.valid('query');
 
-  const result = fromResult(await commentService.list({ taskId: task.id, page, limit }), {
-    code: 'LIST_FAILED',
-    message: 'Failed to list comments',
-  });
+    const result = fromResult(await commentService.list({ taskId: task.id, page, limit }), {
+      code: 'LIST_FAILED',
+      message: 'Failed to list comments',
+    });
 
-  return c.json({
-    success: true,
-    data: result.comments,
-    meta: {
-      total: result.total,
-      page,
-      limit,
-    },
-  });
-});
+    return c.json({
+      success: true,
+      data: result.comments,
+      meta: {
+        total: result.total,
+        page,
+        limit,
+      },
+    });
+  }
+);
 
 // Get comment count for a task. Registered before '/:commentId' so that
 // "count" is not captured as a comment id.
@@ -55,22 +59,26 @@ comments.get('/:taskId/comments/count', async (c) => {
 });
 
 // Create a comment on a task
-comments.post('/:taskId/comments', zValidator('json', CreateCommentSchema), async (c) => {
-  const { task, user } = await requireTask(c, c.req.param('taskId'), 'comment:create');
-  const data = c.req.valid('json');
+comments.post(
+  '/:taskId/comments',
+  zValidator('json', CreateCommentSchema, validationHook),
+  async (c) => {
+    const { task, user } = await requireTask(c, c.req.param('taskId'), 'comment:create');
+    const data = c.req.valid('json');
 
-  const comment = fromResult(
-    await commentService.create({ taskId: task.id, userId: user.id, content: data.content }),
-    {
-      status: 400,
-      code: 'CREATE_FAILED',
-      message: 'Failed to create comment',
-    }
-  );
+    const comment = fromResult(
+      await commentService.create({ taskId: task.id, userId: user.id, content: data.content }),
+      {
+        status: 400,
+        code: 'CREATE_FAILED',
+        message: 'Failed to create comment',
+      }
+    );
 
-  // Realtime, GitHub comment sync, Slack and mentions run off the comment.created domain event.
-  return c.json({ success: true, data: comment }, 201);
-});
+    // Realtime, GitHub comment sync, Slack and mentions run off the comment.created domain event.
+    return c.json({ success: true, data: comment }, 201);
+  }
+);
 
 // Get a specific comment
 comments.get('/:taskId/comments/:commentId', async (c) => {
@@ -82,7 +90,7 @@ comments.get('/:taskId/comments/:commentId', async (c) => {
 // Update a comment (author only, enforced by CommentService)
 comments.patch(
   '/:taskId/comments/:commentId',
-  zValidator('json', UpdateCommentSchema),
+  zValidator('json', UpdateCommentSchema, validationHook),
   async (c) => {
     const { task, user } = await requireTask(c, c.req.param('taskId'), 'comment:update');
     const existing = await loadTaskComment(task.id, c.req.param('commentId'));

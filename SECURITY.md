@@ -8,10 +8,10 @@ Report it privately through GitHub: **Security → Report a vulnerability** on <
 
 ## Supported versions
 
-| Version                    | Supported                                                 |
-| -------------------------- | --------------------------------------------------------- |
-| 2.x (`v2` branch / `main`) | Yes                                                       |
-| 1.x                        | No: upgrade with [docs/v2-upgrade.md](docs/v2-upgrade.md) |
+| Version                    | Supported |
+| -------------------------- | --------- |
+| 2.x (`v2` branch / `main`) | Yes       |
+| 1.x                        | No        |
 
 Fixes land on the latest release only. Self-hosters should redeploy from the latest commit.
 

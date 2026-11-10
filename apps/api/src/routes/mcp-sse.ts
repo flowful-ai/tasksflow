@@ -92,18 +92,6 @@ function methodNotAllowedResponse(c: Context): Response {
   );
 }
 
-function legacySseDeprecatedResponse(c: Context): Response {
-  return c.json(
-    {
-      error: 'Gone',
-      code: 'MCP_LEGACY_SSE_DEPRECATED',
-      message: 'Legacy SSE endpoints are deprecated and disabled.',
-      hint: 'Use POST /api/mcp (Streamable HTTP).',
-    },
-    410
-  );
-}
-
 function rateLimited(c: Context): Response {
   return c.json(
     { error: 'rate_limited', error_description: 'Too many MCP requests, retry later' },
@@ -133,8 +121,5 @@ mcpSse.get('/tools', rateLimit, mcpAuth, (c) => {
   const ctx = contextFor(c.get('mcpAuth'));
   return c.json({ success: true, data: listToolDefinitions(ctx.grantedTools) });
 });
-
-mcpSse.get('/sse/stream', (c) => legacySseDeprecatedResponse(c));
-mcpSse.post('/sse/message', (c) => legacySseDeprecatedResponse(c));
 
 export { mcpSse as mcpSseRoutes };
