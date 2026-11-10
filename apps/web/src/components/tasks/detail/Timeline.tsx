@@ -6,7 +6,7 @@
  */
 import { useMemo, useState, type ReactNode } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Bot, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { commentsApi } from '../../../api/tasks';
 import { queryKeys } from '../../../api/queryKeys';
 import type { CommentDto, HistoryDisplayValueDto, TaskHistoryItemDto } from '../../../api/types';
@@ -250,7 +250,7 @@ function CommentCard({ comment, taskId, currentUserId, canModerate, members }: C
     meta: { errorMessage: 'Could not update the comment' },
   });
 
-  const author = comment.agent?.name || comment.user?.name || comment.user?.email || 'Unknown user';
+  const author = comment.user?.name || comment.user?.email || 'Unknown user';
   const isOwn = Boolean(currentUserId) && comment.userId === currentUserId;
   const edited = comment.updatedAt && comment.updatedAt !== comment.createdAt;
 
@@ -261,29 +261,15 @@ function CommentCard({ comment, taskId, currentUserId, canModerate, members }: C
         className="rounded-xl border border-neutral-200 bg-white px-3 py-2.5 shadow-card"
       >
         <header className="mb-1 flex items-center gap-2 text-[13px]">
-          {comment.agent ? (
-            <span
-              aria-hidden
-              className="grid h-5 w-5 place-items-center rounded-full bg-purple-100 text-purple-700"
-            >
-              <Bot className="h-3 w-3" />
-            </span>
-          ) : (
-            comment.user && (
-              <Avatar
-                src={comment.user.avatarUrl}
-                name={comment.user.name}
-                email={comment.user.email}
-                size="xs"
-              />
-            )
+          {comment.user && (
+            <Avatar
+              src={comment.user.avatarUrl}
+              name={comment.user.name}
+              email={comment.user.email}
+              size="xs"
+            />
           )}
           <b className="font-semibold text-neutral-900">{author}</b>
-          {comment.agent && (
-            <span className="rounded-sm bg-purple-100 px-1.5 text-[11px] font-medium text-purple-700">
-              Agent
-            </span>
-          )}
           <span className="text-neutral-400">
             ·{' '}
             <time dateTime={comment.createdAt} title={formatDateTime(comment.createdAt)}>

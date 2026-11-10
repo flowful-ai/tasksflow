@@ -46,7 +46,6 @@ function task(id: string, state: TaskStateDto, position: string): TaskDto {
     assignees: [],
     labels: [],
     project: { id: 'p1', identifier: 'TF', name: 'Web' },
-    agent: null,
     externalLinks: [],
   };
 }

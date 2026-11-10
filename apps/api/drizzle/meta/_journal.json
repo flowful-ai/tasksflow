@@ -120,6 +120,20 @@
       "when": 1794217065799,
       "tag": "0016_v2",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794335249881,
+      "tag": "0017_drop_agent_id_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794335250409,
+      "tag": "0018_drop_workspace_agents",
+      "breakpoints": true
     }
   ]
 }

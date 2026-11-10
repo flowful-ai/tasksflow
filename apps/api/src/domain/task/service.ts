@@ -24,7 +24,6 @@ import {
   taskRelations,
   projects,
   externalLinks,
-  workspaceAgents,
 } from '../../db/index.js';
 import { parseTaskKey, ok, err } from '@flowtask/shared';
 import type { JsonValue, Result } from '@flowtask/shared';
@@ -347,7 +346,6 @@ export class TaskService {
             dueDate: input.dueDate || null,
             startDate: input.startDate || null,
             createdBy: input.createdBy,
-            agentId: input.agentId || null,
           })
           .returning({ id: tasks.id });
         if (!task) throw new Error('Failed to create task');
@@ -420,7 +418,6 @@ export class TaskService {
       .from(tasks)
       .leftJoin(taskStates, eq(tasks.stateId, taskStates.id))
       .innerJoin(projects, eq(tasks.projectId, projects.id))
-      .leftJoin(workspaceAgents, eq(tasks.agentId, workspaceAgents.id))
       .where(and(...conditions));
     const [task] = await hydrateTasks(db, rows);
     if (!task) throw new TaskError('TASK_NOT_FOUND', 'Task not found', [taskId]);
@@ -1047,7 +1044,6 @@ export class TaskService {
         .from(tasks)
         .leftJoin(taskStates, eq(tasks.stateId, taskStates.id))
         .innerJoin(projects, eq(tasks.projectId, projects.id))
-        .leftJoin(workspaceAgents, eq(tasks.agentId, workspaceAgents.id))
         .$dynamic();
       if (needsAssigneeJoin)
         taskQuery = taskQuery.leftJoin(taskAssignees, eq(tasks.id, taskAssignees.taskId));

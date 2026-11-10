@@ -50,7 +50,6 @@ const TASK_CUSTOM_FIELDS = [
   'dueDate',
   'startDate',
   'createdBy',
-  'agentId',
   'createdAt',
   'updatedAt',
   'deletedAt',
@@ -58,7 +57,6 @@ const TASK_CUSTOM_FIELDS = [
   'project',
   'assignees',
   'labels',
-  'agent',
   'externalLinks',
 ] as const;
 
@@ -71,7 +69,6 @@ const RELATION_FIELD_FLAGS: Record<
   externalLinks: 'includeExternalLinks',
   state: null,
   project: null,
-  agent: null,
 };
 
 export type TaskProjectionOptions = McpTaskViewArgs;
@@ -128,7 +125,6 @@ function modelTask(task: TaskWithRelations): ToolOutput {
     dueDate: task.dueDate,
     startDate: task.startDate,
     createdBy: task.createdBy,
-    agentId: task.agentId,
     createdAt: task.createdAt,
     updatedAt: task.updatedAt,
     deletedAt: task.deletedAt,
@@ -138,7 +134,6 @@ function modelTask(task: TaskWithRelations): ToolOutput {
     project: task.project,
     assignees: task.assignees.map(summarizeUser),
     labels: task.labels.map((label) => ({ id: label.id, name: label.name, color: label.color })),
-    agent: task.agent,
     externalLinks: task.externalLinks,
   };
 }

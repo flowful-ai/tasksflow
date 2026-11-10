@@ -1,7 +1,7 @@
 import { domainEvents } from '../events/bus.js';
 import { eq, and, isNull, desc, sql } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
-import { comments, projects, tasks, users, taskEvents, workspaceAgents } from '../../db/index.js';
+import { comments, projects, tasks, users, taskEvents } from '../../db/index.js';
 import type { Result } from '@flowtask/shared';
 import { ok, err } from '@flowtask/shared';
 import type {
@@ -105,7 +105,6 @@ export class CommentService {
           .values({
             taskId: input.taskId,
             userId: input.userId,
-            agentId: input.agentId || null,
             content: input.content,
             externalCommentId: input.externalCommentId || null,
           })
@@ -156,7 +155,7 @@ export class CommentService {
   }
 
   /**
-   * Get a comment by ID with user and agent info.
+   * Get a comment by ID with user info.
    */
   async getById(commentId: string): Promise<Result<CommentWithUser, Error>> {
     try {
@@ -178,20 +177,14 @@ export class CommentService {
       .select({
         comment: comments,
         user: users,
-        agent: {
-          id: workspaceAgents.id,
-          name: workspaceAgents.name,
-        },
       })
       .from(comments)
       .leftJoin(users, eq(comments.userId, users.id))
-      .leftJoin(workspaceAgents, eq(comments.agentId, workspaceAgents.id))
       .where(eq(comments.id, commentId));
     if (!result) return null;
     return {
       ...result.comment,
       user: result.user,
-      agent: result.agent?.id ? result.agent : null,
     };
   }
 
@@ -295,19 +288,14 @@ export class CommentService {
 
       const total = countResult?.count ?? 0;
 
-      // Get comments with users and agents
+      // Get comments with users
       const results = await this.db
         .select({
           comment: comments,
           user: users,
-          agent: {
-            id: workspaceAgents.id,
-            name: workspaceAgents.name,
-          },
         })
         .from(comments)
         .leftJoin(users, eq(comments.userId, users.id))
-        .leftJoin(workspaceAgents, eq(comments.agentId, workspaceAgents.id))
         .where(whereClause)
         .orderBy(desc(comments.createdAt))
         .limit(limit)
@@ -316,7 +304,6 @@ export class CommentService {
       const commentsWithUsers: CommentWithUser[] = results.map((r) => ({
         ...r.comment,
         user: r.user,
-        agent: r.agent?.id ? r.agent : null,
       }));
 
       return ok({ comments: commentsWithUsers, total });
@@ -352,14 +339,9 @@ export class CommentService {
         .select({
           comment: comments,
           user: users,
-          agent: {
-            id: workspaceAgents.id,
-            name: workspaceAgents.name,
-          },
         })
         .from(comments)
         .leftJoin(users, eq(comments.userId, users.id))
-        .leftJoin(workspaceAgents, eq(comments.agentId, workspaceAgents.id))
         .where(eq(comments.externalCommentId, externalCommentId));
 
       if (!result) {
@@ -369,7 +351,6 @@ export class CommentService {
       return ok({
         ...result.comment,
         user: result.user,
-        agent: result.agent?.id ? result.agent : null,
       });
     } catch (error) {
       return err(toError(error));

@@ -218,7 +218,6 @@ export const tasks = pgTable(
     dueDate: timestamp('due_date'),
     startDate: timestamp('start_date'),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
-    agentId: uuid('agent_id').references(() => workspaceAgents.id, { onDelete: 'set null' }), // Agent that created this task (if any)
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
     deletedAt: timestamp('deleted_at'), // Soft delete
@@ -371,7 +370,6 @@ export const comments = pgTable(
       .references(() => tasks.id, { onDelete: 'cascade' })
       .notNull(),
     userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
-    agentId: uuid('agent_id').references(() => workspaceAgents.id, { onDelete: 'set null' }), // Agent that created this comment (if any)
     content: text('content').notNull(), // Markdown
     externalCommentId: text('external_comment_id'), // GitHub comment ID for synced comments
     createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -515,52 +513,6 @@ export const agents = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [index('agent_workspace_idx').on(table.workspaceId)]
-);
-
-// ============ WORKSPACE AGENTS (MCP API Tokens) ============
-
-export const workspaceAgents = pgTable(
-  'workspace_agents',
-  {
-    id: uuid('id').primaryKey().defaultRandom(),
-
-    // Scope
-    workspaceId: uuid('workspace_id')
-      .references(() => workspaces.id, { onDelete: 'cascade' })
-      .notNull(),
-    restrictedProjectIds: jsonb('restricted_project_ids'), // null = all projects in workspace
-
-    // Identity
-    name: text('name').notNull(),
-    description: text('description'),
-
-    // Authentication
-    tokenHash: text('token_hash').notNull(), // bcrypt hash
-    tokenPrefix: text('token_prefix').notNull(), // 12 chars for lookup (after ft_v1_)
-    lastUsedAt: timestamp('last_used_at'),
-
-    // Permissions (array of allowed MCP tool names)
-    permissions: jsonb('permissions').notNull().default('[]'),
-
-    // Daily token budget (legacy: these token agents no longer authenticate)
-    tokensPerDay: integer('tokens_per_day').default(100000).notNull(),
-    currentDayTokens: integer('current_day_tokens').default(0).notNull(),
-    lastTokenReset: timestamp('last_token_reset').defaultNow(),
-
-    // Status
-    isActive: boolean('is_active').default(true).notNull(),
-    expiresAt: timestamp('expires_at'),
-
-    // Audit
-    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
-    createdAt: timestamp('created_at').defaultNow().notNull(),
-    updatedAt: timestamp('updated_at').defaultNow().notNull(),
-  },
-  (table) => [
-    index('workspace_agent_workspace_idx').on(table.workspaceId),
-    index('workspace_agent_prefix_idx').on(table.tokenPrefix),
-    index('workspace_agent_expires_idx').on(table.expiresAt),
-  ]
 );
 
 // ============ MCP OAUTH ============
@@ -1084,9 +1036,6 @@ export type NewVerificationToken = typeof verificationTokens.$inferInsert;
 
 export type Account = typeof accounts.$inferSelect;
 export type NewAccount = typeof accounts.$inferInsert;
-
-export type WorkspaceAgent = typeof workspaceAgents.$inferSelect;
-export type NewWorkspaceAgent = typeof workspaceAgents.$inferInsert;
 
 export type McpOAuthClient = typeof mcpOAuthClients.$inferSelect;
 export type NewMcpOAuthClient = typeof mcpOAuthClients.$inferInsert;

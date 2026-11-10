@@ -6,7 +6,6 @@ import {
   workspaceInvitations,
   projects,
   projectIntegrations,
-  workspaceAgents,
   mcpOAuthClients,
   mcpOAuthConsents,
   mcpOAuthAuthorizationCodes,
@@ -58,7 +57,6 @@ export const workspacesRelations = relations(workspaces, ({ many }) => ({
   projects: many(projects),
   smartViews: many(smartViews),
   agents: many(agents),
-  workspaceAgents: many(workspaceAgents),
   mcpOAuthConsents: many(mcpOAuthConsents),
   mcpOAuthAuthorizationCodes: many(mcpOAuthAuthorizationCodes),
   mcpOAuthAccessTokens: many(mcpOAuthAccessTokens),
@@ -105,18 +103,6 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   tasks: many(tasks),
   labels: many(labels),
   members: many(projectMembers),
-}));
-
-// Workspace agent relations
-export const workspaceAgentsRelations = relations(workspaceAgents, ({ one }) => ({
-  workspace: one(workspaces, {
-    fields: [workspaceAgents.workspaceId],
-    references: [workspaces.id],
-  }),
-  createdBy: one(users, {
-    fields: [workspaceAgents.createdBy],
-    references: [users.id],
-  }),
 }));
 
 // MCP OAuth relations
@@ -227,10 +213,6 @@ export const tasksRelations = relations(tasks, ({ one, many }) => ({
     fields: [tasks.createdBy],
     references: [users.id],
   }),
-  agent: one(workspaceAgents, {
-    fields: [tasks.agentId],
-    references: [workspaceAgents.id],
-  }),
   assignees: many(taskAssignees),
   labels: many(taskLabels),
   comments: many(comments),
@@ -304,10 +286,6 @@ export const commentsRelations = relations(comments, ({ one }) => ({
   user: one(users, {
     fields: [comments.userId],
     references: [users.id],
-  }),
-  agent: one(workspaceAgents, {
-    fields: [comments.agentId],
-    references: [workspaceAgents.id],
   }),
 }));
 

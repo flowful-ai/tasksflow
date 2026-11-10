@@ -139,7 +139,6 @@ const addComment: ToolHandler = async (args, ctx, services) => {
       taskId: task.id,
       content: requiredString(args, 'content'),
       userId: ctx.userId,
-      agentId: null,
       mcpClientId: ctx.mcpClientId,
     })
   );

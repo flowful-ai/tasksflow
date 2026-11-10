@@ -31,7 +31,6 @@ function fakeTask(): TaskWithRelations {
     dueDate: now,
     startDate: null,
     createdBy: null,
-    agentId: null,
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
@@ -58,7 +57,6 @@ function fakeTask(): TaskWithRelations {
     ],
     labels: [{ id: 'l1', projectId: 'p', name: 'bug', color: '#f00' }],
     project: { id: 'p', identifier: 'TF', name: 'Flow' },
-    agent: null,
     externalLinks: [],
   };
 }

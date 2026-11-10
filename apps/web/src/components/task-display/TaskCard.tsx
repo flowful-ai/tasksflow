@@ -52,10 +52,6 @@ interface TaskCardTask {
     identifier: string;
     name: string;
   };
-  agent?: {
-    id: string;
-    name: string;
-  } | null;
   sequenceNumber: number;
   updatedAt?: string | null;
 }
@@ -223,11 +219,7 @@ const TaskCardBody = memo(function TaskCardBody({
   }
 
   const hasMeta =
-    task.labels.length > 0 ||
-    links.length > 0 ||
-    task.dueDate ||
-    task.assignees.length > 0 ||
-    task.agent;
+    task.labels.length > 0 || links.length > 0 || task.dueDate || task.assignees.length > 0;
   return (
     <div className={clsx('flex flex-col gap-[7px]', isDone && 'opacity-60')}>
       <div className="flex items-center gap-1.5">
@@ -260,11 +252,6 @@ const TaskCardBody = memo(function TaskCardBody({
         <div className="flex flex-wrap items-center gap-1.5">
           <LabelPills labels={task.labels} max={3} />
           {links.length > 0 && <GitHubChip links={links} />}
-          {task.agent && (
-            <span className="inline-flex items-center rounded-full border border-neutral-200 px-1.5 text-[11.5px] text-neutral-600">
-              {task.agent.name}
-            </span>
-          )}
           <DueChip task={task} />
           <span className="ml-auto">
             <AvatarStack users={task.assignees} />

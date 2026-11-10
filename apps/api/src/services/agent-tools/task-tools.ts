@@ -101,7 +101,6 @@ const createTask: ToolHandler = async (args, ctx, services) => {
       projectId: project.id,
       ...fields,
       createdBy: ctx.userId,
-      agentId: null,
       mcpClientId: ctx.mcpClientId,
     })
   );
@@ -124,7 +123,6 @@ const bulkCreateTasks: ToolHandler = async (args, ctx, services) => {
           projectId: project.id,
           ...fields,
           createdBy: ctx.userId,
-          agentId: null,
           mcpClientId: ctx.mcpClientId,
         })
       );

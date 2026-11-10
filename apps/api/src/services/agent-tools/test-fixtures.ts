@@ -86,7 +86,6 @@ export function task(
     dueDate: null,
     startDate: null,
     createdBy: null,
-    agentId: null,
     createdAt: created,
     updatedAt: created,
     deletedAt: null,
@@ -95,7 +94,6 @@ export function task(
     project: { id: projectId, identifier: owner?.identifier ?? 'X', name: owner?.name ?? 'X' },
     assignees: [],
     labels: [],
-    agent: null,
     externalLinks: [],
   };
 }

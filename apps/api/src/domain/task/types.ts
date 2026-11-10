@@ -10,11 +10,6 @@ import type {
   JsonValue,
 } from '@flowtask/shared';
 
-export interface TaskAgent {
-  id: string;
-  name: string;
-}
-
 export interface TaskExternalLink {
   id: string;
   externalType: 'github_issue' | 'github_pr';
@@ -49,7 +44,6 @@ export interface TaskWithRelations extends TaskRow {
     /** Always set by TaskService (optional only for hand-built fixtures). */
     workspaceId?: string;
   };
-  agent: TaskAgent | null;
   externalLinks: TaskExternalLink[];
   // The fields below are always set by TaskService; they are optional in the
   // type only so that hand-built fixtures elsewhere keep compiling.
@@ -76,7 +70,6 @@ export interface TaskDetail extends TaskWithRelations {
 export interface TaskCreateInput extends CreateTask {
   projectId: string;
   createdBy: string | null;
-  agentId?: string | null;
   mcpClientId?: string | null;
   /** The task is created from GitHub (issue sync); tags its domain event with origin 'github'. */
   skipGitHubSync?: boolean;
