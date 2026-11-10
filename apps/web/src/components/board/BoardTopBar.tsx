@@ -138,7 +138,7 @@ export function BoardTopBar({
           key={chip.dimension}
           className={clsx(chipBase, 'border-primary-500 bg-primary-50 pr-1 text-primary-700')}
         >
-          <span className="max-w-[14rem] truncate">{chip.label}</span>
+          <span className="max-w-56 truncate">{chip.label}</span>
           <button
             type="button"
             aria-label={`Remove filter ${chip.label}`}
@@ -265,7 +265,7 @@ export function BoardTopBar({
           New
           <Kbd
             aria-hidden
-            className="hidden !border-neutral-600 !bg-transparent !text-neutral-300 md:inline-flex"
+            className="hidden border-neutral-600! bg-transparent! text-neutral-300! md:inline-flex"
           >
             C
           </Kbd>

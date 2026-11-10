@@ -1,5 +1,6 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 
 /**
@@ -20,7 +21,7 @@ function sonnerWithoutInlineCss(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [sonnerWithoutInlineCss(), react()],
+  plugins: [sonnerWithoutInlineCss(), react(), tailwindcss()],
   // Dev pre-bundling skips plugin transforms: keep sonner out of it.
   optimizeDeps: { exclude: ['sonner'] },
   // Load env files from monorepo root

@@ -475,7 +475,7 @@ export function AiSettings() {
               {AVAILABLE_PERMISSIONS.map((tool) => (
                 <label
                   key={tool.id}
-                  className="flex items-center gap-2 rounded border border-neutral-200 px-2 py-1.5 text-sm text-neutral-700"
+                  className="flex items-center gap-2 rounded-sm border border-neutral-200 px-2 py-1.5 text-sm text-neutral-700"
                 >
                   <Checkbox
                     checked={agentForm.tools.includes(tool.id)}

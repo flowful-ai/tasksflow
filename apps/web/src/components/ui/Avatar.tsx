@@ -49,7 +49,7 @@ const TONES: Record<AvatarTone, string> = {
   seeded: 'text-white',
   primary: 'bg-primary-100 text-primary-700',
   neutral: 'bg-neutral-200 text-neutral-600',
-  brand: 'bg-gradient-to-br from-primary-500 to-primary-600 text-white',
+  brand: 'bg-linear-to-br from-primary-500 to-primary-600 text-white',
 };
 
 export function Avatar({
@@ -121,7 +121,7 @@ export function AvatarStack({ users, max = 3, size = 'xs', className }: AvatarSt
         />
       ))}
       {users.length > max && (
-        <Avatar size={size} tone="neutral" ring className="!text-neutral-700">
+        <Avatar size={size} tone="neutral" ring className="text-neutral-700!">
           +{users.length - max}
         </Avatar>
       )}

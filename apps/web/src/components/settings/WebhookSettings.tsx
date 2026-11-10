@@ -181,7 +181,7 @@ function WebhookFormDialog({
               <label
                 key={event}
                 className={clsx(
-                  'flex items-center gap-2 rounded border border-neutral-200 px-2 py-1.5 text-sm',
+                  'flex items-center gap-2 rounded-sm border border-neutral-200 px-2 py-1.5 text-sm',
                   form.allEvents ? 'text-neutral-400' : 'text-neutral-700'
                 )}
               >
@@ -339,7 +339,9 @@ function Deliveries({ webhookId }: { webhookId: string }) {
                 <Badge shape="pill" tone={STATUS_TONES[d.status]} className="capitalize">
                   {d.status}
                 </Badge>
-                {d.error && <div className="mt-1 max-w-xs break-words text-red-700">{d.error}</div>}
+                {d.error && (
+                  <div className="mt-1 max-w-xs wrap-break-word text-red-700">{d.error}</div>
+                )}
               </td>
               <td className="px-3 py-2 text-neutral-700">{d.responseCode ?? '—'}</td>
               <td className="px-3 py-2 text-neutral-700">

@@ -283,13 +283,13 @@ function MultiSelect({
             )}
           </div>
           <ChevronDown
-            className={clsx('w-4 h-4 text-neutral-400 ml-2 flex-shrink-0', isOpen && 'rotate-180')}
+            className={clsx('w-4 h-4 text-neutral-400 ml-2 shrink-0', isOpen && 'rotate-180')}
           />
         </button>
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="w-[var(--radix-popover-trigger-width)] !p-0 overflow-hidden"
+        className="w-(--radix-popover-trigger-width) p-0! overflow-hidden"
       >
         <div className="max-h-48 overflow-y-auto">
           {options.map((opt) => {
@@ -349,7 +349,7 @@ function DateInput({ value, onChange }: { value: string; onChange: (v: string) =
           <ChevronDown className={clsx('w-4 h-4 text-neutral-400', isOpen && 'rotate-180')} />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-64 !p-0 overflow-hidden">
+      <PopoverContent align="start" className="w-64 p-0! overflow-hidden">
         <div className="p-2 border-b border-neutral-100">
           <p className="text-xs font-medium text-neutral-500 mb-2">Quick options</p>
           <div className="space-y-1">
@@ -359,7 +359,7 @@ function DateInput({ value, onChange }: { value: string; onChange: (v: string) =
                 type="button"
                 onClick={() => handleTemplateSelect(template.value)}
                 className={clsx(
-                  'w-full px-2 py-1.5 text-sm text-left rounded hover:bg-neutral-100',
+                  'w-full px-2 py-1.5 text-sm text-left rounded-sm hover:bg-neutral-100',
                   value === template.value && 'bg-primary-50 text-primary-700'
                 )}
               >
@@ -432,7 +432,7 @@ function UserSelect({
           <ChevronDown className={clsx('w-4 h-4 text-neutral-400', isOpen && 'rotate-180')} />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-64 !p-0 overflow-hidden">
+      <PopoverContent align="start" className="w-64 p-0! overflow-hidden">
         {/* Current user template */}
         <div className="border-b border-neutral-100">
           {USER_TEMPLATES.map((template) => (
@@ -573,11 +573,11 @@ function UserMultiSelect({
             )}
           </div>
           <ChevronDown
-            className={clsx('w-4 h-4 text-neutral-400 ml-2 flex-shrink-0', isOpen && 'rotate-180')}
+            className={clsx('w-4 h-4 text-neutral-400 ml-2 shrink-0', isOpen && 'rotate-180')}
           />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-64 !p-0 overflow-hidden">
+      <PopoverContent align="start" className="w-64 p-0! overflow-hidden">
         {/* Current user template */}
         <div className="border-b border-neutral-100">
           <button
@@ -676,7 +676,7 @@ function LabelSelect({
           <ChevronDown className={clsx('w-4 h-4 text-neutral-400', isOpen && 'rotate-180')} />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-56 !p-0 overflow-hidden">
+      <PopoverContent align="start" className="w-56 p-0! overflow-hidden">
         <div className="p-2 border-b border-neutral-100">
           <Input
             size="sm"
@@ -771,11 +771,11 @@ function LabelMultiSelect({
             )}
           </div>
           <ChevronDown
-            className={clsx('w-4 h-4 text-neutral-400 ml-2 flex-shrink-0', isOpen && 'rotate-180')}
+            className={clsx('w-4 h-4 text-neutral-400 ml-2 shrink-0', isOpen && 'rotate-180')}
           />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-56 !p-0 overflow-hidden">
+      <PopoverContent align="start" className="w-56 p-0! overflow-hidden">
         <div className="p-2 border-b border-neutral-100">
           <Input
             size="sm"

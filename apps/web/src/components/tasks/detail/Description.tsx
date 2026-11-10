@@ -35,7 +35,7 @@ export function TaskTitle({ title, readOnly = false, onSave }: TitleProps) {
 
   if (readOnly) {
     return (
-      <h2 className="text-xl font-semibold leading-snug text-neutral-900 sm:text-2xl">{title}</h2>
+      <h2 className="text-xl font-semibold leading-snug text-neutral-900 sm:text-2xl/8">{title}</h2>
     );
   }
 
@@ -61,13 +61,13 @@ export function TaskTitle({ title, readOnly = false, onSave }: TitleProps) {
             setEditing(false);
           }
         }}
-        className="-mx-2 w-[calc(100%+1rem)] resize-none rounded-lg border border-primary-300 px-2 py-1 text-xl font-semibold leading-snug text-neutral-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-500 sm:text-2xl"
+        className="-mx-2 w-[calc(100%+1rem)] resize-none rounded-lg border border-primary-300 px-2 py-1 text-xl font-semibold leading-snug text-neutral-900 focus:border-primary-500 focus:ring-2 focus:ring-primary-500 sm:text-2xl/8"
       />
     );
   }
 
   return (
-    <h2 className="text-xl font-semibold leading-snug text-neutral-900 sm:text-2xl">
+    <h2 className="text-xl font-semibold leading-snug text-neutral-900 sm:text-2xl/8">
       <button
         type="button"
         onClick={() => setEditing(true)}
@@ -131,7 +131,7 @@ export function TaskDescription({ description, readOnly = false, onSave }: Descr
             }
           }}
           placeholder="Add a description… (markdown supported)"
-          className="min-h-[140px] resize-y !border-primary-300"
+          className="min-h-[140px] resize-y border-primary-300!"
         />
         <div className="flex justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={cancel}>

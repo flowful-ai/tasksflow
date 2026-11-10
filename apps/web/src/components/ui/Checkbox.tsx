@@ -26,7 +26,7 @@ const TONES = {
 } as const;
 
 const BASE =
-  'h-4 w-4 shrink-0 cursor-pointer rounded border-neutral-300 disabled:cursor-not-allowed';
+  'h-4 w-4 shrink-0 cursor-pointer rounded-sm border-neutral-300 disabled:cursor-not-allowed';
 
 export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Checkbox(
   { label, description, labelClassName, tone = 'primary', className, ...rest },

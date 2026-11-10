@@ -180,7 +180,7 @@ export function GitHubSettings({ projectId }: GitHubSettingsProps) {
       {/* Header Card */}
       <Card>
         <div className="flex items-start gap-4">
-          <div className="w-12 h-12 bg-neutral-900 rounded-lg flex items-center justify-center flex-shrink-0">
+          <div className="w-12 h-12 bg-neutral-900 rounded-lg flex items-center justify-center shrink-0">
             <GithubIcon className="w-6 h-6 text-white" />
           </div>
           <div className="flex-1">
@@ -197,7 +197,7 @@ export function GitHubSettings({ projectId }: GitHubSettingsProps) {
             role="alert"
             className="mt-4 p-3 text-sm text-red-600 bg-red-50 rounded-lg flex items-start gap-2"
           >
-            <AlertCircle aria-hidden className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <AlertCircle aria-hidden className="w-4 h-4 mt-0.5 shrink-0" />
             <span>{error}</span>
           </div>
         )}
@@ -331,7 +331,7 @@ export function GitHubSettings({ projectId }: GitHubSettingsProps) {
                 setShowRepoSelector(false);
                 setSelectedInstallationId(null);
               }}
-              className="!font-normal text-neutral-500 hover:text-neutral-700 hover:no-underline"
+              className="font-normal! text-neutral-500 hover:text-neutral-700 hover:no-underline"
             >
               Cancel
             </Button>
@@ -345,7 +345,7 @@ export function GitHubSettings({ projectId }: GitHubSettingsProps) {
               <Button
                 variant="link"
                 onClick={() => void handleInstallGitHubApp()}
-                className="mt-2 !font-normal"
+                className="mt-2 font-normal!"
               >
                 Configure GitHub App permissions
               </Button>
@@ -414,7 +414,7 @@ export function GitHubSettings({ projectId }: GitHubSettingsProps) {
                 <Button
                   variant="link"
                   onClick={() => chooseInstallation(userInstallations[0].installationId)}
-                  className="gap-1 !font-normal"
+                  className="gap-1 font-normal!"
                 >
                   <Link2 aria-hidden className="w-3 h-3" />
                   Add Repository
@@ -422,7 +422,7 @@ export function GitHubSettings({ projectId }: GitHubSettingsProps) {
               ) : (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="link" className="gap-1 !font-normal">
+                    <Button variant="link" className="gap-1 font-normal!">
                       <Link2 aria-hidden className="w-3 h-3" />
                       Add Repository
                       <ChevronDown aria-hidden className="w-3 h-3" />

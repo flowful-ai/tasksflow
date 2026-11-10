@@ -246,7 +246,7 @@ export function Properties({
               : muted('Unassigned')
           }
           editorLabel="Change assignees"
-          editorClassName="w-64 !p-0 overflow-hidden"
+          editorClassName="w-64 p-0! overflow-hidden"
           editor={
             editable
               ? () => (
@@ -279,7 +279,7 @@ export function Properties({
               : muted('No labels')
           }
           editorLabel="Change labels"
-          editorClassName="w-56 !p-0 overflow-hidden"
+          editorClassName="w-56 p-0! overflow-hidden"
           editor={
             editable
               ? () => (
@@ -309,7 +309,7 @@ export function Properties({
             )
           }
           editorLabel="Change due date"
-          editorClassName="w-60 !p-3"
+          editorClassName="w-60 p-3!"
           editor={
             editable
               ? (close) => (

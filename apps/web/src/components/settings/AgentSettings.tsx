@@ -86,7 +86,7 @@ function ScopeEditorDialog({ connection, onClose, onSave, isSaving }: ScopeEdito
       }
     >
       {error && (
-        <p role="alert" className="mb-3 p-2 text-sm text-red-600 bg-red-50 rounded">
+        <p role="alert" className="mb-3 p-2 text-sm text-red-600 bg-red-50 rounded-sm">
           {error}
         </p>
       )}
@@ -230,7 +230,7 @@ function ConnectGuide() {
         <li>Only workspace owners/admins can authorize MCP access.</li>
       </ul>
 
-      <div className="mb-4 p-2 bg-neutral-50 rounded border border-neutral-200">
+      <div className="mb-4 p-2 bg-neutral-50 rounded-sm border border-neutral-200">
         <div className="text-xs text-neutral-600 mb-1">Claude Code command</div>
         <div className="flex items-center gap-2">
           <code className="flex-1 text-xs font-mono text-neutral-800 break-all">
@@ -252,7 +252,7 @@ function ConnectGuide() {
         ].map((item) => (
           <div
             key={item.key}
-            className="flex items-center gap-2 p-2 bg-neutral-50 rounded border border-neutral-200"
+            className="flex items-center gap-2 p-2 bg-neutral-50 rounded-sm border border-neutral-200"
           >
             <div className="min-w-44 text-xs text-neutral-600">{item.label}</div>
             <code className="flex-1 text-xs font-mono text-neutral-800 break-all">
@@ -292,9 +292,9 @@ export function AgentSettings() {
     return (
       <Card>
         <div className="animate-pulse space-y-4">
-          <div className="h-6 w-48 bg-neutral-200 rounded" />
-          <div className="h-4 w-64 bg-neutral-200 rounded" />
-          <div className="h-32 bg-neutral-100 rounded" />
+          <div className="h-6 w-48 bg-neutral-200 rounded-sm" />
+          <div className="h-4 w-64 bg-neutral-200 rounded-sm" />
+          <div className="h-32 bg-neutral-100 rounded-sm" />
         </div>
       </Card>
     );

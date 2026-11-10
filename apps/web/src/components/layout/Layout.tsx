@@ -158,7 +158,7 @@ export function Layout({ children }: LayoutProps) {
     <div className="min-h-screen bg-white">
       <a
         href="#main"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[70] focus:rounded-lg focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow-lg"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-70 focus:rounded-lg focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:shadow-lg"
       >
         Skip to content
       </a>
@@ -183,7 +183,7 @@ export function Layout({ children }: LayoutProps) {
               >
                 <span
                   aria-hidden
-                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-primary-500 to-primary-600 text-xs font-bold text-white"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-linear-to-br from-primary-500 to-primary-600 text-xs font-bold text-white"
                 >
                   {currentWorkspace?.name?.[0]?.toUpperCase() || 'W'}
                 </span>
@@ -197,7 +197,7 @@ export function Layout({ children }: LayoutProps) {
             <DropdownMenuContent
               tone="dark"
               align="start"
-              className="w-[var(--radix-dropdown-menu-trigger-width)]"
+              className="w-(--radix-dropdown-menu-trigger-width)"
             >
               {workspaces.map((workspace) => (
                 <DropdownMenuItem
@@ -205,7 +205,7 @@ export function Layout({ children }: LayoutProps) {
                   tone="dark"
                   onSelect={() => setWorkspaceId(workspace.id)}
                   icon={
-                    <span className="flex h-5 w-5 items-center justify-center rounded bg-sidebar-border text-[10px] font-bold text-sidebar-text">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-sm bg-sidebar-border text-[10px] font-bold text-sidebar-text">
                       {workspace.name[0]?.toUpperCase()}
                     </span>
                   }
@@ -468,7 +468,7 @@ export function Layout({ children }: LayoutProps) {
         </header>
 
         {/* Page content */}
-        <main id="main" tabIndex={-1} className="p-3 focus:outline-none sm:p-6 lg:p-10">
+        <main id="main" tabIndex={-1} className="p-3 focus:outline-hidden sm:p-6 lg:p-10">
           <ReconnectingBanner className="mb-4" />
           {noWorkspace ? (
             <NoWorkspaceState email={user?.email} onSignOut={() => void logout()} />
@@ -488,7 +488,7 @@ export function Layout({ children }: LayoutProps) {
       {!isDesktop && sidebarOpen && (
         <div
           aria-hidden
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm animate-fade-in lg:hidden"
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs animate-fade-in lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}

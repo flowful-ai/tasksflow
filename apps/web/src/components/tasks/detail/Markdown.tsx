@@ -49,7 +49,9 @@ const components: Components = {
   a: ({ href, children }) => {
     if (href?.startsWith(MENTION_HREF)) {
       return (
-        <span className="rounded bg-primary-50 px-1 font-medium text-primary-700">{children}</span>
+        <span className="rounded-sm bg-primary-50 px-1 font-medium text-primary-700">
+          {children}
+        </span>
       );
     }
     return (
@@ -64,7 +66,9 @@ const components: Components = {
     );
   },
   code: ({ children }) => (
-    <code className="rounded bg-neutral-100 px-1 py-0.5 text-xs text-neutral-800">{children}</code>
+    <code className="rounded-sm bg-neutral-100 px-1 py-0.5 text-xs text-neutral-800">
+      {children}
+    </code>
   ),
   pre: ({ children }) => (
     <pre className="mb-2 overflow-x-auto rounded-lg bg-neutral-900 p-3 text-xs text-neutral-100 [&_code]:bg-transparent [&_code]:p-0 [&_code]:text-neutral-100">
@@ -80,7 +84,7 @@ const components: Components = {
 
 export function Markdown({ children, className }: { children: string; className?: string }) {
   return (
-    <div className={clsx('min-w-0 break-words', className)}>
+    <div className={clsx('min-w-0 wrap-break-word', className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeSanitize]}

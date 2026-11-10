@@ -165,9 +165,9 @@ export function SmartViewForm() {
     return (
       <Card>
         <div className="animate-pulse space-y-4">
-          <div className="h-6 w-48 bg-neutral-200 rounded" />
-          <div className="h-10 bg-neutral-100 rounded" />
-          <div className="h-24 bg-neutral-100 rounded" />
+          <div className="h-6 w-48 bg-neutral-200 rounded-sm" />
+          <div className="h-10 bg-neutral-100 rounded-sm" />
+          <div className="h-24 bg-neutral-100 rounded-sm" />
         </div>
       </Card>
     );

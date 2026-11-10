@@ -87,7 +87,7 @@ export function DueDatePicker({ value, onChange, isLoading }: DueDatePickerProps
           </button>
         </PopoverTrigger>
         <PopoverContent
-          className="w-[var(--radix-popover-trigger-width)] p-3"
+          className="w-(--radix-popover-trigger-width) p-3"
           aria-label="Pick a due date"
         >
           <DueDateOptions

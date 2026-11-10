@@ -12,6 +12,6 @@ const SIZES: Record<ControlSize, string> = {
 export function controlClasses(size: ControlSize = 'md', invalid = false): string {
   return clsx(
     SIZES[size],
-    invalid && '!border-red-300 focus:!border-red-500 focus:!ring-red-500/20'
+    invalid && 'border-red-300! focus:border-red-500! focus:ring-red-500/20!'
   );
 }

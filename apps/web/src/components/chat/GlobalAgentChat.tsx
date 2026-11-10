@@ -199,7 +199,7 @@ export default function GlobalAgentChat({
       onOpenChange={setIsOpen}
       title="Workspace chat"
       bare
-      className="!left-auto !top-auto !bottom-4 !right-4 !m-0 !h-[70vh] !max-w-md overflow-hidden border border-neutral-200"
+      className="left-auto! top-auto! bottom-4! right-4! m-0! h-[70vh]! max-w-md! overflow-hidden border border-neutral-200"
     >
       <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
         <div className="flex items-center gap-2">
@@ -279,8 +279,8 @@ export default function GlobalAgentChat({
               label="Stop generating"
               variant="solid"
               size="md"
-              className="!rounded-full"
-              icon={<Square className="!h-3.5 !w-3.5 fill-current" />}
+              className="rounded-full!"
+              icon={<Square className="h-3.5! w-3.5! fill-current" />}
               onClick={() => void stop()}
             />
           ) : (
@@ -289,7 +289,7 @@ export default function GlobalAgentChat({
               label="Send message"
               variant="solid"
               size="md"
-              className="!rounded-full"
+              className="rounded-full!"
               icon={<ArrowUp />}
               disabled={!canSend}
             />

@@ -108,7 +108,7 @@ export function FilterBuilder({ value, onChange, workspaceId }: FilterBuilderPro
             type="button"
             onClick={handleOperatorToggle}
             aria-label={`Match ${value.operator === 'AND' ? 'all' : 'any'} conditions (click to switch)`}
-            className="px-2 py-0.5 font-medium text-primary-700 bg-primary-100 rounded hover:bg-primary-200 transition-colors"
+            className="px-2 py-0.5 font-medium text-primary-700 bg-primary-100 rounded-sm hover:bg-primary-200 transition-colors"
           >
             {value.operator === 'AND' ? 'all' : 'any'}
           </button>

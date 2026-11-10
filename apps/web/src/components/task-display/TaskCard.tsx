@@ -92,8 +92,8 @@ function SubtaskProgress({ done, total }: { done: number; total: number }) {
   const pct = Math.round((Math.min(done, total) / total) * 100);
   return (
     <span className="flex items-center gap-1.5 text-[11.5px] text-neutral-500">
-      <span aria-hidden className="h-1 w-10 overflow-hidden rounded bg-neutral-200">
-        <span className="block h-full rounded bg-emerald-600" style={{ width: `${pct}%` }} />
+      <span aria-hidden className="h-1 w-10 overflow-hidden rounded-sm bg-neutral-200">
+        <span className="block h-full rounded-sm bg-emerald-600" style={{ width: `${pct}%` }} />
       </span>
       {done}/{total} sub-tasks
     </span>
@@ -126,7 +126,7 @@ function LabelPills({ labels, max }: { labels: TaskCardTask['labels']; max: numb
       {labels.slice(0, max).map((label) => (
         <span
           key={label.id}
-          className="inline-flex max-w-[9rem] items-center gap-1 rounded-full border border-neutral-200 px-1.5 text-[11.5px] text-neutral-600"
+          className="inline-flex max-w-36 items-center gap-1 rounded-full border border-neutral-200 px-1.5 text-[11.5px] text-neutral-600"
         >
           <ColorDot color={label.color} size="sm" />
           <span className="truncate">{label.name}</span>
@@ -247,7 +247,7 @@ const TaskCardBody = memo(function TaskCardBody({
       </div>
       <p
         className={clsx(
-          'text-sm font-medium leading-snug text-neutral-900 line-clamp-2 break-words',
+          'text-sm font-medium leading-snug text-neutral-900 line-clamp-2 wrap-break-word',
           isDone && 'line-through'
         )}
       >
@@ -281,14 +281,14 @@ function openEvent(event: MouseEvent | KeyboardEvent): TaskOpenEvent {
 
 function cardClassName(variant: TaskCardVariant, isSelected: boolean): string {
   return clsx(
-    'relative cursor-pointer bg-white outline-none transition-[border-color,box-shadow]',
+    'relative cursor-pointer bg-white outline-hidden transition-[border-color,box-shadow]',
     variant === 'card'
-      ? 'rounded-[10px] border border-neutral-200 px-[11px] py-2.5 hover:border-neutral-300 hover:shadow-sm'
+      ? 'rounded-[10px] border border-neutral-200 px-[11px] py-2.5 hover:border-neutral-300 hover:shadow-xs'
       : 'border-b border-neutral-100 px-3 py-2 last:border-b-0 hover:bg-neutral-50',
     'focus-visible:ring-2 focus-visible:ring-primary-500/60 focus-visible:ring-offset-1',
     isSelected &&
       (variant === 'card'
-        ? 'outline outline-2 -outline-offset-1 outline-primary-500'
+        ? 'outline-solid outline-2 -outline-offset-1 outline-primary-500'
         : 'bg-primary-50/60')
   );
 }
@@ -360,7 +360,7 @@ const SortableTaskCard = memo(function SortableTaskCard({
       className={clsx(
         cardClassName(variant, isSelected),
         isDragging &&
-          '!border-2 !border-dashed !border-neutral-300 !bg-transparent !shadow-none !outline-none'
+          'border-2! border-dashed! border-neutral-300! bg-transparent! shadow-none! outline-hidden!'
       )}
     >
       <div className={clsx(isDragging && 'invisible')}>

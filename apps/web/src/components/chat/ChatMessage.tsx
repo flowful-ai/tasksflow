@@ -89,10 +89,12 @@ const MARKDOWN_COMPONENTS: Components = {
     </a>
   ),
   code: ({ children }) => (
-    <code className="rounded bg-neutral-200 px-1 py-0.5 text-xs text-neutral-900">{children}</code>
+    <code className="rounded-sm bg-neutral-200 px-1 py-0.5 text-xs text-neutral-900">
+      {children}
+    </code>
   ),
   table: ({ children }) => (
-    <table className="my-2 w-full border-collapse overflow-hidden rounded border border-neutral-300 text-left text-xs">
+    <table className="my-2 w-full border-collapse overflow-hidden rounded-sm border border-neutral-300 text-left text-xs">
       {children}
     </table>
   ),
@@ -178,14 +180,14 @@ function ToolCall({
       {hasInput && (
         <details className="mt-2" open={part.state === 'approval-requested'}>
           <summary className="cursor-pointer text-neutral-600">Input</summary>
-          <pre className="mt-1 overflow-x-auto rounded bg-neutral-100 p-2 text-[11px] text-neutral-800">
+          <pre className="mt-1 overflow-x-auto rounded-sm bg-neutral-100 p-2 text-[11px] text-neutral-800">
             {stringifyJson(part.input)}
           </pre>
         </details>
       )}
 
       {part.state === 'approval-requested' && (
-        <div className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-amber-900">
+        <div className="mt-2 rounded-sm border border-amber-200 bg-amber-50 p-2 text-amber-900">
           <div className="mb-2 inline-flex items-center gap-1.5 font-medium">
             <ShieldAlert aria-hidden className="h-3.5 w-3.5" />
             This action changes workspace data. Allow it?
@@ -208,14 +210,14 @@ function ToolCall({
       {part.state === 'output-available' && (
         <details className="mt-2">
           <summary className="cursor-pointer text-neutral-600">Output</summary>
-          <pre className="mt-1 overflow-x-auto rounded bg-neutral-100 p-2 text-[11px] text-neutral-800">
+          <pre className="mt-1 overflow-x-auto rounded-sm bg-neutral-100 p-2 text-[11px] text-neutral-800">
             {stringifyJson(part.output)}
           </pre>
         </details>
       )}
 
       {hasErrorText && (
-        <div className="mt-2 rounded bg-red-50 px-2 py-1 text-red-700">{part.errorText}</div>
+        <div className="mt-2 rounded-sm bg-red-50 px-2 py-1 text-red-700">{part.errorText}</div>
       )}
     </div>
   );

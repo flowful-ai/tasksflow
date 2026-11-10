@@ -12,7 +12,7 @@ ESLint enforces part of this outside `components/ui/`: raw `<select>`, `<textare
 `<input>` (except `hidden`, `file`, `radio` and `color`), the `.btn` / `.input` classes and
 `gray-*` colours are errors.
 
-Colours: use the `neutral-*` scale from `tailwind.config.js` (never `gray-*`) and `primary-*`
+Colours: use the `neutral-*` scale from the `@theme` block in `src/index.css` (never `gray-*`) and `primary-*`
 for the accent. Show user colours (labels, states) with `ColorDot` or `Badge dot`, never as
 text colour.
 

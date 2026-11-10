@@ -364,7 +364,7 @@ export function DashboardPage() {
                 )}
                 <div className="flex items-center pt-4 border-t border-neutral-100">
                   <div className="flex -space-x-2">
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-primary-400 to-primary-500 ring-2 ring-white flex items-center justify-center">
+                    <div className="w-7 h-7 rounded-full bg-linear-to-br from-primary-400 to-primary-500 ring-2 ring-white flex items-center justify-center">
                       <span className="text-[10px] font-semibold text-white">
                         {user?.name?.[0] || user?.email?.[0]?.toUpperCase() || '?'}
                       </span>
@@ -382,7 +382,7 @@ export function DashboardPage() {
 
       {/* Activity Section */}
       <div className="opacity-0 animate-fade-in stagger-5">
-        <div className="card overflow-hidden bg-gradient-to-b from-white to-neutral-50/70">
+        <div className="card overflow-hidden bg-linear-to-b from-white to-neutral-50/70">
           <div className="px-6 py-5 border-b border-neutral-200/80 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-neutral-100 flex items-center justify-center">
@@ -405,8 +405,8 @@ export function DashboardPage() {
             <div className="divide-y divide-neutral-200/70">
               {Array.from({ length: 6 }).map((_, index) => (
                 <div key={index} className="px-6 py-4 animate-pulse">
-                  <div className="h-4 bg-neutral-200 rounded w-3/4 mb-2" />
-                  <div className="h-3 bg-neutral-100 rounded w-1/3" />
+                  <div className="h-4 bg-neutral-200 rounded-sm w-3/4 mb-2" />
+                  <div className="h-3 bg-neutral-100 rounded-sm w-1/3" />
                 </div>
               ))}
             </div>

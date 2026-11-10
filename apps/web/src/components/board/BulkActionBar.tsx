@@ -116,7 +116,7 @@ const BarButton = forwardRef<HTMLButtonElement, BarButtonProps>(function BarButt
       {...props}
     >
       {label}
-      <Kbd tone="dark" aria-hidden className="!border-white/20 !bg-transparent !text-neutral-300">
+      <Kbd tone="dark" aria-hidden className="border-white/20! bg-transparent! text-neutral-300!">
         {shortcut}
       </Kbd>
     </button>

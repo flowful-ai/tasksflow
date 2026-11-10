@@ -47,11 +47,11 @@ export function Tooltip({
           side={side}
           align={align}
           sideOffset={6}
-          className="z-[70] flex items-center gap-2 rounded-lg bg-neutral-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg animate-fade-in [animation-duration:120ms]"
+          className="z-70 flex items-center gap-2 rounded-lg bg-neutral-900 px-2.5 py-1.5 text-xs font-medium text-white shadow-lg animate-fade-in [animation-duration:120ms]"
         >
           {content}
           {shortcut && (
-            <Kbd className="!border-neutral-600 !bg-neutral-800 !text-neutral-300">{shortcut}</Kbd>
+            <Kbd className="border-neutral-600! bg-neutral-800! text-neutral-300!">{shortcut}</Kbd>
           )}
         </RadixTooltip.Content>
       </RadixTooltip.Portal>

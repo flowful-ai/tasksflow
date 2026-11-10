@@ -107,8 +107,8 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
     return (
       <Card>
         <div className="animate-pulse space-y-4">
-          <div className="h-6 bg-neutral-200 rounded w-1/3" />
-          <div className="h-20 bg-neutral-200 rounded" />
+          <div className="h-6 bg-neutral-200 rounded-sm w-1/3" />
+          <div className="h-20 bg-neutral-200 rounded-sm" />
         </div>
       </Card>
     );
@@ -168,7 +168,7 @@ export function AccessSettings({ projectId, workspaceId, currentAccess }: Access
                   Add member
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="end" className="w-72 !p-0" aria-label="Add a member">
+              <PopoverContent align="end" className="w-72 p-0!" aria-label="Add a member">
                 <div className="p-2">
                   <Input
                     aria-label="Search members"

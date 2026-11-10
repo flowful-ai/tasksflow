@@ -66,7 +66,7 @@ export function Badge({
     <span
       className={clsx(
         'inline-flex max-w-full items-center gap-1 whitespace-nowrap font-medium',
-        shape === 'pill' ? 'rounded-full' : 'rounded',
+        shape === 'pill' ? 'rounded-full' : 'rounded-sm',
         SIZES[size],
         TONES[tone],
         className
