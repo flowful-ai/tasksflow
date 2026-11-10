@@ -37,7 +37,7 @@ export function IntegrationSettings() {
   };
 
   return (
-    <Card title="Integrations" description="Connect your own accounts to TasksFlow.">
+    <Card title="Integrations" description="Connect your own accounts to FlowTask.">
       {error ? (
         <ErrorState
           error={error}
@@ -109,7 +109,7 @@ export function IntegrationSettings() {
         open={confirmDisconnect}
         onOpenChange={setConfirmDisconnect}
         title="Disconnect GitHub?"
-        description="TasksFlow will no longer act on GitHub with your account. Project integrations installed as a GitHub App keep working."
+        description="FlowTask will no longer act on GitHub with your account. Project integrations installed as a GitHub App keep working."
         confirmLabel="Disconnect"
         variant="danger"
         onConfirm={async () => {

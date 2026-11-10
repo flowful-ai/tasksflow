@@ -18,6 +18,7 @@ import {
   Input,
   PageHeader,
   PageSpinner,
+  BrandMark,
 } from '../components/ui';
 
 export function PublicSharePage() {
@@ -139,17 +140,9 @@ export function PublicSharePage() {
               aria-hidden
               className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center"
             >
-              <svg
-                className="w-5 h-5 text-white"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-              >
-                <path d="M5 12l5 5L19 7" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <BrandMark className="w-5 h-5 text-white" />
             </div>
-            <span className="text-lg font-semibold text-neutral-900">TasksFlow</span>
+            <span className="text-lg font-semibold text-neutral-900">FlowTask</span>
           </div>
         </div>
       </header>
@@ -184,7 +177,7 @@ export function PublicSharePage() {
       {/* Footer */}
       <footer className="border-t border-neutral-200 mt-12">
         <div className="max-w-7xl mx-auto px-4 py-4 text-center text-sm text-neutral-500">
-          Shared via TasksFlow
+          Shared via FlowTask
         </div>
       </footer>
 

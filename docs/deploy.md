@@ -25,7 +25,7 @@ There is no separate web container, reverse proxy, Redis, migration job or backu
    GITHUB_CLIENT_SECRET=...
    ```
 
-   The compose file refuses to start without `POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` and `API_KEY_ENCRYPTION_KEY`. Add the GitHub App variables (`GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`, `GITHUB_APP_SLUG`) and the Slack variables (`SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_SIGNING_SECRET`) when you use those integrations. Every variable is described in the [README](../README.md#configuration) and [`.env.example`](../.env.example).
+   The compose file refuses to start without `POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` and `API_KEY_ENCRYPTION_KEY`. Add the GitHub App variables (`GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`, `GITHUB_APP_SLUG`) and the Slack variables (`SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_SIGNING_SECRET`) when you use those integrations. Every variable is described in the [configuration reference](configuration.md) and [`.env.example`](../.env.example).
 
    Notes:
    - `WEB_URL` defaults to `BETTER_AUTH_URL`; the SPA and the API share the origin.
@@ -34,7 +34,7 @@ There is no separate web container, reverse proxy, Redis, migration job or backu
 
 3. **Map the domain** (Domains tab): host `tasks.example.com`, service **`tasksflow-api`**, container port **`3001`**, HTTPS on (Let's Encrypt). This one route serves the SPA, `/api/*`, `/.well-known/*`, `/health` and `/ready`.
 4. **Deploy.** Watch the `tasksflow-api` logs for `Applying database migrations from /app/drizzle` and then `FlowTask API running at http://0.0.0.0:3001 (serving SPA from /app/public)`.
-5. **Point the integrations at the domain**: OAuth callbacks `https://tasks.example.com/api/auth/callback/github` and `/api/auth/callback/google`; GitHub App callback `https://tasks.example.com/api/github/callback` and webhook `https://tasks.example.com/api/webhooks/github`; Slack redirect `https://tasks.example.com/api/webhooks/slack/oauth`. See the README for the GitHub and Slack app settings.
+5. **Point the integrations at the domain**: OAuth callbacks `https://tasks.example.com/api/auth/callback/github` and `/api/auth/callback/google`; GitHub App callback `https://tasks.example.com/api/github/callback` and webhook `https://tasks.example.com/api/webhooks/github`; Slack redirect `https://tasks.example.com/api/webhooks/slack/oauth`. The GitHub and Slack app settings are in [integrations.md](integrations.md).
 
 ## Migrations on boot
 

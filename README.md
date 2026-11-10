@@ -1,10 +1,32 @@
-# FlowTask
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
+    <img src="docs/assets/logo.svg" alt="FlowTask" height="64">
+  </picture>
+</p>
 
-[![CI](https://github.com/flowful-ai/tasksflow/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/flowful-ai/tasksflow/actions/workflows/ci.yml)
+<p align="center">
+  <strong>The kanban for small dev teams and their AI agents: GitHub in, Claude and Cursor on top, one container to self-host.</strong>
+</p>
 
-**The kanban for small dev teams and their AI agents: GitHub in, Claude and Cursor on top, one container to self-host.**
+<p align="center">
+  <a href="https://github.com/flowful-ai/tasksflow/actions/workflows/ci.yml"><img src="https://github.com/flowful-ai/tasksflow/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/flowful-ai/tasksflow" alt="License: MIT"></a>
+  <a href="https://bun.sh"><img src="https://img.shields.io/badge/runtime-Bun-000000?logo=bun&logoColor=white" alt="Runtime: Bun"></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white" alt="TypeScript: strict"></a>
+  <a href="docs/mcp.md"><img src="https://img.shields.io/badge/MCP-compatible-6E56CF?logo=modelcontextprotocol&logoColor=white" alt="MCP compatible"></a>
+  <a href="https://github.com/flowful-ai/tasksflow/commits/main"><img src="https://img.shields.io/github/last-commit/flowful-ai/tasksflow" alt="Last commit"></a>
+</p>
 
-FlowTask keeps your team's tasks next to your GitHub issues and pull requests, lets AI assistants read and update them over MCP, and runs as a single Bun container plus Postgres.
+<p align="center">
+  <img src="docs/assets/screenshots/board.png" alt="A FlowTask board with Backlog, Todo, In Progress and In Review columns, labels, due dates and assignees" width="900">
+</p>
+
+## Why FlowTask
+
+- **Your tasks live next to your code.** A GitHub App turns issues and pull requests into tasks, and edits on a linked task go back to the issue.
+- **AI assistants are first-class users.** Claude Code, Claude Desktop, Cursor and other MCP clients sign in over OAuth and work on tasks with the same permissions as a teammate. The in-app chat asks before it changes anything.
+- **It is small to run.** One Bun container serves the API, realtime updates, the MCP server and the web app. Postgres is the only other service: no Redis, no queue server, no websocket server.
 
 ## Features
 
@@ -25,17 +47,20 @@ FlowTask keeps your team's tasks next to your GitHub issues and pull requests, l
 - **Keyboard first**: shortcuts everywhere; press `?` for the list.
 - **Workspaces and roles**: owner, admin and member roles, with per-project access (everyone, selected members, or admins only).
 
-## Tech Stack
+## Screenshots
 
-| Layer          | Technology                                         |
-| -------------- | -------------------------------------------------- |
-| Runtime        | Bun                                                |
-| Frontend       | React, TypeScript, Vite, Tailwind CSS              |
-| Backend        | Hono on Bun                                        |
-| Database       | PostgreSQL 16 with Drizzle ORM                     |
-| Jobs, realtime | Postgres (job queue table, `LISTEN/NOTIFY` to SSE) |
-| Authentication | Better Auth (GitHub and Google sign-in)            |
-| AI             | MCP (Streamable HTTP), Vercel AI SDK, OpenRouter   |
+<table>
+  <tr>
+    <td width="50%"><img src="docs/assets/screenshots/task.png" alt="Task detail with description, sub-tasks, a blocking relation and comments with @mentions"><br><sub>Task detail: sub-tasks, relations, history and comments</sub></td>
+    <td width="50%"><img src="docs/assets/screenshots/inbox.png" alt="Inbox with assignment, mention and comment notifications next to a task preview"><br><sub>Inbox with a task preview, including its linked GitHub issue</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/assets/screenshots/palette.png" alt="Command palette searching tasks for the word check"><br><sub>⌘K command palette with full-text search</sub></td>
+    <td width="50%"><img src="docs/assets/screenshots/view.png" alt="Smart View listing open tasks due this week, grouped by project"><br><sub>A Smart View: open tasks due this week, across projects</sub></td>
+  </tr>
+</table>
+
+The people, projects and tasks in these screenshots are made up (see [Demo data](#demo-data)).
 
 ## Quick Start
 
@@ -65,6 +90,16 @@ Open http://localhost:3000. The web dev server proxies `/api` to the API.
 
 Sign-up is through GitHub or Google only. For local GitHub sign-in, create an OAuth app at <https://github.com/settings/developers> with the callback URL `http://localhost:3001/api/auth/callback/github` (Google: `http://localhost:3001/api/auth/callback/google`). The first account becomes the app manager unless `APP_MANAGER_EMAILS` is set.
 
+### Demo data
+
+To try FlowTask without an OAuth app, or to get a populated board, seed a fictional team into a fresh local database:
+
+```bash
+bun --env-file=.env apps/api/scripts/seed-demo.ts
+```
+
+It creates a workspace with two projects, tasks, comments, notifications and a Smart View, and prints a session cookie for the demo owner. Set it as `better-auth.session_token` on `localhost` in your browser's developer tools and reload. The script refuses to run against a database that is not on `localhost`.
+
 ### Useful commands
 
 ```bash
@@ -74,52 +109,11 @@ bun run typecheck
 bun run lint
 bun run format:check
 bun run test             # database suites skip without TEST_DATABASE_URL
-bun run test:integration # with TEST_DATABASE_URL set (see CONTRIBUTING notes below)
+bun run test:integration # with TEST_DATABASE_URL set (see Contributing below)
 bun run db:generate      # new migration after editing apps/api/src/db/schema.ts
 bun run db:migrate       # apply migrations
 bun run db:studio        # Drizzle Studio
 ```
-
-## Configuration
-
-Every variable lives in [`.env.example`](.env.example), with comments. "Required" means the API or `docker-compose.prod.yml` refuses to start without it.
-
-| Variable                                                                              | Required               | Meaning                                                                                                                                                  |
-| ------------------------------------------------------------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                                                                        | one of these           | Postgres connection URL.                                                                                                                                 |
-| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_HOST`, `POSTGRES_PORT` | one of these           | Used to build the URL when `DATABASE_URL` is unset (URL-encoded, so any password works). `POSTGRES_PASSWORD` is required by the production compose file. |
-| `DB_POOL_MAX`                                                                         | no                     | Connections per API process (default 10).                                                                                                                |
-| `RUN_MIGRATIONS`                                                                      | no                     | Apply migrations on boot under an advisory lock (default `true`).                                                                                        |
-| `MIGRATIONS_DIR`                                                                      | no                     | Migrations folder (default `apps/api/drizzle`, `/app/drizzle` in the image).                                                                             |
-| `BETTER_AUTH_SECRET`                                                                  | yes                    | Session signing secret, 32+ random characters.                                                                                                           |
-| `BETTER_AUTH_URL`                                                                     | yes in production      | Public base URL of the app (`https://…`); OAuth callbacks are built from it.                                                                             |
-| `PUBLIC_URL`                                                                          | no                     | Base URL for OAuth/MCP metadata when it differs from `BETTER_AUTH_URL`.                                                                                  |
-| `MCP_ALLOWED_REDIRECT_SCHEMES`                                                        | no                     | Extra dotless MCP OAuth redirect schemes, comma-separated (defaults: `cursor`, `vscode`, `vscode-insiders`, `windsurf`).                                 |
-| `WEB_URL`                                                                             | no                     | Public URL of the web app (default in production: `BETTER_AUTH_URL`). Trusted origin for CORS and auth.                                                  |
-| `APP_MANAGER_EMAILS`                                                                  | no                     | Comma-separated emails promoted to app manager on sign-up or next login. Unset: the first account is promoted.                                           |
-| `TRUSTED_PROXY_HOPS`                                                                  | no                     | Reverse proxies that append to `X-Forwarded-For` (`1` behind Dokploy's Traefik, `0` for none).                                                           |
-| `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`                                            | for GitHub sign-in     | GitHub OAuth app for login.                                                                                                                              |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                                            | for Google sign-in     | Google OAuth client for login.                                                                                                                           |
-| `VITE_GITHUB_CLIENT_ID`, `VITE_GOOGLE_CLIENT_ID`                                      | no                     | Web build flags: non-empty shows the sign-in button. The production compose file defaults them to the server values.                                     |
-| `VITE_API_URL`                                                                        | no                     | Leave empty: the SPA calls the API on its own origin.                                                                                                    |
-| `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`                                             | for GitHub integration | GitHub App id and private key (PEM with `\n`, or base64).                                                                                                |
-| `GITHUB_WEBHOOK_SECRET`                                                               | for GitHub integration | Verifies `POST /api/webhooks/github`; webhooks are rejected while unset.                                                                                 |
-| `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`                                    | for GitHub integration | The App's OAuth client, used to verify the installing user.                                                                                              |
-| `GITHUB_APP_SLUG`, `VITE_GITHUB_APP_SLUG`                                             | for GitHub integration | App slug for the install link (`github.com/apps/<slug>`).                                                                                                |
-| `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`                                              | for Slack              | Slack app OAuth credentials ("Add to Slack").                                                                                                            |
-| `SLACK_SIGNING_SECRET`                                                                | for Slack              | Verifies `POST /api/webhooks/slack`.                                                                                                                     |
-| `SLACK_REDIRECT_URI`                                                                  | no                     | Default `<BETTER_AUTH_URL>/api/webhooks/slack/oauth`.                                                                                                    |
-| `SLACK_BOT_TOKEN`                                                                     | no                     | Fallback bot token for projects without their own Slack install.                                                                                         |
-| `API_KEY_ENCRYPTION_KEY`                                                              | yes                    | Encrypts stored AI provider keys. 32 random bytes as hex or base64 (`openssl rand -hex 32`).                                                             |
-| `INTEGRATION_ENCRYPTION_KEY`                                                          | no                     | Encrypts Slack bot tokens; defaults to `API_KEY_ENCRYPTION_KEY`.                                                                                         |
-| `OPENROUTER_TIMEOUT_MS`                                                               | no                     | OpenRouter request timeout (default 120000).                                                                                                             |
-| `NODE_ENV`                                                                            | no                     | `production` turns on HSTS and the production origin and URL rules.                                                                                      |
-| `API_PORT`, `API_HOST`                                                                | no                     | Listen port and interface (defaults `3001`, `0.0.0.0`).                                                                                                  |
-| `WEB_DIST_DIR`                                                                        | no                     | Built SPA to serve (default `apps/web/dist`, `/app/public` in the image).                                                                                |
-| `SHUTDOWN_TIMEOUT_MS`                                                                 | no                     | Per-phase graceful shutdown timeout (default 10000).                                                                                                     |
-| `JOBS_DISABLED`                                                                       | no                     | `true` disables the job runner in this process.                                                                                                          |
-| `ALLOW_PRIVATE_WEBHOOK_TARGETS`                                                       | no                     | `true` allows outgoing webhooks to private addresses (development only).                                                                                 |
-| `TEST_DATABASE_URL`                                                                   | tests only             | Database for integration tests; it is wiped.                                                                                                             |
 
 ## Connect an MCP client
 
@@ -153,42 +147,35 @@ Then run `/mcp` in Claude Code and choose to authenticate.
 
 Owners and admins can see, narrow and revoke connections under **Settings → MCP Connections**. Details, the tool list and scopes: [docs/mcp.md](docs/mcp.md).
 
-## GitHub App setup
-
-FlowTask uses a GitHub App (separate from the OAuth app used for sign-in).
-
-1. Create an App at <https://github.com/settings/apps/new> (or under your organization).
-2. **Callback URLs**: add `https://<your-domain>/api/github/callback` (and keep `https://<your-domain>/api/auth/callback/github` if this App also handles GitHub sign-in), and tick **Request user authorization (OAuth) during installation**. FlowTask refuses installations without this step: it checks that the installing user can access the installation.
-3. **Webhook**: active, URL `https://<your-domain>/api/webhooks/github`, and a random **webhook secret** (`openssl rand -hex 32`).
-4. **Repository permissions**: Issues: Read and write; Pull requests: Read-only; Metadata: Read-only.
-5. **Subscribe to events**: Issues, Issue comment, Pull request.
-6. Generate a private key and note the App ID, the Client ID, a new client secret and the App slug (from its public URL).
-7. Set `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`, `GITHUB_APP_SLUG` and `VITE_GITHUB_APP_SLUG`.
-
-Then, in a project's settings, install the App and link repositories. Issues and PRs become tasks; changes to a linked task's title, description, state, priority and labels, and new comments, are written back to GitHub.
-
-## Slack app setup
-
-Slack gets notifications only (task created, state changed, assigned, comment added); FlowTask never creates tasks from Slack.
-
-1. Create an app at <https://api.slack.com/apps>.
-2. **OAuth & Permissions**: add the redirect URL `https://<your-domain>/api/webhooks/slack/oauth` and the bot scopes `chat:write`, `chat:write.public`, `channels:read`, `groups:read` and `incoming-webhook`.
-3. Optional: a slash command or Event Subscriptions pointing at `https://<your-domain>/api/webhooks/slack` (slash commands answer with help text; events are acknowledged and ignored).
-4. Set `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET` and `SLACK_SIGNING_SECRET` (from **Basic Information**).
-5. In a project's settings, click **Add to Slack** and pick the channel. The bot token is stored per project, encrypted.
-
 ## Deployment
 
 Production is one image (`apps/api/Dockerfile`: API bundle, built SPA and migrations) plus Postgres, described in [`docker-compose.prod.yml`](docker-compose.prod.yml). The reference setup is Dokploy: route your domain to `tasksflow-api` on port 3001, set the environment, deploy. Migrations run on boot.
 
+The production compose file refuses to start without `POSTGRES_PASSWORD`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL` and `API_KEY_ENCRYPTION_KEY`.
+
 - [docs/deploy.md](docs/deploy.md): Dokploy deployment, health checks, scaling, shutdown.
+- [docs/configuration.md](docs/configuration.md): every environment variable.
+- [docs/integrations.md](docs/integrations.md): creating the GitHub App and the Slack app.
 - [docs/backup-restore.md](docs/backup-restore.md): backing up from the host and a restore drill.
+
+## Tech Stack
+
+| Layer          | Technology                                         |
+| -------------- | -------------------------------------------------- |
+| Runtime        | Bun                                                |
+| Frontend       | React, TypeScript, Vite, Tailwind CSS              |
+| Backend        | Hono on Bun                                        |
+| Database       | PostgreSQL 16 with Drizzle ORM                     |
+| Jobs, realtime | Postgres (job queue table, `LISTEN/NOTIFY` to SSE) |
+| Authentication | Better Auth (GitHub and Google sign-in)            |
+| AI             | MCP (Streamable HTTP), Vercel AI SDK, OpenRouter   |
 
 ## Documentation
 
 - [docs/architecture.md](docs/architecture.md): how requests, events, jobs and realtime fit together.
 - [docs/api.md](docs/api.md): every HTTP endpoint.
 - [docs/mcp.md](docs/mcp.md): MCP tools, scopes and security.
+- [docs/configuration.md](docs/configuration.md) and [docs/integrations.md](docs/integrations.md): environment variables, GitHub App and Slack app setup.
 - [CHANGELOG.md](CHANGELOG.md) and [SECURITY.md](SECURITY.md).
 
 ## Contributing

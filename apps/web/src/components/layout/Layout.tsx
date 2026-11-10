@@ -43,6 +43,7 @@ import {
   IconButton,
   Kbd,
   Tooltip,
+  BrandMark,
 } from '../ui';
 
 interface LayoutProps {
@@ -430,19 +431,11 @@ export function Layout({ children }: LayoutProps) {
           <div className="ml-3 flex items-center space-x-2">
             <div
               aria-hidden
-              className="flex h-6 w-6 items-center justify-center rounded-md bg-neutral-900"
+              className="flex h-6 w-6 items-center justify-center rounded-md bg-primary-600"
             >
-              <svg
-                className="h-4 w-4 text-white"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-              >
-                <path d="M5 12l5 5L19 7" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <BrandMark className="h-4 w-4 text-white" />
             </div>
-            <span className="font-display text-lg font-bold text-neutral-900">TasksFlow</span>
+            <span className="font-display text-lg font-bold text-neutral-900">FlowTask</span>
           </div>
           <div className="ml-auto flex items-center gap-1">
             <IconButton

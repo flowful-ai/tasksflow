@@ -2,7 +2,7 @@
 
 ## Progress report
 
-- If you have access to the TasksFlow MCP create tasks in the taskflow project first when executing the project and then move state as you progress
+- If you have access to the FlowTask MCP create tasks in the taskflow project first when executing the project and then move state as you progress
 
 ## Project Snapshot
 
