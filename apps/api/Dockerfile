@@ -27,10 +27,8 @@ ENV VITE_API_URL=$VITE_API_URL \
     VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID \
     VITE_GITHUB_APP_SLUG=$VITE_GITHUB_APP_SLUG
 
-# The web build reads @flowtask/shared from its dist; the API bundle reads it
-# from source (the "bun" export condition) and inlines all dependencies, so
-# the runner needs no node_modules.
-RUN cd packages/shared && bun run build
+# Both builds read @flowtask/shared from its TypeScript source. The API bundle
+# inlines all dependencies, so the runner needs no node_modules.
 RUN cd apps/web && bun run build
 RUN cd apps/api && bun run build
 
