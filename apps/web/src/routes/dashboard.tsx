@@ -235,7 +235,7 @@ export function DashboardPage() {
         <p className="text-neutral-500 mt-2">
           {currentWorkspace
             ? `Here's what's happening in ${currentWorkspace.name}`
-            : 'Welcome to TasksFlow'}
+            : 'Welcome to FlowTask'}
         </p>
       </header>
 

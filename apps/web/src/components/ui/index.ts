@@ -64,3 +64,4 @@ export {
   type SegmentedOption,
 } from './SegmentedControl';
 export { NavItem, type NavItemProps } from './NavItem';
+export { BrandMark } from './BrandMark';

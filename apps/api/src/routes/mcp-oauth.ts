@@ -187,7 +187,7 @@ function buildConsentHtml(input: {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>TasksFlow MCP Authorization</title>
+    <title>FlowTask MCP Authorization</title>
     <style>
       body { font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; background: #f8fafc; color: #0f172a; }
       .container { max-width: 720px; margin: 40px auto; background: #ffffff; border-radius: 12px; padding: 28px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08); }
@@ -210,10 +210,10 @@ function buildConsentHtml(input: {
   <body>
     <div class="container">
       <h1>Authorize MCP Client</h1>
-      <p class="muted"><strong>${escapeHtml(input.clientName)}</strong> <span class="badge badge-unverified">Unverified client</span> is requesting access to TasksFlow MCP tools.</p>
+      <p class="muted"><strong>${escapeHtml(input.clientName)}</strong> <span class="badge badge-unverified">Unverified client</span> is requesting access to FlowTask MCP tools.</p>
 
       <div class="warning">
-        The client name is self-declared and has not been verified by TasksFlow.
+        The client name is self-declared and has not been verified by FlowTask.
         After you approve, you will be sent to <strong>${escapeHtml(redirectTarget)}</strong>.
         Only continue if you started this connection and recognise that destination.
       </div>

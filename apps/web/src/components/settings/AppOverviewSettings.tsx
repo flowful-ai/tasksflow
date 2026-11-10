@@ -11,7 +11,7 @@ export function AppOverviewSettings({ appRole }: AppOverviewSettingsProps) {
   return (
     <Card
       title="App Settings Overview"
-      description="App settings apply to the entire TasksFlow application, not just one workspace."
+      description="App settings apply to the entire FlowTask application, not just one workspace."
     >
       <Panel>
         <p className="text-sm text-neutral-500">Current app role</p>

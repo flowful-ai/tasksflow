@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../../stores/auth';
 import { OAuthButtons } from '../../components/auth/OAuthButtons';
-import { Button, Field, Input } from '../../components/ui';
+import { Button, Field, Input, BrandMark } from '../../components/ui';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -62,16 +62,7 @@ export function LoginPage() {
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="mx-auto w-12 h-12 bg-primary-600 rounded-xl flex items-center justify-center">
-            <svg
-              aria-hidden
-              className="w-7 h-7 text-white"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-            >
-              <path d="M5 12l5 5L19 7" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <BrandMark className="w-7 h-7 text-white" />
           </div>
           <h1 className="mt-6 text-3xl font-bold text-neutral-900">Welcome back</h1>
           <p className="mt-2 text-sm text-neutral-600">
