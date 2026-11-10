@@ -78,19 +78,28 @@ export function errorBody(code: string, message: string) {
   return { success: false as const, error: { code, message } };
 }
 
+interface ValidationIssue {
+  path: ReadonlyArray<PropertyKey>;
+  message: string;
+}
+
 /**
  * `zValidator` hook: a failed parse answers 400 VALIDATION_ERROR with the
- * first issue's message, in the standard error envelope.
+ * first issue, prefixed with its field path (zod 4's default messages never
+ * name the field), in the standard error envelope.
  */
 export function validationHook<E extends Env, P extends string>(
-  result: { success: boolean; error?: { issues: ReadonlyArray<{ message: string }> } },
+  result: { success: boolean; error?: { issues: ReadonlyArray<ValidationIssue> } },
   c: Context<E, P>
 ): Response | undefined {
   if (result.success) return undefined;
-  return c.json(
-    errorBody('VALIDATION_ERROR', result.error?.issues[0]?.message ?? 'Invalid request'),
-    400
-  );
+  const issue = result.error?.issues[0];
+  const message = !issue
+    ? 'Invalid request'
+    : issue.path.length > 0
+      ? `${issue.path.map(String).join('.')}: ${issue.message}`
+      : issue.message;
+  return c.json(errorBody('VALIDATION_ERROR', message), 400);
 }
 
 export function respondError(c: Context, error: AppError): Response {

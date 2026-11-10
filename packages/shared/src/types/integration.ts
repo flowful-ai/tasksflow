@@ -273,7 +273,7 @@ export const SlackConfigSchema = z.object({
   /** Bot token, encrypted at rest. Never returned to clients. */
   botTokenEncrypted: z.string().min(1).optional(),
   botUserId: z.string().nullable().optional(),
-  notifications: SlackNotificationSettingsSchema.default({}),
+  notifications: SlackNotificationSettingsSchema.prefault({}),
 });
 export type SlackConfig = z.infer<typeof SlackConfigSchema>;
 
@@ -285,7 +285,17 @@ export function parseSlackConfig(raw: unknown): SlackConfig | null {
 export const UpdateSlackIntegrationSchema = z.object({
   channelId: z.string().min(1).optional(),
   isEnabled: z.boolean().optional(),
-  notifications: SlackNotificationSettingsSchema.partial().optional(),
+  // Plain optionals, not SlackNotificationSettingsSchema.partial(): zod 4 still
+  // applies a field's .default() inside .partial(), so a one-key update would
+  // turn every other notification back on when merged over the stored config.
+  notifications: z
+    .object({
+      taskCreated: z.boolean().optional(),
+      stateChanged: z.boolean().optional(),
+      assigned: z.boolean().optional(),
+      commentAdded: z.boolean().optional(),
+    })
+    .optional(),
 });
 export type UpdateSlackIntegration = z.infer<typeof UpdateSlackIntegrationSchema>;
 
@@ -315,7 +325,7 @@ export const ProjectIntegrationSchema = z.object({
   id: z.string().uuid(),
   projectId: z.string().uuid(),
   integrationType: IntegrationTypeSchema,
-  config: z.record(z.unknown()),
+  config: z.record(z.string(), z.unknown()),
   isEnabled: z.boolean().default(true),
   lastSyncAt: z.coerce.date().nullable(),
   syncStatus: SyncStatusSchema.default('idle'),

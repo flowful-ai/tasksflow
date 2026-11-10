@@ -179,11 +179,10 @@ Slack gets notifications only (task created, state changed, assigned, comment ad
 
 ## Deployment
 
-Production is one image (`apps/api/Dockerfile`: API bundle, built SPA and migrations) plus Postgres and a daily backup sidecar, described in [`docker-compose.prod.yml`](docker-compose.prod.yml). The reference setup is Dokploy: route your domain to `tasksflow-api` on port 3001, set the environment, deploy. Migrations run on boot.
+Production is one image (`apps/api/Dockerfile`: API bundle, built SPA and migrations) plus Postgres, described in [`docker-compose.prod.yml`](docker-compose.prod.yml). The reference setup is Dokploy: route your domain to `tasksflow-api` on port 3001, set the environment, deploy. Migrations run on boot.
 
 - [docs/deploy.md](docs/deploy.md): Dokploy deployment, health checks, scaling, shutdown.
-- [docs/backup-restore.md](docs/backup-restore.md): backups and a restore drill.
-- [docs/v2-upgrade.md](docs/v2-upgrade.md): upgrading a v1 installation.
+- [docs/backup-restore.md](docs/backup-restore.md): backing up from the host and a restore drill.
 
 ## Documentation
 

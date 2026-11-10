@@ -212,7 +212,6 @@ function describeBody(snippet: string): string {
 }
 
 function describeAuth(mount: Mount, route: LocalRoute): string {
-  if (/deprecatedResponse|legacySseDeprecatedResponse/.test(route.snippet)) return 'none';
   if (mount.beforeAuth) {
     const label = PRE_AUTH_LABELS[mount.router.file] ?? 'none';
     if (SESSION_GUARDS.test(route.snippet) || /authMiddleware/.test(route.snippet)) {
@@ -256,7 +255,6 @@ function describePermissions(snippet: string): string[] {
   if (/requireWorkspaceAdminOrOwner\(|isWorkspaceAdmin\(|loadOwned\(/.test(snippet)) {
     found.add('owner or admin');
   }
-  if (/deprecatedResponse|legacySseDeprecatedResponse/.test(snippet)) found.add('gone (410)');
   return [...found];
 }
 

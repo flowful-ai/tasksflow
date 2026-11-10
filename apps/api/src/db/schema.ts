@@ -542,7 +542,7 @@ export const workspaceAgents = pgTable(
     // Permissions (array of allowed MCP tool names)
     permissions: jsonb('permissions').notNull().default('[]'),
 
-    // Daily token budget (legacy: these token agents are disabled, see /api/workspaces/:id/agents)
+    // Daily token budget (legacy: these token agents no longer authenticate)
     tokensPerDay: integer('tokens_per_day').default(100000).notNull(),
     currentDayTokens: integer('current_day_tokens').default(0).notNull(),
     lastTokenReset: timestamp('last_token_reset').defaultNow(),

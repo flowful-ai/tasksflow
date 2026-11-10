@@ -4,6 +4,8 @@ import {
   findLinkedRepository,
   parseGitHubConfig,
   parseTaskReferences,
+  SlackConfigSchema,
+  UpdateSlackIntegrationSchema,
 } from './integration.js';
 import {
   formatGitHubExternalId,
@@ -165,5 +167,22 @@ describe('parseTaskReferences', () => {
   test('caps the number of references', () => {
     const text = Array.from({ length: 50 }, (_, i) => `FLOW-${i + 1}`).join(' ');
     expect(parseTaskReferences(text)).toHaveLength(20);
+  });
+});
+
+describe('Slack schemas', () => {
+  test('a stored config without notifications gets every notification on', () => {
+    const config = SlackConfigSchema.parse({ teamId: 'T1', channelId: 'C1', channelName: 'dev' });
+    expect(config.notifications).toEqual({
+      taskCreated: true,
+      stateChanged: true,
+      assigned: true,
+      commentAdded: true,
+    });
+  });
+
+  test('an update carries only the notification keys it was sent', () => {
+    const update = UpdateSlackIntegrationSchema.parse({ notifications: { stateChanged: false } });
+    expect(update.notifications).toEqual({ stateChanged: false });
   });
 });

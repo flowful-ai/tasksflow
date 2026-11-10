@@ -100,7 +100,7 @@ export const MoveTaskSchema = z.object({
    */
   position: z
     .never({
-      invalid_type_error:
+      error:
         '`position` is no longer accepted: pass afterTaskId and/or beforeTaskId and the server computes the position',
     })
     .optional(),

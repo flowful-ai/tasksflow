@@ -10,7 +10,13 @@ import {
   WorkspaceActivityQuerySchema,
 } from '@flowtask/shared';
 import { getAuthz, requireUser, requireWorkspace } from '../lib/authorize.js';
-import { badRequest, forbidden, fromResult, handleRouteError } from '../lib/responses.js';
+import {
+  badRequest,
+  forbidden,
+  fromResult,
+  handleRouteError,
+  validationHook,
+} from '../lib/responses.js';
 
 const workspaces = new Hono();
 workspaces.onError(handleRouteError);
@@ -29,7 +35,7 @@ workspaces.get('/', async (c) => {
 });
 
 // Create workspace
-workspaces.post('/', zValidator('json', CreateWorkspaceSchema), async (c) => {
+workspaces.post('/', zValidator('json', CreateWorkspaceSchema, validationHook), async (c) => {
   const user = requireUser(c);
   const data = c.req.valid('json');
   const workspace = fromResult(await workspaceService.create({ ...data, ownerId: user.id }), {
@@ -70,7 +76,7 @@ workspaces.get('/:workspaceId/me', async (c) => {
 // List recent task activity for workspace, limited to projects the caller can access
 workspaces.get(
   '/:workspaceId/activity',
-  zValidator('query', WorkspaceActivityQuerySchema),
+  zValidator('query', WorkspaceActivityQuerySchema, validationHook),
   async (c) => {
     const { workspaceId, role, user } = await requireWorkspace(
       c,
@@ -106,23 +112,27 @@ workspaces.get(
 );
 
 // Update workspace
-workspaces.patch('/:workspaceId', zValidator('json', UpdateWorkspaceSchema), async (c) => {
-  const { workspaceId, user } = await requireWorkspace(
-    c,
-    c.req.param('workspaceId'),
-    'workspace:update'
-  );
-  const data = c.req.valid('json');
-  const workspace = fromResult(
-    await workspaceService.update(workspaceId, { ...data, updatedBy: user.id }),
-    {
-      status: 400,
-      code: 'UPDATE_FAILED',
-      message: 'Failed to update workspace',
-    }
-  );
-  return c.json({ success: true, data: workspace });
-});
+workspaces.patch(
+  '/:workspaceId',
+  zValidator('json', UpdateWorkspaceSchema, validationHook),
+  async (c) => {
+    const { workspaceId, user } = await requireWorkspace(
+      c,
+      c.req.param('workspaceId'),
+      'workspace:update'
+    );
+    const data = c.req.valid('json');
+    const workspace = fromResult(
+      await workspaceService.update(workspaceId, { ...data, updatedBy: user.id }),
+      {
+        status: 400,
+        code: 'UPDATE_FAILED',
+        message: 'Failed to update workspace',
+      }
+    );
+    return c.json({ success: true, data: workspace });
+  }
+);
 
 // Delete workspace (owner only)
 workspaces.delete('/:workspaceId', async (c) => {
@@ -152,7 +162,8 @@ workspaces.post(
   '/:workspaceId/members',
   zValidator(
     'json',
-    z.object({ userId: z.string().uuid(), role: WorkspaceRoleSchema.default('member') })
+    z.object({ userId: z.string().uuid(), role: WorkspaceRoleSchema.default('member') }),
+    validationHook
   ),
   async (c) => {
     const { workspaceId, user } = await requireWorkspace(
@@ -178,7 +189,7 @@ workspaces.post(
 // Transfer ownership to another member (owner only). The previous owner becomes an admin.
 workspaces.post(
   '/:workspaceId/transfer-ownership',
-  zValidator('json', z.object({ userId: z.string().uuid() })),
+  zValidator('json', z.object({ userId: z.string().uuid() }), validationHook),
   async (c) => {
     const { workspaceId, user, role } = await requireWorkspace(
       c,
@@ -204,7 +215,7 @@ workspaces.post(
 // Update member role
 workspaces.patch(
   '/:workspaceId/members/:memberId',
-  zValidator('json', z.object({ role: WorkspaceRoleSchema })),
+  zValidator('json', z.object({ role: WorkspaceRoleSchema }), validationHook),
   async (c) => {
     const { workspaceId, user } = await requireWorkspace(
       c,

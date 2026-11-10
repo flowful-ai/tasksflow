@@ -16,8 +16,8 @@ services:
     # work_mem + 96 autovacuum. max_connections is 30 rather than the default
     # 100: each API instance holds its pool (DB_POOL_MAX, 10) plus one LISTEN
     # connection for realtime and, briefly at boot, one migration connection.
-    # That leaves room for two API instances, the backup sidecar's pg_dump and
-    # the healthchecks.
+    # That leaves room for two API instances, the host's backup pg_dump and the
+    # healthchecks.
     #
     # The 15 MiB reading taken on main 2026-09-11 is not the sizing case:
     # docker stats subtracts inactive page cache, so it understates a cold or
@@ -127,39 +127,8 @@ services:
     networks:
       - flowtask-network
 
-  # Daily pg_dump to the tasksflow_backups volume, keeping 7 daily, 4 weekly
-  # and 6 monthly dumps. The volume is on the same host: copy it off-host
-  # (Dokploy volume backups, rsync, restic) for real disaster recovery.
-  # Restore: gunzip -c <dump>.sql.gz | docker compose exec -T postgres psql -U <user> <db>
-  tasksflow-backup:
-    image: prodrigestivill/postgres-backup-local:16-alpine-d257e5d
-    restart: always
-    deploy:
-      resources:
-        limits:
-          memory: 256m
-    environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_DB: ${POSTGRES_DB:-flowtask}
-      POSTGRES_USER: ${POSTGRES_USER:-flowtask}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
-      POSTGRES_EXTRA_OPTS: --clean --if-exists --no-owner -Z 6
-      SCHEDULE: '@daily'
-      BACKUP_KEEP_DAYS: 7
-      BACKUP_KEEP_WEEKS: 4
-      BACKUP_KEEP_MONTHS: 6
-      HEALTHCHECK_PORT: 8080
-    volumes:
-      - tasksflow_backups:/backups
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - flowtask-network
-
 volumes:
   tasksflow_postgres_data:
-  tasksflow_backups:
 
 networks:
   flowtask-network:

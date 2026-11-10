@@ -24,7 +24,6 @@ import { agentRoutes } from './routes/agents.js';
 import { mcpSseRoutes } from './routes/mcp-sse.js';
 import { mcpOAuthRoutes } from './routes/mcp-oauth.js';
 import { mcpConnectionsRoutes } from './routes/mcp-connections.js';
-import { workspaceAgentRoutes } from './routes/workspace-agents.js';
 import { workspaceApiKeysRoutes } from './routes/workspace-api-keys.js';
 import { eventRoutes } from './routes/events.js';
 import { githubRoutes, githubPublicRoutes } from './routes/github.js';
@@ -209,7 +208,6 @@ export function createApp(): CreatedApp {
   // API routes
   app.route('/api/workspaces', workspaceRoutes);
   app.route('/api/projects', projectRoutes);
-  app.route('/api/workspaces', workspaceAgentRoutes); // Workspace agent routes nested under workspaces
   app.route('/api/workspaces', workspaceApiKeysRoutes);
   app.route('/api/workspaces', mcpConnectionsRoutes);
   app.route('/api', invitationRoutes); // Invitation routes under /api/workspaces/:workspaceId/invitations

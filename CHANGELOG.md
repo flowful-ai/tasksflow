@@ -2,7 +2,7 @@
 
 ## v2.0.0
 
-v2 is a rewrite of the backend's security model and infrastructure, plus a redesigned web app. Upgrading a v1 installation needs manual steps: follow [docs/v2-upgrade.md](docs/v2-upgrade.md).
+v2 is a rewrite of the backend's security model and infrastructure, plus a redesigned web app. Upgrading a v1 installation needed manual steps.
 
 ### Breaking changes
 

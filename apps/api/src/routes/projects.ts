@@ -11,7 +11,7 @@ import {
   CreateLabelSchema,
 } from '@flowtask/shared';
 import { requireProject, requireWorkspace } from '../lib/authorize.js';
-import { fromResult, handleRouteError } from '../lib/responses.js';
+import { fromResult, handleRouteError, validationHook } from '../lib/responses.js';
 
 const projects = new Hono();
 projects.onError(handleRouteError);
@@ -51,7 +51,11 @@ projects.get('/', async (c) => {
 // Create project
 projects.post(
   '/',
-  zValidator('json', CreateProjectSchema.extend({ workspaceId: z.string().uuid() })),
+  zValidator(
+    'json',
+    CreateProjectSchema.extend({ workspaceId: z.string().uuid() }),
+    validationHook
+  ),
   async (c) => {
     const data = c.req.valid('json');
     const { workspaceId, user } = await requireWorkspace(c, data.workspaceId, 'project:create');
@@ -93,21 +97,25 @@ projects.get('/:projectId/permissions', async (c) => {
 });
 
 // Update project
-projects.patch('/:projectId', zValidator('json', UpdateProjectSchema), async (c) => {
-  const { project, user } = await requireProject(c, c.req.param('projectId'), 'project:update');
-  const data = c.req.valid('json');
+projects.patch(
+  '/:projectId',
+  zValidator('json', UpdateProjectSchema, validationHook),
+  async (c) => {
+    const { project, user } = await requireProject(c, c.req.param('projectId'), 'project:update');
+    const data = c.req.valid('json');
 
-  const updated = fromResult(
-    await projectService.update(project.id, { ...data, updatedBy: user.id }),
-    {
-      status: 400,
-      code: 'UPDATE_FAILED',
-      message: 'Failed to update project',
-    }
-  );
+    const updated = fromResult(
+      await projectService.update(project.id, { ...data, updatedBy: user.id }),
+      {
+        status: 400,
+        code: 'UPDATE_FAILED',
+        message: 'Failed to update project',
+      }
+    );
 
-  return c.json({ success: true, data: updated });
-});
+    return c.json({ success: true, data: updated });
+  }
+);
 
 // Delete project
 projects.delete('/:projectId', async (c) => {
@@ -131,25 +139,29 @@ projects.get('/:projectId/states', async (c) => {
   return c.json({ success: true, data: full.taskStates });
 });
 
-projects.post('/:projectId/states', zValidator('json', CreateTaskStateSchema), async (c) => {
-  const { project } = await requireProject(c, c.req.param('projectId'), 'project:update');
-  const data = c.req.valid('json');
+projects.post(
+  '/:projectId/states',
+  zValidator('json', CreateTaskStateSchema, validationHook),
+  async (c) => {
+    const { project } = await requireProject(c, c.req.param('projectId'), 'project:update');
+    const data = c.req.valid('json');
 
-  const state = fromResult(
-    await projectService.createTaskState({ ...data, projectId: project.id }),
-    {
-      status: 400,
-      code: 'CREATE_FAILED',
-      message: 'Failed to create task state',
-    }
-  );
+    const state = fromResult(
+      await projectService.createTaskState({ ...data, projectId: project.id }),
+      {
+        status: 400,
+        code: 'CREATE_FAILED',
+        message: 'Failed to create task state',
+      }
+    );
 
-  return c.json({ success: true, data: state }, 201);
-});
+    return c.json({ success: true, data: state }, 201);
+  }
+);
 
 projects.patch(
   '/:projectId/states/:stateId',
-  zValidator('json', StateOrLabelUpdateSchema),
+  zValidator('json', StateOrLabelUpdateSchema, validationHook),
   async (c) => {
     const { project } = await requireProject(c, c.req.param('projectId'), 'project:update');
     const data = c.req.valid('json');
@@ -181,22 +193,26 @@ projects.delete('/:projectId/states/:stateId', async (c) => {
 
 // === Labels ===
 
-projects.post('/:projectId/labels', zValidator('json', CreateLabelSchema), async (c) => {
-  const { project } = await requireProject(c, c.req.param('projectId'), 'project:update');
-  const data = c.req.valid('json');
+projects.post(
+  '/:projectId/labels',
+  zValidator('json', CreateLabelSchema, validationHook),
+  async (c) => {
+    const { project } = await requireProject(c, c.req.param('projectId'), 'project:update');
+    const data = c.req.valid('json');
 
-  const label = fromResult(await projectService.createLabel({ ...data, projectId: project.id }), {
-    status: 400,
-    code: 'CREATE_FAILED',
-    message: 'Failed to create label',
-  });
+    const label = fromResult(await projectService.createLabel({ ...data, projectId: project.id }), {
+      status: 400,
+      code: 'CREATE_FAILED',
+      message: 'Failed to create label',
+    });
 
-  return c.json({ success: true, data: label }, 201);
-});
+    return c.json({ success: true, data: label }, 201);
+  }
+);
 
 projects.patch(
   '/:projectId/labels/:labelId',
-  zValidator('json', StateOrLabelUpdateSchema),
+  zValidator('json', StateOrLabelUpdateSchema, validationHook),
   async (c) => {
     const { project } = await requireProject(c, c.req.param('projectId'), 'project:update');
     const data = c.req.valid('json');
@@ -245,7 +261,8 @@ projects.put(
     z.object({
       access: z.enum(['all', 'admin', 'members']),
       userIds: z.array(z.string().uuid()).max(1000).optional(),
-    })
+    }),
+    validationHook
   ),
   async (c) => {
     const { project } = await requireProject(c, c.req.param('projectId'), 'project:update');

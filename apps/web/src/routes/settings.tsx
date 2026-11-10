@@ -176,10 +176,6 @@ export function SettingsPage() {
             <Route path="workspace/api-keys" element={adminOnly(<AiSettings />)} />
             <Route path="workspace/mcp-connections" element={adminOnly(<AgentSettings />)} />
             <Route path="workspace/webhooks" element={adminOnly(<WebhookSettings />)} />
-            <Route
-              path="workspace/agents"
-              element={<Navigate to="/settings/workspace/mcp-connections" replace />}
-            />
 
             <Route
               path="app/overview"
@@ -223,10 +219,6 @@ export function SettingsPage() {
               element={<Navigate to="/settings/workspace/views/new" replace />}
             />
             <Route path="views/:viewId/edit" element={<SmartViewForm />} />
-            <Route
-              path="agents"
-              element={<Navigate to="/settings/workspace/mcp-connections" replace />}
-            />
             <Route
               path="webhooks"
               element={<Navigate to="/settings/workspace/webhooks" replace />}
