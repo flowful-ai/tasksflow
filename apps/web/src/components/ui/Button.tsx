@@ -16,7 +16,7 @@ import { Slot, Slottable } from '@radix-ui/react-slot';
 import clsx from 'clsx';
 import { Spinner } from './Spinner';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'link';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'link' | 'link-muted';
 export type ButtonSize = 'xs' | 'sm' | 'md';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -37,6 +37,8 @@ const VARIANTS: Record<ButtonVariant, string> = {
   ghost: 'btn btn-ghost',
   danger: 'btn btn-danger',
   link: 'inline-flex items-center text-sm font-medium text-primary-600 hover:underline disabled:cursor-not-allowed disabled:opacity-60',
+  'link-muted':
+    'inline-flex items-center text-sm font-medium text-neutral-600 hover:text-neutral-800 disabled:cursor-not-allowed disabled:opacity-60',
 };
 
 // `md` is the .btn default (px-4 py-2.5 text-sm).
@@ -79,7 +81,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       aria-busy={loading || undefined}
       className={clsx(
         VARIANTS[variant],
-        variant !== 'link' && SIZES[size],
+        !variant.startsWith('link') && SIZES[size],
         (loading || leadingIcon || trailingIcon) && 'gap-2',
         block && 'w-full justify-center',
         className

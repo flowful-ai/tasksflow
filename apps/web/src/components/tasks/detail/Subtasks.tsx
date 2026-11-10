@@ -140,7 +140,7 @@ export function Subtasks({
                   disabled={readOnly || (done ? !openState : !doneState)}
                   onChange={() => void toggle(sub)}
                   aria-label={`${done ? 'Reopen' : 'Complete'} ${sub.key}: ${sub.title}`}
-                  className="text-emerald-600 focus:ring-emerald-500"
+                  tone="success"
                 />
                 <button
                   type="button"

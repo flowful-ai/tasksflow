@@ -46,7 +46,7 @@ export {
 } from './Input';
 export { controlClasses } from './control-classes';
 export { Field, labelClasses, type FieldProps } from './Field';
-export { Checkbox, checkboxClasses, type CheckboxProps } from './Checkbox';
+export { Checkbox, type CheckboxProps } from './Checkbox';
 export { Badge, type BadgeProps, type BadgeTone } from './Badge';
 export {
   Avatar,

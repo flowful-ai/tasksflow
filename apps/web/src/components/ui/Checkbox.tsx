@@ -14,13 +14,22 @@ export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement
   description?: ReactNode;
   /** Classes for the wrapping <label> when `label` is set. */
   labelClassName?: string;
+  /** Checked colour: `primary` (default) or `success` (completed items). */
+  tone?: 'primary' | 'success';
 }
 
-export const checkboxClasses =
-  'h-4 w-4 shrink-0 cursor-pointer rounded border-neutral-300 text-primary-600 focus:ring-primary-500 disabled:cursor-not-allowed';
+// Colours live in TONES, not in `className`: Tailwind orders same-property
+// utilities by its own rules, so a className override would not win.
+const TONES = {
+  primary: 'text-primary-600 focus:ring-primary-500',
+  success: 'text-emerald-600 focus:ring-emerald-500',
+} as const;
+
+const BASE =
+  'h-4 w-4 shrink-0 cursor-pointer rounded border-neutral-300 disabled:cursor-not-allowed';
 
 export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Checkbox(
-  { label, description, labelClassName, className, ...rest },
+  { label, description, labelClassName, tone = 'primary', className, ...rest },
   ref
 ) {
   const props = useFieldControl(rest);
@@ -30,7 +39,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
     <input
       ref={ref}
       type="checkbox"
-      className={clsx(checkboxClasses, (label || description) && 'mt-0.5', className)}
+      className={clsx(BASE, TONES[tone], (label || description) && 'mt-0.5', className)}
       {...props}
       aria-describedby={
         [props['aria-describedby'], descriptionId].filter(Boolean).join(' ') || undefined

@@ -239,11 +239,7 @@ export function ShareDialog({
             ) : (
               <>
                 {publicShares.length > 0 && (
-                  <Button
-                    variant="link"
-                    onClick={() => setShowCreateForm(false)}
-                    className="text-neutral-600 hover:no-underline hover:text-neutral-700"
-                  >
+                  <Button variant="link-muted" onClick={() => setShowCreateForm(false)}>
                     Back to shares
                   </Button>
                 )}

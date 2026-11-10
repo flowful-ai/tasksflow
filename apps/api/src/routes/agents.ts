@@ -269,8 +269,14 @@ agents.post(
         messages: modelMessages,
         tools,
         stopWhen: stepCountIs(TOOL_EXECUTION_STEP_LIMIT),
+        // Stop generating (and running tools) when the client hits Stop or leaves.
+        abortSignal: c.req.raw.signal,
         onChunk: () => timing.firstChunk(),
-        onError: () => timing.fail('error'),
+        // Replaces the SDK's default onError, so log the error here.
+        onError: ({ error }) => {
+          console.error('[agents] stream failed', error);
+          timing.fail('error');
+        },
         onAbort: ({ steps }) => timing.fail('aborted', steps.length),
         onFinish: async ({ totalUsage, steps, finishReason }) => {
           timing.finish({ steps: steps.length, usage: totalUsage, finishReason });

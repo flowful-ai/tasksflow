@@ -26,7 +26,7 @@ type AnyToolPart = ToolUIPart | DynamicToolUIPart;
 
 export type ToolApprovalHandler = (approvalId: string, approved: boolean) => void;
 
-function stringifyJson(value: unknown): string {
+function stringifyJson<T>(value: T): string {
   try {
     return JSON.stringify(value, null, 2);
   } catch {
