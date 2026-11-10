@@ -1,5 +1,11 @@
 import { getDatabase } from '../../db/index.js';
-import { CommentService, SmartViewService, TaskService } from '../../domain/index.js';
+import {
+  CommentService,
+  ProjectService,
+  SmartViewService,
+  TaskRelationService,
+  TaskService,
+} from '../../domain/index.js';
 import { TaskGitHubLinkService } from '../task-github-link-service.js';
 import type { ToolContext } from '../../lib/mcp/tool-context.js';
 import type { JsonRecord } from '../../lib/mcp/json-schema-zod.js';
@@ -20,6 +26,8 @@ export interface ToolServices {
     | 'addLabel'
     | 'removeLabel'
   >;
+  relations: Pick<TaskRelationService, 'list' | 'add' | 'remove'>;
+  projects: Pick<ProjectService, 'createLabel'>;
   comments: Pick<CommentService, 'create' | 'list'>;
   smartViews: Pick<SmartViewService, 'create' | 'getById' | 'list'>;
   githubLinks: Pick<TaskGitHubLinkService, 'linkPr'>;
@@ -43,6 +51,8 @@ export function getDefaultToolServices(): ToolServices {
     const db = getDatabase();
     defaultServices = {
       tasks: new TaskService(db),
+      relations: new TaskRelationService(db),
+      projects: new ProjectService(db),
       comments: new CommentService(db),
       smartViews: new SmartViewService(db),
       githubLinks: new TaskGitHubLinkService(db),

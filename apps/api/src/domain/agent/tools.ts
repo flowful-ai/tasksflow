@@ -84,6 +84,31 @@ const TASK_REF: ToolParameterSchema = {
     'Task id (uuid) or task key such as "ENG-123" (project identifier + number) from query_tasks/search_tasks',
 };
 
+const TASK_REF_DESCRIPTION = 'id (uuid) or key such as "ENG-123"';
+
+const PARENT_ID_CREATE: ToolParameterSchema = {
+  type: 'string',
+  description: `Parent task ${TASK_REF_DESCRIPTION}; creates a sub-task (same project)`,
+};
+
+const PARENT_ID_UPDATE: ToolParameterSchema = {
+  type: ['string', 'null'],
+  description: `Parent task ${TASK_REF_DESCRIPTION} (same project); null detaches the sub-task`,
+};
+
+const RELATION_TYPE: ToolParameterSchema = {
+  type: 'string',
+  enum: ['blocks', 'relates', 'duplicates'],
+  description: 'Relation type',
+};
+
+const RELATION_DIRECTION: ToolParameterSchema = {
+  type: 'string',
+  enum: ['outgoing', 'incoming'],
+  description:
+    'For blocks/duplicates: outgoing (default) = taskId blocks/duplicates relatedTaskId, incoming = the reverse',
+};
+
 const STATE_ID: ToolParameterSchema = {
   type: 'string',
   format: 'uuid',
@@ -319,6 +344,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
           ...STATE_ID,
           description: `${STATE_ID.description}; defaults to the first backlog state`,
         },
+        parentId: PARENT_ID_CREATE,
         dueDate: DUE_DATE_CREATE,
         labelIds: LABEL_IDS,
         assigneeIds: ASSIGNEE_IDS,
@@ -358,6 +384,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
               description: DESCRIPTION,
               priority: PRIORITY,
               stateId: STATE_ID,
+              parentId: PARENT_ID_CREATE,
               dueDate: DUE_DATE_CREATE,
               labelIds: LABEL_IDS,
               assigneeIds: ASSIGNEE_IDS,
@@ -407,6 +434,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
         description: DESCRIPTION,
         priority: PRIORITY,
         stateId: STATE_ID,
+        parentId: PARENT_ID_UPDATE,
         dueDate: DUE_DATE_UPDATE,
         labelIds: {
           ...LABEL_IDS,
@@ -458,6 +486,7 @@ export const AGENT_TOOLS: ToolDefinition[] = [
               description: DESCRIPTION,
               priority: PRIORITY,
               stateId: STATE_ID,
+              parentId: PARENT_ID_UPDATE,
               dueDate: DUE_DATE_UPDATE,
               labelIds: {
                 ...LABEL_IDS,
@@ -525,6 +554,10 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       priority: PRIORITY,
       assigneeId: { type: 'string', description: `Assignee: ${USER_REF_DESCRIPTION}` },
       labelId: { type: 'string', format: 'uuid', description: 'Label id (uuid) from list_labels' },
+      parentId: {
+        type: 'string',
+        description: `Parent task ${TASK_REF_DESCRIPTION}: only its sub-tasks; "none" for top-level tasks only`,
+      },
       search: {
         type: 'string',
         maxLength: 200,
@@ -539,7 +572,8 @@ export const AGENT_TOOLS: ToolDefinition[] = [
   },
   {
     name: 'get_task',
-    description: 'Get one task by id or key (detail-on-demand after query/search).',
+    description:
+      'Get one task by id or key (detail-on-demand after query/search). view=full adds parent, sub-tasks and relations.',
     parameters: params({ taskId: TASK_REF, ...PROJECTION_PARAMS }, ['taskId']),
     outputSchema: output({ task: TASK_OUTPUT }, ['task']),
     annotations: { title: 'Get task', readOnlyHint: true, openWorldHint: false },
@@ -785,6 +819,102 @@ export const AGENT_TOOLS: ToolDefinition[] = [
       'labels',
     ]),
     annotations: { title: 'List labels', readOnlyHint: true, openWorldHint: false },
+  },
+  {
+    name: 'link_tasks',
+    description:
+      'Relate two tasks: blocks, relates or duplicates. Tasks may be in different projects of the workspace.',
+    parameters: params(
+      {
+        taskId: TASK_REF,
+        relatedTaskId: { ...TASK_REF, description: `Related task ${TASK_REF_DESCRIPTION}` },
+        type: RELATION_TYPE,
+        direction: RELATION_DIRECTION,
+      },
+      ['taskId', 'relatedTaskId', 'type']
+    ),
+    outputSchema: output(
+      {
+        ok: { type: 'boolean', description: 'Always true on success' },
+        tool: { type: 'string', description: 'Tool name' },
+        relation: {
+          type: 'object',
+          description: `Relation seen from taskId: {id, type, direction, task}; ${UNTRUSTED_TEXT_NOTE}`,
+        },
+      },
+      ['ok', 'tool', 'relation']
+    ),
+    annotations: {
+      title: 'Link tasks',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
+  {
+    name: 'unlink_tasks',
+    description:
+      'Remove a relation between two tasks. Give relationId (from get_task view=full or link_tasks), or relatedTaskId and type.',
+    parameters: params(
+      {
+        taskId: TASK_REF,
+        relationId: {
+          type: 'string',
+          format: 'uuid',
+          description: 'Relation id (uuid) from get_task (view=full) relations[].id or link_tasks',
+        },
+        relatedTaskId: { ...TASK_REF, description: `Related task ${TASK_REF_DESCRIPTION}` },
+        type: { ...RELATION_TYPE, description: 'Relation type (with relatedTaskId)' },
+        direction: {
+          ...RELATION_DIRECTION,
+          description: `${RELATION_DIRECTION.description}; only needed when both directions exist`,
+        },
+      },
+      ['taskId']
+    ),
+    outputSchema: output(
+      {
+        ok: { type: 'boolean', description: 'Always true on success' },
+        tool: { type: 'string', description: 'Tool name' },
+        relationId: { type: 'string', description: 'Removed relation id' },
+      },
+      ['ok', 'tool', 'relationId']
+    ),
+    annotations: {
+      title: 'Unlink tasks',
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
+  {
+    name: 'create_label',
+    description: 'Create a label in a project; use its id in labelIds.',
+    parameters: params(
+      {
+        projectId: PROJECT_ID,
+        name: { type: 'string', minLength: 1, maxLength: 50, description: 'Label name' },
+        color: { type: 'string', description: 'Label color, e.g. "#ef4444"' },
+      },
+      ['projectId', 'name']
+    ),
+    outputSchema: output(
+      {
+        ok: { type: 'boolean', description: 'Always true on success' },
+        tool: { type: 'string', description: 'Tool name' },
+        label: { type: 'object', description: 'Created label: {id, name, color, projectId}' },
+      },
+      ['ok', 'tool', 'label']
+    ),
+    annotations: {
+      title: 'Create label',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
   },
 ];
 

@@ -81,6 +81,7 @@ describe('projectTask', () => {
       'dueDate',
       'id',
       'key',
+      'parentId',
       'priority',
       'projectId',
       'stateId',
@@ -126,6 +127,62 @@ describe('projectTask', () => {
     expect(output.description).toEqual({ untrusted_text: 'desc' });
     expect(output.key).toBe('TASK-12');
     expect(output.assignees).toEqual([{ id: 'u1', name: 'User One', email: 'u1@example.com' }]);
+  });
+});
+
+describe('sub-tasks and relations', () => {
+  const ref = {
+    id: 'task-0',
+    key: 'TASK-11',
+    title: 'Epic',
+    projectId: 'project-1',
+    stateId: 'state-1',
+    stateCategory: 'backlog',
+    done: false,
+  };
+
+  it('exposes parentId in compact view and parent/sub-tasks/relations in full view', () => {
+    const task = {
+      ...createTaskFixture(),
+      parentId: 'task-0',
+      parent: ref,
+      subtasks: [],
+      relations: [
+        {
+          id: 'rel-1',
+          type: 'blocks' as const,
+          direction: 'outgoing' as const,
+          task: ref,
+          createdAt: new Date('2026-02-12T00:00:00.000Z'),
+          createdBy: null,
+        },
+      ],
+    };
+    expect(projectTask(task, resolveTaskProjectionArgs({})).parentId).toBe('task-0');
+    expect(projectTask(task, resolveTaskProjectionArgs({})).parent).toBeUndefined();
+
+    const full = projectTask(task, resolveTaskProjectionArgs({ view: 'full' }));
+    const wrapped = {
+      id: 'task-0',
+      key: 'TASK-11',
+      title: { untrusted_text: 'Epic' },
+      projectId: 'project-1',
+      stateId: 'state-1',
+      done: false,
+    };
+    expect(full.parent).toEqual(wrapped);
+    expect(full.subtasks).toEqual([]);
+    expect(full.relations).toEqual([
+      { id: 'rel-1', type: 'blocks', direction: 'outgoing', task: wrapped },
+    ]);
+  });
+
+  it('leaves parent/sub-tasks out of list rows that were not loaded with them', () => {
+    const full = projectTask(createTaskFixture(), resolveTaskProjectionArgs({ view: 'full' }));
+    expect(full.parentId).toBeNull();
+    expect(full).not.toHaveProperty('parent');
+    expect(full).not.toHaveProperty('subtasks');
+    expect(full).not.toHaveProperty('relations');
   });
 });
 

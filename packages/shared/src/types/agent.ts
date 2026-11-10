@@ -67,6 +67,9 @@ export const AgentToolSchema = z.enum([
   'bulk_update_tasks',
   'list_smart_views',
   'run_smart_view',
+  'link_tasks',
+  'unlink_tasks',
+  'create_label',
 ]);
 export type AgentTool = z.infer<typeof AgentToolSchema>;
 

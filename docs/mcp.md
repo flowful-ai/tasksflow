@@ -58,27 +58,32 @@ Because only owners and admins can authorize, MCP clients effectively have admin
 
 Generated from `AGENT_TOOLS` (`apps/api/src/domain/agent/tools.ts`). "Write" tools are the ones the in-app chat asks the user to approve.
 
-| Tool                | Kind                | Permission          | Description                                                                                                        |
-| ------------------- | ------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `create_task`       | write               | `task:create`       | Create a task in a project. Get projectId, stateId and label ids from list_projects/list_labels.                   |
-| `bulk_create_tasks` | write               | `task:create`       | Create up to 50 tasks in one project. Failures are reported per item.                                              |
-| `update_task`       | write               | `task:update`       | Update task fields. labelIds/assigneeIds replace the current set. Linking a GitHub PR (githubPr\*) calls GitHub.   |
-| `bulk_update_tasks` | write               | `task:update`       | Apply updates to up to 50 tasks. Each update is applied independently and reported per task.                       |
-| `delete_task`       | write (destructive) | `task:delete`       | Delete a task (soft delete).                                                                                       |
-| `query_tasks`       | read                | `task:read`         | List/filter tasks across the projects you can access. Use assigneeId="me" for my tasks; search_tasks for keywords. |
-| `get_task`          | read                | `task:read`         | Get one task by id or key (detail-on-demand after query/search).                                                   |
-| `move_task`         | write               | `task:update`       | Move a task to another state (column), placing it at the end. Give stateId, or state as a state name or category.  |
-| `assign_task`       | write               | `task:assign`       | Assign or unassign one workspace member on a task.                                                                 |
-| `add_comment`       | write               | `comment:create`    | Add a Markdown comment to a task.                                                                                  |
-| `list_comments`     | read                | `comment:read`      | List comments on a task, newest first.                                                                             |
-| `summarize_project` | read                | `project:read`      | Summarize a project: states and task counts by state and priority.                                                 |
-| `create_smart_view` | write               | `smart_view:create` | Create a saved smart view (filtered task list) in the workspace.                                                   |
-| `list_smart_views`  | read                | `smart_view:read`   | List smart views you can see in the workspace; run one with run_smart_view.                                        |
-| `run_smart_view`    | read                | `smart_view:read`   | Run a smart view and return its tasks (limited to projects you can access).                                        |
-| `search_tasks`      | read                | `task:read`         | Keyword search over task titles and descriptions; use query_tasks for structured filters.                          |
-| `list_projects`     | read                | `project:read`      | List projects you can access, with their identifiers (for task keys) and states.                                   |
-| `list_members`      | read                | `workspace:read`    | List workspace members (ids and emails for assigneeIds/userId).                                                    |
-| `list_labels`       | read                | `project:read`      | List labels of a project, or of every accessible project when projectId is omitted.                                |
+| Tool                | Kind                | Permission          | Description                                                                                                              |
+| ------------------- | ------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `create_task`       | write               | `task:create`       | Create a task in a project. Get projectId, stateId and label ids from list_projects/list_labels.                         |
+| `bulk_create_tasks` | write               | `task:create`       | Create up to 50 tasks in one project. Failures are reported per item.                                                    |
+| `update_task`       | write               | `task:update`       | Update task fields. labelIds/assigneeIds replace the current set. Linking a GitHub PR (githubPr\*) calls GitHub.         |
+| `bulk_update_tasks` | write               | `task:update`       | Apply updates to up to 50 tasks. Each update is applied independently and reported per task.                             |
+| `delete_task`       | write (destructive) | `task:delete`       | Delete a task (soft delete).                                                                                             |
+| `query_tasks`       | read                | `task:read`         | List/filter tasks across the projects you can access. Use assigneeId="me" for my tasks; search_tasks for keywords.       |
+| `get_task`          | read                | `task:read`         | Get one task by id or key (detail-on-demand after query/search). view=full adds parent, sub-tasks and relations.         |
+| `move_task`         | write               | `task:update`       | Move a task to another state (column), placing it at the end. Give stateId, or state as a state name or category.        |
+| `assign_task`       | write               | `task:assign`       | Assign or unassign one workspace member on a task.                                                                       |
+| `add_comment`       | write               | `comment:create`    | Add a Markdown comment to a task.                                                                                        |
+| `list_comments`     | read                | `comment:read`      | List comments on a task, newest first.                                                                                   |
+| `summarize_project` | read                | `project:read`      | Summarize a project: states and task counts by state and priority.                                                       |
+| `create_smart_view` | write               | `smart_view:create` | Create a saved smart view (filtered task list) in the workspace.                                                         |
+| `list_smart_views`  | read                | `smart_view:read`   | List smart views you can see in the workspace; run one with run_smart_view.                                              |
+| `run_smart_view`    | read                | `smart_view:read`   | Run a smart view and return its tasks (limited to projects you can access).                                              |
+| `search_tasks`      | read                | `task:read`         | Keyword search over task titles and descriptions; use query_tasks for structured filters.                                |
+| `list_projects`     | read                | `project:read`      | List projects you can access, with their identifiers (for task keys) and states.                                         |
+| `list_members`      | read                | `workspace:read`    | List workspace members (ids and emails for assigneeIds/userId).                                                          |
+| `list_labels`       | read                | `project:read`      | List labels of a project, or of every accessible project when projectId is omitted.                                      |
+| `link_tasks`        | write               | `task:update`       | Relate two tasks: blocks, relates or duplicates. Tasks may be in different projects of the workspace.                    |
+| `unlink_tasks`      | write (destructive) | `task:update`       | Remove a relation between two tasks. Give relationId (from get_task view=full or link_tasks), or relatedTaskId and type. |
+| `create_label`      | write               | `project:update`    | Create a label in a project; use its id in labelIds.                                                                     |
+
+Sub-tasks: `create_task`, `bulk_create_tasks`, `update_task` and `bulk_update_tasks` take `parentId` (a task id or key in the same project; `null` on update detaches), and `query_tasks` filters by `parentId` (`"none"` for top-level tasks). The same rules as the REST API apply: the parent must be a live task of the same project and must not create a cycle. A parent or related task in a project the caller cannot access is reported as not found.
 
 Tool results are returned both as `structuredContent` and as JSON text. Errors come back as tool results with `isError: true` and a message the model can act on (validation, permission and domain errors verbatim; unexpected errors generic). List tools page with `nextCursor`.
 

@@ -1,5 +1,5 @@
-import type { TaskFilters, TaskWithRelations } from '../../domain/index.js';
-import type { Result } from '@flowtask/shared';
+import type { TaskFilters, TaskRelationView, TaskWithRelations } from '../../domain/index.js';
+import type { Result, TaskRelationType } from '@flowtask/shared';
 import { ToolExecutionError, fromDomainError, toToolErrorPayload } from '../../lib/mcp/errors.js';
 import type { ToolContext } from '../../lib/mcp/tool-context.js';
 import type { JsonRecord } from '../../lib/mcp/json-schema-zod.js';
@@ -19,6 +19,7 @@ import {
 import {
   formatBulkCreateResult,
   formatWriteTaskResult,
+  projectRelation,
   projectTask,
   projectTaskList,
   resolveTaskProjectionArgs,
@@ -64,9 +65,15 @@ interface CreateFields {
   description?: string;
   priority?: ReturnType<typeof optionalPriority>;
   stateId?: string;
+  parentId?: string;
   dueDate?: Date;
   labelIds?: string[];
   assigneeIds?: string[];
+}
+
+/** Resolves a task ref through the context, so a parent or related task the caller cannot see is not found. */
+async function resolveTaskId(ctx: ToolContext, ref: string): Promise<string> {
+  return (await ctx.requireTask(ref)).id;
 }
 
 async function readCreateFields(
@@ -76,11 +83,14 @@ async function readCreateFields(
 ): Promise<CreateFields> {
   const dueDate = optionalString(item, 'dueDate');
   const assigneeRefs = [...(optionalStringArray(item, 'assigneeIds') ?? []), ...extraAssignees];
+  const parentRef = optionalString(item, 'parentId');
   return {
     title: requiredString(item, 'title'),
     description: optionalString(item, 'description'),
     priority: optionalPriority(item),
     stateId: optionalString(item, 'stateId'),
+    // TaskService.create checks the parent is a live task of the same project.
+    parentId: parentRef ? await resolveTaskId(ctx, parentRef) : undefined,
     dueDate: dueDate ? parseDueDate(dueDate) : undefined,
     labelIds: optionalStringArray(item, 'labelIds'),
     assigneeIds: assigneeRefs.length > 0 ? await resolveAssigneeIds(ctx, assigneeRefs) : undefined,
@@ -198,11 +208,17 @@ async function applyTaskUpdateIn(
   services: ToolServices
 ): Promise<{ before: TaskWithRelations; after: TaskWithRelations }> {
   const rawDueDate = nullableString(item, 'dueDate');
+  const parentRef = nullableString(item, 'parentId');
   const scalar = {
     title: optionalString(item, 'title'),
     description: optionalString(item, 'description'),
     priority: optionalPriority(item),
     stateId: optionalString(item, 'stateId'),
+    // null detaches; TaskService.update rejects other projects and cycles.
+    parentId:
+      parentRef === undefined || parentRef === null
+        ? parentRef
+        : await resolveTaskId(ctx, parentRef),
     dueDate:
       rawDueDate === undefined ? undefined : rawDueDate === null ? null : parseDueDate(rawDueDate),
   };
@@ -403,6 +419,13 @@ async function listScopedTasks(
   }
 
   const assigneeRef = optionalString(args, 'assigneeId');
+  const parentRef = optionalString(args, 'parentId')?.trim();
+  const parentFilter: Pick<TaskFilters, 'parentId'> =
+    parentRef === undefined
+      ? {}
+      : {
+          parentId: parentRef.toLowerCase() === 'none' ? null : await resolveTaskId(ctx, parentRef),
+        };
   const result = unwrap(
     await services.tasks.list({
       filters: {
@@ -412,6 +435,7 @@ async function listScopedTasks(
         assigneeId: assigneeRef ? (await ctx.resolveUser(assigneeRef)).id : undefined,
         search: optionalString(args, 'search'),
         labelId: optionalString(args, 'labelId'),
+        ...parentFilter,
         ...extra,
       },
       sortBy: 'updated_at',
@@ -434,10 +458,132 @@ const queryTasks: ToolHandler = (args, ctx, services) => listScopedTasks(args, c
 const searchTasks: ToolHandler = (args, ctx, services) =>
   listScopedTasks(args, ctx, services, { search: requiredString(args, 'query') });
 
-const getTask: ToolHandler = async (args, ctx) => {
+/** Relations of a task, without those to tasks in projects the caller cannot see (like the REST list). */
+async function visibleRelations(
+  taskId: string,
+  ctx: ToolContext,
+  services: ToolServices
+): Promise<TaskRelationView[]> {
+  const relations = unwrap(await services.relations.list(taskId));
+  const projectIds = new Set(await ctx.accessibleProjectIds());
+  return relations.filter((relation) => projectIds.has(relation.task.projectId));
+}
+
+const getTask: ToolHandler = async (args, ctx, services) => {
   const projection = resolveTaskProjectionArgs(args);
   const task = await ctx.requireTask(requiredString(args, 'taskId'));
-  return { task: projectTask(task, projection) };
+  const wantsRelations =
+    projection.view === 'full' ||
+    (projection.view === 'custom' && (projection.fields ?? []).includes('relations'));
+  const relations = wantsRelations ? await visibleRelations(task.id, ctx, services) : undefined;
+  return { task: projectTask({ ...task, relations }, projection) };
+};
+
+// ---------- relations ----------
+
+const RELATION_TYPES: readonly TaskRelationType[] = ['blocks', 'relates', 'duplicates'];
+type RelationDirection = TaskRelationView['direction'];
+const RELATION_DIRECTIONS: readonly RelationDirection[] = ['outgoing', 'incoming'];
+
+function optionalRelationType(args: JsonRecord): TaskRelationType | undefined {
+  const value = optionalString(args, 'type');
+  if (value === undefined) return undefined;
+  const match = RELATION_TYPES.find((type) => type === value);
+  if (!match) {
+    throw new ToolExecutionError(
+      `type must be one of ${RELATION_TYPES.join(', ')}`,
+      'VALIDATION_ERROR'
+    );
+  }
+  return match;
+}
+
+function optionalDirection(args: JsonRecord): RelationDirection | undefined {
+  const value = optionalString(args, 'direction');
+  if (value === undefined) return undefined;
+  const match = RELATION_DIRECTIONS.find((direction) => direction === value);
+  if (!match) {
+    throw new ToolExecutionError('direction must be outgoing or incoming', 'VALIDATION_ERROR');
+  }
+  return match;
+}
+
+const linkTasks: ToolHandler = async (args, ctx, services) => {
+  const task = await ctx.requireTask(requiredString(args, 'taskId'));
+  const related = await ctx.requireTask(requiredString(args, 'relatedTaskId'));
+  const type = optionalRelationType(args);
+  if (!type) {
+    throw new ToolExecutionError('type is required', 'VALIDATION_ERROR');
+  }
+  const relation = unwrap(
+    await services.relations.add({
+      taskId: task.id,
+      relatedTaskId: related.id,
+      type,
+      direction: optionalDirection(args),
+      createdBy: ctx.userId,
+      mcpClientId: ctx.mcpClientId,
+    })
+  );
+  return { ok: true, tool: 'link_tasks', relation: projectRelation(relation) };
+};
+
+async function findRelation(
+  args: JsonRecord,
+  taskId: string,
+  ctx: ToolContext,
+  services: ToolServices
+): Promise<TaskRelationView> {
+  // Only relations whose other task the caller can see, as when it is named by relatedTaskId.
+  const relations = await visibleRelations(taskId, ctx, services);
+  const relationId = optionalString(args, 'relationId');
+  const relatedRef = optionalString(args, 'relatedTaskId');
+
+  if (relationId) {
+    const relation = relations.find((candidate) => candidate.id === relationId);
+    if (!relation) {
+      throw new ToolExecutionError('Relation not found', 'NOT_FOUND');
+    }
+    return relation;
+  }
+
+  const type = optionalRelationType(args);
+  if (!relatedRef || !type) {
+    throw new ToolExecutionError(
+      'Provide relationId, or relatedTaskId and type',
+      'VALIDATION_ERROR'
+    );
+  }
+  const relatedId = await resolveTaskId(ctx, relatedRef);
+  const direction = optionalDirection(args);
+  const matches = relations.filter(
+    (candidate) =>
+      candidate.task.id === relatedId &&
+      candidate.type === type &&
+      (!direction || candidate.direction === direction)
+  );
+  const [match, ...others] = matches;
+  if (!match) {
+    throw new ToolExecutionError(`No ${type} relation between these tasks`, 'NOT_FOUND');
+  }
+  if (others.length > 0) {
+    throw new ToolExecutionError(
+      `Both directions of ${type} exist; pass direction or relationId`,
+      'VALIDATION_ERROR'
+    );
+  }
+  return match;
+}
+
+const unlinkTasks: ToolHandler = async (args, ctx, services) => {
+  const task = await ctx.requireTask(requiredString(args, 'taskId'));
+  const relation = await findRelation(args, task.id, ctx, services);
+  unwrap(
+    await services.relations.remove(task.id, relation.id, ctx.userId, {
+      mcpClientId: ctx.mcpClientId,
+    })
+  );
+  return { ok: true, tool: 'unlink_tasks', relationId: relation.id };
 };
 
 export const TASK_TOOL_HANDLERS = {
@@ -451,4 +597,6 @@ export const TASK_TOOL_HANDLERS = {
   query_tasks: queryTasks,
   search_tasks: searchTasks,
   get_task: getTask,
+  link_tasks: linkTasks,
+  unlink_tasks: unlinkTasks,
 } satisfies Record<string, ToolHandler>;

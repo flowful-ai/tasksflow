@@ -54,6 +54,7 @@ describe('list shaping defaults', () => {
       projectId: 'project-1',
       title: { untrusted_text: 'Task t1' },
       stateId: 'state-1',
+      parentId: null,
       priority: null,
       updatedAt: new Date('2026-02-12T00:00:00.000Z'),
       dueDate: null,
