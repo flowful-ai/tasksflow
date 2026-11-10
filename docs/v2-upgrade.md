@@ -1,12 +1,12 @@
 # Upgrading production from v1 to v2
 
-v1 ran five services (`postgres`, `redis`, `tasksflow-migrate`, `tasksflow-api`, and `tasksflow-web` with nginx on port 3000). v2 runs `postgres`, `tasksflow-api` (which now serves the SPA and migrates on boot) and a `tasksflow-backup` sidecar. The Postgres volume keeps its name (`tasksflow_postgres_data`), so the data carries over.
+v1 ran five services (`postgres`, `redis`, `tasksflow-migrate`, `tasksflow-api`, and `tasksflow-web` with nginx on port 3000). v2 runs `postgres` and `tasksflow-api` (which now serves the SPA and migrates on boot). The Postgres volume keeps its name (`tasksflow_postgres_data`), so the data carries over.
 
 Plan for a few minutes of downtime: the first v2 boot runs migration `0016_v2` before it serves requests.
 
 ## 1. Take a backup first
 
-v1 has no backup sidecar, so dump the database by hand and copy the file off the server before changing anything.
+Dump the database by hand and copy the file off the server before changing anything.
 
 ```bash
 # On the Dokploy host. Find the v1 Postgres container:
@@ -87,7 +87,6 @@ Watch the logs for `Applying database migrations from /app/drizzle` and `FlowTas
 - `https://<domain>/health` returns `{"status":"ok","database":"ok",…}` and `/ready` returns `{"status":"ready"}`.
 - Sign in, open a board, move a task in one tab and watch it move in another (SSE).
 - If you use GitHub, edit a linked issue and check the task updates (and the reverse).
-- `docker ps` shows `tasksflow-backup` running.
 
 ## 7. Remove the v1 leftovers
 
@@ -103,9 +102,9 @@ docker volume rm <that volume>
 
 Redis only held v1 pub/sub, rate-limit counters and caches; nothing in it is needed by v2.
 
-## 8. Copy backups off-host
+## 8. Schedule backups
 
-The new `tasksflow-backup` sidecar writes daily dumps to the `tasksflow_backups` volume on the same host. Set up an off-host copy now (Dokploy volume backups, rsync, restic): see [backup-restore.md](backup-restore.md).
+The compose file does not back the database up. Schedule a nightly dump on the host and copy it off-host: see [backup-restore.md](backup-restore.md).
 
 ## Notes for users
 

@@ -1,14 +1,13 @@
 # Deploying FlowTask
 
-Production runs from [`docker-compose.prod.yml`](../docker-compose.prod.yml), which has three services:
+Production runs from [`docker-compose.prod.yml`](../docker-compose.prod.yml), which has two services:
 
-| Service            | Image                                                     | Role                                                                                                  |
-| ------------------ | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `postgres`         | `postgres:16.15-alpine`                                   | The database (512 MB memory limit, `max_connections=30`). Volume `tasksflow_postgres_data`.           |
-| `tasksflow-api`    | built from `apps/api/Dockerfile`                          | The whole app: JSON API, SSE, MCP, OAuth, the built SPA. Applies migrations on boot. Listens on 3001. |
-| `tasksflow-backup` | `prodrigestivill/postgres-backup-local:16-alpine-d257e5d` | Daily `pg_dump` to the `tasksflow_backups` volume. See [backup-restore.md](backup-restore.md).        |
+| Service         | Image                            | Role                                                                                                  |
+| --------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `postgres`      | `postgres:16.15-alpine`          | The database (512 MB memory limit, `max_connections=30`). Volume `tasksflow_postgres_data`.           |
+| `tasksflow-api` | built from `apps/api/Dockerfile` | The whole app: JSON API, SSE, MCP, OAuth, the built SPA. Applies migrations on boot. Listens on 3001. |
 
-There is no separate web container, reverse proxy, Redis or migration job.
+There is no separate web container, reverse proxy, Redis, migration job or backup container: back the database up from the host (see [backup-restore.md](backup-restore.md)).
 
 ## Dokploy
 
@@ -71,7 +70,7 @@ The API is stateless apart from open SSE streams, and the shared pieces are in P
 - jobs are claimed with `FOR UPDATE SKIP LOCKED`, and recurring jobs are unique per key, so every replica can run the job runner (`JOBS_DISABLED=true` turns it off in a process);
 - auth and MCP rate limits are Postgres tables shared by all replicas.
 
-To run more instances, add `replicas` under `tasksflow-api.deploy` (the compose file already sets `deploy.resources` there) and redeploy; Traefik balances across them. Mind the connection budget: Postgres is configured for 30 connections. Each API instance uses at most `DB_POOL_MAX` (10) pool connections plus exactly one `LISTEN` connection for realtime (`NOTIFY` goes through the pool, not a connection of its own), and briefly one more at boot for migrations. Two instances fit: 2 × (10 + 1) = 22 steady, at most 24 while both boot, leaving room for the backup sidecar's `pg_dump` and healthchecks; for more, lower `DB_POOL_MAX` or raise `max_connections` and the Postgres memory limit together.
+To run more instances, add `replicas` under `tasksflow-api.deploy` (the compose file already sets `deploy.resources` there) and redeploy; Traefik balances across them. Mind the connection budget: Postgres is configured for 30 connections. Each API instance uses at most `DB_POOL_MAX` (10) pool connections plus exactly one `LISTEN` connection for realtime (`NOTIFY` goes through the pool, not a connection of its own), and briefly one more at boot for migrations. Two instances fit: 2 × (10 + 1) = 22 steady, at most 24 while both boot, leaving room for a backup `pg_dump` and healthchecks; for more, lower `DB_POOL_MAX` or raise `max_connections` and the Postgres memory limit together.
 
 Cross-instance realtime uses Postgres `LISTEN/NOTIFY` on the same connection settings as the pool (`DATABASE_URL`, or the URL built from `POSTGRES_*`), so a change made through one replica reaches SSE clients on every replica.
 
