@@ -25,7 +25,13 @@ import {
   requireSmartView,
   requireWorkspace,
 } from '../lib/authorize.js';
-import { badRequest, forbidden, fromResult, handleRouteError } from '../lib/responses.js';
+import {
+  badRequest,
+  forbidden,
+  fromResult,
+  handleRouteError,
+  validationHook,
+} from '../lib/responses.js';
 import { getWebUrl } from '../integrations/index.js';
 
 const smartViews = new Hono();
@@ -69,7 +75,11 @@ smartViews.get('/', async (c) => {
 // Create smart view
 smartViews.post(
   '/',
-  zValidator('json', CreateSmartViewSchema.extend({ workspaceId: z.string().uuid() })),
+  zValidator(
+    'json',
+    CreateSmartViewSchema.extend({ workspaceId: z.string().uuid() }),
+    validationHook
+  ),
   async (c) => {
     const data = c.req.valid('json');
     const { workspaceId, user } = await requireWorkspace(c, data.workspaceId, 'smart_view:create');
@@ -100,66 +110,74 @@ smartViews.get('/:viewId', async (c) => {
 });
 
 // Execute smart view (get filtered tasks from the projects the caller can access)
-smartViews.get('/:viewId/execute', zValidator('query', ExecuteQuerySchema), async (c) => {
-  const grant = await requireSmartView(c, c.req.param('viewId'), 'read');
-  const { page, limit } = c.req.valid('query');
-  const { view, role, user } = grant;
+smartViews.get(
+  '/:viewId/execute',
+  zValidator('query', ExecuteQuerySchema, validationHook),
+  async (c) => {
+    const grant = await requireSmartView(c, c.req.param('viewId'), 'read');
+    const { page, limit } = c.req.valid('query');
+    const { view, role, user } = grant;
 
-  const projectIds = await getAuthz().listAccessibleProjectIds(view.workspaceId, user.id, role, {
-    excludeArchived: true,
-  });
+    const projectIds = await getAuthz().listAccessibleProjectIds(view.workspaceId, user.id, role, {
+      excludeArchived: true,
+    });
 
-  const result = fromResult(
-    await executeSmartViewTaskList({
-      view,
-      taskService,
-      projectIds,
-      filterContextUserId: user.id,
-      page,
-      limit,
-      timezone: readTimezoneHeader(c),
-    }),
-    { code: 'EXECUTE_FAILED', message: 'Failed to execute smart view' }
-  );
-
-  return c.json({
-    success: true,
-    data: {
-      view: toSmartViewDto(view, { includePublicShares: canShareSmartView(grant) }),
-      tasks: result.tasks,
-      meta: {
-        total: Number(result.total),
+    const result = fromResult(
+      await executeSmartViewTaskList({
+        view,
+        taskService,
+        projectIds,
+        filterContextUserId: user.id,
         page,
         limit,
+        timezone: readTimezoneHeader(c),
+      }),
+      { code: 'EXECUTE_FAILED', message: 'Failed to execute smart view' }
+    );
+
+    return c.json({
+      success: true,
+      data: {
+        view: toSmartViewDto(view, { includePublicShares: canShareSmartView(grant) }),
+        tasks: result.tasks,
+        meta: {
+          total: Number(result.total),
+          page,
+          limit,
+        },
       },
-    },
-  });
-});
+    });
+  }
+);
 
 // Update smart view
-smartViews.patch('/:viewId', zValidator('json', UpdateSmartViewSchema), async (c) => {
-  const grant = await requireSmartView(c, c.req.param('viewId'), 'update');
-  const data = c.req.valid('json');
+smartViews.patch(
+  '/:viewId',
+  zValidator('json', UpdateSmartViewSchema, validationHook),
+  async (c) => {
+    const grant = await requireSmartView(c, c.req.param('viewId'), 'update');
+    const data = c.req.valid('json');
 
-  // Only the creator may change a view's visibility.
-  if (data.isPersonal !== undefined && grant.view.createdBy !== grant.user.id) {
-    throw forbidden('Only the creator can change whether a view is personal');
-  }
-
-  const view = fromResult(
-    await smartViewService.update(grant.view.id, { ...data, updatedBy: grant.user.id }),
-    {
-      status: 400,
-      code: 'UPDATE_FAILED',
-      message: 'Failed to update smart view',
+    // Only the creator may change a view's visibility.
+    if (data.isPersonal !== undefined && grant.view.createdBy !== grant.user.id) {
+      throw forbidden('Only the creator can change whether a view is personal');
     }
-  );
 
-  return c.json({
-    success: true,
-    data: toSmartViewDto(view, { includePublicShares: canShareSmartView(grant) }),
-  });
-});
+    const view = fromResult(
+      await smartViewService.update(grant.view.id, { ...data, updatedBy: grant.user.id }),
+      {
+        status: 400,
+        code: 'UPDATE_FAILED',
+        message: 'Failed to update smart view',
+      }
+    );
+
+    return c.json({
+      success: true,
+      data: toSmartViewDto(view, { includePublicShares: canShareSmartView(grant) }),
+    });
+  }
+);
 
 // Delete smart view
 smartViews.delete('/:viewId', async (c) => {
@@ -180,7 +198,8 @@ smartViews.post(
     z.object({
       userId: z.string().uuid(),
       permission: z.enum(['view', 'edit']).default('view'),
-    })
+    }),
+    validationHook
   ),
   async (c) => {
     const { view } = await requireSmartView(c, c.req.param('viewId'), 'share');
@@ -218,38 +237,46 @@ smartViews.delete('/:viewId/shares/:userId', async (c) => {
 
 // === Public Sharing ===
 
-smartViews.post('/:viewId/public', zValidator('json', CreatePublicShareSchema), async (c) => {
-  const { view, user } = await requireSmartView(c, c.req.param('viewId'), 'share');
-  const data = c.req.valid('json');
+smartViews.post(
+  '/:viewId/public',
+  zValidator('json', CreatePublicShareSchema, validationHook),
+  async (c) => {
+    const { view, user } = await requireSmartView(c, c.req.param('viewId'), 'share');
+    const data = c.req.valid('json');
 
-  if (
-    smartViewUsesCurrentUserTemplate(isFilterGroupValue(view.filters) ? view.filters : undefined)
-  ) {
-    throw badRequest(UNSUPPORTED_PUBLIC_FILTER_MESSAGE, UNSUPPORTED_PUBLIC_FILTER_CODE);
-  }
-
-  const share = fromResult(
-    await smartViewService.createPublicShare({ ...data, smartViewId: view.id, createdBy: user.id }),
-    {
-      status: 400,
-      code: 'CREATE_FAILED',
-      message: 'Failed to create public share',
+    if (
+      smartViewUsesCurrentUserTemplate(isFilterGroupValue(view.filters) ? view.filters : undefined)
+    ) {
+      throw badRequest(UNSUPPORTED_PUBLIC_FILTER_MESSAGE, UNSUPPORTED_PUBLIC_FILTER_CODE);
     }
-  );
 
-  const { passwordHash, ...safeShare } = share;
-  return c.json(
-    {
-      success: true,
-      data: {
-        ...safeShare,
-        hasPassword: Boolean(passwordHash),
-        shareUrl: shareUrl(share.token),
+    const share = fromResult(
+      await smartViewService.createPublicShare({
+        ...data,
+        smartViewId: view.id,
+        createdBy: user.id,
+      }),
+      {
+        status: 400,
+        code: 'CREATE_FAILED',
+        message: 'Failed to create public share',
+      }
+    );
+
+    const { passwordHash, ...safeShare } = share;
+    return c.json(
+      {
+        success: true,
+        data: {
+          ...safeShare,
+          hasPassword: Boolean(passwordHash),
+          shareUrl: shareUrl(share.token),
+        },
       },
-    },
-    201
-  );
-});
+      201
+    );
+  }
+);
 
 smartViews.post('/:viewId/public/:shareId/disable', async (c) => {
   const { view } = await requireSmartView(c, c.req.param('viewId'), 'share');

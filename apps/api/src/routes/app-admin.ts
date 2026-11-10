@@ -4,7 +4,14 @@ import { getDatabase } from '../db/index.js';
 import { AppAdminService } from '../domain/index.js';
 import { AppUsersListQuerySchema, UpdateAppUserRoleSchema } from '@flowtask/shared';
 import { requireUser } from '../lib/authorize.js';
-import { AppError, forbidden, fromResult, handleRouteError, notFound } from '../lib/responses.js';
+import {
+  AppError,
+  forbidden,
+  fromResult,
+  handleRouteError,
+  notFound,
+  validationHook,
+} from '../lib/responses.js';
 
 const appAdminRoutes = new Hono();
 appAdminRoutes.onError(handleRouteError);
@@ -41,20 +48,24 @@ appAdminRoutes.get('/me', async (c) => {
   return c.json({ success: true, data: contextResult.value });
 });
 
-appAdminRoutes.get('/users', zValidator('query', AppUsersListQuerySchema), async (c) => {
-  const user = requireUser(c);
-  await requireAppManager(user.id);
+appAdminRoutes.get(
+  '/users',
+  zValidator('query', AppUsersListQuerySchema, validationHook),
+  async (c) => {
+    const user = requireUser(c);
+    await requireAppManager(user.id);
 
-  const result = fromResult(await appAdminService.listUsers(c.req.valid('query')), {
-    code: 'LIST_FAILED',
-    message: 'Failed to list users',
-  });
-  return c.json({ success: true, data: result });
-});
+    const result = fromResult(await appAdminService.listUsers(c.req.valid('query')), {
+      code: 'LIST_FAILED',
+      message: 'Failed to list users',
+    });
+    return c.json({ success: true, data: result });
+  }
+);
 
 appAdminRoutes.patch(
   '/users/:userId/role',
-  zValidator('json', UpdateAppUserRoleSchema),
+  zValidator('json', UpdateAppUserRoleSchema, validationHook),
   async (c) => {
     const user = requireUser(c);
     await requireAppManager(user.id);
