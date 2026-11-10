@@ -3,12 +3,18 @@
  * project). Not imported by production code.
  */
 import type {
+  AddRelationInput,
+  LabelCreateInput,
   ProjectWithRelations,
+  TaskCreateInput,
   TaskFilters,
   TaskListOptions,
+  TaskRef,
+  TaskRelationView,
+  TaskUpdateInput,
   TaskWithRelations,
 } from '../../domain/index.js';
-import { err, ok, type WorkspaceRole } from '@flowtask/shared';
+import { err, ok, type TaskRelationType, type WorkspaceRole } from '@flowtask/shared';
 import type { ToolScopeDeps, WorkspaceMemberSummary } from '../../lib/mcp/tool-context.js';
 import type { ToolServices } from './types.js';
 
@@ -151,6 +157,10 @@ export function createScopeDeps(tasks: TaskWithRelations[] = createTasks()): Too
 }
 
 export interface RecordedCalls {
+  create: TaskCreateInput[];
+  update: Array<{ taskId: string; input: TaskUpdateInput }>;
+  createLabel: LabelCreateInput[];
+  removeRelation: string[];
   list: TaskListOptions[];
   move: Array<{ taskId: string; stateId: string }>;
   delete: string[];
@@ -161,6 +171,8 @@ function matches(candidate: TaskWithRelations, filters: TaskFilters): boolean {
   if (filters.projectIds && !filters.projectIds.includes(candidate.projectId)) return false;
   if (filters.projectId && candidate.projectId !== filters.projectId) return false;
   if (filters.stateId && candidate.stateId !== filters.stateId) return false;
+  if (filters.parentId !== undefined && (candidate.parentId ?? null) !== filters.parentId)
+    return false;
   if (filters.search && !candidate.title.includes(filters.search)) return false;
   return !candidate.deletedAt;
 }
@@ -170,14 +182,58 @@ export function createServices(tasks: TaskWithRelations[] = createTasks()): {
   services: ToolServices;
   calls: RecordedCalls;
 } {
-  const calls: RecordedCalls = { list: [], move: [], delete: [], addAssignee: [] };
+  const calls: RecordedCalls = {
+    create: [],
+    update: [],
+    createLabel: [],
+    removeRelation: [],
+    list: [],
+    move: [],
+    delete: [],
+    addAssignee: [],
+  };
   const byId = (taskId: string) => tasks.find((candidate) => candidate.id === taskId);
   const unsupported = async () => err(new Error('not supported in this fake'));
 
+  // Relations stored once (from → to), like task_relations.
+  const relations: Array<{ id: string; from: string; to: string; type: TaskRelationType }> = [];
+  const ref = (found: TaskWithRelations): TaskRef => ({
+    id: found.id,
+    key: `${found.project.identifier}-${found.sequenceNumber}`,
+    title: found.title,
+    projectId: found.projectId,
+    stateId: found.stateId,
+    stateCategory: null,
+    done: false,
+  });
+  const viewsOf = (taskId: string): TaskRelationView[] =>
+    relations.flatMap((rel) => {
+      if (rel.from !== taskId && rel.to !== taskId) return [];
+      const outgoing = rel.from === taskId;
+      const other = byId(outgoing ? rel.to : rel.from);
+      if (!other) return [];
+      return [
+        {
+          id: rel.id,
+          type: rel.type,
+          direction: rel.type === 'relates' || outgoing ? 'outgoing' : 'incoming',
+          task: ref(other),
+          createdAt: created,
+          createdBy: null,
+        },
+      ];
+    });
+
   const services: ToolServices = {
     tasks: {
-      create: unsupported,
-      update: async (taskId) => {
+      create: async (input) => {
+        calls.create.push(input);
+        const id = `00000000-0000-4000-8000-${String(900000000000 + calls.create.length)}`;
+        const made = task(id, input.projectId, 100 + calls.create.length, STATE_A_TODO, 'z0');
+        return ok({ ...made, title: input.title, parentId: input.parentId ?? null });
+      },
+      update: async (taskId, input) => {
+        calls.update.push({ taskId, input });
         const found = byId(taskId);
         return found ? ok(found) : err(new Error('Task not found'));
       },
@@ -213,6 +269,41 @@ export function createServices(tasks: TaskWithRelations[] = createTasks()): {
       removeAssignee: async () => ok(undefined),
       addLabel: async () => ok(undefined),
       removeLabel: async () => ok(undefined),
+    },
+    relations: {
+      list: async (taskId) => ok(viewsOf(taskId)),
+      add: async (input: AddRelationInput) => {
+        const reversed = input.type !== 'relates' && input.direction === 'incoming';
+        const id = `00000000-0000-4000-8000-${String(800000000000 + relations.length + 1)}`;
+        relations.push({
+          id,
+          from: reversed ? input.relatedTaskId : input.taskId,
+          to: reversed ? input.taskId : input.relatedTaskId,
+          type: input.type,
+        });
+        const view = viewsOf(input.taskId).find((candidate) => candidate.id === id);
+        return view ? ok(view) : err(new Error('Relation not found'));
+      },
+      remove: async (taskId, relationId) => {
+        calls.removeRelation.push(relationId);
+        const index = relations.findIndex(
+          (rel) => rel.id === relationId && (rel.from === taskId || rel.to === taskId)
+        );
+        if (index < 0) return err(new Error('Relation not found'));
+        relations.splice(index, 1);
+        return ok(undefined);
+      },
+    },
+    projects: {
+      createLabel: async (input) => {
+        calls.createLabel.push(input);
+        return ok({
+          id: '00000000-0000-4000-8000-0000000c0001',
+          projectId: input.projectId,
+          name: input.name,
+          color: input.color ?? null,
+        });
+      },
     },
     comments: { create: unsupported, list: async () => ok({ comments: [], total: 0 }) },
     smartViews: { create: unsupported, getById: unsupported, list: async () => ok([]) },

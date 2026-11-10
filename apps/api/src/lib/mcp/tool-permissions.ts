@@ -26,4 +26,7 @@ export const TOOL_PERMISSIONS: Record<AgentTool, WorkspacePermission> = {
   create_smart_view: 'smart_view:create',
   list_smart_views: 'smart_view:read',
   run_smart_view: 'smart_view:read',
+  link_tasks: 'task:update',
+  unlink_tasks: 'task:update',
+  create_label: 'project:update',
 };

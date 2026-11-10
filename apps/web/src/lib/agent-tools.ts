@@ -21,6 +21,9 @@ export const AGENT_TOOL_LABELS: Record<AgentTool, string> = {
   bulk_update_tasks: 'Bulk update tasks',
   list_smart_views: 'List smart views',
   run_smart_view: 'Run smart views',
+  link_tasks: 'Link tasks',
+  unlink_tasks: 'Unlink tasks',
+  create_label: 'Create labels',
 };
 
 /** Every agent/MCP tool with its label, in AgentToolSchema order (single source for all settings UIs). */

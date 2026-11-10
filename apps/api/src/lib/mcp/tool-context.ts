@@ -7,8 +7,8 @@ import {
   isUuid,
   parseTaskKey,
   type ProjectWithRelations,
+  type TaskDetail,
   type TaskKey,
-  type TaskWithRelations,
 } from '../../domain/index.js';
 import { hasPermission, type WorkspacePermission } from '../../auth/index.js';
 import { getAuthz } from '../authorize.js';
@@ -35,7 +35,7 @@ export interface ToolScopeDeps {
     userId: string,
     role: WorkspaceRole
   ): Promise<ProjectWithRelations[]>;
-  getTask(taskId: string): Promise<TaskWithRelations | null>;
+  getTask(taskId: string): Promise<TaskDetail | null>;
   findTaskIdByKey(workspaceId: string, key: TaskKey): Promise<string | null>;
   listMembers(workspaceId: string): Promise<WorkspaceMemberSummary[]>;
 }
@@ -69,7 +69,7 @@ export interface ToolContext {
   accessibleProjectIds(): Promise<string[]>;
   requireProject(projectId: string): Promise<ProjectWithRelations>;
   /** Accepts a task id (uuid) or a task key like "ENG-123". */
-  requireTask(taskRef: string): Promise<TaskWithRelations>;
+  requireTask(taskRef: string): Promise<TaskDetail>;
   /** Accepts "me", a member email or a user id; the user must belong to the workspace. */
   resolveUser(userRef: string): Promise<WorkspaceMemberSummary>;
   members(): Promise<WorkspaceMemberSummary[]>;

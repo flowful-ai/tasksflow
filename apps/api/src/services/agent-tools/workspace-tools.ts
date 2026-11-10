@@ -93,6 +93,22 @@ const listLabels: ToolHandler = async (args, ctx) => {
   };
 };
 
+const createLabel: ToolHandler = async (args, ctx, services) => {
+  const project = await ctx.requireProject(requiredString(args, 'projectId'));
+  const label = unwrap(
+    await services.projects.createLabel({
+      projectId: project.id,
+      name: requiredString(args, 'name'),
+      color: optionalString(args, 'color'),
+    })
+  );
+  return {
+    ok: true,
+    tool: 'create_label',
+    label: { id: label.id, name: label.name, color: label.color, projectId: label.projectId },
+  };
+};
+
 const SUMMARY_SAMPLE_LIMIT = 1000;
 
 const summarizeProject: ToolHandler = async (args, ctx, services) => {
@@ -284,6 +300,7 @@ export const WORKSPACE_TOOL_HANDLERS = {
   list_projects: listProjects,
   list_members: listMembers,
   list_labels: listLabels,
+  create_label: createLabel,
   summarize_project: summarizeProject,
   add_comment: addComment,
   list_comments: listComments,

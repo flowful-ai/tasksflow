@@ -1,4 +1,9 @@
-import type { TaskWithRelations } from '../../domain/index.js';
+import type {
+  TaskDetail,
+  TaskRef,
+  TaskRelationView,
+  TaskWithRelations,
+} from '../../domain/index.js';
 import { UNTRUSTED_TEXT_KEY } from '../../domain/index.js';
 import { ToolExecutionError } from './errors.js';
 import type { JsonRecord } from './json-schema-zod.js';
@@ -32,6 +37,7 @@ const COMPACT_TASK_FIELDS = [
   'projectId',
   'title',
   'stateId',
+  'parentId',
   'priority',
   'updatedAt',
   'dueDate',
@@ -42,6 +48,7 @@ const TASK_CUSTOM_FIELDS = [
   'key',
   'projectId',
   'stateId',
+  'parentId',
   'sequenceNumber',
   'title',
   'description',
@@ -58,6 +65,9 @@ const TASK_CUSTOM_FIELDS = [
   'assignees',
   'labels',
   'externalLinks',
+  'parent',
+  'subtasks',
+  'relations',
 ] as const;
 
 const RELATION_FIELD_FLAGS: Record<
@@ -69,6 +79,9 @@ const RELATION_FIELD_FLAGS: Record<
   externalLinks: 'includeExternalLinks',
   state: null,
   project: null,
+  parent: null,
+  subtasks: null,
+  relations: null,
 };
 
 export type TaskProjectionOptions = McpTaskViewArgs;
@@ -110,13 +123,42 @@ function summarizeUser(user: { id: string; name: string | null; email: string })
   return { id: user.id, name: user.name, email: user.email };
 }
 
+/**
+ * A task as handed to the projection. Detail loads (getById) add parent and
+ * sub-tasks; get_task adds the relations the caller may see.
+ */
+export interface TaskForModel extends TaskDetail {
+  relations?: TaskRelationView[];
+}
+
+function modelTaskRef(ref: TaskRef): ToolOutput {
+  return {
+    id: ref.id,
+    key: ref.key,
+    title: untrusted(ref.title),
+    projectId: ref.projectId,
+    stateId: ref.stateId,
+    done: ref.done,
+  };
+}
+
+export function projectRelation(relation: TaskRelationView): ToolOutput {
+  return {
+    id: relation.id,
+    type: relation.type,
+    direction: relation.direction,
+    task: modelTaskRef(relation.task),
+  };
+}
+
 /** The full, model-safe representation of a task (before projection). */
-function modelTask(task: TaskWithRelations): ToolOutput {
+function modelTask(task: TaskForModel): ToolOutput {
   return {
     id: task.id,
     key: taskKey(task),
     projectId: task.projectId,
     stateId: task.stateId,
+    parentId: task.parentId ?? null,
     sequenceNumber: task.sequenceNumber,
     title: untrusted(task.title),
     description: untrusted(task.description),
@@ -135,10 +177,16 @@ function modelTask(task: TaskWithRelations): ToolOutput {
     assignees: task.assignees.map(summarizeUser),
     labels: task.labels.map((label) => ({ id: label.id, name: label.name, color: label.color })),
     externalLinks: task.externalLinks,
+    // Only present when loaded (task detail), so list views stay small.
+    ...(task.parent !== undefined
+      ? { parent: task.parent ? modelTaskRef(task.parent) : null }
+      : {}),
+    ...(task.subtasks ? { subtasks: task.subtasks.map(modelTaskRef) } : {}),
+    ...(task.relations ? { relations: task.relations.map(projectRelation) } : {}),
   };
 }
 
-export function projectTask(task: TaskWithRelations, options: TaskProjectionOptions): ToolOutput {
+export function projectTask(task: TaskForModel, options: TaskProjectionOptions): ToolOutput {
   const full = modelTask(task);
 
   if (options.view === 'compact') {

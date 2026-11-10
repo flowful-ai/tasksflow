@@ -331,6 +331,199 @@ describe('move_task', () => {
   });
 });
 
+describe('sub-tasks', () => {
+  it('resolves parentId refs on create, update and bulk update; null detaches', async () => {
+    const { services, calls } = createServices();
+    const ctx = contextFor('admin');
+    await executeAgentTool(
+      'create_task',
+      { projectId: PROJECT_A, title: 'Child', parentId: 'ENG-1' },
+      ctx,
+      services
+    );
+    await executeAgentTool(
+      'bulk_create_tasks',
+      { projectId: PROJECT_A, tasks: [{ title: 'Child 2', parentId: TASK_A2 }] },
+      ctx,
+      services
+    );
+    await executeAgentTool('update_task', { taskId: TASK_A2, parentId: 'eng-1' }, ctx, services);
+    await executeAgentTool(
+      'bulk_update_tasks',
+      { updates: [{ taskId: TASK_A2, parentId: null }] },
+      ctx,
+      services
+    );
+
+    expect(calls.create.map((input) => input.parentId)).toEqual([TASK_A1, TASK_A2]);
+    expect(calls.update.map((entry) => entry.input.parentId)).toEqual([TASK_A1, null]);
+  });
+
+  it('reports a parent in a project the caller cannot see as not found', async () => {
+    const { services, calls } = createServices();
+    await expectToolError(
+      executeAgentTool(
+        'create_task',
+        { projectId: PROJECT_A, title: 'Child', parentId: TASK_SECRET },
+        contextFor('member'),
+        services
+      ),
+      'NOT_FOUND'
+    );
+    await expectToolError(
+      executeAgentTool(
+        'update_task',
+        { taskId: TASK_A1, parentId: TASK_B1 },
+        contextFor('owner'),
+        services
+      ),
+      'NOT_FOUND'
+    );
+    expect(calls.create).toEqual([]);
+    expect(calls.update).toEqual([]);
+  });
+
+  it('filters query_tasks by parent, or top-level only with "none"', async () => {
+    const { services, calls } = createServices();
+    const ctx = contextFor('admin');
+    await executeAgentTool('query_tasks', { parentId: 'ENG-1' }, ctx, services);
+    await executeAgentTool('query_tasks', { parentId: 'none' }, ctx, services);
+    expect(calls.list.map((options) => options.filters?.parentId)).toEqual([TASK_A1, null]);
+  });
+});
+
+describe('task relations', () => {
+  it('links, shows the relation in get_task full view, then unlinks by task and type', async () => {
+    const { services, calls } = createServices();
+    const ctx = contextFor('admin');
+    const linked = await executeAgentTool(
+      'link_tasks',
+      { taskId: 'ENG-1', relatedTaskId: 'ENG-2', type: 'blocks' },
+      ctx,
+      services
+    );
+    expect(linked.relation).toMatchObject({
+      type: 'blocks',
+      direction: 'outgoing',
+      task: { id: TASK_A2, key: 'ENG-2', title: { untrusted_text: 'Task 2' } },
+    });
+
+    const detail = await executeAgentTool(
+      'get_task',
+      { taskId: TASK_A2, view: 'full' },
+      ctx,
+      services
+    );
+    expect(detail.task).toMatchObject({
+      relations: [{ type: 'blocks', direction: 'incoming', task: { id: TASK_A1 } }],
+    });
+    const compact = await executeAgentTool('get_task', { taskId: TASK_A2 }, ctx, services);
+    expect(compact.task).not.toHaveProperty('relations');
+
+    const removed = await executeAgentTool(
+      'unlink_tasks',
+      { taskId: TASK_A2, relatedTaskId: 'ENG-1', type: 'blocks' },
+      ctx,
+      services
+    );
+    expect(removed).toMatchObject({ ok: true, tool: 'unlink_tasks' });
+    expect(calls.removeRelation).toHaveLength(1);
+    await expectToolError(
+      executeAgentTool(
+        'unlink_tasks',
+        { taskId: TASK_A2, relatedTaskId: 'ENG-1', type: 'blocks' },
+        ctx,
+        services
+      ),
+      'NOT_FOUND'
+    );
+  });
+
+  it('hides relations to tasks the caller cannot see', async () => {
+    const { services, calls } = createServices();
+    const linked = await executeAgentTool(
+      'link_tasks',
+      { taskId: TASK_A1, relatedTaskId: TASK_SECRET, type: 'relates' },
+      contextFor('admin'),
+      services
+    );
+    const relation = linked.relation;
+    const relationId =
+      typeof relation === 'object' && relation !== null && 'id' in relation ? relation.id : null;
+    const member = contextFor('member');
+
+    await expectToolError(
+      executeAgentTool(
+        'link_tasks',
+        { taskId: TASK_A1, relatedTaskId: TASK_SECRET, type: 'blocks' },
+        member,
+        services
+      ),
+      'NOT_FOUND'
+    );
+    const detail = await executeAgentTool(
+      'get_task',
+      { taskId: TASK_A1, view: 'full' },
+      member,
+      services
+    );
+    expect(detail.task).toMatchObject({ relations: [] });
+    await expectToolError(
+      executeAgentTool('unlink_tasks', { taskId: TASK_A1, relationId }, member, services),
+      'NOT_FOUND'
+    );
+    expect(calls.removeRelation).toEqual([]);
+  });
+
+  it('asks for relationId or relatedTaskId and type', async () => {
+    const { services } = createServices();
+    await expectToolError(
+      executeAgentTool('unlink_tasks', { taskId: TASK_A1 }, contextFor('admin'), services),
+      'VALIDATION_ERROR',
+      /relationId/
+    );
+  });
+});
+
+describe('create_label', () => {
+  it('creates a label in an accessible project (project:update, like the REST route)', async () => {
+    const { services, calls } = createServices();
+    const result = await executeAgentTool(
+      'create_label',
+      { projectId: PROJECT_A, name: 'infra', color: '#0af' },
+      contextFor('admin'),
+      services
+    );
+    expect(result.label).toMatchObject({ name: 'infra', color: '#0af', projectId: PROJECT_A });
+    expect(calls.createLabel).toEqual([{ projectId: PROJECT_A, name: 'infra', color: '#0af' }]);
+    expect(TOOL_PERMISSIONS.create_label).toBe('project:update');
+  });
+
+  it('forbids members and hides other workspaces', async () => {
+    const { services, calls } = createServices();
+    await expectToolError(
+      executeAgentTool(
+        'create_label',
+        { projectId: PROJECT_A, name: 'infra' },
+        contextFor('member'),
+        services
+      ),
+      'FORBIDDEN',
+      /project:update/
+    );
+    await expectToolError(
+      executeAgentTool(
+        'create_label',
+        { projectId: PROJECT_B, name: 'infra' },
+        contextFor('owner'),
+        services
+      ),
+      'NOT_FOUND'
+    );
+    expect(calls.createLabel).toEqual([]);
+  });
+});
+
 describe('tool registry quality', () => {
   function missingDescriptions(schema: ToolParameterSchema, path: string): string[] {
     const own = schema.description ? [] : [path];
@@ -365,5 +558,12 @@ describe('tool registry quality', () => {
       expect(byName.get(name)?.annotations.idempotentHint).toBe(true);
     }
     expect(byName.get('update_task')?.annotations.openWorldHint).toBe(true);
+  });
+
+  it('marks unlink_tasks destructive and link_tasks/create_label non-destructive', () => {
+    const byName = new Map(AGENT_TOOLS.map((definition) => [definition.name, definition]));
+    expect(byName.get('unlink_tasks')?.annotations.destructiveHint).toBe(true);
+    expect(byName.get('link_tasks')?.annotations.destructiveHint).toBe(false);
+    expect(byName.get('create_label')?.annotations.destructiveHint).toBe(false);
   });
 });
