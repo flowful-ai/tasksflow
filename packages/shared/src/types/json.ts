@@ -13,12 +13,12 @@ export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
     z.boolean(),
     z.null(),
     z.array(JsonValueSchema),
-    z.record(JsonValueSchema),
+    z.record(z.string(), JsonValueSchema),
   ])
 );
 
 /** Zod schema for JsonObject (a JSON object, never a primitive or an array). */
-export const JsonObjectSchema: z.ZodType<JsonObject> = z.record(JsonValueSchema);
+export const JsonObjectSchema: z.ZodType<JsonObject> = z.record(z.string(), JsonValueSchema);
 
 export function isJsonObject(value: JsonValue | undefined): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

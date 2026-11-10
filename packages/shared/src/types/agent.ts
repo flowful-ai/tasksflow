@@ -146,7 +146,7 @@ export const AgentMessageSchema = z.object({
       z.object({
         id: z.string(),
         name: z.string(),
-        arguments: z.record(z.unknown()),
+        arguments: z.record(z.string(), z.unknown()),
       })
     )
     .optional(),
