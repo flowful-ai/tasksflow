@@ -155,7 +155,7 @@ function githubLinkError(error: unknown): AppError {
 // Create task
 tasks.post(
   '/',
-  zValidator('json', CreateTaskSchema.extend({ projectId: z.string().uuid() })),
+  zValidator('json', CreateTaskSchema.extend({ projectId: z.string().uuid() }), validationHook),
   async (c) => {
     const data = c.req.valid('json');
     const { role, user } = await requireProject(c, data.projectId, 'task:create');
@@ -220,7 +220,7 @@ tasks.get('/:taskId', async (c) => {
 });
 
 // Update task
-tasks.patch('/:taskId', zValidator('json', UpdateTaskSchema), async (c) => {
+tasks.patch('/:taskId', zValidator('json', UpdateTaskSchema, validationHook), async (c) => {
   const { task, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
   const data = c.req.valid('json');
 
@@ -298,7 +298,7 @@ tasks.post('/:taskId/restore', async (c) => {
 // Add assignee
 tasks.post(
   '/:taskId/assignees',
-  zValidator('json', z.object({ userId: z.string().uuid() })),
+  zValidator('json', z.object({ userId: z.string().uuid() }), validationHook),
   async (c) => {
     const { task, project, user } = await requireTask(c, c.req.param('taskId'), 'task:assign');
     const { userId } = c.req.valid('json');
@@ -341,7 +341,7 @@ tasks.delete('/:taskId/assignees/:userId', async (c) => {
 // Add label
 tasks.post(
   '/:taskId/labels',
-  zValidator('json', z.object({ labelId: z.string().uuid() })),
+  zValidator('json', z.object({ labelId: z.string().uuid() }), validationHook),
   async (c) => {
     const { task, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
     const { labelId } = c.req.valid('json');
@@ -380,27 +380,31 @@ tasks.delete('/:taskId/labels/:labelId', async (c) => {
 // === GitHub links ===
 
 // Create a GitHub issue from an existing task
-tasks.post('/:taskId/github-issue', zValidator('json', GitHubRepoRefSchema), async (c) => {
-  const { task, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
-  const { owner, repo } = c.req.valid('json');
-  try {
-    const issue = await taskGitHubLinkService.createIssueForTask({
-      taskId: task.id,
-      projectId: task.projectId,
-      actorId: user.id,
-      owner,
-      repo,
-    });
-    return c.json({ success: true, data: issue }, 201);
-  } catch (error) {
-    throw githubLinkError(error);
+tasks.post(
+  '/:taskId/github-issue',
+  zValidator('json', GitHubRepoRefSchema, validationHook),
+  async (c) => {
+    const { task, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
+    const { owner, repo } = c.req.valid('json');
+    try {
+      const issue = await taskGitHubLinkService.createIssueForTask({
+        taskId: task.id,
+        projectId: task.projectId,
+        actorId: user.id,
+        owner,
+        repo,
+      });
+      return c.json({ success: true, data: issue }, 201);
+    } catch (error) {
+      throw githubLinkError(error);
+    }
   }
-});
+);
 
 // Link an existing GitHub issue to a task
 tasks.post(
   '/:taskId/github-issue/link',
-  zValidator('json', LinkTaskGitHubIssueSchema),
+  zValidator('json', LinkTaskGitHubIssueSchema, validationHook),
   async (c) => {
     const { task, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
     const { owner, repo, issueNumber } = c.req.valid('json');
@@ -421,22 +425,26 @@ tasks.post(
 );
 
 // Link an existing GitHub pull request to a task
-tasks.post('/:taskId/github-pr', zValidator('json', LinkTaskGitHubPrSchema), async (c) => {
-  const { task, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
-  const { owner, repo, prNumber } = c.req.valid('json');
-  try {
-    const linkResult = await taskGitHubLinkService.linkPr({
-      taskId: task.id,
-      projectId: task.projectId,
-      actorId: user.id,
-      owner,
-      repo,
-      prNumber,
-    });
-    return c.json({ success: true, data: linkResult }, 201);
-  } catch (error) {
-    throw githubLinkError(error);
+tasks.post(
+  '/:taskId/github-pr',
+  zValidator('json', LinkTaskGitHubPrSchema, validationHook),
+  async (c) => {
+    const { task, user } = await requireTask(c, c.req.param('taskId'), 'task:update');
+    const { owner, repo, prNumber } = c.req.valid('json');
+    try {
+      const linkResult = await taskGitHubLinkService.linkPr({
+        taskId: task.id,
+        projectId: task.projectId,
+        actorId: user.id,
+        owner,
+        repo,
+        prNumber,
+      });
+      return c.json({ success: true, data: linkResult }, 201);
+    } catch (error) {
+      throw githubLinkError(error);
+    }
   }
-});
+);
 
 export { tasks as taskRoutes };

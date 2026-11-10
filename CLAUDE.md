@@ -133,8 +133,8 @@ Smart Views store a JSON filter that `apps/api/src/domain/smart-view/filter-engi
 
 ### MCP and agent tools
 
-- MCP endpoint: `/api/mcp` (Streamable HTTP, stateless, POST only), with `/api/mcp/sse` as an alias for already-configured clients. The old `/api/mcp/sse/stream` and `/api/mcp/sse/message` return 410.
-- Auth is OAuth 2.1 only: Authorization Code + PKCE (S256), dynamic client registration, refresh token rotation with reuse detection, and RFC 8707 resource binding. Only workspace `owner` and `admin` roles can authorize. Static bearer tokens (`ft_v1_*`) are gone; `/api/workspaces/:id/agents` returns 410.
+- MCP endpoint: `/api/mcp` (Streamable HTTP, stateless, POST only), with `/api/mcp/sse` as an alias for already-configured clients.
+- Auth is OAuth 2.1 only: Authorization Code + PKCE (S256), dynamic client registration, refresh token rotation with reuse detection, and RFC 8707 resource binding. Only workspace `owner` and `admin` roles can authorize. There are no static bearer tokens.
 - Metadata: `/.well-known/oauth-protected-resource/api/mcp` (and `/api/mcp/sse`), `/.well-known/oauth-authorization-server`, `/api/mcp/.well-known/oauth-authorization-server`.
 - Tools are defined once in `AGENT_TOOLS` (`apps/api/src/domain/agent/tools.ts`) and run through `executeAgentTool` in `apps/api/src/services/agent-tool-runtime.ts`, shared by MCP and the in-app chat. Text written by users or synced from GitHub is wrapped as `{ "untrusted_text": "..." }` in tool output.
 - The in-app chat (`POST /api/agents/:agentId/execute`) uses the workspace's OpenRouter key (OpenAI, Anthropic and Google keys are also accepted); mutating tools need user approval in the UI.
@@ -176,7 +176,7 @@ Defined in `apps/api/src/db/schema.ts` (relations in `apps/api/src/db/relations.
 | `notifications`                                                                                                                   | Inbox                                                                                      |
 | `agents`                                                                                                                          | In-app AI agent configurations                                                             |
 | `workspace_api_keys`                                                                                                              | Encrypted AI provider keys (OpenRouter, OpenAI, Anthropic, Google)                         |
-| `workspace_agents`                                                                                                                | Legacy MCP token agents (routes disabled)                                                  |
+| `workspace_agents`                                                                                                                | Removed MCP token agents, kept only to name the author of tasks and comments they created  |
 | `mcp_oauth_clients`, `mcp_oauth_consents`, `mcp_oauth_authorization_codes`, `mcp_oauth_access_tokens`, `mcp_oauth_refresh_tokens` | MCP OAuth server                                                                           |
 | `github_installations`                                                                                                            | GitHub App installations verified for a user                                               |
 | `webhook_deliveries`                                                                                                              | Processed GitHub delivery ids (dedupe, 7-day retention)                                    |

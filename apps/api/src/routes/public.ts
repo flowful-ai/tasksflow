@@ -30,6 +30,7 @@ import {
   handleRouteError,
   notFound,
   tooManyRequests,
+  validationHook,
 } from '../lib/responses.js';
 
 const publicRoutes = new Hono();
@@ -176,7 +177,7 @@ publicRoutes.get('/share/:token', async (c) => {
 // Verify password for protected share
 publicRoutes.post(
   '/share/:token/verify',
-  zValidator('json', z.object({ password: z.string().max(1024) })),
+  zValidator('json', z.object({ password: z.string().max(1024) }), validationHook),
   async (c) => {
     const share = await loadActiveShare(c.req.param('token'));
     const ip = getClientIp(c);

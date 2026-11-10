@@ -1,5 +1,6 @@
-import { webApi } from '@slack/bolt';
+import { z } from 'zod';
 import { readSecretEnv } from '../env.js';
+import { SlackApiError, SlackWebApi } from './web-api.js';
 
 /** Bot scopes FlowTask requests. `incoming-webhook` lets the installer pick the channel in Slack's UI. */
 export const SLACK_BOT_SCOPES = [
@@ -43,6 +44,16 @@ export interface SlackInstallation {
   channel: { id: string; name: string } | null;
 }
 
+const OAuthV2AccessResponseSchema = z.object({
+  access_token: z.string().nullish(),
+  token_type: z.string().nullish(),
+  bot_user_id: z.string().nullish(),
+  team: z.object({ id: z.string().nullish(), name: z.string().nullish() }).nullish(),
+  incoming_webhook: z
+    .object({ channel: z.string().nullish(), channel_id: z.string().nullish() })
+    .nullish(),
+});
+
 export class SlackOAuthError extends Error {
   constructor(message: string) {
     super(message);
@@ -55,27 +66,33 @@ export async function exchangeSlackOAuthCode(params: {
   code: string;
   redirectUri: string;
   credentials: SlackOAuthCredentials;
-  client?: webApi.WebClient;
+  client?: SlackWebApi;
 }): Promise<SlackInstallation> {
-  const client = params.client ?? new webApi.WebClient();
-  let result: webApi.OauthV2AccessResponse;
+  const client = params.client ?? new SlackWebApi();
+  let result: z.infer<typeof OAuthV2AccessResponseSchema>;
   try {
-    result = await client.oauth.v2.access({
-      client_id: params.credentials.clientId,
-      client_secret: params.credentials.clientSecret,
-      code: params.code,
-      redirect_uri: params.redirectUri,
-    });
-  } catch (error) {
-    throw new SlackOAuthError(
-      `Slack OAuth exchange failed: ${error instanceof Error ? error.message : 'unknown error'}`
+    result = await client.call(
+      'oauth.v2.access',
+      {
+        client_id: params.credentials.clientId,
+        client_secret: params.credentials.clientSecret,
+        code: params.code,
+        redirect_uri: params.redirectUri,
+      },
+      OAuthV2AccessResponseSchema
     );
+  } catch (error) {
+    const reason =
+      error instanceof SlackApiError
+        ? error.code
+        : error instanceof Error
+          ? error.message
+          : 'unknown error';
+    throw new SlackOAuthError(`Slack OAuth exchange failed: ${reason}`);
   }
 
-  if (!result.ok || !result.access_token || !result.team?.id) {
-    throw new SlackOAuthError(
-      `Slack OAuth exchange failed: ${result.error ?? 'missing bot token'}`
-    );
+  if (!result.access_token || !result.team?.id) {
+    throw new SlackOAuthError('Slack OAuth exchange failed: missing bot token');
   }
   if (result.token_type && result.token_type !== 'bot') {
     throw new SlackOAuthError('Slack OAuth did not return a bot token');

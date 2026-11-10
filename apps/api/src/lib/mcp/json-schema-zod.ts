@@ -13,7 +13,7 @@ export const jsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
     z.boolean(),
     z.null(),
     z.array(jsonValueSchema),
-    z.record(jsonValueSchema),
+    z.record(z.string(), jsonValueSchema),
   ])
 );
 
@@ -100,8 +100,8 @@ export function formatZodIssues(error: z.ZodError): string {
   return error.issues
     .slice(0, 8)
     .map((issue) => {
-      const path = issue.path.length > 0 ? issue.path.join('.') : 'arguments';
-      if (issue.code === z.ZodIssueCode.unrecognized_keys) {
+      const path = issue.path.length > 0 ? issue.path.map(String).join('.') : 'arguments';
+      if (issue.code === 'unrecognized_keys') {
         return `${path}: unknown parameter(s) ${issue.keys.join(', ')}`;
       }
       return `${path}: ${issue.message}`;
