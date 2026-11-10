@@ -69,7 +69,7 @@ Sign-up is through GitHub or Google only. For local GitHub sign-in, create an OA
 
 ```bash
 bun run dev              # API + web app
-bun run build            # shared package, web app, API bundle
+bun run build            # web app, then API bundle
 bun run typecheck
 bun run lint
 bun run format:check
