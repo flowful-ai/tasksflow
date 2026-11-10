@@ -1,19 +1,12 @@
 import type { Comment, User } from '../../db/index.js';
 
-export interface CommentAgent {
-  id: string;
-  name: string;
-}
-
 export interface CommentWithUser extends Comment {
   user: User | null;
-  agent: CommentAgent | null;
 }
 
 export interface CommentCreateInput {
   taskId: string;
   userId: string | null;
-  agentId?: string | null;
   mcpClientId?: string | null;
   content: string;
   externalCommentId?: string | null;

@@ -117,18 +117,12 @@ export interface TaskExternalLinkDto {
   externalUrl: string;
 }
 
-export interface TaskAgentDto {
-  id: string;
-  name: string;
-}
-
 /** A task as listed by GET /api/tasks and carried by realtime events (domain TaskWithRelations). */
 export type TaskDto = Serialized<Task> & {
   state: TaskStateDto | null;
   assignees: UserDto[];
   labels: LabelDto[];
   project: { id: string; identifier: string; name: string; workspaceId?: string };
-  agent: TaskAgentDto | null;
   externalLinks: TaskExternalLinkDto[];
   parentId?: string | null;
   /** "TF-42" */
@@ -209,12 +203,10 @@ export interface CommentDto {
   id: string;
   taskId: string;
   userId: string | null;
-  agentId: string | null;
   content: string;
   createdAt: string;
   updatedAt: string | null;
   user: Pick<UserDto, 'id' | 'email' | 'name' | 'avatarUrl'> | null;
-  agent: TaskAgentDto | null;
 }
 
 // ============ History, relations, trash ============

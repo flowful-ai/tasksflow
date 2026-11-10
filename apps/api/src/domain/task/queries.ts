@@ -12,7 +12,6 @@ import {
   taskStates,
   tasks,
   users,
-  workspaceAgents,
   type Label,
   type TaskState,
   type User,
@@ -33,24 +32,17 @@ export const projectSummaryColumns = {
   workspaceId: projects.workspaceId,
 };
 
-export const agentSummaryColumns = {
-  id: workspaceAgents.id,
-  name: workspaceAgents.name,
-};
-
 /** The select shape used by list/getById. */
 export const taskRowSelection = {
   task: taskColumns,
   state: taskStates,
   project: projectSummaryColumns,
-  agent: agentSummaryColumns,
 };
 
 export type TaskRowWithJoins = {
   task: TaskRow & { parentId: string | null };
   state: TaskState | null;
   project: { id: string; identifier: string; name: string; workspaceId: string };
-  agent: { id: string; name: string } | null;
 };
 
 function isExternalType(value: string): value is TaskExternalLink['externalType'] {
@@ -120,7 +112,6 @@ export async function hydrateTasks(
       project: row.project,
       assignees: users,
       labels: taskLabelsList,
-      agent: row.agent?.id ? row.agent : null,
       externalLinks: (links.get(row.task.id) ?? []).flatMap((link) =>
         isExternalType(link.externalType)
           ? [

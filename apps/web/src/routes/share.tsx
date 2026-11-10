@@ -123,7 +123,6 @@ export function PublicSharePage() {
     dueDate: task.dueDate,
     updatedAt: task.updatedAt,
     state: task.state,
-    agent: null,
     assignees: task.assignees,
     labels: task.labels,
     project: task.project,

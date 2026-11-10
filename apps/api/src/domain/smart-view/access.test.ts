@@ -71,7 +71,6 @@ function sampleTask(): TaskWithRelations {
     dueDate: now,
     startDate: null,
     createdBy: 'user-1',
-    agentId: null,
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
@@ -98,7 +97,6 @@ function sampleTask(): TaskWithRelations {
     ],
     labels: [{ id: 'label-1', projectId: 'project-1', name: 'bug', color: null }],
     project: { id: 'project-1', identifier: 'FLOW', name: 'Flow' },
-    agent: null,
     externalLinks: [
       {
         id: 'l1',

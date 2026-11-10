@@ -28,7 +28,6 @@ function createTask(id: string): TaskWithRelations {
     dueDate: null,
     startDate: null,
     createdBy: 'user-1',
-    agentId: null,
     createdAt: new Date('2026-02-12T00:00:00.000Z'),
     updatedAt: new Date('2026-02-12T00:00:00.000Z'),
     deletedAt: null,
@@ -41,7 +40,6 @@ function createTask(id: string): TaskWithRelations {
     },
     assignees: [],
     labels: [],
-    agent: null,
     externalLinks: [],
   };
 }

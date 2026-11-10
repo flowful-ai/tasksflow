@@ -15,7 +15,6 @@ function createTaskFixture(): TaskWithRelations {
     dueDate: null,
     startDate: null,
     createdBy: 'user-1',
-    agentId: null,
     createdAt: new Date('2026-02-12T00:00:00.000Z'),
     updatedAt: new Date('2026-02-12T01:00:00.000Z'),
     deletedAt: null,
@@ -46,7 +45,6 @@ function createTaskFixture(): TaskWithRelations {
       },
     ],
     labels: [{ id: 'l1', projectId: 'project-1', name: 'bug', color: '#f00' }],
-    agent: null,
     externalLinks: [
       { id: 'e1', externalType: 'github_issue', externalId: '1', externalUrl: 'https://x' },
     ],
