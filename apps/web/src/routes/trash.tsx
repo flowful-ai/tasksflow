@@ -1,19 +1,21 @@
 /** Project trash: soft-deleted tasks with who/when, Restore and Restore all. */
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, RotateCcw, Trash2 } from 'lucide-react';
+import { RotateCcw, Trash2 } from 'lucide-react';
 import { tasksApi, trashApi } from '../api/tasks';
 import { queryKeys } from '../api/queryKeys';
 import type { TaskDto } from '../api/types';
 import { useProject, useRestoreTask, useTrash } from '../hooks/queries';
 import {
+  Button,
+  Card,
   ColorDot,
   ConfirmDialog,
   EmptyState,
   ErrorState,
+  PageHeader,
   PageSpinner,
-  Spinner,
   toast,
 } from '../components/ui';
 import { formatDateTime, relativeTime } from '../lib/time';
@@ -67,20 +69,17 @@ function TrashRow({
           </span>
         </p>
       </div>
-      <button
-        type="button"
+      <Button
+        variant="secondary"
+        size="sm"
         onClick={onRestore}
-        disabled={restoring}
-        className="btn btn-secondary shrink-0 px-3 py-1.5 text-sm"
+        loading={restoring}
+        leadingIcon={<RotateCcw />}
+        className="shrink-0"
         aria-label={`Restore ${key}: ${task.title}`}
       >
-        {restoring ? (
-          <Spinner size="sm" label="Restoring" />
-        ) : (
-          <RotateCcw aria-hidden className="mr-1.5 h-4 w-4" />
-        )}
         Restore
-      </button>
+      </Button>
     </li>
   );
 }
@@ -143,39 +142,37 @@ export function TrashPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <Link
-        to={projectId ? `/project/${projectId}` : '/projects'}
-        className="mb-4 inline-flex items-center text-sm text-neutral-600 hover:text-neutral-900"
-      >
-        <ArrowLeft aria-hidden className="mr-1 h-4 w-4" />
-        Back to {project?.name ?? 'project'}
-      </Link>
-      <header className="mb-4 flex flex-wrap items-end gap-3">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-2xl font-bold text-neutral-900">Trash</h1>
-          <p className="mt-1 text-sm text-neutral-500">
-            Deleted tasks stay here for {meta?.retentionDays ?? 30} days, then they are removed for
-            good.
-          </p>
-        </div>
-        {total > 0 && (
-          <button type="button" className="btn btn-secondary" onClick={() => setConfirmAll(true)}>
-            <RotateCcw aria-hidden className="mr-2 h-4 w-4" />
-            Restore all ({total})
-          </button>
-        )}
-      </header>
+      <PageHeader
+        className="mb-4"
+        back={{
+          to: projectId ? `/project/${projectId}` : '/projects',
+          label: `Back to ${project?.name ?? 'project'}`,
+        }}
+        title="Trash"
+        description={`Deleted tasks stay here for ${meta?.retentionDays ?? 30} days, then they are removed for good.`}
+        actions={
+          total > 0 && (
+            <Button
+              variant="secondary"
+              leadingIcon={<RotateCcw />}
+              onClick={() => setConfirmAll(true)}
+            >
+              Restore all ({total})
+            </Button>
+          )
+        }
+      />
 
       {tasks.length === 0 ? (
-        <div className="card">
+        <Card padding="none">
           <EmptyState
             icon={<Trash2 />}
             title="The trash is empty"
             body="Deleted tasks of this project appear here."
           />
-        </div>
+        </Card>
       ) : (
-        <div className="card overflow-hidden p-0">
+        <Card padding="none" className="overflow-hidden">
           <ul aria-label="Deleted tasks" className="divide-y divide-neutral-100">
             {tasks.map((task) => (
               <TrashRow
@@ -191,28 +188,30 @@ export function TrashPage() {
               aria-label="Trash pages"
               className="flex items-center justify-between border-t border-neutral-100 px-4 py-2 text-sm"
             >
-              <button
-                type="button"
-                className="btn btn-ghost px-2 py-1"
+              <Button
+                variant="ghost"
+                size="xs"
+                className="text-sm"
                 disabled={page <= 1}
                 onClick={() => setPage((p) => p - 1)}
               >
                 Previous
-              </button>
+              </Button>
               <span className="text-neutral-500">
                 Page {page} of {pages}
               </span>
-              <button
-                type="button"
-                className="btn btn-ghost px-2 py-1"
+              <Button
+                variant="ghost"
+                size="xs"
+                className="text-sm"
                 disabled={page >= pages}
                 onClick={() => setPage((p) => p + 1)}
               >
                 Next
-              </button>
+              </Button>
             </nav>
           )}
-        </div>
+        </Card>
       )}
 
       <ConfirmDialog

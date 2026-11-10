@@ -21,8 +21,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  Button,
+  Card,
   IconButton,
+  Input,
   PageSpinner,
+  Panel,
   Spinner,
   toast,
 } from '../ui';
@@ -165,23 +169,23 @@ export function GitHubSettings({ projectId }: GitHubSettingsProps) {
 
   if (integrationLoading) {
     return (
-      <div className="card p-6">
+      <Card>
         <PageSpinner className="h-32" label="Loading GitHub integration" />
-      </div>
+      </Card>
     );
   }
 
   return (
     <div className="space-y-6">
       {/* Header Card */}
-      <div className="card p-6">
+      <Card>
         <div className="flex items-start gap-4">
-          <div className="w-12 h-12 bg-gray-900 rounded-lg flex items-center justify-center flex-shrink-0">
+          <div className="w-12 h-12 bg-neutral-900 rounded-lg flex items-center justify-center flex-shrink-0">
             <GithubIcon className="w-6 h-6 text-white" />
           </div>
           <div className="flex-1">
-            <h2 className="text-lg font-semibold text-gray-900">GitHub Integration</h2>
-            <p className="text-sm text-gray-500 mt-1">
+            <h2 className="text-lg font-semibold text-neutral-900">GitHub Integration</h2>
+            <p className="text-sm text-neutral-500 mt-1">
               Connect GitHub repositories to sync issues and pull requests with your project tasks.
               Changes sync both ways - updates in TasksFlow reflect in GitHub and vice versa.
             </p>
@@ -199,7 +203,7 @@ export function GitHubSettings({ projectId }: GitHubSettingsProps) {
         )}
 
         {!hasLinkedRepos && !showRepoSelector && (
-          <div className="mt-6 pt-6 border-t border-gray-200">
+          <div className="mt-6 pt-6 border-t border-neutral-200">
             {!isGitHubAppConfigured ? (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                 <h3 className="text-sm font-semibold text-amber-900 mb-2">
@@ -249,42 +253,39 @@ export function GitHubSettings({ projectId }: GitHubSettingsProps) {
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <CheckCircle2 aria-hidden className="w-8 h-8 text-green-600" />
                 </div>
-                <h3 className="text-sm font-medium text-gray-900 mb-1">GitHub App Installed</h3>
-                <p className="text-sm text-gray-500 mb-4">
+                <h3 className="text-sm font-medium text-neutral-900 mb-1">GitHub App Installed</h3>
+                <p className="text-sm text-neutral-500 mb-4">
                   Link a repository to start syncing issues.
                 </p>
                 {userInstallations.length === 1 ? (
-                  <button
-                    type="button"
+                  <Button
                     onClick={() => chooseInstallation(userInstallations[0].installationId)}
-                    className="btn btn-primary inline-flex items-center"
+                    leadingIcon={<Link2 />}
                   >
-                    <Link2 aria-hidden className="w-4 h-4 mr-2" />
                     Link Repository
                     {userInstallations[0]?.accountLogin && (
                       <span className="ml-1 text-primary-200">
                         ({userInstallations[0].accountLogin})
                       </span>
                     )}
-                  </button>
+                  </Button>
                 ) : (
                   <div className="space-y-2">
-                    <p className="text-xs text-gray-500 mb-2">Choose an installation:</p>
+                    <p className="text-xs text-neutral-500 mb-2">Choose an installation:</p>
                     {userInstallations.map((inst) => (
-                      <button
-                        type="button"
+                      <Button
                         key={inst.installationId}
                         onClick={() => chooseInstallation(inst.installationId)}
-                        className="btn btn-primary inline-flex items-center mr-2"
+                        className="mr-2"
+                        leadingIcon={<Link2 />}
                       >
-                        <Link2 aria-hidden className="w-4 h-4 mr-2" />
                         {inst.accountLogin || `Installation #${inst.installationId}`}
                         {inst.accountType && (
                           <span className="ml-1 text-xs text-primary-200">
                             ({inst.accountType})
                           </span>
                         )}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 )}
@@ -292,7 +293,7 @@ export function GitHubSettings({ projectId }: GitHubSettingsProps) {
                   <button
                     type="button"
                     onClick={() => void handleInstallGitHubApp()}
-                    className="text-sm text-gray-500 hover:text-gray-700 underline"
+                    className="text-sm text-neutral-500 hover:text-neutral-700 underline"
                   >
                     Install on a different account/org
                   </button>
@@ -301,72 +302,65 @@ export function GitHubSettings({ projectId }: GitHubSettingsProps) {
             ) : (
               // No installations at all - show Install button
               <div className="text-center py-8">
-                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Link2 aria-hidden className="w-8 h-8 text-gray-400" />
+                <div className="w-16 h-16 bg-neutral-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Link2 aria-hidden className="w-8 h-8 text-neutral-400" />
                 </div>
-                <h3 className="text-sm font-medium text-gray-900 mb-1">No repositories linked</h3>
-                <p className="text-sm text-gray-500 mb-4">
+                <h3 className="text-sm font-medium text-neutral-900 mb-1">
+                  No repositories linked
+                </h3>
+                <p className="text-sm text-neutral-500 mb-4">
                   Install the TasksFlow GitHub App to start syncing issues.
                 </p>
-                <button
-                  type="button"
-                  onClick={() => void handleInstallGitHubApp()}
-                  className="btn btn-primary inline-flex items-center"
-                >
-                  <GithubIcon className="w-4 h-4 mr-2" />
+                <Button onClick={() => void handleInstallGitHubApp()} leadingIcon={<GithubIcon />}>
                   Install GitHub App
-                </button>
+                </Button>
               </div>
             )}
           </div>
         )}
-      </div>
+      </Card>
 
       {/* Repository Selector */}
       {showRepoSelector && (
-        <div className="card p-6">
+        <Card>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-gray-900">Select Repository to Link</h3>
-            <button
-              type="button"
+            <h3 className="text-sm font-semibold text-neutral-900">Select Repository to Link</h3>
+            <Button
+              variant="link"
               onClick={() => {
                 setShowRepoSelector(false);
                 setSelectedInstallationId(null);
               }}
-              className="text-sm text-gray-500 hover:text-gray-700"
+              className="!font-normal text-neutral-500 hover:text-neutral-700 hover:no-underline"
             >
               Cancel
-            </button>
+            </Button>
           </div>
 
           {reposLoading ? (
             <PageSpinner className="h-32" label="Loading repositories" />
           ) : availableRepos?.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-neutral-500">
               <p>No repositories found in this installation.</p>
-              <button
-                type="button"
+              <Button
+                variant="link"
                 onClick={() => void handleInstallGitHubApp()}
-                className="mt-2 text-primary-600 hover:underline text-sm"
+                className="mt-2 !font-normal"
               >
                 Configure GitHub App permissions
-              </button>
+              </Button>
             </div>
           ) : (
             <div className="space-y-3">
-              <label htmlFor="github-repo-filter" className="sr-only">
-                Filter repositories
-              </label>
-              <input
-                id="github-repo-filter"
-                type="text"
+              <Input
+                size="sm"
+                aria-label="Filter repositories"
                 value={repoFilter}
                 onChange={(event) => setRepoFilter(event.target.value)}
                 placeholder="Filter repositories..."
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
               />
               {filteredRepos && filteredRepos.length === 0 ? (
-                <div className="text-center py-6 text-sm text-gray-500">
+                <div className="text-center py-6 text-sm text-neutral-500">
                   No repositories match "{repoFilter.trim()}".
                 </div>
               ) : (
@@ -383,16 +377,16 @@ export function GitHubSettings({ projectId }: GitHubSettingsProps) {
                         disabled={isAlreadyLinked || linkMutation.isPending}
                         className={`w-full flex items-center justify-between p-3 rounded-lg border transition-colors ${
                           isAlreadyLinked
-                            ? 'bg-gray-50 border-gray-200 cursor-not-allowed'
-                            : 'border-gray-200 hover:border-primary-300 hover:bg-primary-50'
+                            ? 'bg-neutral-50 border-neutral-200 cursor-not-allowed'
+                            : 'border-neutral-200 hover:border-primary-300 hover:bg-primary-50'
                         }`}
                       >
                         <div className="flex items-center gap-3">
-                          <GithubIcon className="w-5 h-5 text-gray-600" />
-                          <span className="font-medium text-gray-900">{repo.fullName}</span>
+                          <GithubIcon className="w-5 h-5 text-neutral-600" />
+                          <span className="font-medium text-neutral-900">{repo.fullName}</span>
                         </div>
                         {isAlreadyLinked ? (
-                          <span className="text-xs text-gray-500">Already linked</span>
+                          <span className="text-xs text-neutral-500">Already linked</span>
                         ) : linkMutation.isPending ? (
                           <Spinner size="sm" label="Linking" />
                         ) : (
@@ -405,37 +399,34 @@ export function GitHubSettings({ projectId }: GitHubSettingsProps) {
               )}
             </div>
           )}
-        </div>
+        </Card>
       )}
 
       {/* Linked Repositories */}
       {hasLinkedRepos && (
-        <div className="card p-6">
+        <Card>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-gray-900">Linked Repositories</h3>
+            <h3 className="text-sm font-semibold text-neutral-900">Linked Repositories</h3>
             {isGitHubAppConfigured &&
               userInstallations &&
               userInstallations.length > 0 &&
               (userInstallations.length === 1 ? (
-                <button
-                  type="button"
+                <Button
+                  variant="link"
                   onClick={() => chooseInstallation(userInstallations[0].installationId)}
-                  className="text-sm text-primary-600 hover:underline flex items-center gap-1"
+                  className="gap-1 !font-normal"
                 >
                   <Link2 aria-hidden className="w-3 h-3" />
                   Add Repository
-                </button>
+                </Button>
               ) : (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className="text-sm text-primary-600 hover:underline flex items-center gap-1"
-                    >
+                    <Button variant="link" className="gap-1 !font-normal">
                       <Link2 aria-hidden className="w-3 h-3" />
                       Add Repository
                       <ChevronDown aria-hidden className="w-3 h-3" />
-                    </button>
+                    </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     {userInstallations.map((inst) => (
@@ -453,18 +444,18 @@ export function GitHubSettings({ projectId }: GitHubSettingsProps) {
 
           <div className="space-y-3">
             {integration?.repositories?.map((repo) => (
-              <div
+              <Panel
                 key={`${repo.owner}/${repo.repo}`}
-                className="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
+                className="flex items-center justify-between"
               >
                 <div className="flex items-center gap-3">
-                  <GithubIcon className="w-5 h-5 text-gray-600" />
+                  <GithubIcon className="w-5 h-5 text-neutral-600" />
                   <div>
                     <a
                       href={`https://github.com/${repo.owner}/${repo.repo}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="font-medium text-gray-900 hover:text-primary-600 flex items-center gap-1"
+                      className="font-medium text-neutral-900 hover:text-primary-600 flex items-center gap-1"
                     >
                       {repo.owner}/{repo.repo}
                       <ExternalLink aria-hidden className="w-3 h-3" />
@@ -493,7 +484,7 @@ export function GitHubSettings({ projectId }: GitHubSettingsProps) {
                         </span>
                       )}
                       {repo.lastSyncAt && (
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-neutral-500">
                           Last synced: {new Date(repo.lastSyncAt).toLocaleString()}
                         </span>
                       )}
@@ -525,15 +516,15 @@ export function GitHubSettings({ projectId }: GitHubSettingsProps) {
                     icon={<Trash2 />}
                   />
                 </div>
-              </div>
+              </Panel>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Sync Settings Info */}
       {hasLinkedRepos && (
-        <div className="card p-6 bg-blue-50 border-blue-200">
+        <Card className="bg-blue-50 border-blue-200">
           <h3 className="text-sm font-semibold text-blue-900 mb-2">Two-Way Sync Enabled</h3>
           <ul className="text-sm text-blue-800 space-y-1">
             <li>• GitHub issues sync as tasks in this project</li>
@@ -541,7 +532,7 @@ export function GitHubSettings({ projectId }: GitHubSettingsProps) {
             <li>• Moving a task to "Done" closes the linked GitHub issue</li>
             <li>• Comments added in TasksFlow appear on GitHub issues</li>
           </ul>
-        </div>
+        </Card>
       )}
 
       <ConfirmDialog

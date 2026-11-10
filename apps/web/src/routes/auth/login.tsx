@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuthStore } from '../../stores/auth';
 import { OAuthButtons } from '../../components/auth/OAuthButtons';
+import { Button, Field, Input } from '../../components/ui';
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -57,7 +58,7 @@ export function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
+    <main className="min-h-screen flex items-center justify-center bg-neutral-50 py-12 px-4">
       <div className="max-w-md w-full space-y-8">
         <div className="text-center">
           <div className="mx-auto w-12 h-12 bg-primary-600 rounded-xl flex items-center justify-center">
@@ -72,8 +73,8 @@ export function LoginPage() {
               <path d="M5 12l5 5L19 7" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
-          <h1 className="mt-6 text-3xl font-bold text-gray-900">Welcome back</h1>
-          <p className="mt-2 text-sm text-gray-600">
+          <h1 className="mt-6 text-3xl font-bold text-neutral-900">Welcome back</h1>
+          <p className="mt-2 text-sm text-neutral-600">
             Sign in or create your account with GitHub or Google
           </p>
         </div>
@@ -91,11 +92,11 @@ export function LoginPage() {
           )}
 
           {!showEmailForm ? (
-            <p className="text-center text-sm text-gray-500 mt-6">
+            <p className="text-center text-sm text-neutral-500 mt-6">
               <button
                 type="button"
                 onClick={() => setShowEmailForm(true)}
-                className="underline hover:text-gray-700"
+                className="underline hover:text-neutral-700"
               >
                 Sign in with email and password
               </button>{' '}
@@ -104,44 +105,34 @@ export function LoginPage() {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-6 mt-6">
               <div className="space-y-4">
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                    Email address
-                  </label>
-                  <input
-                    id="email"
+                <Field label="Email address" id="email">
+                  <Input
                     name="email"
                     type="email"
                     autoComplete="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="input mt-1"
                     placeholder="you@example.com"
                   />
-                </div>
+                </Field>
 
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                    Password
-                  </label>
-                  <input
-                    id="password"
+                <Field label="Password" id="password">
+                  <Input
                     name="password"
                     type="password"
                     autoComplete="current-password"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="input mt-1"
                     placeholder="Enter your password"
                   />
-                </div>
+                </Field>
               </div>
 
-              <button type="submit" disabled={isSubmitting} className="btn btn-primary w-full py-3">
+              <Button type="submit" disabled={isSubmitting} block className="py-3">
                 {isSubmitting ? 'Signing in...' : 'Sign in'}
-              </button>
+              </Button>
             </form>
           )}
         </div>

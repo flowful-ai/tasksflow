@@ -39,7 +39,10 @@ export default tseslint.config(
       '@typescript-eslint/require-await': 'off',
       // React event props accept promise-returning handlers; errors surface
       // through TanStack Query / toasts.
-      '@typescript-eslint/no-misused-promises': ['error', { checksVoidReturn: { attributes: false } }],
+      '@typescript-eslint/no-misused-promises': [
+        'error',
+        { checksVoidReturn: { attributes: false } },
+      ],
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
@@ -71,6 +74,42 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+    },
+  },
+  {
+    // Design system guard: style form controls and buttons through the
+    // primitives in components/ui (see its README), not raw elements.
+    files: ['apps/web/src/**/*.tsx'],
+    ignores: ['apps/web/src/components/ui/**'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "JSXOpeningElement[name.name='select']",
+          message: 'Use <Select> from components/ui instead of a raw <select>.',
+        },
+        {
+          selector: "JSXOpeningElement[name.name='textarea']",
+          message: 'Use <Textarea> from components/ui instead of a raw <textarea>.',
+        },
+        {
+          selector:
+            "JSXOpeningElement[name.name='input']:not(:has(JSXAttribute[name.name='type'][value.value=/^(hidden|file|radio|color)$/]))",
+          message:
+            'Use <Input> or <Checkbox> from components/ui instead of a raw <input> (hidden, file, radio and color inputs are exempt).',
+        },
+        {
+          selector:
+            "JSXAttribute[name.name='className'] :matches(Literal[value=/(^|\\s)(btn|input)(\\s|$)/], TemplateElement[value.raw=/(^|\\s)(btn|input)(\\s|$)/])",
+          message:
+            'Use <Button> / <Input> from components/ui instead of the .btn / .input classes.',
+        },
+        {
+          selector:
+            ':matches(Literal[value=/(^|[\\s:])gray-\\d/], TemplateElement[value.raw=/(^|[\\s:])gray-\\d/])',
+          message: 'Use the neutral-* scale (tailwind.config), not gray-*.',
+        },
+      ],
     },
   }
 );

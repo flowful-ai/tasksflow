@@ -5,7 +5,8 @@ import { agentApi } from '../../api/agents';
 import { queryKeys } from '../../api/queryKeys';
 
 /** The chat panel pulls in the AI SDK and the markdown stack: load it on first open only. */
-const GlobalAgentChat = lazy(() => import('./GlobalAgentChat'));
+const loadChat = () => import('./GlobalAgentChat');
+const GlobalAgentChat = lazy(loadChat);
 
 /**
  * Floating "Chat" button. Shown only when the workspace has an active agent
@@ -33,6 +34,9 @@ export function AgentChatLauncher({ workspaceId }: { workspaceId: string | null 
         className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 rounded-full bg-neutral-900 px-4 py-3 text-sm font-semibold text-white shadow-lg hover:bg-neutral-800"
         aria-haspopup="dialog"
         aria-expanded={open}
+        // Start fetching the chunk on intent so the panel opens without a wait.
+        onPointerEnter={() => void loadChat()}
+        onFocus={() => void loadChat()}
         onClick={() => {
           setMounted(true);
           setOpen(true);

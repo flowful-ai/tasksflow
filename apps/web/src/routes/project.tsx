@@ -17,6 +17,7 @@ import {
   type BoardFilters,
 } from '../components/board/filters';
 import {
+  Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -144,9 +145,9 @@ export function ProjectPage() {
         resource="project"
         onRetry={() => void projectQuery.refetch()}
         notFoundAction={
-          <Link to="/projects" className="btn btn-secondary">
-            Back to projects
-          </Link>
+          <Button asChild variant="secondary">
+            <Link to="/projects">Back to projects</Link>
+          </Button>
         }
       />
     );
@@ -188,13 +189,9 @@ export function ProjectPage() {
           </>
         }
         action={
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => setFilters(EMPTY_FILTERS)}
-          >
+          <Button variant="secondary" onClick={() => setFilters(EMPTY_FILTERS)}>
             Clear filter
-          </button>
+          </Button>
         }
       />
     ) : (
@@ -202,11 +199,7 @@ export function ProjectPage() {
         icon={<FolderKanban />}
         title="No tasks yet"
         body={createHint}
-        action={
-          <button type="button" className="btn btn-primary" onClick={openCreate}>
-            New task
-          </button>
-        }
+        action={<Button onClick={openCreate}>New task</Button>}
       />
     );
   } else {

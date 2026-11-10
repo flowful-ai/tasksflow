@@ -9,6 +9,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../../api/queryKeys';
 import type { TaskRefDto } from '../../../api/types';
 import { useCreateTask, useUpdateTask } from '../../../hooks/queries';
+import { Button, Checkbox, Input } from '../../ui';
 import type { DetailState, OpenTaskHandler } from './types';
 
 interface SubtasksProps {
@@ -134,13 +135,12 @@ export function Subtasks({
                 key={sub.id}
                 className="group flex items-center gap-2.5 px-3 py-1.5 hover:bg-neutral-50"
               >
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={done}
                   disabled={readOnly || (done ? !openState : !doneState)}
                   onChange={() => void toggle(sub)}
                   aria-label={`${done ? 'Reopen' : 'Complete'} ${sub.key}: ${sub.title}`}
-                  className="h-4 w-4 shrink-0 cursor-pointer rounded border-neutral-300 text-emerald-600 focus:ring-emerald-500"
+                  tone="success"
                 />
                 <button
                   type="button"
@@ -168,7 +168,8 @@ export function Subtasks({
           }}
         >
           <Plus aria-hidden className="h-4 w-4 shrink-0 text-neutral-400" />
-          <input
+          <Input
+            bare
             ref={inputRef}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -185,13 +186,9 @@ export function Subtasks({
             className="min-w-0 flex-1 border-0 bg-transparent p-0 text-base placeholder:text-neutral-400 focus:ring-0 md:text-sm"
           />
           {title.trim() && (
-            <button
-              type="submit"
-              className="btn btn-primary px-2.5 py-1 text-xs"
-              disabled={createTask.isPending}
-            >
+            <Button type="submit" size="xs" disabled={createTask.isPending}>
               Add
-            </button>
+            </Button>
           )}
         </form>
       )}

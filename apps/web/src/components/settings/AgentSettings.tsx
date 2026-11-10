@@ -1,40 +1,26 @@
 import { useMemo, useState } from 'react';
 import { Bot, Copy, Check, Pencil, Trash2, Shield, Link2 } from 'lucide-react';
 import clsx from 'clsx';
-import { AgentToolSchema, type AgentTool } from '@flowtask/shared/types';
 import type { McpOAuthConnection } from '../../api/workspaces';
 import {
   useCurrentWorkspace,
   useMcpConnectionMutations,
   useMcpConnections,
 } from '../../hooks/queries';
-import { ConfirmDialog, Dialog, EmptyState, ErrorState, IconButton, toast } from '../ui';
-
-export const AGENT_TOOL_LABELS: Record<AgentTool, string> = {
-  create_task: 'Create tasks',
-  bulk_create_tasks: 'Bulk create tasks',
-  update_task: 'Update tasks',
-  delete_task: 'Delete tasks',
-  query_tasks: 'Query tasks',
-  get_task: 'Get task details',
-  move_task: 'Move tasks',
-  assign_task: 'Assign tasks',
-  add_comment: 'Add comments',
-  summarize_project: 'Summarize project',
-  create_smart_view: 'Create smart views',
-  search_tasks: 'Search tasks',
-  list_projects: 'List projects',
-  list_members: 'List members',
-  list_labels: 'List labels',
-  list_comments: 'List comments',
-  bulk_update_tasks: 'Bulk update tasks',
-  list_smart_views: 'List smart views',
-  run_smart_view: 'Run smart views',
-};
-
-/** Every agent/MCP tool with its label, in AgentToolSchema order (single source for all settings UIs). */
-export const AVAILABLE_PERMISSIONS: ReadonlyArray<{ id: AgentTool; label: string }> =
-  AgentToolSchema.options.map((id) => ({ id, label: AGENT_TOOL_LABELS[id] }));
+import {
+  Badge,
+  Button,
+  Card,
+  Checkbox,
+  ConfirmDialog,
+  Dialog,
+  EmptyState,
+  ErrorState,
+  IconButton,
+  Panel,
+  toast,
+} from '../ui';
+import { AVAILABLE_PERMISSIONS } from '../../lib/agent-tools';
 
 function formatRelativeTime(dateStr: string | null): string {
   if (!dateStr) return 'Never';
@@ -90,17 +76,12 @@ function ScopeEditorDialog({ connection, onClose, onSave, isSaving }: ScopeEdito
       size="lg"
       footer={
         <>
-          <button type="button" className="btn btn-secondary" onClick={onClose}>
+          <Button variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={handleSave}
-            disabled={isSaving}
-          >
+          </Button>
+          <Button onClick={handleSave} disabled={isSaving}>
             {isSaving ? 'Saving...' : 'Save Scopes'}
-          </button>
+          </Button>
         </>
       }
     >
@@ -118,16 +99,14 @@ function ScopeEditorDialog({ connection, onClose, onSave, isSaving }: ScopeEdito
               'flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors',
               toolScopes.includes(permission.id)
                 ? 'border-primary-500 bg-primary-50'
-                : 'border-gray-200 hover:bg-gray-50'
+                : 'border-neutral-200 hover:bg-neutral-50'
             )}
           >
-            <input
-              type="checkbox"
+            <Checkbox
               checked={toolScopes.includes(permission.id)}
               onChange={() => toggleScope(permission.id)}
-              className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
             />
-            <span className="text-sm text-gray-900">{permission.label}</span>
+            <span className="text-sm text-neutral-900">{permission.label}</span>
           </label>
         ))}
       </fieldset>
@@ -145,25 +124,25 @@ function ConnectionCard({ connection, onEditScopes, onDelete }: ConnectionCardPr
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   return (
-    <div className="p-4 border rounded-lg bg-white border-gray-200">
+    <Panel className="bg-white">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-primary-100">
             <Bot className="w-5 h-5 text-primary-600" />
           </div>
           <div>
-            <h3 className="font-medium text-gray-900">{connection.clientName}</h3>
-            <p className="text-xs text-gray-500 font-mono">{connection.clientId}</p>
+            <h3 className="font-medium text-neutral-900">{connection.clientName}</h3>
+            <p className="text-xs text-neutral-500 font-mono">{connection.clientId}</p>
           </div>
         </div>
-        <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-700">
+        <Badge tone="success" shape="pill">
           Connected
-        </span>
+        </Badge>
       </div>
 
-      <div className="mt-4 space-y-2 text-sm text-gray-600">
+      <div className="mt-4 space-y-2 text-sm text-neutral-600">
         <div className="flex items-center gap-2">
-          <Shield className="w-4 h-4 text-gray-400" />
+          <Shield className="w-4 h-4 text-neutral-400" />
           <span>
             {connection.toolScopes.length} scope{connection.toolScopes.length === 1 ? '' : 's'}:{' '}
             {connection.toolScopes.join(', ')}
@@ -171,7 +150,7 @@ function ConnectionCard({ connection, onEditScopes, onDelete }: ConnectionCardPr
         </div>
         <div>
           Authorized by:{' '}
-          <span className="text-gray-900">
+          <span className="text-neutral-900">
             {connection.grantedBy.name || connection.grantedBy.email}
           </span>{' '}
           ({connection.grantedByRole})
@@ -180,21 +159,19 @@ function ConnectionCard({ connection, onEditScopes, onDelete }: ConnectionCardPr
         <div>Last activity: {formatRelativeTime(connection.lastActivityAt)}</div>
       </div>
 
-      <div className="mt-4 pt-4 border-t border-gray-100 flex gap-2">
-        <button
-          onClick={onEditScopes}
-          className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          <Pencil className="w-4 h-4" />
+      <div className="mt-4 pt-4 border-t border-neutral-100 flex gap-2">
+        <Button variant="ghost" size="sm" leadingIcon={<Pencil />} onClick={onEditScopes}>
           Edit Scopes
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          leadingIcon={<Trash2 />}
+          className="text-red-600 hover:bg-red-50"
           onClick={() => setShowDeleteConfirm(true)}
-          className="flex items-center gap-1 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
         >
-          <Trash2 className="w-4 h-4" />
           Delete
-        </button>
+        </Button>
       </div>
 
       <ConfirmDialog
@@ -206,7 +183,7 @@ function ConnectionCard({ connection, onEditScopes, onDelete }: ConnectionCardPr
         variant="danger"
         onConfirm={onDelete}
       />
-    </div>
+    </Panel>
   );
 }
 
@@ -239,13 +216,8 @@ function ConnectGuide() {
   };
 
   return (
-    <div className="card p-6">
-      <div className="flex items-center gap-2 mb-3">
-        <Link2 className="w-5 h-5 text-primary-600" />
-        <h2 className="text-lg font-semibold text-gray-900">How to connect ChatGPT / Claude</h2>
-      </div>
-
-      <ul className="list-disc pl-5 text-sm text-gray-700 space-y-1 mb-4">
+    <Card title="How to connect ChatGPT / Claude" icon={<Link2 className="text-primary-600" />}>
+      <ul className="list-disc pl-5 text-sm text-neutral-700 space-y-1 mb-4">
         <li>
           Add this MCP server URL in your client: <code className="font-mono">{values.mcpUrl}</code>
         </li>
@@ -258,10 +230,10 @@ function ConnectGuide() {
         <li>Only workspace owners/admins can authorize MCP access.</li>
       </ul>
 
-      <div className="mb-4 p-2 bg-gray-50 rounded border border-gray-200">
-        <div className="text-xs text-gray-600 mb-1">Claude Code command</div>
+      <div className="mb-4 p-2 bg-neutral-50 rounded border border-neutral-200">
+        <div className="text-xs text-neutral-600 mb-1">Claude Code command</div>
         <div className="flex items-center gap-2">
-          <code className="flex-1 text-xs font-mono text-gray-800 break-all">
+          <code className="flex-1 text-xs font-mono text-neutral-800 break-all">
             {claudeCodeCommand}
           </code>
           <IconButton
@@ -280,10 +252,12 @@ function ConnectGuide() {
         ].map((item) => (
           <div
             key={item.key}
-            className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-200"
+            className="flex items-center gap-2 p-2 bg-neutral-50 rounded border border-neutral-200"
           >
-            <div className="min-w-44 text-xs text-gray-600">{item.label}</div>
-            <code className="flex-1 text-xs font-mono text-gray-800 break-all">{item.value}</code>
+            <div className="min-w-44 text-xs text-neutral-600">{item.label}</div>
+            <code className="flex-1 text-xs font-mono text-neutral-800 break-all">
+              {item.value}
+            </code>
             <IconButton
               label={copied === item.key ? 'Copied' : `Copy ${item.label}`}
               onClick={() => void copy(item.key, item.value)}
@@ -292,7 +266,7 @@ function ConnectGuide() {
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -308,29 +282,29 @@ export function AgentSettings() {
 
   if (!workspaceId) {
     return (
-      <div className="card p-6">
-        <p className="text-gray-600">Please select a workspace first.</p>
-      </div>
+      <Card>
+        <p className="text-neutral-600">Please select a workspace first.</p>
+      </Card>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="card p-6">
+      <Card>
         <div className="animate-pulse space-y-4">
-          <div className="h-6 w-48 bg-gray-200 rounded" />
-          <div className="h-4 w-64 bg-gray-200 rounded" />
-          <div className="h-32 bg-gray-100 rounded" />
+          <div className="h-6 w-48 bg-neutral-200 rounded" />
+          <div className="h-4 w-64 bg-neutral-200 rounded" />
+          <div className="h-32 bg-neutral-100 rounded" />
         </div>
-      </div>
+      </Card>
     );
   }
 
   if (error) {
     return (
-      <div className="card p-6">
+      <Card>
         <ErrorState error={error} resource="list of connections" onRetry={() => void refetch()} />
-      </div>
+      </Card>
     );
   }
 
@@ -340,14 +314,10 @@ export function AgentSettings() {
     <div className="space-y-6">
       <ConnectGuide />
 
-      <div className="card p-6">
-        <div className="mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">MCP OAuth Connections</h2>
-          <p className="text-sm text-gray-600 mt-1">
-            Manage workspace-wide OAuth connections authorized for MCP access.
-          </p>
-        </div>
-
+      <Card
+        title="MCP OAuth Connections"
+        description="Manage workspace-wide OAuth connections authorized for MCP access."
+      >
         {connections.length === 0 ? (
           <EmptyState
             icon={<Bot />}
@@ -369,7 +339,7 @@ export function AgentSettings() {
             ))}
           </div>
         )}
-      </div>
+      </Card>
 
       {editingConnection && (
         <ScopeEditorDialog

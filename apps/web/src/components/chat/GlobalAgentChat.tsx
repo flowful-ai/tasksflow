@@ -1,89 +1,23 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Send, Bot, Wrench, Loader2, ShieldAlert, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowUp, Bot, Loader2, Square, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import ReactMarkdown from 'react-markdown';
-import rehypeSanitize from 'rehype-sanitize';
-import remarkGfm from 'remark-gfm';
 import { useChat } from '@ai-sdk/react';
-import {
-  DefaultChatTransport,
-  getToolName,
-  isToolUIPart,
-  lastAssistantMessageIsCompleteWithApprovalResponses,
-  type DynamicToolUIPart,
-  type ToolUIPart,
-  type UIMessage,
-} from 'ai';
-import type { Components } from 'react-markdown';
+import { DefaultChatTransport, lastAssistantMessageIsCompleteWithApprovalResponses } from 'ai';
 import { agentApi } from '../../api/agents';
 import { workspaceAiSettingsApi } from '../../api/workspaces';
 import { API_BASE_URL } from '../../api/http';
 import { queryKeys } from '../../api/queryKeys';
 import { useAuthStore } from '../../stores/auth';
-import { Dialog } from '../ui/Dialog';
-import { IconButton } from '../ui/IconButton';
-const TOOL_ONLY_FALLBACK_MESSAGE = 'Done. I completed the requested actions.';
+import { Dialog, IconButton, Input, Select } from '../ui';
+import { ChatMessage } from './ChatMessage';
+import { hasVisibleOutput } from './message-state';
+
 const AUTO_SCROLL_THRESHOLD_PX = 64;
+/** Re-render the streaming reply at most this often (ms). */
+const STREAM_THROTTLE_MS = 50;
 
 function storageKey(userId: string, workspaceId: string): string {
   return `flowtask:chat:agent:${workspaceId}:${userId}`;
-}
-
-function stringifyJson(value: unknown): string {
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return String(value);
-  }
-}
-
-type AnyToolPart = ToolUIPart | DynamicToolUIPart;
-
-function getToolStatusLabel(part: AnyToolPart): string {
-  switch (part.state) {
-    case 'input-streaming':
-      return 'Preparing...';
-    case 'input-available':
-      return 'Running';
-    case 'approval-requested':
-      return 'Needs approval';
-    case 'approval-responded':
-      return part.approval.approved ? 'Approved' : 'Denied';
-    case 'output-available':
-      return 'Completed';
-    case 'output-error':
-      return 'Failed';
-    case 'output-denied':
-      return 'Denied';
-  }
-}
-
-/**
- * Remote images are never loaded: an image URL chosen by the model (or by
- * injected task text) could carry workspace data to a third party.
- */
-const MarkdownImage: Components['img'] = ({ src, alt }) => {
-  const label = alt?.trim() ? alt : 'image';
-  if (typeof src !== 'string' || !src) {
-    return <span className="italic text-gray-500">[{label}]</span>;
-  }
-  return (
-    <a
-      href={src}
-      className="text-primary-600 underline"
-      target="_blank"
-      rel="noopener noreferrer nofollow"
-    >
-      [image: {label}]
-    </a>
-  );
-};
-
-function getUserMessageText(message: UIMessage): string {
-  return message.parts
-    .filter((part) => part.type === 'text')
-    .map((part) => part.text)
-    .join('');
 }
 
 export interface GlobalAgentChatProps {
@@ -159,6 +93,8 @@ export default function GlobalAgentChat({
     error: chatError,
   } = useChat({
     transport,
+    // Batch streamed tokens: re-render at most every 50 ms instead of per chunk.
+    experimental_throttle: STREAM_THROTTLE_MS,
     // After the user approves or denies every pending tool call, send the
     // decisions back so the server can run (or skip) the approved calls.
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
@@ -168,6 +104,17 @@ export default function GlobalAgentChat({
   });
 
   const isStreaming = status === 'submitted' || status === 'streaming';
+
+  const handleToolApproval = useCallback(
+    (approvalId: string, approved: boolean) => {
+      void addToolApprovalResponse(
+        approved
+          ? { id: approvalId, approved: true }
+          : { id: approvalId, approved: false, reason: 'The user denied this action.' }
+      );
+    },
+    [addToolApprovalResponse]
+  );
 
   useEffect(() => {
     if (!userId || agents.length === 0) return;
@@ -198,17 +145,10 @@ export default function GlobalAgentChat({
     }
   }, [selectedAgentId, workspaceId, userId]);
 
-  const canSend = useMemo(() => {
-    return !!selectedAgentId && input.trim().length > 0 && !isStreaming;
-  }, [selectedAgentId, input, isStreaming]);
-
-  const lastAssistantMessage = [...messages]
-    .reverse()
-    .find((message) => message.role === 'assistant');
-  const lastAssistantHasVisibleOutput = !!lastAssistantMessage?.parts.some(
-    (part) => (part.type === 'text' && part.text.trim().length > 0) || isToolUIPart(part)
-  );
-  const showThinking = isStreaming && !lastAssistantHasVisibleOutput;
+  const canSend = !!selectedAgentId && input.trim().length > 0 && !isStreaming;
+  const lastMessage = messages.at(-1);
+  // From submit until the reply shows text, a tool call or reasoning.
+  const showThinking = isStreaming && !hasVisibleOutput(lastMessage);
   const currentError = errorMessage || chatError?.message || null;
 
   const handleMessagesScroll = () => {
@@ -240,6 +180,7 @@ export default function GlobalAgentChat({
 
     setInput('');
     setErrorMessage(null);
+    shouldAutoScrollRef.current = true;
 
     try {
       await sendMessage({ text });
@@ -258,19 +199,19 @@ export default function GlobalAgentChat({
       onOpenChange={setIsOpen}
       title="Workspace chat"
       bare
-      className="!left-auto !top-auto !bottom-4 !right-4 !m-0 !h-[70vh] !max-w-md overflow-hidden border border-gray-200"
+      className="!left-auto !top-auto !bottom-4 !right-4 !m-0 !h-[70vh] !max-w-md overflow-hidden border border-neutral-200"
     >
-      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+      <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
         <div className="flex items-center gap-2">
           <Bot className="h-4 w-4 text-primary-600" aria-hidden />
-          <h2 className="text-sm font-semibold text-gray-900">Workspace Chat</h2>
+          <h2 className="text-sm font-semibold text-neutral-900">Workspace Chat</h2>
         </div>
         <IconButton label="Close chat" icon={<X />} onClick={() => setIsOpen(false)} />
       </div>
 
-      <div className="border-b border-gray-200 px-4 py-3">
-        <select
-          className="input"
+      <div className="border-b border-neutral-200 px-4 py-3">
+        <Select
+          aria-label="Agent"
           value={selectedAgentId}
           onChange={(event) => {
             if (isStreaming) {
@@ -284,240 +225,77 @@ export default function GlobalAgentChat({
               {agent.name}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div
         ref={messagesContainerRef}
         onScroll={handleMessagesScroll}
-        className="h-[calc(70vh-180px)] space-y-3 overflow-y-auto px-4 py-3"
+        aria-busy={isStreaming}
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3"
       >
         {messages.length === 0 && (
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-neutral-500">
             Ask anything about your workspace, tasks, and projects.
           </div>
         )}
-        {messages.map((message) => {
-          if (message.role === 'system') {
-            return null;
-          }
-
-          if (message.role === 'user') {
-            return (
-              <div
-                key={message.id}
-                className="ml-8 rounded-xl bg-neutral-900 px-3 py-2 text-sm text-white"
-              >
-                <div className="whitespace-pre-wrap">{getUserMessageText(message)}</div>
-              </div>
-            );
-          }
-
-          const assistantParts = message.parts;
-          const hasText = assistantParts.some(
-            (part) => part.type === 'text' && part.text.trim().length > 0
-          );
-          const hasToolOutput = assistantParts.some((part) => isToolUIPart(part));
-
-          return (
-            <div
-              key={message.id}
-              className="mr-8 rounded-xl bg-gray-100 px-3 py-2 text-sm text-gray-800"
-            >
-              <div className="space-y-2 overflow-x-auto">
-                {assistantParts.map((part, index) => {
-                  if (part.type === 'text') {
-                    if (part.text.length === 0) {
-                      return null;
-                    }
-
-                    return (
-                      <ReactMarkdown
-                        key={`${message.id}-text-${index}`}
-                        remarkPlugins={[remarkGfm]}
-                        rehypePlugins={[rehypeSanitize]}
-                        components={{
-                          p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                          strong: ({ children }) => (
-                            <strong className="font-semibold text-gray-900">{children}</strong>
-                          ),
-                          em: ({ children }) => <em className="italic">{children}</em>,
-                          ul: ({ children }) => (
-                            <ul className="mb-2 list-disc space-y-1 pl-5 last:mb-0">{children}</ul>
-                          ),
-                          ol: ({ children }) => (
-                            <ol className="mb-2 list-decimal space-y-1 pl-5 last:mb-0">
-                              {children}
-                            </ol>
-                          ),
-                          a: ({ href, children }) => (
-                            <a
-                              href={href}
-                              className="text-primary-600 underline"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              {children}
-                            </a>
-                          ),
-                          code: ({ children }) => (
-                            <code className="rounded bg-gray-200 px-1 py-0.5 text-xs text-gray-900">
-                              {children}
-                            </code>
-                          ),
-                          table: ({ children }) => (
-                            <table className="my-2 w-full border-collapse overflow-hidden rounded border border-gray-300 text-left text-xs">
-                              {children}
-                            </table>
-                          ),
-                          thead: ({ children }) => (
-                            <thead className="bg-gray-200">{children}</thead>
-                          ),
-                          tbody: ({ children }) => <tbody>{children}</tbody>,
-                          tr: ({ children }) => (
-                            <tr className="border-b border-gray-300 last:border-b-0">{children}</tr>
-                          ),
-                          th: ({ children }) => (
-                            <th className="px-2 py-1 font-semibold text-gray-900">{children}</th>
-                          ),
-                          td: ({ children }) => <td className="px-2 py-1 align-top">{children}</td>,
-                          img: MarkdownImage,
-                        }}
-                      >
-                        {part.text}
-                      </ReactMarkdown>
-                    );
-                  }
-
-                  if (isToolUIPart(part)) {
-                    const hasInput = part.input !== undefined;
-                    const hasOutput = part.state === 'output-available';
-                    const hasErrorText = part.state === 'output-error' && part.errorText.length > 0;
-
-                    return (
-                      <div
-                        key={`${message.id}-tool-${index}`}
-                        className="rounded-lg border border-gray-300 bg-white p-2 text-xs text-gray-700"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="inline-flex items-center gap-1.5 font-medium text-gray-900">
-                            <Wrench className="h-3.5 w-3.5" />
-                            {getToolName(part)}
-                          </div>
-                          <span className="rounded bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600">
-                            {getToolStatusLabel(part)}
-                          </span>
-                        </div>
-
-                        {hasInput && (
-                          <details className="mt-2" open={part.state === 'approval-requested'}>
-                            <summary className="cursor-pointer text-gray-600">Input</summary>
-                            <pre className="mt-1 overflow-x-auto rounded bg-gray-100 p-2 text-[11px] text-gray-800">
-                              {stringifyJson(part.input)}
-                            </pre>
-                          </details>
-                        )}
-
-                        {part.state === 'approval-requested' && (
-                          <div className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-amber-900">
-                            <div className="mb-2 inline-flex items-center gap-1.5 font-medium">
-                              <ShieldAlert className="h-3.5 w-3.5" />
-                              This action changes workspace data. Allow it?
-                            </div>
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                className="rounded bg-neutral-900 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-neutral-800"
-                                onClick={() =>
-                                  void addToolApprovalResponse({
-                                    id: part.approval.id,
-                                    approved: true,
-                                  })
-                                }
-                              >
-                                Approve
-                              </button>
-                              <button
-                                type="button"
-                                className="rounded border border-gray-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-gray-800 hover:bg-gray-100"
-                                onClick={() =>
-                                  void addToolApprovalResponse({
-                                    id: part.approval.id,
-                                    approved: false,
-                                    reason: 'The user denied this action.',
-                                  })
-                                }
-                              >
-                                Deny
-                              </button>
-                            </div>
-                          </div>
-                        )}
-
-                        {hasOutput && (
-                          <details className="mt-2">
-                            <summary className="cursor-pointer text-gray-600">Output</summary>
-                            <pre className="mt-1 overflow-x-auto rounded bg-gray-100 p-2 text-[11px] text-gray-800">
-                              {stringifyJson(part.output)}
-                            </pre>
-                          </details>
-                        )}
-
-                        {hasErrorText && (
-                          <div className="mt-2 rounded bg-red-50 px-2 py-1 text-red-700">
-                            {part.errorText}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  }
-
-                  return null;
-                })}
-
-                {!hasText && hasToolOutput && !isStreaming && (
-                  <div>{TOOL_ONLY_FALLBACK_MESSAGE}</div>
-                )}
-              </div>
-            </div>
-          );
-        })}
+        {messages.map((message, index) => (
+          <ChatMessage
+            key={message.id}
+            message={message}
+            streaming={isStreaming && index === messages.length - 1}
+            onToolApproval={handleToolApproval}
+          />
+        ))}
 
         {showThinking && (
-          <div className="mr-8 rounded-xl bg-gray-100 px-3 py-2 text-sm text-gray-700">
-            <div className="inline-flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Thinking...
-            </div>
+          <div
+            role="status"
+            className="mr-8 inline-flex items-center gap-2 rounded-xl bg-neutral-100 px-3 py-2 text-sm text-neutral-600"
+          >
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            Thinking…
           </div>
         )}
       </div>
 
-      <div className="border-t border-gray-200 p-3">
+      <form
+        className="border-t border-neutral-200 p-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void handleSend();
+        }}
+      >
         {currentError && <div className="mb-2 text-xs text-red-600">{currentError}</div>}
         <div className="flex items-center gap-2">
-          <input
-            className="input"
+          <Input
+            aria-label="Message"
             value={input}
             onChange={(event) => setInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                void handleSend();
-              }
-            }}
             placeholder="Ask the assistant..."
           />
-          <IconButton
-            label="Send message"
-            variant="solid"
-            size="md"
-            icon={<Send />}
-            onClick={() => void handleSend()}
-            disabled={!canSend}
-          />
+          {isStreaming ? (
+            <IconButton
+              label="Stop generating"
+              variant="solid"
+              size="md"
+              className="!rounded-full"
+              icon={<Square className="!h-3.5 !w-3.5 fill-current" />}
+              onClick={() => void stop()}
+            />
+          ) : (
+            <IconButton
+              type="submit"
+              label="Send message"
+              variant="solid"
+              size="md"
+              className="!rounded-full"
+              icon={<ArrowUp />}
+              disabled={!canSend}
+            />
+          )}
         </div>
-      </div>
+      </form>
     </Dialog>
   );
 }

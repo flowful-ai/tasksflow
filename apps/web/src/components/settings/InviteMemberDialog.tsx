@@ -3,7 +3,7 @@ import { Mail, Shield, User, Copy, Check, Link as LinkIcon, Users } from 'lucide
 import clsx from 'clsx';
 import type { WorkspaceInvitation } from '../../api/workspaces';
 import { useInvitationMutations } from '../../hooks/queries';
-import { Dialog, toast } from '../ui';
+import { Button, Dialog, Field, Input, Select, SegmentedControl, toast } from '../ui';
 
 interface InviteMemberDialogProps {
   workspaceId: string;
@@ -91,7 +91,7 @@ export function InviteMemberDialog({
       }}
       title={
         <span className="flex items-center gap-2">
-          <Mail aria-hidden className="w-5 h-5 text-gray-600" />
+          <Mail aria-hidden className="w-5 h-5 text-neutral-600" />
           {step === 'form' ? 'Invite to Workspace' : 'Invitation Created'}
         </span>
       }
@@ -99,7 +99,7 @@ export function InviteMemberDialog({
       <div>
         {step === 'form' ? (
           <form onSubmit={handleSubmit} className="space-y-4">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-neutral-600">
               Invite someone to join <span className="font-medium">{workspaceName}</span>. They'll
               receive a link to accept the invitation.
             </p>
@@ -110,66 +110,34 @@ export function InviteMemberDialog({
               </p>
             )}
 
-            {/* Invite Type Toggle */}
             <div>
-              <span id="invite-type-label" className="block text-sm font-medium text-gray-700 mb-2">
+              <span aria-hidden className="block text-sm font-medium text-neutral-700 mb-2">
                 Invite Type
               </span>
-              <div
-                role="group"
-                aria-labelledby="invite-type-label"
-                className="flex rounded-lg border border-gray-200 p-1"
-              >
-                <button
-                  type="button"
-                  onClick={() => setInviteType('email')}
-                  aria-pressed={inviteType === 'email'}
-                  className={clsx(
-                    'flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-colors',
-                    inviteType === 'email'
-                      ? 'bg-primary-100 text-primary-700'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  )}
-                >
-                  <Mail className="w-4 h-4" />
-                  Email Invite
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setInviteType('generic')}
-                  aria-pressed={inviteType === 'generic'}
-                  className={clsx(
-                    'flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-colors',
-                    inviteType === 'generic'
-                      ? 'bg-purple-100 text-purple-700'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  )}
-                >
-                  <LinkIcon className="w-4 h-4" />
-                  Generic Link
-                </button>
-              </div>
+              <SegmentedControl
+                label="Invite Type"
+                variant="soft"
+                block
+                value={inviteType}
+                onChange={setInviteType}
+                options={[
+                  { value: 'email', label: 'Email Invite', icon: <Mail /> },
+                  { value: 'generic', label: 'Generic Link', icon: <LinkIcon /> },
+                ]}
+              />
             </div>
 
             {inviteType === 'email' ? (
-              <div>
-                <label
-                  htmlFor="invite-email"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  Email Address
-                </label>
-                <input
-                  id="invite-email"
+              <Field label="Email Address" id="invite-email">
+                <Input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="input"
                   placeholder="colleague@company.com"
                   required
                   autoFocus
                 />
-              </div>
+              </Field>
             ) : (
               <div className="bg-purple-50 rounded-lg p-4 space-y-3">
                 <div className="flex items-start gap-3">
@@ -182,21 +150,13 @@ export function InviteMemberDialog({
                     </p>
                   </div>
                 </div>
-                <div>
-                  <label
-                    htmlFor="invite-max-uses"
-                    className="block text-sm font-medium text-purple-900 mb-1"
-                  >
-                    Usage Limit
-                  </label>
-                  <select
-                    id="invite-max-uses"
+                <Field label="Usage Limit" id="invite-max-uses" labelClassName="!text-purple-900">
+                  <Select
                     value={maxUses === null ? 'unlimited' : maxUses}
                     onChange={(e) => {
                       const val = e.target.value;
                       setMaxUses(val === 'unlimited' ? null : Number(val));
                     }}
-                    className="input bg-white"
                   >
                     {MAX_USES_OPTIONS.map((opt) => (
                       <option
@@ -206,13 +166,16 @@ export function InviteMemberDialog({
                         {opt.label}
                       </option>
                     ))}
-                  </select>
-                </div>
+                  </Select>
+                </Field>
               </div>
             )}
 
             <div>
-              <span id="invite-role-label" className="block text-sm font-medium text-gray-700 mb-2">
+              <span
+                id="invite-role-label"
+                className="block text-sm font-medium text-neutral-700 mb-2"
+              >
                 Role
               </span>
               <div
@@ -228,14 +191,14 @@ export function InviteMemberDialog({
                     'p-3 rounded-lg border-2 text-left transition-colors',
                     role === 'member'
                       ? 'border-primary-500 bg-primary-50'
-                      : 'border-gray-200 hover:border-gray-300'
+                      : 'border-neutral-200 hover:border-neutral-300'
                   )}
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <User className="w-4 h-4 text-gray-600" />
-                    <span className="font-medium text-gray-900">Member</span>
+                    <User className="w-4 h-4 text-neutral-600" />
+                    <span className="font-medium text-neutral-900">Member</span>
                   </div>
-                  <p className="text-xs text-gray-500">Can view and edit tasks, create views</p>
+                  <p className="text-xs text-neutral-500">Can view and edit tasks, create views</p>
                 </button>
 
                 <button
@@ -246,29 +209,30 @@ export function InviteMemberDialog({
                     'p-3 rounded-lg border-2 text-left transition-colors',
                     role === 'admin'
                       ? 'border-primary-500 bg-primary-50'
-                      : 'border-gray-200 hover:border-gray-300'
+                      : 'border-neutral-200 hover:border-neutral-300'
                   )}
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <Shield className="w-4 h-4 text-blue-600" />
-                    <span className="font-medium text-gray-900">Admin</span>
+                    <span className="font-medium text-neutral-900">Admin</span>
                   </div>
-                  <p className="text-xs text-gray-500">Full access including member management</p>
+                  <p className="text-xs text-neutral-500">
+                    Full access including member management
+                  </p>
                 </button>
               </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
-              <button type="button" onClick={onClose} className="btn btn-secondary">
+              <Button variant="secondary" onClick={onClose}>
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
                 disabled={isSubmitting || (inviteType === 'email' && !email.trim())}
-                className="btn btn-primary"
               >
                 {isSubmitting ? 'Creating...' : 'Create Invitation'}
-              </button>
+              </Button>
             </div>
           </form>
         ) : (
@@ -286,7 +250,7 @@ export function InviteMemberDialog({
                   <Check className="w-6 h-6 text-green-600" />
                 )}
               </div>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-neutral-600">
                 {createdInvitation?.isGeneric ? (
                   'Generic invite link created'
                 ) : (
@@ -301,13 +265,13 @@ export function InviteMemberDialog({
             <div
               className={clsx(
                 'rounded-lg p-4',
-                createdInvitation?.isGeneric ? 'bg-purple-50' : 'bg-gray-50'
+                createdInvitation?.isGeneric ? 'bg-purple-50' : 'bg-neutral-50'
               )}
             >
               <p
                 className={clsx(
                   'block text-sm font-medium mb-2',
-                  createdInvitation?.isGeneric ? 'text-purple-900' : 'text-gray-700'
+                  createdInvitation?.isGeneric ? 'text-purple-900' : 'text-neutral-700'
                 )}
               >
                 Invite Link
@@ -318,42 +282,30 @@ export function InviteMemberDialog({
                     'flex-1 flex items-center gap-2 px-3 py-2 border rounded-lg text-sm overflow-hidden',
                     createdInvitation?.isGeneric
                       ? 'bg-white border-purple-200 text-purple-700'
-                      : 'bg-white border-gray-200 text-gray-600'
+                      : 'bg-white border-neutral-200 text-neutral-600'
                   )}
                 >
                   <LinkIcon
                     className={clsx(
                       'w-4 h-4 flex-shrink-0',
-                      createdInvitation?.isGeneric ? 'text-purple-400' : 'text-gray-400'
+                      createdInvitation?.isGeneric ? 'text-purple-400' : 'text-neutral-400'
                     )}
                   />
                   <span className="truncate">{createdInvitation?.inviteUrl}</span>
                 </div>
-                <button
-                  type="button"
+                <Button
+                  variant="secondary"
                   onClick={() => void handleCopyLink()}
-                  className={clsx(
-                    'btn',
-                    copied ? 'bg-green-100 text-green-700 border-green-200' : 'btn-secondary'
-                  )}
+                  leadingIcon={copied ? <Check /> : <Copy />}
+                  className={clsx(copied && 'bg-green-100 text-green-700 border-green-200')}
                 >
-                  {copied ? (
-                    <>
-                      <Check className="w-4 h-4 mr-1" />
-                      Copied
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-4 h-4 mr-1" />
-                      Copy
-                    </>
-                  )}
-                </button>
+                  {copied ? 'Copied' : 'Copy'}
+                </Button>
               </div>
               <p
                 className={clsx(
                   'text-xs mt-2',
-                  createdInvitation?.isGeneric ? 'text-purple-700' : 'text-gray-500'
+                  createdInvitation?.isGeneric ? 'text-purple-700' : 'text-neutral-500'
                 )}
               >
                 {createdInvitation?.isGeneric ? (
@@ -370,21 +322,17 @@ export function InviteMemberDialog({
             </div>
 
             <div className="flex justify-between items-center pt-2">
-              <button
-                onClick={handleInviteAnother}
-                className="text-sm text-primary-600 hover:text-primary-700"
-              >
+              <Button variant="link" onClick={handleInviteAnother}>
                 + Create another invite
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   onInvited();
                   onClose();
                 }}
-                className="btn btn-primary"
               >
                 Done
-              </button>
+              </Button>
             </div>
           </div>
         )}

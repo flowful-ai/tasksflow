@@ -9,7 +9,16 @@ import { usePublicShare } from '../hooks/queries';
 import { TaskDisplayContainer } from '../components/task-display/TaskDisplayContainer';
 import type { TaskCardTask } from '../components/task-display/TaskCard';
 import { TaskDetailSheet } from '../components/tasks/TaskDetailSheet';
-import { EmptyState, ErrorState, PageSpinner } from '../components/ui';
+import {
+  Button,
+  Card,
+  EmptyState,
+  ErrorState,
+  Field,
+  Input,
+  PageHeader,
+  PageSpinner,
+} from '../components/ui';
 
 export function PublicSharePage() {
   const { token } = useParams<{ token: string }>();
@@ -41,18 +50,18 @@ export function PublicSharePage() {
   };
 
   if (isLoading) {
-    return <PageSpinner className="min-h-screen bg-gray-50" label="Loading shared view" />;
+    return <PageSpinner className="min-h-screen bg-neutral-50" label="Loading shared view" />;
   }
 
   if (error || !data) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-gray-50">
+      <main className="min-h-screen flex items-center justify-center bg-neutral-50">
         <ErrorState
           error={error}
           resource="share link"
           onRetry={() => window.location.reload()}
           notFoundAction={
-            <p className="text-sm text-gray-500">The link may have expired or been disabled.</p>
+            <p className="text-sm text-neutral-500">The link may have expired or been disabled.</p>
           }
         />
       </main>
@@ -62,14 +71,14 @@ export function PublicSharePage() {
   // Password required
   if (data.requiresPassword) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
+      <main className="min-h-screen flex items-center justify-center bg-neutral-50 py-12 px-4">
         <div className="max-w-md w-full">
           <div className="text-center mb-8">
-            <div className="mx-auto w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-              <Lock className="w-6 h-6 text-gray-600" />
+            <div className="mx-auto w-12 h-12 bg-neutral-100 rounded-full flex items-center justify-center mb-4">
+              <Lock className="w-6 h-6 text-neutral-600" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">Protected Share</h1>
-            <p className="text-gray-600 mt-2">This view is password protected</p>
+            <h1 className="text-2xl font-bold text-neutral-900">Protected Share</h1>
+            <p className="text-neutral-600 mt-2">This view is password protected</p>
           </div>
 
           <form onSubmit={handlePasswordSubmit} className="card p-6">
@@ -79,24 +88,19 @@ export function PublicSharePage() {
               </div>
             )}
 
-            <div className="mb-4">
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                Password
-              </label>
-              <input
-                id="password"
+            <Field label="Password" id="password" className="mb-4">
+              <Input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="input"
                 placeholder="Enter password"
                 required
               />
-            </div>
+            </Field>
 
-            <button type="submit" className="btn btn-primary w-full">
+            <Button type="submit" block>
               View Share
-            </button>
+            </Button>
           </form>
         </div>
       </main>
@@ -126,9 +130,9 @@ export function PublicSharePage() {
   }));
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-neutral-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200">
+      <header className="bg-white border-b border-neutral-200">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center space-x-2">
             <div
@@ -145,21 +149,19 @@ export function PublicSharePage() {
                 <path d="M5 12l5 5L19 7" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
-            <span className="text-lg font-semibold text-gray-900">TasksFlow</span>
+            <span className="text-lg font-semibold text-neutral-900">TasksFlow</span>
           </div>
         </div>
       </header>
 
       {/* Content */}
       <main className="max-w-7xl mx-auto px-4 py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">{view?.name}</h1>
-          <p className="text-gray-600 mt-1">
-            {tasks.length} task{tasks.length !== 1 ? 's' : ''}
-          </p>
-        </div>
+        <PageHeader
+          title={view?.name}
+          description={`${tasks.length} task${tasks.length !== 1 ? 's' : ''}`}
+        />
 
-        <div className="card p-4">
+        <Card padding="sm">
           {taskCards.length === 0 ? (
             <EmptyState
               title="No tasks to display"
@@ -176,12 +178,12 @@ export function PublicSharePage() {
               allowDragDrop={false}
             />
           )}
-        </div>
+        </Card>
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-gray-200 mt-12">
-        <div className="max-w-7xl mx-auto px-4 py-4 text-center text-sm text-gray-500">
+      <footer className="border-t border-neutral-200 mt-12">
+        <div className="max-w-7xl mx-auto px-4 py-4 text-center text-sm text-neutral-500">
           Shared via TasksFlow
         </div>
       </footer>

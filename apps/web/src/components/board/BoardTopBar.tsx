@@ -19,7 +19,9 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   Kbd,
+  SegmentedControl,
   Spinner,
+  type SegmentedOption,
 } from '../ui';
 import {
   DUE_LABELS,
@@ -57,6 +59,11 @@ interface BoardTopBarProps {
 }
 
 const DUE_VALUES: readonly DueFilter[] = ['overdue', 'week', 'none'];
+
+const VIEW_OPTIONS: ReadonlyArray<SegmentedOption<ProjectViewMode>> = [
+  { value: 'kanban', label: 'Board' },
+  { value: 'list', label: 'List' },
+];
 
 const chipBase =
   'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-[3px] text-[12.5px] transition-colors';
@@ -105,28 +112,12 @@ export function BoardTopBar({
         </ol>
       </nav>
 
-      <div
-        role="group"
-        aria-label="View"
-        className="flex overflow-hidden rounded-lg border border-neutral-200 text-[12.5px]"
-      >
-        {(['kanban', 'list'] as const).map((mode) => (
-          <button
-            key={mode}
-            type="button"
-            aria-pressed={viewMode === mode}
-            onClick={() => onViewModeChange(mode)}
-            className={clsx(
-              'px-2.5 py-1 font-medium',
-              viewMode === mode
-                ? 'bg-neutral-100 font-semibold text-neutral-900'
-                : 'text-neutral-500 hover:text-neutral-800'
-            )}
-          >
-            {mode === 'kanban' ? 'Board' : 'List'}
-          </button>
-        ))}
-      </div>
+      <SegmentedControl
+        label="View"
+        value={viewMode}
+        onChange={onViewModeChange}
+        options={VIEW_OPTIONS}
+      />
 
       {filters.assigneeIds.length === 0 && currentUserId && (
         <button

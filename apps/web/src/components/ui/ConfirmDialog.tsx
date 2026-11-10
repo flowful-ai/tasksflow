@@ -16,9 +16,8 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
-import clsx from 'clsx';
 import { Dialog } from './Dialog';
-import { Spinner } from './Spinner';
+import { Button } from './Button';
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -93,25 +92,22 @@ export function ConfirmDialog({
       initialFocus={variant === 'danger' ? cancelRef : undefined}
       footer={
         <>
-          <button
+          <Button
             ref={cancelRef}
-            type="button"
-            className="btn btn-secondary"
+            variant="secondary"
             disabled={busy}
             onClick={() => onOpenChange(false)}
           >
             {cancelLabel}
-          </button>
-          <button
-            type="button"
-            className={clsx('btn', variant === 'danger' ? 'btn-danger' : 'btn-primary')}
-            disabled={busy || confirmDisabled}
-            aria-busy={busy}
+          </Button>
+          <Button
+            variant={variant === 'danger' ? 'danger' : 'primary'}
+            disabled={confirmDisabled}
+            loading={busy}
             onClick={handleConfirm}
           >
-            {busy && <Spinner size="sm" className="mr-2 text-current" label="Working" />}
             {confirmLabel}
-          </button>
+          </Button>
         </>
       }
     >
