@@ -112,7 +112,7 @@ export function TaskModal({
       title={isEditing ? 'Edit task' : 'New task'}
       size="lg"
       dismissible={!isLoading}
-      bodyClassName="!p-0"
+      bodyClassName="p-0!"
     >
       {/* Form */}
       <form onSubmit={submit} className="p-4 space-y-4">

@@ -95,9 +95,7 @@ export function AssigneeOptions({
                     <p className="text-xs text-neutral-500 truncate">{member.user.email}</p>
                   )}
                 </div>
-                {isAssigned && (
-                  <Check className="w-4 h-4 text-primary-600 flex-shrink-0" aria-hidden />
-                )}
+                {isAssigned && <Check className="w-4 h-4 text-primary-600 shrink-0" aria-hidden />}
               </button>
             );
           })

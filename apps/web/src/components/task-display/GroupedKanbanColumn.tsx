@@ -67,7 +67,7 @@ function QuickAdd({
   };
 
   return (
-    <div className="rounded-[10px] border border-neutral-300 bg-white p-2 shadow-sm">
+    <div className="rounded-[10px] border border-neutral-300 bg-white p-2 shadow-xs">
       <Input
         bare
         ref={inputRef}
@@ -91,7 +91,7 @@ function QuickAdd({
         disabled={saving}
         placeholder="Task title"
         aria-label={`New task in ${columnName}`}
-        className="w-full bg-transparent text-base outline-none placeholder:text-neutral-400 md:text-sm"
+        className="w-full bg-transparent text-base outline-hidden placeholder:text-neutral-400 md:text-sm"
       />
       <p className="mt-1 text-[11px] text-neutral-400">Enter to add · Esc to close</p>
     </div>
@@ -120,7 +120,7 @@ export const GroupedKanbanColumn = memo(function GroupedKanbanColumn({
       <section
         aria-label={`${name}, ${taskCount} tasks, collapsed`}
         data-column={id}
-        className="flex-shrink-0"
+        className="shrink-0"
       >
         <div
           ref={setNodeRef}
@@ -150,7 +150,7 @@ export const GroupedKanbanColumn = memo(function GroupedKanbanColumn({
     <section
       aria-label={`${name}, ${taskCount} tasks`}
       data-column={id}
-      className={clsx('flex flex-shrink-0 flex-col gap-2', compact ? 'w-60' : 'w-[264px]')}
+      className={clsx('flex shrink-0 flex-col gap-2', compact ? 'w-60' : 'w-[264px]')}
     >
       <header className="flex items-center gap-[7px] px-1 py-0.5 text-[13px] font-semibold text-neutral-900">
         <ColorDot color={color} size="sm" />

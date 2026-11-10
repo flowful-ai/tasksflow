@@ -29,7 +29,7 @@ export const PopoverContent = forwardRef<
         align={align}
         collisionPadding={collisionPadding}
         className={clsx(
-          'z-[60] rounded-xl border border-neutral-200 bg-white p-2 text-sm shadow-lg outline-none animate-scale-in [animation-duration:120ms]',
+          'z-60 rounded-xl border border-neutral-200 bg-white p-2 text-sm shadow-lg outline-hidden animate-scale-in [animation-duration:120ms]',
           className
         )}
         {...props}

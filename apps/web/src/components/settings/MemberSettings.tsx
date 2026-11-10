@@ -302,11 +302,11 @@ export function MemberSettings() {
     return (
       <Card aria-busy>
         <div className="animate-pulse space-y-4">
-          <div className="h-6 bg-neutral-200 rounded w-1/3" />
-          <div className="h-4 bg-neutral-200 rounded w-2/3" />
+          <div className="h-6 bg-neutral-200 rounded-sm w-1/3" />
+          <div className="h-4 bg-neutral-200 rounded-sm w-2/3" />
           <div className="space-y-3 mt-6">
-            <div className="h-16 bg-neutral-100 rounded" />
-            <div className="h-16 bg-neutral-100 rounded" />
+            <div className="h-16 bg-neutral-100 rounded-sm" />
+            <div className="h-16 bg-neutral-100 rounded-sm" />
           </div>
         </div>
       </Card>

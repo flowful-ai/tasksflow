@@ -23,11 +23,11 @@ export function Toaster() {
       toastOptions={{
         classNames: {
           toast:
-            'font-sans !rounded-xl !border !border-neutral-200 !bg-white !text-neutral-900 !shadow-card-hover text-sm',
-          title: '!font-semibold',
-          description: '!text-neutral-500',
-          error: '!border-primary-200',
-          actionButton: '!bg-neutral-900 !text-white',
+            'font-sans rounded-xl! border! border-neutral-200! bg-white! text-neutral-900! shadow-card-hover! text-sm',
+          title: 'font-semibold!',
+          description: 'text-neutral-500!',
+          error: 'border-primary-200!',
+          actionButton: 'bg-neutral-900! text-white!',
         },
       }}
     />
@@ -71,7 +71,7 @@ export function toastUndo(
         </span>
         <button
           type="button"
-          className="ml-auto rounded px-1 font-bold text-primary-300 hover:text-primary-200 focus-visible:ring-primary-300"
+          className="ml-auto rounded-sm px-1 font-bold text-primary-300 hover:text-primary-200 focus-visible:ring-primary-300"
           onClick={async () => {
             if (used) return;
             used = true;
@@ -92,7 +92,7 @@ export function toastUndo(
           Undo
         </button>
         {kbdHint && (
-          <Kbd className="!border-neutral-600 !bg-transparent !text-neutral-400" aria-hidden>
+          <Kbd className="border-neutral-600! bg-transparent! text-neutral-400!" aria-hidden>
             {kbdHint}
           </Kbd>
         )}

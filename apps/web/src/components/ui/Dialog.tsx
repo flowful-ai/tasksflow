@@ -134,7 +134,7 @@ export function Dialog({
           onPointerDownOutside={preventIfLocked}
           onInteractOutside={preventIfLocked}
           className={clsx(
-            'fixed z-50 flex flex-col bg-white shadow-xl focus:outline-none',
+            'fixed z-50 flex flex-col bg-white shadow-xl focus:outline-hidden',
             variant === 'center' && [
               // Centred with inset-0 + m-auto, not translate: the scale-in animation owns transform.
               'inset-0 m-auto h-fit w-[calc(100%-2rem)] max-h-[90vh] rounded-2xl animate-scale-in [animation-duration:150ms]',

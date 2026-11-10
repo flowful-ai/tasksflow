@@ -280,7 +280,7 @@ function CommentCard({ comment, taskId, currentUserId, canModerate, members }: C
           )}
           <b className="font-semibold text-neutral-900">{author}</b>
           {comment.agent && (
-            <span className="rounded bg-purple-100 px-1.5 text-[11px] font-medium text-purple-700">
+            <span className="rounded-sm bg-purple-100 px-1.5 text-[11px] font-medium text-purple-700">
               Agent
             </span>
           )}

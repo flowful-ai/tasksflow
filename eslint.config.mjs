@@ -107,7 +107,7 @@ export default tseslint.config(
         {
           selector:
             ':matches(Literal[value=/(^|[\\s:])gray-\\d/], TemplateElement[value.raw=/(^|[\\s:])gray-\\d/])',
-          message: 'Use the neutral-* scale (tailwind.config), not gray-*.',
+          message: 'Use the neutral-* scale (@theme in apps/web/src/index.css), not gray-*.',
         },
       ],
     },

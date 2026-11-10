@@ -43,12 +43,12 @@ const CONTENT_TONES: Record<MenuTone, string> = {
 };
 
 const ITEM_TONES: Record<MenuTone, string> = {
-  light: 'data-[highlighted]:bg-neutral-100 data-[highlighted]:text-neutral-900',
-  dark: 'data-[highlighted]:bg-sidebar-active data-[highlighted]:text-white',
+  light: 'data-highlighted:bg-neutral-100 data-highlighted:text-neutral-900',
+  dark: 'data-highlighted:bg-sidebar-active data-highlighted:text-white',
 };
 
 const ITEM_BASE =
-  'relative flex cursor-pointer select-none items-center gap-2 rounded-lg px-2.5 py-2 text-sm outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50';
+  'relative flex cursor-pointer select-none items-center gap-2 rounded-lg px-2.5 py-2 text-sm outline-hidden transition-colors data-disabled:pointer-events-none data-disabled:opacity-50';
 
 export interface DropdownMenuContentProps extends ComponentPropsWithoutRef<typeof Radix.Content> {
   tone?: MenuTone;
@@ -68,7 +68,7 @@ export const DropdownMenuContent = forwardRef<
         sideOffset={sideOffset}
         collisionPadding={collisionPadding}
         className={clsx(
-          'z-[60] min-w-[11rem] overflow-hidden rounded-xl border p-1 shadow-lg animate-scale-in [animation-duration:120ms]',
+          'z-60 min-w-44 overflow-hidden rounded-xl border p-1 shadow-lg animate-scale-in [animation-duration:120ms]',
           CONTENT_TONES[tone],
           className
         )}
@@ -119,7 +119,7 @@ export const DropdownMenuItem = forwardRef<ElementRef<typeof Radix.Item>, Dropdo
           ITEM_BASE,
           ITEM_TONES[tone],
           destructive &&
-            'text-primary-700 data-[highlighted]:bg-primary-50 data-[highlighted]:text-primary-800',
+            'text-primary-700 data-highlighted:bg-primary-50 data-highlighted:text-primary-800',
           className
         )}
         {...props}
@@ -184,7 +184,7 @@ export const DropdownMenuSubContent = forwardRef<
         ref={ref}
         sideOffset={4}
         className={clsx(
-          'z-[61] min-w-[10rem] overflow-hidden rounded-xl border p-1 shadow-lg animate-scale-in [animation-duration:120ms]',
+          'z-61 min-w-40 overflow-hidden rounded-xl border p-1 shadow-lg animate-scale-in [animation-duration:120ms]',
           CONTENT_TONES[tone],
           className
         )}

@@ -77,7 +77,7 @@ const matches = (query: string, ...fields: (string | undefined)[]) => {
 const itemClass =
   'flex cursor-pointer select-none items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-neutral-700 data-[selected=true]:bg-neutral-100 data-[selected=true]:text-neutral-950 [&_svg]:h-4 [&_svg]:w-4 [&_svg]:shrink-0 [&_svg]:text-neutral-400';
 const groupClass =
-  '[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:text-neutral-400';
+  '**:[[cmdk-group-heading]]:px-3 **:[[cmdk-group-heading]]:pb-1 **:[[cmdk-group-heading]]:pt-3 **:[[cmdk-group-heading]]:text-[11px] **:[[cmdk-group-heading]]:font-semibold **:[[cmdk-group-heading]]:uppercase **:[[cmdk-group-heading]]:tracking-wider **:[[cmdk-group-heading]]:text-neutral-400';
 
 function TaskKey({ children }: { children: ReactNode }) {
   return <span className="shrink-0 font-mono text-xs text-neutral-500">{children}</span>;
@@ -284,7 +284,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
           onValueChange={setQuery}
           placeholder="Search tasks, projects and actions…"
           aria-label="Search tasks, projects and actions"
-          className="h-12 w-full bg-transparent text-[15px] text-neutral-900 outline-none placeholder:text-neutral-400 focus:ring-0 border-0 px-0"
+          className="h-12 w-full bg-transparent text-[15px] text-neutral-900 outline-hidden placeholder:text-neutral-400 focus:ring-0 border-0 px-0"
         />
         {searching && <Spinner size="sm" label="Searching" />}
       </div>
@@ -336,10 +336,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
                 {hit.state && (
                   <span className="shrink-0 text-xs text-neutral-400">{hit.state.name}</span>
                 )}
-                <ArrowRight
-                  aria-hidden
-                  className="opacity-0 [[data-selected=true]_&]:opacity-100"
-                />
+                <ArrowRight aria-hidden className="opacity-0 in-data-[selected=true]:opacity-100" />
               </Command.Item>
             ))}
           </Command.Group>
@@ -413,7 +410,7 @@ export function CommandPalette() {
       bare
       hideTitle
       size="lg"
-      className="overflow-hidden !mt-[12vh] !mb-auto"
+      className="overflow-hidden mt-[12vh]! mb-auto!"
     >
       {/* Mounted only while open: the query resets every time. */}
       {open && <PaletteBody onClose={() => setOpen(false)} />}

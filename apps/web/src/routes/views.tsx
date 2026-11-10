@@ -71,16 +71,13 @@ function ViewCard({ view, onDelete }: ViewCardProps) {
               {/* The link's ::after covers the card so the whole card is clickable. */}
               <Link
                 to={`/view/${view.id}`}
-                className="after:absolute after:inset-0 after:content-[''] focus-visible:outline-none"
+                className="after:absolute after:inset-0 after:content-[''] focus-visible:outline-hidden"
               >
                 {view.name}
               </Link>
             </h3>
             {view.isPersonal && (
-              <Lock
-                className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0"
-                aria-label="Personal view"
-              />
+              <Lock className="w-3.5 h-3.5 text-neutral-400 shrink-0" aria-label="Personal view" />
             )}
           </div>
           {view.description && (

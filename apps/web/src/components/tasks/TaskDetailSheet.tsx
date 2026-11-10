@@ -50,7 +50,7 @@ export function TaskDetailSheet({
       size="full"
       title={task ? `${taskKeyOf(task)}: ${task.title}` : 'Task'}
       bare
-      className="animate-slide-in-right sm:!max-w-[1040px]"
+      className="animate-slide-in-right sm:max-w-[1040px]!"
     >
       <TaskDetailView
         key={currentId}

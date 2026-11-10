@@ -140,7 +140,7 @@ export function GitHubLinkSection({ taskId, projectId, externalLinks, onUpdated 
                 key={`${repo.owner}/${repo.repo}`}
                 onClick={() => createIssueMutation.mutate({ owner: repo.owner, repo: repo.repo })}
                 disabled={createIssueMutation.isPending}
-                className="w-full flex items-center justify-between px-2 py-1.5 text-sm rounded hover:bg-neutral-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-full flex items-center justify-between px-2 py-1.5 text-sm rounded-sm hover:bg-neutral-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <span className="text-neutral-700">
                   {repo.owner}/{repo.repo}

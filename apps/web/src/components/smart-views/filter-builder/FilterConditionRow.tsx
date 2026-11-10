@@ -107,7 +107,7 @@ export function FilterConditionRow({
       {/* Field selector */}
       <Select
         size="sm"
-        className="w-40 flex-shrink-0"
+        className="w-40 shrink-0"
         value={condition.field}
         onChange={(e) => handleFieldChange(e.target.value)}
         aria-label="Field"
@@ -126,7 +126,7 @@ export function FilterConditionRow({
       {/* Operator selector */}
       <Select
         size="sm"
-        className="w-36 flex-shrink-0"
+        className="w-36 shrink-0"
         value={condition.op}
         onChange={(e) => {
           if (isFilterOperator(e.target.value)) handleOperatorChange(e.target.value);

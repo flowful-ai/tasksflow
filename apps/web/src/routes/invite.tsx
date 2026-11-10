@@ -112,7 +112,7 @@ export function InvitePage() {
     <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-xl shadow-lg overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-primary-500 to-primary-600 p-6 text-white">
+        <div className="bg-linear-to-r from-primary-500 to-primary-600 p-6 text-white">
           <div className="flex items-center gap-3 mb-2">
             <Users className="w-8 h-8" />
             <h1 className="text-xl font-semibold">Workspace Invitation</h1>
@@ -192,7 +192,7 @@ export function InvitePage() {
           {isEmailMismatch && (
             <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
               <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                 <div>
                   <p className="font-medium text-amber-800">Email mismatch</p>
                   <p className="text-sm text-amber-700 mt-1">

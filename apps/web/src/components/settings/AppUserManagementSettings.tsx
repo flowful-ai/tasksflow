@@ -98,9 +98,9 @@ export function AppUserManagementSettings({ isAppManager }: AppUserManagementSet
         <ErrorState error={error} resource="user list" onRetry={() => void refetch()} />
       ) : isLoading ? (
         <div className="space-y-2" aria-busy>
-          <div className="h-12 bg-neutral-100 rounded animate-pulse" />
-          <div className="h-12 bg-neutral-100 rounded animate-pulse" />
-          <div className="h-12 bg-neutral-100 rounded animate-pulse" />
+          <div className="h-12 bg-neutral-100 rounded-sm animate-pulse" />
+          <div className="h-12 bg-neutral-100 rounded-sm animate-pulse" />
+          <div className="h-12 bg-neutral-100 rounded-sm animate-pulse" />
         </div>
       ) : (
         <ul className="border border-neutral-200 rounded-lg divide-y divide-neutral-100">

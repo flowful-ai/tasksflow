@@ -114,7 +114,7 @@ function NotificationRow({
           'relative flex w-full items-start gap-3 border-b border-neutral-100 px-4 py-3 text-left transition-colors',
           unread ? 'bg-primary-50/50' : 'bg-white',
           opened ? 'bg-neutral-100' : 'hover:bg-neutral-50',
-          active && 'outline outline-2 -outline-offset-2 outline-primary-300'
+          active && 'outline-solid outline-2 -outline-offset-2 outline-primary-300'
         )}
       >
         {unread && (

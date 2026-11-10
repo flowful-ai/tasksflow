@@ -11,7 +11,7 @@ export function Kbd({ tone = 'light', className, children, ...props }: KbdProps)
   return (
     <kbd
       className={clsx(
-        'inline-flex items-center rounded border border-b-2 px-[5px] py-[2px] font-mono text-[11px] leading-none',
+        'inline-flex items-center rounded-sm border border-b-2 px-[5px] py-[2px] font-mono text-[11px] leading-none',
         tone === 'light'
           ? 'border-neutral-300 bg-white text-neutral-600'
           : 'border-sidebar-border bg-sidebar-active text-sidebar-text',

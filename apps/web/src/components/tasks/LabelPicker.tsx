@@ -73,9 +73,7 @@ export function LabelOptions({
               >
                 <ColorDot color={label.color} size="md" />
                 <span className="flex-1 text-sm text-neutral-700 truncate">{label.name}</span>
-                {isSelected && (
-                  <Check className="w-4 h-4 text-primary-600 flex-shrink-0" aria-hidden />
-                )}
+                {isSelected && <Check className="w-4 h-4 text-primary-600 shrink-0" aria-hidden />}
               </button>
             );
           })
