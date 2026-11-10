@@ -104,7 +104,7 @@ It creates a workspace with two projects, tasks, comments, notifications and a S
 
 ```bash
 bun run dev              # API + web app
-bun run build            # production build: web app and API bundle
+bun run build            # web app, then API bundle
 bun run typecheck
 bun run lint
 bun run format:check

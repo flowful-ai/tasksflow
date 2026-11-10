@@ -78,4 +78,4 @@
   - `bun run format:check`
   - `bun run test` (database suites need `TEST_DATABASE_URL`; see `CLAUDE.md`)
   - package-scoped commands when changes are localized (`bun run --filter @flowtask/api typecheck`)
-- `packages/shared` publishes a `dist` that the web build reads. After changing it, run `bun run --filter @flowtask/shared build` before building `apps/web` on its own (`bun run build` does this first).
+- `packages/shared` has no build step: both apps read its TypeScript source through the package `exports`.
