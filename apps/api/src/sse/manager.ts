@@ -111,11 +111,3 @@ export function notifyAccessChanged(workspaceId: string, userId?: string): Promi
 export function registerClient(registration: ClientRegistration): ClientHandle {
   return hub.addClient(registration);
 }
-
-export function getWorkspaceClientCount(workspaceId: string): number {
-  return hub.getWorkspaceClientCount(workspaceId);
-}
-
-export function getTotalClientCount(): number {
-  return hub.getTotalClientCount();
-}

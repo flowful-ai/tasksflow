@@ -97,8 +97,3 @@ export async function closeDatabase(timeoutSeconds = 5): Promise<void> {
   db = null;
   await current.$client.end({ timeout: timeoutSeconds });
 }
-
-// For testing - allows resetting the singleton
-export function resetDatabase(): void {
-  db = null;
-}

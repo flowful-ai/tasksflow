@@ -220,8 +220,3 @@ export function getAuth(): Auth {
   }
   return authInstance;
 }
-
-// For testing - allows resetting the singleton
-export function resetAuth(): void {
-  authInstance = null;
-}
