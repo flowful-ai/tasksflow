@@ -11,7 +11,3 @@ export class OAuthError extends Error {
     this.oauthError = oauthError;
   }
 }
-
-export function isOAuthError(error: unknown): error is OAuthError {
-  return error instanceof OAuthError;
-}

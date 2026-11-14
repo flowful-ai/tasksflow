@@ -9,7 +9,7 @@ import * as connections from './mcp-oauth/connections.js';
 import * as metadata from './mcp-oauth/metadata.js';
 import type { McpResourcePath } from './mcp-oauth/resource.js';
 
-export { OAuthError, isOAuthError } from './mcp-oauth/errors.js';
+export { OAuthError } from './mcp-oauth/errors.js';
 export { buildS256CodeChallenge } from './mcp-oauth/crypto.js';
 export {
   McpScope,
